@@ -26,6 +26,10 @@ import com.plyr.ui.ExoPlyrScreen
 import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.TerminalTheme
 import com.plyr.viewmodel.PlayerViewModel
+import com.plyr.network.SpotifyRepository
+import com.plyr.utils.Config
+import com.plyr.utils.SpotifyAuthEvent
+import android.net.Uri
 
 class MainActivity : ComponentActivity() {
     
@@ -46,6 +50,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Manejar callback de Spotify OAuth
+        handleSpotifyCallback(intent)
         
         // Habilitar edge-to-edge para manejo del status bar
         enableEdgeToEdge()
@@ -124,6 +131,48 @@ class MainActivity : ComponentActivity() {
         if (bound) {
             unbindService(connection)
             bound = false
+        }
+    }
+    
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSpotifyCallback(intent)
+    }
+    
+    private fun handleSpotifyCallback(intent: Intent?) {
+        intent?.data?.let { uri ->
+            if (uri.scheme == "plyr" && uri.host == "spotify") {
+                val code = uri.getQueryParameter("code")
+                val error = uri.getQueryParameter("error")
+                
+                when {
+                    error != null -> {
+                        // Usuario canceló o error en autorización
+                        println("Spotify OAuth error: $error")
+                        SpotifyAuthEvent.onAuthComplete(false, "cancelled_by_user")
+                    }
+                    code != null -> {
+                        // Éxito - intercambiar código por tokens
+                        SpotifyRepository.exchangeCodeForTokens(code) { tokens, tokenError ->
+                            if (tokens != null && tokenError == null) {
+                                // Guardar tokens
+                                Config.setSpotifyTokens(
+                                    this,
+                                    tokens.accessToken,
+                                    tokens.refreshToken,
+                                    tokens.expiresIn
+                                )
+                                println("Spotify OAuth success: Tokens guardados")
+                                SpotifyAuthEvent.onAuthComplete(true, "connected_successfully")
+                            } else {
+                                println("Error intercambiando tokens: $tokenError")
+                                SpotifyAuthEvent.onAuthComplete(false, "token_exchange_failed")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

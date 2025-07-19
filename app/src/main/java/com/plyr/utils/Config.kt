@@ -9,6 +9,15 @@ object Config {
     private const val KEY_API_URL = "api_url"
     private const val KEY_API_TOKEN = "api_key"
     private const val KEY_THEME = "theme"
+    private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
+    private const val KEY_SPOTIFY_REFRESH_TOKEN = "spotify_refresh_token"
+    private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
+    
+    // Spotify API configuration
+    const val SPOTIFY_CLIENT_ID = "fa1672edc95445519e1d57db29d2b6e2"
+    const val SPOTIFY_CLIENT_SECRET = "c059755ebd844251bc7273d0daadbb8b"
+    const val SPOTIFY_REDIRECT_URI = "plyr://spotify/callback"
+    const val SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative"
     
     private fun getPrefs(context: Context): SharedPreferences {
         return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -36,5 +45,42 @@ object Config {
     
     fun getTheme(context: Context): String {
         return getPrefs(context).getString(KEY_THEME, "dark") ?: "dark"
+    }
+    
+    // Spotify token management
+    fun setSpotifyTokens(context: Context, accessToken: String, refreshToken: String?, expiresIn: Int) {
+        val expiryTime = System.currentTimeMillis() + (expiresIn * 1000L)
+        getPrefs(context).edit { 
+            putString(KEY_SPOTIFY_ACCESS_TOKEN, accessToken)
+            refreshToken?.let { putString(KEY_SPOTIFY_REFRESH_TOKEN, it) }
+            putLong(KEY_SPOTIFY_TOKEN_EXPIRY, expiryTime)
+        }
+    }
+    
+    fun getSpotifyAccessToken(context: Context): String? {
+        val token = getPrefs(context).getString(KEY_SPOTIFY_ACCESS_TOKEN, null)
+        val expiryTime = getPrefs(context).getLong(KEY_SPOTIFY_TOKEN_EXPIRY, 0)
+        
+        // Check if token is expired
+        if (token != null && System.currentTimeMillis() < expiryTime) {
+            return token
+        }
+        return null
+    }
+    
+    fun getSpotifyRefreshToken(context: Context): String? {
+        return getPrefs(context).getString(KEY_SPOTIFY_REFRESH_TOKEN, null)
+    }
+    
+    fun clearSpotifyTokens(context: Context) {
+        getPrefs(context).edit { 
+            remove(KEY_SPOTIFY_ACCESS_TOKEN)
+            remove(KEY_SPOTIFY_REFRESH_TOKEN)
+            remove(KEY_SPOTIFY_TOKEN_EXPIRY)
+        }
+    }
+    
+    fun isSpotifyConnected(context: Context): Boolean {
+        return getSpotifyAccessToken(context) != null || getSpotifyRefreshToken(context) != null
     }
 }

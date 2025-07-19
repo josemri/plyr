@@ -20,15 +20,22 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Plyr"
         tools:targetApi="31">
-        
-        <activity
+          <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Plyr">
+            android:theme="@style/Theme.Plyr"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            
+            <!-- Intent filter para callback de Spotify -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="plyr" android:host="spotify" />
             </intent-filter>
         </activity>
 
