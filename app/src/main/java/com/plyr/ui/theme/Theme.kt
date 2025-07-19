@@ -19,60 +19,56 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 // Define Colors
-private val TerminalGreen = Color(0xFF00FF00)
-private val TerminalBlack = Color.Black // Or Color(0xFF000000)
+private val TerminalGreen = Color(0xFF4ECDC4)  // Verde agua terminal
+private val TerminalBlack = Color(0xFF1A1A1A)  // Negro terminal
+private val TerminalGray = Color(0xFF95A5A6)   // Gris terminal
+private val TerminalYellow = Color(0xFFFFD93D) // Amarillo terminal
+private val TerminalRed = Color(0xFFFF6B6B)    // Rojo terminal
 
 // Define Color Scheme
 private val TerminalColorScheme = darkColorScheme(
     primary = TerminalGreen,
-    onPrimary = TerminalBlack,      // Text/icons on primary background
+    onPrimary = TerminalBlack,
     background = TerminalBlack,
-    onBackground = TerminalGreen,   // Text/icons on background
-    surface = TerminalBlack,        // Color of components like Cards, Sheets, Menus
-    onSurface = TerminalGreen,      // Text/icons on surface
-    // You might want to define other colors too for a complete theme:
-    // secondary = ...,
-    // onSecondary = ...,
-    // error = ...,
-    // onError = ...,
-    // surfaceVariant = ..., // A subtle variation of surface
-    // onSurfaceVariant = ...,
-    // outline = ...,
+    onBackground = TerminalGreen,
+    surface = TerminalBlack,
+    onSurface = TerminalGreen,
+    secondary = TerminalGray,
+    onSecondary = TerminalBlack,
+    error = TerminalRed,
+    onError = TerminalBlack,
+    surfaceVariant = Color(0xFF2C2C2C),
+    onSurfaceVariant = TerminalGray,
+    outline = TerminalGray.copy(alpha = 0.5f),
 )
+
 
 @Composable
 fun adaptiveTypography(): Typography {
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp
 
-    // Define factor o base para escalar tamaño de fuente, ej:
-    val scaleFactor = when {
-        screenWidthDp > 600 -> 0.5f  // tablets o pantallas grandes
-        screenWidthDp > 400 -> 0.5f  // móviles medianos
-        else -> 0.1f                   // móviles pequeños
-    }
-
-    // Aplica el scaleFactor a los tamaños base, ej. 22.sp * scaleFactor
+    // Tamaños más grandes y legibles para terminal
     return Typography(
-        displayLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (57 * scaleFactor).sp, color = TerminalGreen),
-        displayMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (45 * scaleFactor).sp, color = TerminalGreen),
-        displaySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (36 * scaleFactor).sp, color = TerminalGreen),
+        displayLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 32.sp, color = TerminalGreen),
+        displayMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 28.sp, color = TerminalGreen),
+        displaySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 24.sp, color = TerminalGreen),
 
-        headlineLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (32 * scaleFactor).sp, color = TerminalGreen),
-        headlineMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (28 * scaleFactor).sp, color = TerminalGreen),
-        headlineSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (24 * scaleFactor).sp, color = TerminalGreen),
+        headlineLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 22.sp, color = TerminalGreen),
+        headlineMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 20.sp, color = TerminalGreen),
+        headlineSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, color = TerminalGreen),
 
-        titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (22 * scaleFactor).sp, color = TerminalGreen),
-        titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (34 * scaleFactor).sp, color = TerminalGreen),
-        titleSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (14 * scaleFactor).sp, color = TerminalGreen),
+        titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, color = TerminalGreen),
+        titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = TerminalGreen),
+        titleSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = TerminalGreen),
 
-        bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (30 * scaleFactor).sp, color = TerminalGreen),
-        bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (14 * scaleFactor).sp, color = TerminalGreen),
-        bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (12 * scaleFactor).sp, color = TerminalGreen),
+        bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = TerminalGreen),
+        bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = TerminalGreen),
+        bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = TerminalGreen),
 
-        labelLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (14 * scaleFactor).sp, color = TerminalGreen),
-        labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (12 * scaleFactor).sp, color = TerminalGreen),
-        labelSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = (11 * scaleFactor).sp, color = TerminalGreen),
+        labelLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = TerminalGreen),
+        labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = TerminalGreen),
+        labelSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = TerminalGreen),
     )
 }
 

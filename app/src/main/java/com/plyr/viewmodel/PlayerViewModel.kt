@@ -19,6 +19,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _audioUrl = MutableLiveData<String?>()
     val audioUrl: LiveData<String?> = _audioUrl
     
+    private val _currentTitle = MutableLiveData<String?>()
+    val currentTitle: LiveData<String?> = _currentTitle
+    
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
     
@@ -34,10 +37,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
     
-    fun loadAudio(videoId: String) {
-        println("PlayerViewModel: Cargando audio para video ID: $videoId")
+    fun loadAudio(videoId: String, title: String? = null) {
+        println("PlayerViewModel: Cargando audio para video ID: $videoId con título: $title")
         _isLoading.postValue(true)
         _error.postValue(null)
+        _currentTitle.postValue(title)
         
         AudioRepository.requestAudioUrl(videoId) { result ->
             // Ejecutar en el hilo principal para poder usar ExoPlayer
@@ -75,16 +79,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
     
     fun pausePlayer() {
-        _exoPlayer?.pause()
+        mainHandler.post {
+            _exoPlayer?.pause()
+        }
     }
     
     fun playPlayer() {
-        _exoPlayer?.play()
+        mainHandler.post {
+            _exoPlayer?.play()
+        }
+    }
+    
+    fun seekTo(positionMs: Long) {
+        mainHandler.post {
+            _exoPlayer?.seekTo(positionMs)
+        }
+    }
+    
+    fun getCurrentPosition(): Long {
+        return _exoPlayer?.currentPosition ?: 0L
+    }
+    
+    fun getDuration(): Long {
+        return _exoPlayer?.duration?.takeIf { it > 0 } ?: 0L
+    }
+    
+    fun isPlaying(): Boolean {
+        return _exoPlayer?.isPlaying ?: false
     }
     
     override fun onCleared() {
         super.onCleared()
-        _exoPlayer?.release()
-        _exoPlayer = null
+        mainHandler.post {
+            _exoPlayer?.release()
+            _exoPlayer = null
+        }
     }
 }
