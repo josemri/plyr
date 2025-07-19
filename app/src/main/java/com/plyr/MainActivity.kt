@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = 140.dp) // Menos espacio para controles más minimalistas
+                            .padding(bottom = 180.dp) // Más espacio para evitar superposición
                     ) {
                         when (currentScreen) {
                             "player" -> {

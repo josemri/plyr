@@ -17,6 +17,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -38,27 +39,30 @@ fun MarqueeText(
     color: Color = MaterialTheme.colorScheme.onSurface,
     maxLines: Int = 1
 ) {
-    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
     var textWidth by remember { mutableStateOf(0) }
     var containerWidth by remember { mutableStateOf(0) }
     val shouldAnimate = textWidth > containerWidth && containerWidth > 0
     
-    val animationSpec = infiniteRepeatable<Float>(
-        animation = tween(
-            durationMillis = if (shouldAnimate) (text.length * 100) else 0,
-            easing = LinearEasing
-        ),
-        repeatMode = RepeatMode.Restart
-    )
+    val infiniteTransition = rememberInfiniteTransition(label = "marquee")
     
-    val animatedOffset by animateFloatAsState(
+    val animatedOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
         targetValue = if (shouldAnimate) -(textWidth - containerWidth).toFloat() else 0f,
-        animationSpec = animationSpec,
-        label = "marquee_offset"
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = if (shouldAnimate) maxOf(text.length * 100, 3000) else 0,
+                easing = LinearEasing,
+                delayMillis = 1500 // Pausa al inicio
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "marquee_animation"
     )
     
     Box(
         modifier = modifier
+            .clipToBounds()
             .onSizeChanged { size ->
                 containerWidth = size.width
             }
@@ -68,12 +72,13 @@ fun MarqueeText(
             style = style,
             color = color,
             maxLines = maxLines,
-            overflow = TextOverflow.Clip,
+            overflow = TextOverflow.Visible,
+            softWrap = false,
             modifier = Modifier
                 .onSizeChanged { size ->
                     textWidth = size.width
                 }
-                .offset(x = with(LocalDensity.current) { animatedOffset.toDp() })
+                .offset(x = with(density) { animatedOffset.toDp() })
         )
     }
 }
