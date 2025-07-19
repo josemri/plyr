@@ -2,6 +2,7 @@ package com.plyr.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -18,86 +19,134 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-// Define Colors
-private val TerminalGreen = Color(0xFF4ECDC4)  // Verde agua terminal
-private val TerminalBlack = Color(0xFF1A1A1A)  // Negro terminal
-private val TerminalGray = Color(0xFF95A5A6)   // Gris terminal
-private val TerminalYellow = Color(0xFFFFD93D) // Amarillo terminal
-private val TerminalRed = Color(0xFFFF6B6B)    // Rojo terminal
+// Dark Theme Colors
+private val DarkTerminalGreen = Color(0xFF4ECDC4)
+private val DarkTerminalBlack = Color(0xFF1A1A1A)
+private val DarkTerminalGray = Color(0xFF95A5A6)
+private val DarkTerminalYellow = Color(0xFFFFD93D)
+private val DarkTerminalRed = Color(0xFFFF6B6B)
+private val DarkTerminalWhite = Color(0xFFE0E0E0)
 
-// Define Color Scheme
-private val TerminalColorScheme = darkColorScheme(
-    primary = TerminalGreen,
-    onPrimary = TerminalBlack,
-    background = TerminalBlack,
-    onBackground = TerminalGreen,
-    surface = TerminalBlack,
-    onSurface = TerminalGreen,
-    secondary = TerminalGray,
-    onSecondary = TerminalBlack,
-    error = TerminalRed,
-    onError = TerminalBlack,
+// Light Theme Colors
+private val LightTerminalGreen = Color(0xFF2D7A78)
+private val LightTerminalWhite = Color(0xFFFAFAFA)
+private val LightTerminalDarkGray = Color(0xFF2C3E50)
+private val LightTerminalYellow = Color(0xFFE67E22)
+private val LightTerminalRed = Color(0xFFE74C3C)
+private val LightTerminalBlack = Color(0xFF1A1A1A)
+
+// Dark Color Scheme
+private val DarkTerminalColorScheme = darkColorScheme(
+    primary = DarkTerminalGreen,
+    onPrimary = DarkTerminalBlack,
+    background = DarkTerminalBlack,
+    onBackground = DarkTerminalWhite,
+    surface = DarkTerminalBlack,
+    onSurface = DarkTerminalWhite,
+    secondary = DarkTerminalGray,
+    onSecondary = DarkTerminalBlack,
+    error = DarkTerminalRed,
+    onError = DarkTerminalBlack,
     surfaceVariant = Color(0xFF2C2C2C),
-    onSurfaceVariant = TerminalGray,
-    outline = TerminalGray.copy(alpha = 0.5f),
+    onSurfaceVariant = DarkTerminalGray,
+    outline = DarkTerminalGray.copy(alpha = 0.5f),
+)
+
+// Light Color Scheme
+private val LightTerminalColorScheme = lightColorScheme(
+    primary = LightTerminalGreen,
+    onPrimary = LightTerminalWhite,
+    background = LightTerminalWhite,
+    onBackground = LightTerminalBlack,
+    surface = LightTerminalWhite,
+    onSurface = LightTerminalBlack,
+    secondary = LightTerminalDarkGray,
+    onSecondary = LightTerminalWhite,
+    error = LightTerminalRed,
+    onError = LightTerminalWhite,
+    surfaceVariant = Color(0xFFF5F5F5),
+    onSurfaceVariant = LightTerminalDarkGray,
+    outline = LightTerminalDarkGray.copy(alpha = 0.5f),
 )
 
 
 @Composable
-fun adaptiveTypography(): Typography {
+fun adaptiveTypography(isDark: Boolean): Typography {
     val configuration = LocalConfiguration.current
-    val screenWidthDp = configuration.screenWidthDp
+    val textColor = if (isDark) DarkTerminalWhite else LightTerminalBlack
+    val accentColor = if (isDark) DarkTerminalGreen else LightTerminalGreen
 
-    // Tamaños más grandes y legibles para terminal
     return Typography(
-        displayLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 32.sp, color = TerminalGreen),
-        displayMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 28.sp, color = TerminalGreen),
-        displaySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 24.sp, color = TerminalGreen),
+        displayLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 32.sp, color = accentColor),
+        displayMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 28.sp, color = accentColor),
+        displaySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 24.sp, color = accentColor),
 
-        headlineLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 22.sp, color = TerminalGreen),
-        headlineMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 20.sp, color = TerminalGreen),
-        headlineSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, color = TerminalGreen),
+        headlineLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 22.sp, color = accentColor),
+        headlineMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 20.sp, color = accentColor),
+        headlineSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, color = accentColor),
 
-        titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, color = TerminalGreen),
-        titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = TerminalGreen),
-        titleSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = TerminalGreen),
+        titleLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 18.sp, color = textColor),
+        titleMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = textColor),
+        titleSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = textColor),
 
-        bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = TerminalGreen),
-        bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = TerminalGreen),
-        bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = TerminalGreen),
+        bodyLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 16.sp, color = textColor),
+        bodyMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = textColor),
+        bodySmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = textColor),
 
-        labelLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = TerminalGreen),
-        labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = TerminalGreen),
-        labelSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = TerminalGreen),
+        labelLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = textColor),
+        labelMedium = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp, color = textColor),
+        labelSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = textColor),
     )
 }
 
 @Composable
-fun TerminalTheme(content: @Composable () -> Unit) {
+fun TerminalTheme(
+    isDark: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    val colorScheme = if (isDark) DarkTerminalColorScheme else LightTerminalColorScheme
+    
     MaterialTheme(
-        colorScheme = TerminalColorScheme,
-        typography = adaptiveTypography(),
+        colorScheme = colorScheme,
+        typography = adaptiveTypography(isDark),
         content = content
     )
 }
 
 @Preview(showBackground = true)
 @Composable
-fun PreviewTerminalTheme() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Hello, Terminal Theme!", style = MaterialTheme.typography.titleLarge)
+fun PreviewTerminalThemeDark() {
+    TerminalTheme(isDark = true) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Hello, Dark Terminal Theme!", style = MaterialTheme.typography.titleLarge)
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewTerminalThemeLight() {
+    TerminalTheme(isDark = false) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Hello, Light Terminal Theme!", style = MaterialTheme.typography.titleLarge)
+        }
     }
 }
 
 @Preview(showBackground = true, widthDp = 320, heightDp = 640)
 @Composable
 fun TerminalThemePreview() {
-    TerminalTheme {
+    TerminalTheme(isDark = true) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -115,7 +164,7 @@ fun TerminalThemePreview() {
 @Preview(showBackground = true, widthDp = 320, heightDp = 200, name = "Terminal Colors Demo")
 @Composable
 fun TerminalColorsPreview() {
-    TerminalTheme {
+    TerminalTheme(isDark = true) {
         Box(
             modifier = Modifier
                 .fillMaxSize()

@@ -58,8 +58,12 @@ class MainActivity : ComponentActivity() {
             val playerViewModel: PlayerViewModel = viewModel()
             var currentScreen by remember { mutableStateOf("list") }
             var selectedVideoId by remember { mutableStateOf<String?>(null) }
+            
+            // Obtener el tema seleccionado
+            val selectedTheme = remember { mutableStateOf(com.plyr.utils.Config.getTheme(this@MainActivity)) }
+            val isDarkTheme = selectedTheme.value == "dark"
 
-            TerminalTheme {
+            TerminalTheme(isDark = isDarkTheme) {
                 // Main container with floating controls at bottom
                 Box(
                     modifier = Modifier
@@ -82,14 +86,18 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             else -> {
-                                AudioListScreen(this@MainActivity) { videoId, title ->
-                                    selectedVideoId = videoId
-                                    playerViewModel.initializePlayer()
-                                    playerViewModel.loadAudio(videoId, title)
-                                    musicService?.playAudio(videoId)
-                                    // Stay on list screen instead of switching to player
-                                    // currentScreen = "player"
-                                }
+                                AudioListScreen(
+                                    context = this@MainActivity,
+                                    onVideoSelected = { videoId, title ->
+                                        selectedVideoId = videoId
+                                        playerViewModel.initializePlayer()
+                                        playerViewModel.loadAudio(videoId, title)
+                                        musicService?.playAudio(videoId)
+                                    },
+                                    onThemeChanged = { newTheme ->
+                                        selectedTheme.value = newTheme
+                                    }
+                                )
                             }
                         }
                     }

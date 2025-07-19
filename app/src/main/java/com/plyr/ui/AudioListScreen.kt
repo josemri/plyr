@@ -1,7 +1,6 @@
 package com.plyr.ui
 
 import android.content.Context
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +25,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -42,7 +42,8 @@ enum class Screen {
 @Composable
 fun AudioListScreen(
     context: Context,
-    onVideoSelected: (String, String) -> Unit
+    onVideoSelected: (String, String) -> Unit,
+    onThemeChanged: (String) -> Unit = {}
 ) {
     var currentScreen by remember { mutableStateOf(Screen.MAIN) }
     
@@ -54,7 +55,8 @@ fun AudioListScreen(
         )
         Screen.CONFIG -> ConfigScreen(
             context = context,
-            onBack = { currentScreen = Screen.MAIN }
+            onBack = { currentScreen = Screen.MAIN },
+            onThemeChanged = onThemeChanged
         )
     }
 }
@@ -158,12 +160,12 @@ fun MainScreen(
             ),
             enabled = !isLoading,
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF4ECDC4),
-                unfocusedBorderColor = Color(0xFF95A5A6),
-                focusedLabelColor = Color(0xFF4ECDC4),
-                unfocusedLabelColor = Color(0xFF95A5A6),
-                focusedTextColor = Color(0xFFE0E0E0),
-                unfocusedTextColor = Color(0xFFE0E0E0)
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             ),
             textStyle = MaterialTheme.typography.bodyLarge.copy(
                 fontFamily = FontFamily.Monospace,
@@ -312,15 +314,17 @@ fun MarqueeText(
 @Composable
 fun ConfigScreen(
     context: Context,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onThemeChanged: (String) -> Unit = {}
 ) {
-    var apiUrl by remember { mutableStateOf(Config.getApiUrl(context)) }
+    var ngrokUrl by remember { mutableStateOf(Config.getNgrokUrl(context)) }
     var apiToken by remember { mutableStateOf(Config.getApiToken(context)) }
+    var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
     
     // Guardar automáticamente cuando cambien los valores
-    LaunchedEffect(apiUrl) {
-        if (apiUrl.isNotBlank()) {
-            Config.setApiUrl(context, apiUrl)
+    LaunchedEffect(ngrokUrl) {
+        if (ngrokUrl.isNotBlank()) {
+            Config.setNgrokUrl(context, ngrokUrl)
         }
     }
     
@@ -330,80 +334,142 @@ fun ConfigScreen(
         }
     }
     
+    LaunchedEffect(selectedTheme) {
+        Config.setTheme(context, selectedTheme)
+        onThemeChanged(selectedTheme)
+    }
+    
     val haptic = LocalHapticFeedback.current
+
+    var dragOffsetX by remember { mutableStateOf(0f) }
 
     Column(
         Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header de configuración
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            /*
-            Text(
-                text = "$ plyr_config",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 20.sp,
-                    color = Color(0xFF4ECDC4)
-                )
-            )
-            */
-
-            var dragOffsetX by remember { mutableStateOf(0f) }
-
-            Text(
-                text = "$ plyr_config",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 20.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
-                modifier = Modifier
-                    .padding(bottom = 16.dp)
-                    .offset(x = dragOffsetX.dp)
-                    .pointerInput(Unit) {
-                        detectHorizontalDragGestures(
-                            onDragEnd = {
-                                if (abs(dragOffsetX) > 10 && dragOffsetX < 0) {
-                                    onBack()
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                                dragOffsetX = 0f
+        // Header de configuración con detección de deslizamiento
+        Text(
+            text = "$ plyr_config",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier
+                .padding(bottom = 16.dp)
+                .offset(x = dragOffsetX.dp)
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (abs(dragOffsetX) > 100 && dragOffsetX < 0) {
+                                onBack()
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             }
-                        ) { _, dragAmount ->
-                            dragOffsetX += dragAmount / density
+                            dragOffsetX = 0f
                         }
+                    ) { _, dragAmount ->
+                        dragOffsetX += dragAmount / density
                     }
-            )
-        }
+                }
+        )
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Campo API URL
+        // Selector de tema
         Text(
-            text = "> api_url",
+            text = "> theme",
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 14.sp,
-                color = Color(0xFF95A5A6)
+                color = MaterialTheme.colorScheme.secondary
+            ),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Opción Dark
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable { 
+                        selectedTheme = "dark"
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = if (selectedTheme == "dark") "●" else "○",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                        color = if (selectedTheme == "dark") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    ),
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = "dark",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (selectedTheme == "dark") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+            
+            // Opción Light
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable { 
+                        selectedTheme = "light"
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = if (selectedTheme == "light") "●" else "○",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                        color = if (selectedTheme == "light") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    ),
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Text(
+                    text = "light",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (selectedTheme == "light") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+        }
+        
+        // Campo Ngrok URL
+        Text(
+            text = "> ngrok_url",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.secondary
             ),
             modifier = Modifier.padding(bottom = 8.dp)
         )
         
         OutlinedTextField(
-            value = apiUrl,
-            onValueChange = { apiUrl = it },
+            value = ngrokUrl,
+            onValueChange = { ngrokUrl = it },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF4ECDC4),
-                unfocusedBorderColor = Color(0xFF95A5A6),
-                focusedTextColor = Color(0xFFE0E0E0),
-                unfocusedTextColor = Color(0xFFE0E0E0)
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             ),
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
@@ -439,10 +505,10 @@ fun ConfigScreen(
             onValueChange = { apiToken = it },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color(0xFF4ECDC4),
-                unfocusedBorderColor = Color(0xFF95A5A6),
-                focusedTextColor = Color(0xFFE0E0E0),
-                unfocusedTextColor = Color(0xFFE0E0E0)
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             ),
             textStyle = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
@@ -502,11 +568,11 @@ fun ConfigScreen(
             )
             
             Text(
-                text = if (apiUrl.contains("ngrok.io")) "configured" else "pending",
+                text = if (ngrokUrl.contains("ngrok.io")) "configured" else "pending",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
-                    color = if (apiUrl.contains("ngrok.io")) Color(0xFF4ECDC4) else Color(0xFFFFD93D)
+                    color = if (ngrokUrl.contains("ngrok.io")) MaterialTheme.colorScheme.primary else Color(0xFFFFD93D)
                 )
             )
         }
