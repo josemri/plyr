@@ -147,7 +147,17 @@ fun MainScreen(
                         error = null
                         results = emptyList()
 
-                        AudioRepository.searchAudios(searchQuery) { list, err ->
+                        // Obtener configuración
+                        val baseUrl = Config.getNgrokUrl(context)
+                        val apiKey = Config.getApiToken(context)
+                        
+                        if (baseUrl.isEmpty() || apiKey.isEmpty()) {
+                            isLoading = false
+                            error = "Configuración incompleta: Verifica URL base y API Key en configuración"
+                            return@KeyboardActions
+                        }
+
+                        AudioRepository.searchAudios(searchQuery, baseUrl, apiKey) { list, err ->
                             isLoading = false
                             if (err != null) {
                                 error = err
@@ -321,17 +331,52 @@ fun ConfigScreen(
     var apiToken by remember { mutableStateOf(Config.getApiToken(context)) }
     var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
     
+    // Estado para el resultado de whoami
+    var whoamiResult by remember { mutableStateOf<String?>(null) }
+    var whoamiError by remember { mutableStateOf<String?>(null) }
+    var isCheckingAuth by remember { mutableStateOf(false) }
+    
+    // Función para verificar autenticación
+    fun checkAuth() {
+        if (ngrokUrl.isNotBlank() && apiToken.isNotBlank()) {
+            isCheckingAuth = true
+            whoamiResult = null
+            whoamiError = null
+            
+            AudioRepository.whoami(ngrokUrl, apiToken) { user, error ->
+                isCheckingAuth = false
+                if (error != null) {
+                    whoamiError = error
+                    whoamiResult = null
+                } else {
+                    whoamiResult = user
+                    whoamiError = null
+                }
+            }
+        } else {
+            whoamiResult = null
+            whoamiError = null
+        }
+    }
+    
     // Guardar automáticamente cuando cambien los valores
     LaunchedEffect(ngrokUrl) {
         if (ngrokUrl.isNotBlank()) {
             Config.setNgrokUrl(context, ngrokUrl)
+            checkAuth()
         }
     }
     
     LaunchedEffect(apiToken) {
         if (apiToken.isNotBlank()) {
             Config.setApiToken(context, apiToken)
+            checkAuth()
         }
+    }
+    
+    // Verificación inicial al cargar la pantalla
+    LaunchedEffect(Unit) {
+        checkAuth()
     }
     
     LaunchedEffect(selectedTheme) {
@@ -567,14 +612,58 @@ fun ConfigScreen(
                 )
             )
             
-            Text(
-                text = if (ngrokUrl.contains("ngrok.io")) "configured" else "pending",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = if (ngrokUrl.contains("ngrok.io")) MaterialTheme.colorScheme.primary else Color(0xFFFFD93D)
-                )
-            )
+            when {
+                isCheckingAuth -> {
+                    Text(
+                        text = "checking...",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFFFFD93D)
+                        )
+                    )
+                }
+                whoamiError != null -> {
+                    Text(
+                        text = whoamiError!!,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFFFF6B6B) // Rojo para errores
+                        )
+                    )
+                }
+                whoamiResult != null -> {
+                    Text(
+                        text = "configured ($whoamiResult)",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary // Verde/azul para éxito
+                        )
+                    )
+                }
+                ngrokUrl.isBlank() || apiToken.isBlank() -> {
+                    Text(
+                        text = "pending",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFFFFD93D)
+                        )
+                    )
+                }
+                else -> {
+                    Text(
+                        text = "unknown",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFF95A5A6)
+                        )
+                    )
+                }
+            }
         }
     }
 }

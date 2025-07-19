@@ -116,20 +116,20 @@ fun FloatingMusicControls(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A) // Fondo sólido sin transparencia
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
         ) {
             // Línea única con estado, título y tiempo
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 12.dp),
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -149,10 +149,10 @@ fun FloatingMusicControls(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 14.sp,
                             color = when {
-                                error != null -> Color(0xFFFF6B6B)
+                                error != null -> MaterialTheme.colorScheme.error
                                 isLoading -> Color(0xFFFFD93D)
-                                audioUrl != null -> Color(0xFF4ECDC4)
-                                else -> Color(0xFF95A5A6)
+                                audioUrl != null -> MaterialTheme.colorScheme.primary
+                                else -> MaterialTheme.colorScheme.secondary
                             }
                         )
                     )
@@ -165,7 +165,7 @@ fun FloatingMusicControls(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp
                             ),
-                            color = Color(0xFF4ECDC4)
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -177,13 +177,13 @@ fun FloatingMusicControls(
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 14.sp,
-                            color = Color(0xFF95A5A6)
+                            color = MaterialTheme.colorScheme.secondary
                         )
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Barra de progreso mejorada y más interactiva
             var isDragging by remember { mutableStateOf(false) }
@@ -193,16 +193,16 @@ fun FloatingMusicControls(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(16.dp)
+                    .height(12.dp)
             ) {
                 // Barra de fondo
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(8.dp)
+                        .height(6.dp)
                         .align(Alignment.Center)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF2C2C2C))
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = { offset ->
@@ -239,8 +239,8 @@ fun FloatingMusicControls(
                             .fillMaxHeight()
                             .fillMaxWidth(displayProgress)
                             .background(
-                                Color(0xFF4ECDC4),
-                                RoundedCornerShape(4.dp)
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(3.dp)
                             )
                     )
                 }
@@ -251,12 +251,12 @@ fun FloatingMusicControls(
                         modifier = Modifier
                             .size(16.dp)
                             .background(
-                                Color(0xFF4ECDC4),
+                                MaterialTheme.colorScheme.primary,
                                 androidx.compose.foundation.shape.CircleShape
                             )
                             .border(
                                 2.dp,
-                                Color(0xFF1A1A1A),
+                                MaterialTheme.colorScheme.surface,
                                 androidx.compose.foundation.shape.CircleShape
                             )
                             .align(Alignment.CenterStart)
@@ -267,7 +267,7 @@ fun FloatingMusicControls(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Controles de reproducción sin botones visibles
             Row(
@@ -282,12 +282,12 @@ fun FloatingMusicControls(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 20.sp
                     ),
-                    color = if (audioUrl != null && !isLoading) Color(0xFF4ECDC4) else Color(0xFF666666),
+                    color = if (audioUrl != null && !isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     modifier = Modifier
                         .clickable(enabled = audioUrl != null && !isLoading) { 
                             /* TODO: Implementar anterior */ 
                         }
-                        .padding(12.dp)
+                        .padding(8.dp)
                 )
 
                 // Botón play/pause principal (invisible)
@@ -297,7 +297,7 @@ fun FloatingMusicControls(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 32.sp
                     ),
-                    color = if (audioUrl != null && !isLoading) Color(0xFF4ECDC4) else Color(0xFF666666),
+                    color = if (audioUrl != null && !isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     modifier = Modifier
                         .clickable(enabled = audioUrl != null && !isLoading) {
                             if (isPlaying) {
@@ -306,7 +306,7 @@ fun FloatingMusicControls(
                                 playerViewModel.playPlayer()
                             }
                         }
-                        .padding(12.dp)
+                        .padding(8.dp)
                 )
 
                 // Botón siguiente (invisible)
@@ -316,24 +316,24 @@ fun FloatingMusicControls(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 20.sp
                     ),
-                    color = if (audioUrl != null && !isLoading) Color(0xFF4ECDC4) else Color(0xFF666666),
+                    color = if (audioUrl != null && !isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     modifier = Modifier
                         .clickable(enabled = audioUrl != null && !isLoading) { 
                             /* TODO: Implementar siguiente */ 
                         }
-                        .padding(12.dp)
+                        .padding(8.dp)
                 )
             }
 
             // Mostrar error si existe
             error?.let {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "ERR: ${it.take(60)}${if (it.length > 60) "..." else ""}",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
-                        color = Color(0xFFFF6B6B)
+                        color = MaterialTheme.colorScheme.error
                     ),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
@@ -342,7 +342,7 @@ fun FloatingMusicControls(
 
             // Loading indicator
             if (isLoading) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -10,13 +10,17 @@ object AudioRepository {
 
     private val client = OkHttpClient()
 
-    fun requestAudioUrl(id: String, callback: (String?) -> Unit) {
+    fun requestAudioUrl(id: String, baseUrl: String, apiKey: String, callback: (String?) -> Unit) {
         println("AudioRepository: Solicitando audio para ID: $id")
         
-        val url = "https://607fd70ee495.ngrok-free.app/audio?id=$id"
+        val url = "$baseUrl/audio?id=$id"
         println("AudioRepository: URL del request: $url")
         
-        val request = Request.Builder().url(url).get().build()
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("X-API-KEY", apiKey)
+            .get()
+            .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -38,16 +42,22 @@ object AudioRepository {
                         callback(null)
                     }
                 } else {
+                    val errorBody = response.body?.string()
                     println("AudioRepository: Error HTTP ${response.code} - ${response.message}")
+                    println("AudioRepository: Error body: $errorBody")
                     callback(null)
                 }
             }
         })
     }
 
-    fun searchAudios(query: String, callback: (List<AudioItem>?, String?) -> Unit) {
-        val url = "https://607fd70ee495.ngrok-free.app/search?q=ytsearch:$query&n=50"
-        val request = Request.Builder().url(url).get().build()
+    fun searchAudios(query: String, baseUrl: String, apiKey: String, callback: (List<AudioItem>?, String?) -> Unit) {
+        val url = "$baseUrl/search?q=ytsearch:$query&n=50"
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("X-API-KEY", apiKey)
+            .get()
+            .build()
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -64,7 +74,42 @@ object AudioRepository {
                         callback(null, "Fallo al parsear la respuesta")
                     }
                 } else {
-                    callback(null, "Respuesta inválida")
+                    val errorBody = response.body?.string()
+                    println("AudioRepository: Search error HTTP ${response.code} - ${response.message}")
+                    println("AudioRepository: Search error body: $errorBody")
+                    callback(null, "Error HTTP ${response.code}: ${errorBody ?: response.message}")
+                }
+            }
+        })
+    }
+
+    fun whoami(baseUrl: String, apiKey: String, callback: (String?, String?) -> Unit) {
+        val url = "$baseUrl/whoami"
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("X-API-KEY", apiKey)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, e.message)
+            }
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful) {
+                    // Intentar parsear el JSON para obtener el usuario
+                    try {
+                        val json = Gson().fromJson(body, Map::class.java)
+                        val user = json["user"] as? String
+                        callback(user, null)
+                    } catch (e: Exception) {
+                        // Si no es JSON válido, devolver el body tal como está
+                        callback(body, null)
+                    }
+                } else {
+                    // Para errores HTTP, devolver el body como error
+                    callback(null, body ?: "Error HTTP ${response.code}")
                 }
             }
         })

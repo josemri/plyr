@@ -44,24 +44,30 @@ fun ExoPlyrScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-            .background(Color.Black),
-        verticalArrangement = Arrangement.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.surface  // Cambiado de background a surface para diferenciarlo
     ) {
-        // Botón de regreso
-        TextButton(
-            onClick = onBack,
-            modifier = Modifier.padding(bottom = 16.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.Center
         ) {
-            Text("← Volver", color = Color.Green)
-        }
+            // Botón de regreso
+            TextButton(
+                onClick = onBack,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Text("← Volver", color = MaterialTheme.colorScheme.primary)
+            }
         
         Text(
             text = "+-----------------------------+\n|     UR FREE MUSIC PLYR      |\n+-----------------------------+",
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleMedium.copy(
+                color = MaterialTheme.colorScheme.primary,
+                fontFamily = FontFamily.Monospace
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -79,7 +85,10 @@ fun ExoPlyrScreen(
 
         Text(
             text = "[${formatTime(position)} / ${formatTime(duration)}]",
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = FontFamily.Monospace
+            )
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -93,7 +102,8 @@ fun ExoPlyrScreen(
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 40.sp
+                        fontSize = 40.sp,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 )
             }
@@ -109,7 +119,8 @@ fun ExoPlyrScreen(
                         fontSize = 40.sp,
                         maxLines = 1,
                         modifier = Modifier.fillMaxSize(),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -122,12 +133,14 @@ fun ExoPlyrScreen(
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 40.sp
+                        fontSize = 40.sp,
+                        color = MaterialTheme.colorScheme.primary
                     )
                 )
             }
         }
     }
+}
 }
 
 @Preview(showBackground = true)
@@ -161,16 +174,21 @@ fun ExoPlyrScreenTerminalPreview() {
 // Composable simplificado para preview sin dependencias de ExoPlayer
 @Composable
 private fun ExoPlyrScreenMock() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp)
-            .background(Color.Black),
-        verticalArrangement = Arrangement.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.surface  // Mismo cambio para el mock
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            verticalArrangement = Arrangement.Center
+        ) {
         Text(
             text = "♪ PLYR - Audio Player ♪",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium.copy(
+                color = MaterialTheme.colorScheme.primary
+            ),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
@@ -179,7 +197,9 @@ private fun ExoPlyrScreenMock() {
         
         Text(
             text = "00:45 / 03:20",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface
+            ),
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
@@ -191,16 +211,32 @@ private fun ExoPlyrScreenMock() {
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             TextButton(onClick = { }) {
-                Text("<<", fontSize = 40.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    "<<", 
+                    fontSize = 40.sp, 
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             
             TextButton(onClick = { }) {
-                Text("||", fontSize = 40.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    "||", 
+                    fontSize = 40.sp, 
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
             
             TextButton(onClick = { }) {
-                Text(">>", fontSize = 40.sp, fontFamily = FontFamily.Monospace)
+                Text(
+                    ">>", 
+                    fontSize = 40.sp, 
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
+}
 }

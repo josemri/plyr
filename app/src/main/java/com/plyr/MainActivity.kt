@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -64,17 +66,21 @@ class MainActivity : ComponentActivity() {
             val isDarkTheme = selectedTheme.value == "dark"
 
             TerminalTheme(isDark = isDarkTheme) {
-                // Main container with floating controls at bottom
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding() // Padding para el status bar
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
                 ) {
+                    // Main container with floating controls at bottom
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .statusBarsPadding() // Padding para el status bar
+                    ) {
                     // Main content area with bottom padding for floating controls
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = 180.dp) // Más espacio para evitar superposición
+                            .padding(bottom = 140.dp) // Reducido de 180dp para acomodar controles más compactos
                     ) {
                         when (currentScreen) {
                             "player" -> {
@@ -109,6 +115,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
         }
     }
 

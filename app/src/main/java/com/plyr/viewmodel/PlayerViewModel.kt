@@ -8,6 +8,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import com.plyr.network.AudioRepository
 import com.plyr.utils.isValidAudioUrl
+import com.plyr.utils.Config
 import android.os.Handler
 import android.os.Looper
 
@@ -43,7 +44,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _error.postValue(null)
         _currentTitle.postValue(title)
         
-        AudioRepository.requestAudioUrl(videoId) { result ->
+        // Obtener configuración
+        val context = getApplication<Application>()
+        val baseUrl = Config.getNgrokUrl(context)
+        val apiKey = Config.getApiToken(context)
+        
+        if (baseUrl.isEmpty() || apiKey.isEmpty()) {
+            _isLoading.postValue(false)
+            _error.postValue("Configuración incompleta: Verifica URL base y API Key en configuración")
+            return
+        }
+        
+        AudioRepository.requestAudioUrl(videoId, baseUrl, apiKey) { result ->
             // Ejecutar en el hilo principal para poder usar ExoPlayer
             mainHandler.post {
                 _isLoading.postValue(false)
