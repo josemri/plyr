@@ -913,13 +913,125 @@ fun PlaylistsScreen(
                         )
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(playlistTracks) { track ->
-                            TrackItem(track = track)
+                    // Estados para los botones de control
+                    var isRandomizing by remember { mutableStateOf(false) }
+                    var isStarting by remember { mutableStateOf(false) }
+                    var randomJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    var startJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    
+                    // Función para parar todas las reproducciones
+                    fun stopAllPlayback() {
+                        isRandomizing = false
+                        isStarting = false
+                        randomJob?.cancel()
+                        startJob?.cancel()
+                        randomJob = null
+                        startJob = null
+                    }
+                    
+                    // Función para randomización
+                    fun startRandomizing() {
+                        stopAllPlayback()
+                        isRandomizing = true
+                        
+                        if (playlistTracks.isNotEmpty()) {
+                            randomJob = kotlinx.coroutines.GlobalScope.launch {
+                                while (isRandomizing) {
+                                    val randomTrack = playlistTracks.random()
+                                    println("🎵 RANDOM [${selectedPlaylist!!.name}]: ${randomTrack.getDisplayName()}")
+                                    kotlinx.coroutines.delay(1000) // 1 segundo
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Función para reproducción ordenada
+                    fun startOrderedPlayback() {
+                        stopAllPlayback()
+                        isStarting = true
+                        
+                        if (playlistTracks.isNotEmpty()) {
+                            startJob = kotlinx.coroutines.GlobalScope.launch {
+                                var currentIndex = 0
+                                while (isStarting && currentIndex < playlistTracks.size) {
+                                    val track = playlistTracks[currentIndex]
+                                    println("🎵 START [${selectedPlaylist!!.name}] ${currentIndex + 1}/${playlistTracks.size}: ${track.getDisplayName()}")
+                                    kotlinx.coroutines.delay(1000) // 1 segundo
+                                    currentIndex++
+                                    if (currentIndex >= playlistTracks.size) {
+                                        currentIndex = 0 // Reiniciar desde el principio
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Limpiar jobs al salir
+                    DisposableEffect(selectedPlaylist) {
+                        onDispose {
+                            randomJob?.cancel()
+                            startJob?.cancel()
+                        }
+                    }
+                    
+                    Column {
+                        // Botones de control
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // Botón <start>
+                            Text(
+                                text = if (isStarting) "<stop>" else "<start>",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 16.sp,
+                                    color = if (isStarting) Color(0xFFFF6B6B) else Color(0xFF4ECDC4)
+                                ),
+                                modifier = Modifier
+                                    .clickable {
+                                        if (isStarting) {
+                                            stopAllPlayback()
+                                        } else {
+                                            startOrderedPlayback()
+                                        }
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    .padding(8.dp)
+                            )
+                            
+                            // Botón <rand>
+                            Text(
+                                text = if (isRandomizing) "<stop>" else "<rand>",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 16.sp,
+                                    color = if (isRandomizing) Color(0xFFFF6B6B) else Color(0xFFFFD93D)
+                                ),
+                                modifier = Modifier
+                                    .clickable {
+                                        if (isRandomizing) {
+                                            stopAllPlayback()
+                                        } else {
+                                            startRandomizing()
+                                        }
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    .padding(8.dp)
+                            )
+                        }
+                        
+                        // Lista de tracks
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(playlistTracks) { track ->
+                                TrackItem(track = track)
+                            }
                         }
                     }
                 }
@@ -1002,84 +1114,10 @@ fun PlaylistItem(
     playlist: SpotifyPlaylist,
     onClick: () -> Unit
 ) {
-    val context = LocalContext.current
-    var isRandomizing by remember { mutableStateOf(false) }
-    val haptic = LocalHapticFeedback.current
-    
-    // Estado para el job de randomización
-    var randomJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    
-    // Función para obtener un token válido y luego obtener tracks aleatorios
-    fun startRandomizing() {
-        isRandomizing = true
-        
-        fun getValidAccessToken(callback: (String?) -> Unit) {
-            val accessToken = Config.getSpotifyAccessToken(context)
-            if (accessToken != null) {
-                callback(accessToken)
-                return
-            }
-            
-            val refreshToken = Config.getSpotifyRefreshToken(context)
-            if (refreshToken != null) {
-                SpotifyRepository.refreshAccessToken(refreshToken) { newToken, refreshError ->
-                    if (newToken != null) {
-                        Config.setSpotifyTokens(context, newToken, refreshToken, 3600)
-                        callback(newToken)
-                    } else {
-                        println("Error renovando token: $refreshError")
-                        callback(null)
-                    }
-                }
-            } else {
-                callback(null)
-            }
-        }
-        
-        // Obtener tracks de la playlist y empezar randomización
-        getValidAccessToken { token ->
-            if (token != null) {
-                SpotifyRepository.getPlaylistTracks(token, playlist.id) { tracks, error ->
-                    if (error != null) {
-                        println("Error obteniendo tracks para randomización: $error")
-                        isRandomizing = false
-                    } else if (tracks != null && tracks.isNotEmpty()) {
-                        // Iniciar coroutine para randomización
-                        randomJob = kotlinx.coroutines.GlobalScope.launch {
-                            while (isRandomizing) {
-                                val randomTrack = tracks.random()
-                                println("🎵 RANDOM [${playlist.name}]: ${randomTrack.getDisplayName()}")
-                                kotlinx.coroutines.delay(1000) // 1 segundo
-                            }
-                        }
-                    } else {
-                        println("No hay tracks en la playlist para randomización")
-                        isRandomizing = false
-                    }
-                }
-            } else {
-                println("No se pudo obtener token para randomización")
-                isRandomizing = false
-            }
-        }
-    }
-    
-    fun stopRandomizing() {
-        isRandomizing = false
-        randomJob?.cancel()
-        randomJob = null
-    }
-    
-    // Limpiar al desmontar el composable
-    DisposableEffect(Unit) {
-        onDispose {
-            randomJob?.cancel()
-        }
-    }
-    
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .padding(vertical = 12.dp, horizontal = 4.dp), // Padding aumentado
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1093,7 +1131,7 @@ fun PlaylistItem(
             )
         )
         
-        // Nombre de la playlist (clickeable)
+        // Nombre de la playlist (solo el nombre, sin contador)
         MarqueeText(
             text = playlist.name,
             style = MaterialTheme.typography.bodyLarge.copy(
@@ -1101,31 +1139,7 @@ fun PlaylistItem(
                 fontSize = 18.sp, // Tamaño aumentado
                 color = MaterialTheme.colorScheme.onSurface
             ),
-            modifier = Modifier
-                .weight(1f)
-                .clickable { onClick() }
-        )
-        
-        Spacer(modifier = Modifier.width(8.dp))
-        
-        // Botón <rand>
-        Text(
-            text = if (isRandomizing) "<stop>" else "<rand>",
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                color = if (isRandomizing) Color(0xFFFF6B6B) else Color(0xFFFFD93D)
-            ),
-            modifier = Modifier
-                .clickable {
-                    if (isRandomizing) {
-                        stopRandomizing()
-                    } else {
-                        startRandomizing()
-                    }
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-                .padding(4.dp)
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -1134,19 +1148,25 @@ fun PlaylistItem(
 fun TrackItem(
     track: SpotifyTrack
 ) {
+    val haptic = LocalHapticFeedback.current
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 4.dp),
+            .clickable { 
+                println("🎵 TRACK CLICKED: ${track.getDisplayName()}")
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+            .padding(vertical = 6.dp, horizontal = 4.dp), // Padding aumentado para mejor touch
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Icono de track
         Text(
-            text = "♪ ",
+            text = "> ",
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                color = Color(0xFF1DB954)
+                fontSize = 16.sp, // Tamaño aumentado y cambiado a >
+                color = Color(0xFF4ECDC4) // Color terminal consistente
             )
         )
         
@@ -1155,7 +1175,7 @@ fun TrackItem(
             text = track.getDisplayName(),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
+                fontSize = 16.sp, // Tamaño aumentado
                 color = MaterialTheme.colorScheme.onSurface
             ),
             modifier = Modifier.weight(1f)
