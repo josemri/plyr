@@ -116,20 +116,21 @@ fun FloatingMusicControls(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp), // Padding vertical reducido
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        shape = RoundedCornerShape(12.dp) // Esquinas más redondeadas
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp) // Padding interno reducido
         ) {
             // Línea única con estado, título y tiempo
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                    .padding(bottom = 4.dp), // Spacing reducido
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -147,7 +148,7 @@ fun FloatingMusicControls(
                         },
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
+                            fontSize = 12.sp, // Tamaño reducido
                             color = when {
                                 error != null -> MaterialTheme.colorScheme.error
                                 isLoading -> Color(0xFFFFD93D)
@@ -163,7 +164,7 @@ fun FloatingMusicControls(
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 14.sp
+                                fontSize = 12.sp // Tamaño reducido
                             ),
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -176,16 +177,14 @@ fun FloatingMusicControls(
                         text = "${formatTime(position)}/${formatTime(duration)}",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
+                            fontSize = 12.sp, // Tamaño reducido
                             color = MaterialTheme.colorScheme.secondary
                         )
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Barra de progreso mejorada y más interactiva
+            // Barra de progreso/loading unificada
             var isDragging by remember { mutableStateOf(false) }
             var dragProgress by remember { mutableFloatStateOf(0f) }
             val displayProgress = if (isDragging) dragProgress else progress
@@ -193,109 +192,124 @@ fun FloatingMusicControls(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(12.dp)
+                    .height(8.dp) // Altura reducida
             ) {
-                // Barra de fondo
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(6.dp)
-                        .align(Alignment.Center)
-                        .clip(RoundedCornerShape(3.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .pointerInput(Unit) {
-                            detectDragGestures(
-                                onDragStart = { offset ->
+                if (isLoading) {
+                    // Loading indicator en el mismo lugar que la barra de progreso
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .align(Alignment.Center)
+                            .clip(RoundedCornerShape(2.dp)),
+                        color = Color(0xFFFFD93D),
+                        trackColor = Color(0xFF2C2C2C).copy(alpha = 0.3f),
+                    )
+                } else {
+                    // Barra de progreso normal
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .align(Alignment.Center)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .pointerInput(Unit) {
+                                detectDragGestures(
+                                    onDragStart = { offset ->
+                                        if (audioUrl != null && !isLoading && duration > 0) {
+                                            isDragging = true
+                                            dragProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                                        }
+                                    },
+                                    onDrag = { _, _ ->
+                                        // El drag se maneja en onDragStart y onDragEnd
+                                    },
+                                    onDragEnd = {
+                                        if (isDragging && duration > 0) {
+                                            val newPosition = (duration * dragProgress).toLong()
+                                            playerViewModel.seekTo(newPosition)
+                                            isDragging = false
+                                        }
+                                    }
+                                )
+                            }
+                            .pointerInput(Unit) {
+                                detectTapGestures { offset ->
                                     if (audioUrl != null && !isLoading && duration > 0) {
-                                        isDragging = true
-                                        dragProgress = (offset.x / size.width).coerceIn(0f, 1f)
-                                    }
-                                },
-                                onDrag = { _, _ ->
-                                    // El drag se maneja en onDragStart y onDragEnd
-                                },
-                                onDragEnd = {
-                                    if (isDragging && duration > 0) {
-                                        val newPosition = (duration * dragProgress).toLong()
+                                        val clickProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                                        val newPosition = (duration * clickProgress).toLong()
                                         playerViewModel.seekTo(newPosition)
-                                        isDragging = false
                                     }
-                                }
-                            )
-                        }
-                        .pointerInput(Unit) {
-                            detectTapGestures { offset ->
-                                if (audioUrl != null && !isLoading && duration > 0) {
-                                    val clickProgress = (offset.x / size.width).coerceIn(0f, 1f)
-                                    val newPosition = (duration * clickProgress).toLong()
-                                    playerViewModel.seekTo(newPosition)
                                 }
                             }
+                    ) {
+                        // Barra de progreso
+                        if (audioUrl != null && !isLoading) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(displayProgress)
+                                    .background(
+                                        MaterialTheme.colorScheme.primary,
+                                        RoundedCornerShape(2.dp)
+                                    )
+                            )
                         }
-                ) {
-                    // Barra de progreso
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(displayProgress)
-                            .background(
-                                MaterialTheme.colorScheme.primary,
-                                RoundedCornerShape(3.dp)
-                            )
-                    )
-                }
-                
-                // Indicador circular más visible
-                if (audioUrl != null && !isLoading) {
-                    Box(
-                        modifier = Modifier
-                            .size(16.dp)
-                            .background(
-                                MaterialTheme.colorScheme.primary,
-                                androidx.compose.foundation.shape.CircleShape
-                            )
-                            .border(
-                                2.dp,
-                                MaterialTheme.colorScheme.surface,
-                                androidx.compose.foundation.shape.CircleShape
-                            )
-                            .align(Alignment.CenterStart)
-                            .offset(x = (displayProgress * (LocalDensity.current.run { 
-                                (300.dp - 16.dp).toPx() 
-                            }) / LocalDensity.current.density).dp)
-                    )
+                    }
+                    
+                    // Indicador circular más pequeño
+                    if (audioUrl != null && !isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp) // Tamaño reducido
+                                .background(
+                                    MaterialTheme.colorScheme.primary,
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.surface,
+                                    androidx.compose.foundation.shape.CircleShape
+                                )
+                                .align(Alignment.CenterStart)
+                                .offset(x = (displayProgress * (LocalDensity.current.run { 
+                                    (300.dp - 12.dp).toPx() 
+                                }) / LocalDensity.current.density).dp)
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Controles de reproducción sin botones visibles
+            // Controles de reproducción compactos
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp), // Spacing reducido
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Botón anterior (invisible)
+                // Botón anterior
                 Text(
                     text = "<<",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 20.sp
+                        fontSize = 16.sp // Tamaño reducido
                     ),
                     color = if (audioUrl != null && !isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     modifier = Modifier
                         .clickable(enabled = audioUrl != null && !isLoading) { 
                             /* TODO: Implementar anterior */ 
                         }
-                        .padding(8.dp)
+                        .padding(6.dp) // Padding reducido
                 )
 
-                // Botón play/pause principal (invisible)
+                // Botón play/pause principal
                 Text(
                     text = if (isPlaying) "//" else ">",
                     style = MaterialTheme.typography.headlineLarge.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 32.sp
+                        fontSize = 24.sp // Tamaño reducido
                     ),
                     color = if (audioUrl != null && !isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     modifier = Modifier
@@ -306,50 +320,37 @@ fun FloatingMusicControls(
                                 playerViewModel.playPlayer()
                             }
                         }
-                        .padding(8.dp)
+                        .padding(6.dp) // Padding reducido
                 )
 
-                // Botón siguiente (invisible)
+                // Botón siguiente
                 Text(
                     text = ">>",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 20.sp
+                        fontSize = 16.sp // Tamaño reducido
                     ),
                     color = if (audioUrl != null && !isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     modifier = Modifier
                         .clickable(enabled = audioUrl != null && !isLoading) { 
                             /* TODO: Implementar siguiente */ 
                         }
-                        .padding(8.dp)
+                        .padding(6.dp) // Padding reducido
                 )
             }
 
-            // Mostrar error si existe
+            // Mostrar error si existe (más compacto)
             error?.let {
-                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "ERR: ${it.take(60)}${if (it.length > 60) "..." else ""}",
+                    text = "ERR: ${it.take(40)}${if (it.length > 40) "..." else ""}",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
+                        fontSize = 10.sp, // Tamaño muy reducido
                         color = MaterialTheme.colorScheme.error
                     ),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            // Loading indicator
-            if (isLoading) {
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = Color(0xFFFFD93D),
-                    trackColor = Color(0xFF2C2C2C),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }

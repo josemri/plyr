@@ -115,10 +115,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    // Floating music controls always visible at bottom
+                    // Floating music controls positioned higher to avoid Android navigation bar
                     FloatingMusicControls(
                         playerViewModel = playerViewModel,
-                        modifier = Modifier.align(Alignment.BottomCenter)
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 48.dp) // Increased padding to keep away from navigation bar
                     )
                 }
             }
