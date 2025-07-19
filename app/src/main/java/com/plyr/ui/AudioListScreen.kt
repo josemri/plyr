@@ -16,6 +16,14 @@ import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyTrack
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyAuthEvent
+import com.plyr.database.PlaylistLocalRepository
+import com.plyr.database.PlaylistEntity
+import com.plyr.database.TrackEntity
+import com.plyr.database.toSpotifyPlaylist
+import com.plyr.database.toSpotifyTrack
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.asFlow
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -42,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
+import com.plyr.service.YouTubeSearchManager
 
 // Estados para navegación
 enum class Screen {
@@ -720,100 +729,127 @@ fun PlaylistsScreen(
     val haptic = LocalHapticFeedback.current
     var dragOffsetX by remember { mutableStateOf(0f) }
     
+    // Repositorio local y manager de búsqueda
+    val localRepository = remember { PlaylistLocalRepository(context) }
+    val youtubeSearchManager = remember { YouTubeSearchManager(context) }
+    val coroutineScope = rememberCoroutineScope()
+    
     // Estado para las playlists y autenticación
-    var playlists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
+    val playlistsFromDB by localRepository.getAllPlaylistsLiveData().asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
+    var isSyncing by remember { mutableStateOf(false) }
+    
+    // Convertir entidades a SpotifyPlaylist para compatibilidad con UI existente
+    val playlists = playlistsFromDB.map { it.toSpotifyPlaylist() }
     
     // Estado para mostrar tracks de una playlist
     var selectedPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
+    var selectedPlaylistEntity by remember { mutableStateOf<PlaylistEntity?>(null) }
     var playlistTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
+    var isSearchingYouTubeIds by remember { mutableStateOf(false) }
     
-    // Función para obtener un token válido
-    fun getValidAccessToken(callback: (String?) -> Unit) {
-        val accessToken = Config.getSpotifyAccessToken(context)
-        if (accessToken != null) {
-            callback(accessToken)
-            return
-        }
-        
-        val refreshToken = Config.getSpotifyRefreshToken(context)
-        if (refreshToken != null) {
-            SpotifyRepository.refreshAccessToken(refreshToken) { newToken, refreshError ->
-                if (newToken != null) {
-                    Config.setSpotifyTokens(context, newToken, refreshToken, 3600)
-                    callback(newToken)
-                } else {
-                    error = "Error renovando token: $refreshError"
-                    Config.clearSpotifyTokens(context)
-                    isSpotifyConnected = false
-                    callback(null)
-                }
-            }
-        } else {
-            callback(null)
+    // Tracks observados desde la base de datos
+    val tracksFromDB by if (selectedPlaylistEntity != null) {
+        localRepository.getTracksByPlaylistLiveData(selectedPlaylistEntity!!.spotifyId)
+            .asFlow()
+            .collectAsStateWithLifecycle(initialValue = emptyList())
+    } else {
+        remember { mutableStateOf(emptyList<TrackEntity>()) }
+    }
+    
+    // Actualizar tracks cuando cambien en la DB
+    LaunchedEffect(tracksFromDB) {
+        if (selectedPlaylistEntity != null) {
+            playlistTracks = tracksFromDB.map { it.toSpotifyTrack() }
         }
     }
     
-    // Función para cargar playlists
-    fun loadPlaylists() {
+    // Función para cargar playlists con sincronización automática
+    val loadPlaylists = {
         if (!isSpotifyConnected) {
             error = "Spotify no está conectado"
-            return
-        }
-        
-        isLoading = true
-        error = null
-        
-        getValidAccessToken { token ->
-            if (token != null) {
-                SpotifyRepository.getUserPlaylists(token) { playlistList, playlistError ->
+        } else {
+            isLoading = true
+            error = null
+            
+            // Usar corrutina para operaciones asíncronas
+            coroutineScope.launch {
+                try {
+                    val playlistEntities = localRepository.getPlaylistsWithAutoSync()
                     isLoading = false
-                    if (playlistError != null) {
-                        error = playlistError
-                        if (playlistError.contains("401") || playlistError.contains("403")) {
-                            Config.clearSpotifyTokens(context)
-                            isSpotifyConnected = false
-                        }
-                    } else if (playlistList != null) {
-                        playlists = playlistList
-                    }
+                    // Las playlists se actualizan automáticamente a través del LiveData
+                } catch (e: Exception) {
+                    isLoading = false
+                    error = "Error cargando playlists: ${e.message}"
                 }
-            } else {
-                isLoading = false
-                error = "No se pudo obtener token de acceso"
             }
         }
     }
     
     // Función para cargar tracks de una playlist
-    fun loadPlaylistTracks(playlist: SpotifyPlaylist) {
+    val loadPlaylistTracks: (SpotifyPlaylist) -> Unit = { playlist ->
         selectedPlaylist = playlist
+        selectedPlaylistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
         isLoadingTracks = true
         
-        getValidAccessToken { token ->
-            if (token != null) {
-                SpotifyRepository.getPlaylistTracks(token, playlist.id) { tracks, tracksError ->
+        if (selectedPlaylistEntity == null) {
+            isLoadingTracks = false
+            error = "Playlist no encontrada en base de datos local"
+        } else {
+            // Usar corrutina para operaciones asíncronas
+            coroutineScope.launch {
+                try {
+                    val trackEntities = localRepository.getTracksWithAutoSync(playlist.id)
                     isLoadingTracks = false
-                    if (tracksError != null) {
-                        error = tracksError
-                    } else if (tracks != null) {
-                        playlistTracks = tracks
-                    }
+                    // Los tracks se actualizan automáticamente a través del LiveData
+                    
+                    // Iniciar búsqueda automática de YouTube IDs en background
+                    youtubeSearchManager.searchYouTubeIdsForPlaylist(playlist.id)
+                } catch (e: Exception) {
+                    isLoadingTracks = false
+                    error = "Error cargando tracks: ${e.message}"
                 }
-            } else {
-                isLoadingTracks = false
-                error = "No se pudo obtener token de acceso"
+            }
+        }
+    }
+    
+    // Función para forzar sincronización completa
+    val forceSyncAll = {
+        if (!isSpotifyConnected) {
+            error = "Spotify no está conectado"
+        } else {
+            isSyncing = true
+            error = null
+            
+            coroutineScope.launch {
+                try {
+                    val success = localRepository.forceSyncAll()
+                    isSyncing = false
+                    if (!success) {
+                        error = "Error en la sincronización"
+                    }
+                } catch (e: Exception) {
+                    isSyncing = false
+                    error = "Error en sincronización: ${e.message}"
+                }
             }
         }
     }
     
     // Cargar playlists al iniciar si está conectado
     LaunchedEffect(isSpotifyConnected) {
-        if (isSpotifyConnected && playlists.isEmpty()) {
+        if (isSpotifyConnected) {
             loadPlaylists()
+        }
+    }
+    
+    // Cleanup del YouTubeSearchManager
+    DisposableEffect(Unit) {
+        onDispose {
+            youtubeSearchManager.cleanup()
         }
     }
     
@@ -852,6 +888,47 @@ fun PlaylistsScreen(
                     }
                 }
         )
+        
+        // Botón de sincronización manual (solo visible si está conectado y no es una playlist individual)
+        if (isSpotifyConnected && selectedPlaylist == null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Botón de sincronización
+                Text(
+                    text = if (isSyncing) "<syncing...>" else "<sync>",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (isSyncing) Color(0xFFFFD93D) else Color(0xFF4ECDC4)
+                    ),
+                    modifier = Modifier
+                        .clickable(enabled = !isSyncing) { 
+                            forceSyncAll()
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        .padding(8.dp)
+                )
+                
+                // Indicador de estado
+                Text(
+                    text = when {
+                        isSyncing -> "Sincronizando..."
+                        playlists.isNotEmpty() -> "${playlists.size} playlists"
+                        else -> "Sin datos locales"
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        color = Color(0xFF95A5A6)
+                    ),
+                    modifier = Modifier.align(Alignment.CenterVertically)
+                )
+            }
+        }
         
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -1023,14 +1100,60 @@ fun PlaylistsScreen(
                             )
                         }
                         
+                        // Información de progreso de YouTube IDs
+                        if (tracksFromDB.isNotEmpty()) {
+                            val tracksWithYouTubeId = tracksFromDB.count { it.youtubeVideoId != null }
+                            val totalTracks = tracksFromDB.size
+                            val isSearching = youtubeSearchManager.isSearching()
+                            
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "youtube_ids:",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF95A5A6)
+                                    )
+                                )
+                                
+                                Text(
+                                    text = if (isSearching) {
+                                        "$tracksWithYouTubeId/$totalTracks (searching...)"
+                                    } else {
+                                        "$tracksWithYouTubeId/$totalTracks"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 12.sp,
+                                        color = when {
+                                            isSearching -> Color(0xFFFFD93D)
+                                            tracksWithYouTubeId == totalTracks -> Color(0xFF1DB954)
+                                            tracksWithYouTubeId == 0 -> Color(0xFFFF6B6B)
+                                            else -> Color(0xFF4ECDC4)
+                                        }
+                                    )
+                                )
+                            }
+                        }
+                        
                         // Lista de tracks
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(bottom = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(playlistTracks) { track ->
-                                TrackItem(track = track)
+                            items(playlistTracks.size) { index ->
+                                val track = playlistTracks[index]
+                                val trackEntity = tracksFromDB.find { it.spotifyTrackId == track.id }
+                                TrackItem(
+                                    track = track,
+                                    trackEntity = trackEntity
+                                )
                             }
                         }
                     }
@@ -1039,7 +1162,7 @@ fun PlaylistsScreen(
             
             else -> {
                 // Vista principal de playlists
-                if (isLoading) {
+                if (isLoading || isSyncing) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center
@@ -1052,7 +1175,7 @@ fun PlaylistsScreen(
                             )
                         )
                         Text(
-                            text = "$ loading_playlists...",
+                            text = if (isSyncing) "$ syncing_from_spotify..." else "$ loading_playlists...",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp,
@@ -1146,27 +1269,34 @@ fun PlaylistItem(
 
 @Composable
 fun TrackItem(
-    track: SpotifyTrack
+    track: SpotifyTrack,
+    trackEntity: TrackEntity? = null
 ) {
     val haptic = LocalHapticFeedback.current
+    val hasYouTubeId = trackEntity?.youtubeVideoId != null
     
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { 
                 println("🎵 TRACK CLICKED: ${track.getDisplayName()}")
+                if (hasYouTubeId) {
+                    println("✅ Track tiene YouTube ID: ${trackEntity?.youtubeVideoId}")
+                } else {
+                    println("⚠️ Track sin YouTube ID")
+                }
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             }
             .padding(vertical = 6.dp, horizontal = 4.dp), // Padding aumentado para mejor touch
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icono de track
+        // Icono de track con indicador de estado
         Text(
-            text = "> ",
+            text = if (hasYouTubeId) "✓ " else "> ",
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp, // Tamaño aumentado y cambiado a >
-                color = Color(0xFF4ECDC4) // Color terminal consistente
+                fontSize = 16.sp,
+                color = if (hasYouTubeId) Color(0xFF1DB954) else Color(0xFF4ECDC4) // Verde si tiene YouTube ID
             )
         )
         
@@ -1175,11 +1305,23 @@ fun TrackItem(
             text = track.getDisplayName(),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp, // Tamaño aumentado
-                color = MaterialTheme.colorScheme.onSurface
+                fontSize = 16.sp,
+                color = if (hasYouTubeId) MaterialTheme.colorScheme.onSurface else Color(0xFF95A5A6)
             ),
             modifier = Modifier.weight(1f)
         )
+        
+        // Indicador de estado (opcional)
+        if (!hasYouTubeId) {
+            Text(
+                text = "…",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = Color(0xFFFFD93D)
+                )
+            )
+        }
     }
 }
 

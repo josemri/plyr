@@ -7,10 +7,15 @@ import androidx.lifecycle.MutableLiveData
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import com.plyr.network.AudioRepository
+import com.plyr.network.YouTubeAudioExtractor
 import com.plyr.utils.isValidAudioUrl
 import com.plyr.utils.Config
 import android.os.Handler
 import android.os.Looper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     
@@ -44,32 +49,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _error.postValue(null)
         _currentTitle.postValue(title)
         
-        // Obtener configuración
-        val context = getApplication<Application>()
-        val baseUrl = Config.getNgrokUrl(context)
-        val apiKey = Config.getApiToken(context)
-        
-        if (baseUrl.isEmpty() || apiKey.isEmpty()) {
-            _isLoading.postValue(false)
-            _error.postValue("Configuración incompleta: Verifica URL base y API Key en configuración")
-            return
-        }
-        
-        AudioRepository.requestAudioUrl(videoId, baseUrl, apiKey) { result ->
-            // Ejecutar en el hilo principal para poder usar ExoPlayer
-            mainHandler.post {
-                _isLoading.postValue(false)
-                println("PlayerViewModel: Resultado del repositorio: $result")
+        // Usar NewPipe Extractor en lugar del backend
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val audioUrl = withContext(Dispatchers.IO) {
+                    YouTubeAudioExtractor.getAudioUrl(videoId)
+                }
                 
-                if (result != null) {
-                    println("PlayerViewModel: Validando URL: $result")
-                    if (isValidAudioUrl(result)) {
+                if (audioUrl != null) {
+                    println("PlayerViewModel: ✅ URL obtenida con NewPipe: $audioUrl")
+                    
+                    if (isValidAudioUrl(audioUrl)) {
                         println("PlayerViewModel: URL válida, configurando ExoPlayer")
-                        _audioUrl.postValue(result)
+                        _audioUrl.postValue(audioUrl)
+                        
                         _exoPlayer?.apply {
                             try {
-                                println("PlayerViewModel: Creando MediaItem con URL: $result")
-                                setMediaItem(MediaItem.fromUri(result))
+                                println("PlayerViewModel: Creando MediaItem con URL: $audioUrl")
+                                setMediaItem(MediaItem.fromUri(audioUrl))
                                 prepare()
                                 play()
                                 println("PlayerViewModel: ExoPlayer configurado y reproduciendo")
@@ -78,14 +75,22 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                                 _error.postValue("Error al reproducir: ${e.message}")
                             }
                         }
+                        
+                        _isLoading.postValue(false)
                     } else {
                         println("PlayerViewModel: URL no válida según isValidAudioUrl")
-                        _error.postValue("La URL recibida no es válida para reproducción de audio: $result")
+                        _isLoading.postValue(false)
+                        _error.postValue("La URL obtenida no es válida para reproducción de audio")
                     }
                 } else {
-                    println("PlayerViewModel: No se recibió URL del servidor")
-                    _error.postValue("No se pudo obtener una URL de audio para el video ID: $videoId")
+                    println("PlayerViewModel: ❌ No se pudo obtener URL de audio")
+                    _isLoading.postValue(false)
+                    _error.postValue("No se pudo extraer la URL de audio para el video ID: $videoId")
                 }
+            } catch (e: Exception) {
+                println("PlayerViewModel: ❌ Error al extraer audio: ${e.message}")
+                _isLoading.postValue(false)
+                _error.postValue("Error al extraer audio: ${e.message}")
             }
         }
     }

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    id("kotlin-kapt")
 }
 
 android {
@@ -64,4 +65,15 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.okhttp)
     implementation(libs.gson)
+
+    // NewPipe Extractor
+    implementation("com.github.teamnewpipe:NewPipeExtractor:0.24.6")
+
+    // Coroutines (si no las tienes ya)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Room Database
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    kapt("androidx.room:room-compiler:2.6.1")
 }
