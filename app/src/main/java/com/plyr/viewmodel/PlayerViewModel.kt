@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.plyr.network.YouTubeAudioExtractor
 import com.plyr.utils.isValidAudioUrl
@@ -17,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CompletableDeferred
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     
@@ -41,9 +43,38 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     // Agregar YouTubeSearchManager para búsqueda transparente
     private val youtubeSearchManager = YouTubeSearchManager(application)
     
+    // Para notificar cuando una canción termina
+    private var playbackEndedCallback: CompletableDeferred<Boolean>? = null
+    
     fun initializePlayer() {
         if (_exoPlayer == null) {
-            _exoPlayer = ExoPlayer.Builder(getApplication()).build()
+            _exoPlayer = ExoPlayer.Builder(getApplication()).build().apply {
+                // Agregar listener para detectar cuando termina la reproducción
+                addListener(object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        when (playbackState) {
+                            Player.STATE_ENDED -> {
+                                println("PlayerViewModel: 🎵 Canción terminada - Player.STATE_ENDED")
+                                playbackEndedCallback?.complete(true)
+                                playbackEndedCallback = null
+                            }
+                            Player.STATE_IDLE -> {
+                                println("PlayerViewModel: ExoPlayer en estado IDLE")
+                            }
+                            Player.STATE_BUFFERING -> {
+                                println("PlayerViewModel: ExoPlayer bufferizando...")
+                            }
+                            Player.STATE_READY -> {
+                                println("PlayerViewModel: ExoPlayer listo para reproducir")
+                            }
+                        }
+                    }
+                    
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        println("PlayerViewModel: Estado de reproducción cambió: $isPlaying")
+                    }
+                })
+            }
         }
     }
     
@@ -102,60 +133,67 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * Cargar audio desde un TrackEntity de forma transparente
      * Obtiene el YouTube ID automáticamente si no existe
+     * @return true si la carga fue exitosa, false si falló
      */
-    fun loadAudioFromTrack(track: TrackEntity) {
-        println("PlayerViewModel: Cargando audio para track: ${track.name} - ${track.artists}")
-        _isLoading.postValue(true)
-        _error.postValue(null)
-        _currentTitle.postValue("${track.name} - ${track.artists}")
-        
-        CoroutineScope(Dispatchers.Main).launch {
-            try {
-                // Obtener YouTube ID de forma transparente
-                val youtubeId = withContext(Dispatchers.IO) {
-                    youtubeSearchManager.getYouTubeIdTransparently(track)
+    suspend fun loadAudioFromTrack(track: TrackEntity): Boolean = withContext(Dispatchers.Main) {
+        try {
+            println("PlayerViewModel: Cargando audio para track: ${track.name} - ${track.artists}")
+            _isLoading.postValue(true)
+            _error.postValue(null)
+            _currentTitle.postValue("${track.name} - ${track.artists}")
+            
+            // Obtener YouTube ID de forma transparente
+            val youtubeId = withContext(Dispatchers.IO) {
+                youtubeSearchManager.getYouTubeIdTransparently(track)
+            }
+            
+            if (youtubeId != null) {
+                println("PlayerViewModel: ✅ YouTube ID obtenido: $youtubeId")
+                
+                // Obtener URL de audio con el ID
+                val audioUrl = withContext(Dispatchers.IO) {
+                    YouTubeAudioExtractor.getAudioUrl(youtubeId)
                 }
                 
-                if (youtubeId != null) {
-                    println("PlayerViewModel: ✅ YouTube ID obtenido: $youtubeId")
+                if (audioUrl != null && isValidAudioUrl(audioUrl)) {
+                    println("PlayerViewModel: ✅ URL de audio obtenida: $audioUrl")
+                    _audioUrl.postValue(audioUrl)
                     
-                    // Obtener URL de audio con el ID
-                    val audioUrl = withContext(Dispatchers.IO) {
-                        YouTubeAudioExtractor.getAudioUrl(youtubeId)
-                    }
-                    
-                    if (audioUrl != null && isValidAudioUrl(audioUrl)) {
-                        println("PlayerViewModel: ✅ URL de audio obtenida: $audioUrl")
-                        _audioUrl.postValue(audioUrl)
-                        
-                        _exoPlayer?.apply {
-                            try {
-                                setMediaItem(MediaItem.fromUri(audioUrl))
-                                prepare()
-                                play()
-                                println("PlayerViewModel: ✅ Reproducción iniciada para: ${track.name}")
-                            } catch (e: Exception) {
-                                println("PlayerViewModel: ❌ Error configurando ExoPlayer: ${e.message}")
-                                _error.postValue("Error al reproducir: ${e.message}")
-                            }
+                    _exoPlayer?.apply {
+                        try {
+                            setMediaItem(MediaItem.fromUri(audioUrl))
+                            prepare()
+                            play()
+                            println("PlayerViewModel: ✅ Reproducción iniciada para: ${track.name}")
+                            _isLoading.postValue(false)
+                            return@withContext true
+                        } catch (e: Exception) {
+                            println("PlayerViewModel: ❌ Error configurando ExoPlayer: ${e.message}")
+                            _error.postValue("Error al reproducir: ${e.message}")
+                            _isLoading.postValue(false)
+                            return@withContext false
                         }
-                        
-                        _isLoading.postValue(false)
-                    } else {
-                        println("PlayerViewModel: ❌ No se pudo obtener URL de audio válida")
-                        _isLoading.postValue(false)
-                        _error.postValue("No se pudo obtener el audio para: ${track.name}")
                     }
-                } else {
-                    println("PlayerViewModel: ❌ No se encontró YouTube ID para: ${track.name}")
+                    
                     _isLoading.postValue(false)
-                    _error.postValue("No se encontró el video para: ${track.name}")
+                    return@withContext false
+                } else {
+                    println("PlayerViewModel: ❌ No se pudo obtener URL de audio válida")
+                    _isLoading.postValue(false)
+                    _error.postValue("No se pudo obtener el audio para: ${track.name}")
+                    return@withContext false
                 }
-            } catch (e: Exception) {
-                println("PlayerViewModel: ❌ Error cargando audio desde track: ${e.message}")
+            } else {
+                println("PlayerViewModel: ❌ No se encontró YouTube ID para: ${track.name}")
                 _isLoading.postValue(false)
-                _error.postValue("Error al cargar audio: ${e.message}")
+                _error.postValue("No se encontró el video para: ${track.name}")
+                return@withContext false
             }
+        } catch (e: Exception) {
+            println("PlayerViewModel: ❌ Error cargando audio desde track: ${e.message}")
+            _isLoading.postValue(false)
+            _error.postValue("Error al cargar audio: ${e.message}")
+            return@withContext false
         }
     }
     
@@ -178,19 +216,96 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
     
     fun getCurrentPosition(): Long {
-        return _exoPlayer?.currentPosition ?: 0L
+        return try {
+            _exoPlayer?.currentPosition ?: 0L
+        } catch (e: Exception) {
+            println("PlayerViewModel: Error obteniendo posición: ${e.message}")
+            0L
+        }
     }
     
     fun getDuration(): Long {
-        return _exoPlayer?.duration?.takeIf { it > 0 } ?: 0L
+        return try {
+            _exoPlayer?.duration?.takeIf { it > 0 } ?: 0L
+        } catch (e: Exception) {
+            println("PlayerViewModel: Error obteniendo duración: ${e.message}")
+            0L
+        }
     }
     
     fun isPlaying(): Boolean {
-        return _exoPlayer?.isPlaying ?: false
+        return try {
+            _exoPlayer?.isPlaying ?: false
+        } catch (e: Exception) {
+            println("PlayerViewModel: Error verificando estado de reproducción: ${e.message}")
+            false
+        }
+    }
+    
+    /**
+     * Espera a que termine la canción actual usando el listener de ExoPlayer
+     * Retorna true si terminó naturalmente, false si se canceló
+     */
+    suspend fun waitForCurrentSongToFinish(): Boolean {
+        return try {
+            println("PlayerViewModel: ⏳ Esperando a que termine la canción actual...")
+            
+            // Verificar desde el hilo principal que hay una canción reproduciéndose
+            val hasPlayback = withContext(Dispatchers.Main) {
+                _exoPlayer != null && isPlaying()
+            }
+            
+            if (!hasPlayback) {
+                println("PlayerViewModel: ⚠️ No hay canción reproduciéndose")
+                return false
+            }
+            
+            // Crear un CompletableDeferred para esperar el final
+            playbackEndedCallback = CompletableDeferred()
+            
+            // Esperar en hilo IO para no bloquear UI
+            withContext(Dispatchers.IO) {
+                // Esperar máximo 8 minutos (480 segundos) por si algo falla
+                val timeout = 480000L
+                val startTime = System.currentTimeMillis()
+                
+                // Esperar hasta que termine o se agote el tiempo
+                while (playbackEndedCallback != null && !playbackEndedCallback!!.isCompleted) {
+                    if (System.currentTimeMillis() - startTime > timeout) {
+                        println("PlayerViewModel: ⚠️ Timeout esperando fin de canción")
+                        playbackEndedCallback?.complete(false)
+                        break
+                    }
+                    kotlinx.coroutines.delay(1000)
+                }
+                
+                val result = playbackEndedCallback?.await() ?: false
+                playbackEndedCallback = null
+                
+                println("PlayerViewModel: ${if (result) "✅" else "⚠️"} Canción ${if (result) "terminada" else "cancelada"}")
+                result
+            }
+            
+        } catch (e: Exception) {
+            println("PlayerViewModel: ❌ Error esperando fin de canción: ${e.message}")
+            playbackEndedCallback?.complete(false)
+            playbackEndedCallback = null
+            false
+        }
+    }
+    
+    /**
+     * Cancela la espera del final de la canción
+     */
+    fun cancelWaitForSong() {
+        playbackEndedCallback?.complete(false)
+        playbackEndedCallback = null
     }
     
     override fun onCleared() {
         super.onCleared()
+        playbackEndedCallback?.complete(false)
+        playbackEndedCallback = null
         mainHandler.post {
             _exoPlayer?.release()
             _exoPlayer = null

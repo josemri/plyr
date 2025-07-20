@@ -1048,6 +1048,33 @@ fun PlaylistsScreen(
                         startJob?.cancel()
                         randomJob = null
                         startJob = null
+                        // Pausar el reproductor actual
+                        playerViewModel?.pausePlayer()
+                    }
+                    
+                    // Función para esperar a que termine una canción usando ExoPlayer listeners
+                    suspend fun waitForSongToFinish(playerViewModel: PlayerViewModel): Boolean {
+                        return try {
+                            println("⏳ Esperando a que la canción termine usando listeners de ExoPlayer...")
+                            
+                            // Esperar un poco para que ExoPlayer se estabilice
+                            kotlinx.coroutines.delay(2000)
+                            
+                            // Usar la nueva función del PlayerViewModel que tiene listeners
+                            val finished = playerViewModel.waitForCurrentSongToFinish()
+                            
+                            if (finished) {
+                                println("✅ Canción terminada, pasando a la siguiente")
+                            } else {
+                                println("⚠️ Canción cancelada o error, pasando a la siguiente")
+                            }
+                            
+                            true // Siempre continuar a la siguiente canción
+                            
+                        } catch (e: Exception) {
+                            println("❌ Error esperando fin de canción: ${e.message}")
+                            true // En caso de error, continuar con la siguiente canción
+                        }
                     }
                     
                     // Función para randomización
@@ -1055,12 +1082,30 @@ fun PlaylistsScreen(
                         stopAllPlayback()
                         isRandomizing = true
                         
-                        if (playlistTracks.isNotEmpty()) {
+                        if (playlistTracks.isNotEmpty() && playerViewModel != null) {
                             randomJob = kotlinx.coroutines.GlobalScope.launch {
                                 while (isRandomizing) {
                                     val randomTrack = playlistTracks.random()
+                                    val trackEntity = tracksFromDB.find { it.spotifyTrackId == randomTrack.id }
+                                    
                                     println("🎵 RANDOM [${selectedPlaylist!!.name}]: ${randomTrack.getDisplayName()}")
-                                    kotlinx.coroutines.delay(1000) // 1 segundo
+                                    
+                                    if (trackEntity != null) {
+                                        // Reproducir la canción usando PlayerViewModel
+                                        playerViewModel.initializePlayer()
+                                        val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
+                                        
+                                        if (loadSuccess) {
+                                            // Solo esperar si la carga fue exitosa
+                                            waitForSongToFinish(playerViewModel)
+                                        } else {
+                                            println("⚠️ Error cargando audio para: ${randomTrack.getDisplayName()}")
+                                            kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
+                                        }
+                                    } else {
+                                        println("⚠️ TrackEntity no encontrado para: ${randomTrack.getDisplayName()}")
+                                        kotlinx.coroutines.delay(2000) // Esperar 2 segundos antes de intentar la siguiente
+                                    }
                                 }
                             }
                         }
@@ -1071,13 +1116,32 @@ fun PlaylistsScreen(
                         stopAllPlayback()
                         isStarting = true
                         
-                        if (playlistTracks.isNotEmpty()) {
+                        if (playlistTracks.isNotEmpty() && playerViewModel != null) {
                             startJob = kotlinx.coroutines.GlobalScope.launch {
                                 var currentIndex = 0
                                 while (isStarting && currentIndex < playlistTracks.size) {
                                     val track = playlistTracks[currentIndex]
+                                    val trackEntity = tracksFromDB.find { it.spotifyTrackId == track.id }
+                                    
                                     println("🎵 START [${selectedPlaylist!!.name}] ${currentIndex + 1}/${playlistTracks.size}: ${track.getDisplayName()}")
-                                    kotlinx.coroutines.delay(1000) // 1 segundo
+                                    
+                                    if (trackEntity != null) {
+                                        // Reproducir la canción usando PlayerViewModel
+                                        playerViewModel.initializePlayer()
+                                        val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
+                                        
+                                        if (loadSuccess) {
+                                            // Solo esperar si la carga fue exitosa
+                                            waitForSongToFinish(playerViewModel)
+                                        } else {
+                                            println("⚠️ Error cargando audio para: ${track.getDisplayName()}")
+                                            kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
+                                        }
+                                    } else {
+                                        println("⚠️ TrackEntity no encontrado para: ${track.getDisplayName()}")
+                                        kotlinx.coroutines.delay(2000) // Esperar 2 segundos antes de intentar la siguiente
+                                    }
+                                    
                                     currentIndex++
                                     if (currentIndex >= playlistTracks.size) {
                                         currentIndex = 0 // Reiniciar desde el principio
@@ -1143,48 +1207,6 @@ fun PlaylistsScreen(
                                     .padding(8.dp)
                             )
                         }
-                        
-                        // Información de progreso de YouTube IDs
-                        if (tracksFromDB.isNotEmpty()) {
-                            val tracksWithYouTubeId = tracksFromDB.count { it.youtubeVideoId != null }
-                            val totalTracks = tracksFromDB.size
-                            val isSearching = youtubeSearchManager.isSearching()
-                            
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "youtube_ids:",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp,
-                                        color = Color(0xFF95A5A6)
-                                    )
-                                )
-                                
-                                Text(
-                                    text = if (isSearching) {
-                                        "$tracksWithYouTubeId/$totalTracks (searching...)"
-                                    } else {
-                                        "$tracksWithYouTubeId/$totalTracks"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 12.sp,
-                                        color = when {
-                                            isSearching -> Color(0xFFFFD93D)
-                                            tracksWithYouTubeId == totalTracks -> Color(0xFF1DB954)
-                                            tracksWithYouTubeId == 0 -> Color(0xFFFF6B6B)
-                                            else -> Color(0xFF4ECDC4)
-                                        }
-                                    )
-                                )
-                            }
-                        }
-                        
                         // Lista de tracks
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth(),
@@ -1333,7 +1355,14 @@ fun TrackItem(
                 if (trackEntity != null && playerViewModel != null) {
                     println("✅ Iniciando reproducción transparente para: ${track.getDisplayName()}")
                     playerViewModel.initializePlayer()
-                    playerViewModel.loadAudioFromTrack(trackEntity) // Búsqueda automática de YouTube ID si es necesario
+                    
+                    // Para clicks individuales, lanzar en una corrutina para manejar la carga asíncrona
+                    kotlinx.coroutines.GlobalScope.launch {
+                        val success = playerViewModel.loadAudioFromTrack(trackEntity)
+                        if (!success) {
+                            println("⚠️ Error cargando audio para: ${track.getDisplayName()}")
+                        }
+                    }
                 } else {
                     println("⚠️ PlayerViewModel no disponible para: ${track.getDisplayName()}")
                 }
@@ -1345,7 +1374,7 @@ fun TrackItem(
     ) {
         // Icono de track con indicador de estado
         Text(
-            text = if (hasYouTubeId) "✓ " else "> ",
+            text = if (hasYouTubeId) "> " else "> ",
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 16.sp,
@@ -1363,18 +1392,6 @@ fun TrackItem(
             ),
             modifier = Modifier.weight(1f)
         )
-        
-        // Indicador de estado (opcional)
-        if (!hasYouTubeId) {
-            Text(
-                text = "…",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = Color(0xFFFFD93D)
-                )
-            )
-        }
     }
 }
 
