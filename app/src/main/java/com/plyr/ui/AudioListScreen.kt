@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.plyr.model.AudioItem
-import com.plyr.network.AudioRepository
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyTrack
@@ -58,8 +57,7 @@ import com.plyr.service.YouTubeSearchManager
 enum class Screen {
     MAIN,
     CONFIG,
-    PLAYLISTS,
-    BACKEND_CONFIG
+    PLAYLISTS
 }
 
 @Composable
@@ -82,17 +80,12 @@ fun AudioListScreen(
             context = context,
             onBack = { currentScreen = Screen.MAIN },
             onThemeChanged = onThemeChanged,
-            onOpenPlaylists = { currentScreen = Screen.PLAYLISTS },
-            onOpenBackendConfig = { currentScreen = Screen.BACKEND_CONFIG }
+            onOpenPlaylists = { currentScreen = Screen.PLAYLISTS }
         )
         Screen.PLAYLISTS -> PlaylistsScreen(
             context = context,
             onBack = { currentScreen = Screen.MAIN },
             playerViewModel = playerViewModel
-        )
-        Screen.BACKEND_CONFIG -> BackendConfigScreen(
-            context = context,
-            onBack = { currentScreen = Screen.CONFIG }
         )
     }
 }
@@ -418,8 +411,7 @@ fun ConfigScreen(
     context: Context,
     onBack: () -> Unit,
     onThemeChanged: (String) -> Unit = {},
-    onOpenPlaylists: () -> Unit,
-    onOpenBackendConfig: () -> Unit
+    onOpenPlaylists: () -> Unit
 ) {
     var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
     
@@ -427,30 +419,6 @@ fun ConfigScreen(
     var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
     var isConnecting by remember { mutableStateOf(false) }
     var connectionMessage by remember { mutableStateOf("") }
-    
-    // Estado para mostrar el estado de plyr (solo lectura)
-    var plyrStatus by remember { mutableStateOf("unknown") }
-    
-    // Verificar el estado de plyr
-    LaunchedEffect(Unit) {
-        val ngrokUrl = Config.getNgrokUrl(context)
-        val apiToken = Config.getApiToken(context)
-        
-        if (ngrokUrl.isNotBlank() && apiToken.isNotBlank()) {
-            plyrStatus = "checking..."
-            AudioRepository.whoami(ngrokUrl, apiToken) { user, error ->
-                plyrStatus = if (error != null) {
-                    "error"
-                } else if (user != null) {
-                    "configured ($user)"
-                } else {
-                    "unknown"
-                }
-            }
-        } else {
-            plyrStatus = "pending"
-        }
-    }
     
     LaunchedEffect(selectedTheme) {
         Config.setTheme(context, selectedTheme)
@@ -622,68 +590,6 @@ fun ConfigScreen(
                 ),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            
-            // Estado de plyr (clickeable)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { 
-                        onOpenBackendConfig()
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    }
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "    > plyr:",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = Color(0xFF95A5A6)
-                    )
-                )
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Indicador de estado
-                    Text(
-                        text = when (plyrStatus) {
-                            "checking..." -> "⏳ "
-                            "error" -> "✗ "
-                            "pending" -> "○ "
-                            else -> if (plyrStatus.startsWith("configured")) "✓ " else "○ "
-                        },
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            color = when (plyrStatus) {
-                                "checking..." -> Color(0xFFFFD93D)
-                                "error" -> Color(0xFFFF6B6B)
-                                "pending" -> Color(0xFFFFD93D)
-                                else -> if (plyrStatus.startsWith("configured")) MaterialTheme.colorScheme.primary else Color(0xFF95A5A6)
-                            }
-                        )
-                    )
-                    
-                    // Estado de conexión
-                    Text(
-                        text = plyrStatus,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            color = when (plyrStatus) {
-                                "checking..." -> Color(0xFFFFD93D)
-                                "error" -> Color(0xFFFF6B6B)
-                                "pending" -> Color(0xFFFFD93D)
-                                else -> if (plyrStatus.startsWith("configured")) MaterialTheme.colorScheme.primary else Color(0xFF95A5A6)
-                            }
-                        )
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(4.dp))
             
             // Estado de Spotify (clickeable)
             Row(
@@ -1037,22 +943,28 @@ fun PlaylistsScreen(
                     // Estados para los botones de control
                     var isRandomizing by remember { mutableStateOf(false) }
                     var isStarting by remember { mutableStateOf(false) }
+                    var isPlayingFromTrack by remember { mutableStateOf(false) }
                     var randomJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     var startJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    var trackPlaylistJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     
                     // Función para parar todas las reproducciones
                     fun stopAllPlayback() {
                         isRandomizing = false
                         isStarting = false
+                        isPlayingFromTrack = false
                         randomJob?.cancel()
                         startJob?.cancel()
+                        trackPlaylistJob?.cancel()
                         randomJob = null
                         startJob = null
-                        // Pausar el reproductor actual
+                        trackPlaylistJob = null
+                        // Cancelar espera de canción y pausar el reproductor
+                        playerViewModel?.cancelWaitForSong()
                         playerViewModel?.pausePlayer()
                     }
                     
-                    // Función para esperar a que termine una canción usando ExoPlayer listeners
+                    // Función auxiliar para esperar a que termine una canción
                     suspend fun waitForSongToFinish(playerViewModel: PlayerViewModel): Boolean {
                         return try {
                             println("⏳ Esperando a que la canción termine usando listeners de ExoPlayer...")
@@ -1077,6 +989,52 @@ fun PlaylistsScreen(
                         }
                     }
                     
+                    // Función para iniciar playlist desde un track específico
+                    fun startPlaylistFromTrackIndex(startIndex: Int) {
+                        stopAllPlayback() // Parar cualquier reproducción en curso
+                        isPlayingFromTrack = true
+                        
+                        trackPlaylistJob = kotlinx.coroutines.GlobalScope.launch {
+                            var currentIndex = startIndex
+                            
+                            while (currentIndex < playlistTracks.size && isPlayingFromTrack) {
+                                val currentTrack = playlistTracks[currentIndex]
+                                val currentTrackEntity = tracksFromDB.find { it.spotifyTrackId == currentTrack.id }
+                                
+                                println("🎵 PLAYLIST FROM TRACK [${currentIndex + 1}/${playlistTracks.size}]: ${currentTrack.getDisplayName()}")
+                                
+                                if (currentTrackEntity != null && playerViewModel != null) {
+                                    // Reproducir la canción actual
+                                    playerViewModel.initializePlayer()
+                                    val loadSuccess = playerViewModel.loadAudioFromTrack(currentTrackEntity)
+                                    
+                                    if (loadSuccess) {
+                                        // Esperar a que termine antes de continuar con la siguiente
+                                        val finished = waitForSongToFinish(playerViewModel)
+                                        
+                                        if (finished) {
+                                            println("✅ Canción terminada, pasando a la siguiente")
+                                        } else {
+                                            println("⚠️ Canción cancelada, parando playlist")
+                                            break // Si se cancela, parar la playlist
+                                        }
+                                    } else {
+                                        println("⚠️ Error cargando audio para: ${currentTrack.getDisplayName()}")
+                                        kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
+                                    }
+                                } else {
+                                    println("⚠️ TrackEntity no encontrado para: ${currentTrack.getDisplayName()}")
+                                    kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
+                                }
+                                
+                                currentIndex++
+                            }
+                            
+                            println("🏁 Playlist desde track terminada")
+                            isPlayingFromTrack = false
+                        }
+                    }
+                    
                     // Función para randomización
                     fun startRandomizing() {
                         stopAllPlayback()
@@ -1090,7 +1048,7 @@ fun PlaylistsScreen(
                                     
                                     println("🎵 RANDOM [${selectedPlaylist!!.name}]: ${randomTrack.getDisplayName()}")
                                     
-                                    if (trackEntity != null) {
+                                    if (trackEntity != null && playerViewModel != null) {
                                         // Reproducir la canción usando PlayerViewModel
                                         playerViewModel.initializePlayer()
                                         val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
@@ -1125,7 +1083,7 @@ fun PlaylistsScreen(
                                     
                                     println("🎵 START [${selectedPlaylist!!.name}] ${currentIndex + 1}/${playlistTracks.size}: ${track.getDisplayName()}")
                                     
-                                    if (trackEntity != null) {
+                                    if (trackEntity != null && playerViewModel != null) {
                                         // Reproducir la canción usando PlayerViewModel
                                         playerViewModel.initializePlayer()
                                         val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
@@ -1219,7 +1177,11 @@ fun PlaylistsScreen(
                                 TrackItem(
                                     track = track,
                                     trackEntity = trackEntity,
-                                    playerViewModel = playerViewModel
+                                    playerViewModel = playerViewModel,
+                                    playlistTracks = playlistTracks,
+                                    tracksFromDB = tracksFromDB,
+                                    trackIndex = index,
+                                    onStartPlaylistFromTrack = ::startPlaylistFromTrackIndex
                                 )
                             }
                         }
@@ -1338,7 +1300,11 @@ fun PlaylistItem(
 fun TrackItem(
     track: SpotifyTrack,
     trackEntity: TrackEntity? = null,
-    playerViewModel: PlayerViewModel? = null
+    playerViewModel: PlayerViewModel? = null,
+    playlistTracks: List<SpotifyTrack> = emptyList(),
+    tracksFromDB: List<TrackEntity> = emptyList(),
+    trackIndex: Int = -1,
+    onStartPlaylistFromTrack: ((Int) -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
     val hasYouTubeId = trackEntity?.youtubeVideoId != null
@@ -1349,11 +1315,13 @@ fun TrackItem(
             .clickable { 
                 println("🎵 TRACK CLICKED: ${track.getDisplayName()}")
                 
-                // Reproducir usando PlayerViewModel de forma transparente
-                // Si el track no tiene YouTube ID, se buscará automáticamente y se guardará localmente
-                // El usuario no verá diferencia entre tener el ID guardado o no
-                if (trackEntity != null && playerViewModel != null) {
-                    println("✅ Iniciando reproducción transparente para: ${track.getDisplayName()}")
+                // Si está en contexto de playlist, usar la función callback
+                if (playlistTracks.isNotEmpty() && trackIndex >= 0 && onStartPlaylistFromTrack != null) {
+                    println("🎵 Iniciando playlist desde track $trackIndex: ${track.getDisplayName()}")
+                    onStartPlaylistFromTrack(trackIndex)
+                } else if (trackEntity != null && playerViewModel != null) {
+                    // Reproducción individual (comportamiento original)
+                    println("✅ Iniciando reproducción individual para: ${track.getDisplayName()}")
                     playerViewModel.initializePlayer()
                     
                     // Para clicks individuales, lanzar en una corrutina para manejar la carga asíncrona
@@ -1392,356 +1360,5 @@ fun TrackItem(
             ),
             modifier = Modifier.weight(1f)
         )
-    }
-}
-
-@Composable
-fun BackendConfigScreen(
-    context: Context,
-    onBack: () -> Unit
-) {
-    var ngrokUrl by remember { mutableStateOf(Config.getNgrokUrl(context)) }
-    var apiToken by remember { mutableStateOf(Config.getApiToken(context)) }
-    
-    // Estado para el resultado de whoami
-    var whoamiResult by remember { mutableStateOf<String?>(null) }
-    var whoamiError by remember { mutableStateOf<String?>(null) }
-    var isCheckingAuth by remember { mutableStateOf(false) }
-    var showSaveMessage by remember { mutableStateOf(false) }
-    
-    // Función para verificar autenticación
-    fun checkAuth() {
-        if (ngrokUrl.isNotBlank() && apiToken.isNotBlank()) {
-            isCheckingAuth = true
-            whoamiResult = null
-            whoamiError = null
-            
-            AudioRepository.whoami(ngrokUrl, apiToken) { user, error ->
-                isCheckingAuth = false
-                if (error != null) {
-                    whoamiError = error
-                    whoamiResult = null
-                } else {
-                    whoamiResult = user
-                    whoamiError = null
-                }
-            }
-        } else {
-            whoamiResult = null
-            whoamiError = null
-        }
-    }
-    
-    // Función para guardar configuración
-    fun saveConfig() {
-        Config.setNgrokUrl(context, ngrokUrl)
-        Config.setApiToken(context, apiToken)
-        showSaveMessage = true
-        checkAuth()
-    }
-    
-    // Ocultar mensaje de guardado después de un tiempo
-    LaunchedEffect(showSaveMessage) {
-        if (showSaveMessage) {
-            kotlinx.coroutines.delay(2000)
-            showSaveMessage = false
-        }
-    }
-    
-    val haptic = LocalHapticFeedback.current
-    var dragOffsetX by remember { mutableStateOf(0f) }
-
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(20.dp) // Padding aumentado
-    ) {
-        // Header con detección de deslizamiento
-        Text(
-            text = "$ backend_config",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 22.sp, // Tamaño aumentado
-                color = MaterialTheme.colorScheme.primary
-            ),
-            modifier = Modifier
-                .padding(bottom = 20.dp)
-                .offset(x = dragOffsetX.dp)
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (abs(dragOffsetX) > 100 && dragOffsetX > 0) {
-                                onBack()
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                            dragOffsetX = 0f
-                        }
-                    ) { _, dragAmount ->
-                        dragOffsetX += dragAmount / density
-                    }
-                }
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Campo Ngrok URL
-        Text(
-            text = "> ngrok_url",
-            style = MaterialTheme.typography.bodyLarge.copy( // Tamaño aumentado
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.secondary
-            ),
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        
-        OutlinedTextField(
-            value = ngrokUrl,
-            onValueChange = { ngrokUrl = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp), // Altura aumentada para mejor touch
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-            ),
-            textStyle = MaterialTheme.typography.bodyLarge.copy( // Tamaño aumentado
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp
-            ),
-            placeholder = {
-                Text(
-                    "https://abc123.ngrok.io",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                )
-            }
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Campo API Token
-        Text(
-            text = "> api_token",
-            style = MaterialTheme.typography.bodyLarge.copy( // Tamaño aumentado
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.secondary
-            ),
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
-        
-        OutlinedTextField(
-            value = apiToken,
-            onValueChange = { apiToken = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp), // Altura aumentada para mejor touch
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-            ),
-            textStyle = MaterialTheme.typography.bodyLarge.copy( // Tamaño aumentado
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp
-            ),
-            placeholder = {
-                Text(
-                    "token_abc123xyz",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
-                        color = Color(0xFF666666)
-                    )
-                )
-            }
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // Botón de guardar con mayor tamaño
-        Button(
-            onClick = {
-                saveConfig()
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp), // Altura aumentada para mejor touch
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Text(
-                text = "$ save_config",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(20.dp))
-        
-        // Botón de test con mayor tamaño
-        OutlinedButton(
-            onClick = {
-                checkAuth()
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp), // Altura aumentada para mejor touch
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.secondary
-            )
-        ) {
-            Text(
-                text = "$ test_connection",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 18.sp
-                )
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // Status section
-        Column {
-            Text(
-                text = "$ status",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-            
-            // Estado de conexión
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "    > connection:",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = Color(0xFF95A5A6)
-                    )
-                )
-                
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Indicador de estado
-                    Text(
-                        text = when {
-                            isCheckingAuth -> "⏳ "
-                            whoamiError != null -> "✗ "
-                            whoamiResult != null -> "✓ "
-                            ngrokUrl.isBlank() || apiToken.isBlank() -> "○ "
-                            else -> "○ "
-                        },
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            color = when {
-                                isCheckingAuth -> Color(0xFFFFD93D)
-                                whoamiError != null -> Color(0xFFFF6B6B)
-                                whoamiResult != null -> MaterialTheme.colorScheme.primary
-                                else -> Color(0xFF95A5A6)
-                            }
-                        )
-                    )
-                    
-                    // Estado de conexión
-                    Text(
-                        text = when {
-                            isCheckingAuth -> "checking..."
-                            whoamiError != null -> "error"
-                            whoamiResult != null -> "ok ($whoamiResult)"
-                            ngrokUrl.isBlank() || apiToken.isBlank() -> "incomplete"
-                            else -> "unknown"
-                        },
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            color = when {
-                                isCheckingAuth -> Color(0xFFFFD93D)
-                                whoamiError != null -> Color(0xFFFF6B6B)
-                                whoamiResult != null -> MaterialTheme.colorScheme.primary
-                                else -> Color(0xFF95A5A6)
-                            }
-                        )
-                    )
-                }
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Mensaje de guardado
-        if (showSaveMessage) {
-            Text(
-                text = "✓ configuración guardada",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-        
-        // Mostrar error si existe
-        whoamiError?.let { error ->
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "ERR: $error",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    color = Color(0xFFFF6B6B)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        // Información de ayuda
-        Column {
-            Text(
-                text = "$ help",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-            
-            Text(
-                text = "• Configura tu servidor backend plyr\n• URL: endpoint público de tu servidor\n• Token: clave de autenticación API\n• Usa 'test_connection' para verificar",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    color = Color(0xFF95A5A6)
-                ),
-                lineHeight = 20.sp
-            )
-        }
     }
 }
