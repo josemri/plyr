@@ -1,6 +1,7 @@
 package com.plyr.ui
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +22,7 @@ import com.plyr.database.PlaylistEntity
 import com.plyr.database.TrackEntity
 import com.plyr.database.toSpotifyPlaylist
 import com.plyr.database.toSpotifyTrack
+import com.plyr.viewmodel.PlayerViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.asFlow
@@ -64,7 +66,8 @@ enum class Screen {
 fun AudioListScreen(
     context: Context,
     onVideoSelected: (String, String) -> Unit,
-    onThemeChanged: (String) -> Unit = {}
+    onThemeChanged: (String) -> Unit = {},
+    playerViewModel: PlayerViewModel? = null
 ) {
     var currentScreen by remember { mutableStateOf(Screen.MAIN) }
     
@@ -84,7 +87,8 @@ fun AudioListScreen(
         )
         Screen.PLAYLISTS -> PlaylistsScreen(
             context = context,
-            onBack = { currentScreen = Screen.MAIN }
+            onBack = { currentScreen = Screen.MAIN },
+            playerViewModel = playerViewModel
         )
         Screen.BACKEND_CONFIG -> BackendConfigScreen(
             context = context,
@@ -104,6 +108,10 @@ fun MainScreen(
     var results by remember { mutableStateOf<List<AudioItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    
+    // YouTube search manager para búsquedas locales
+    val youtubeSearchManager = remember { YouTubeSearchManager(context) }
+    val coroutineScope = rememberCoroutineScope()
     
     val haptic = LocalHapticFeedback.current
 
@@ -197,22 +205,31 @@ fun MainScreen(
                         error = null
                         results = emptyList()
 
-                        // Obtener configuración
-                        val baseUrl = Config.getNgrokUrl(context)
-                        val apiKey = Config.getApiToken(context)
-                        
-                        if (baseUrl.isEmpty() || apiKey.isEmpty()) {
-                            isLoading = false
-                            error = "Configuración incompleta: Verifica URL base y API Key en configuración"
-                            return@KeyboardActions
-                        }
-
-                        AudioRepository.searchAudios(searchQuery, baseUrl, apiKey) { list, err ->
-                            isLoading = false
-                            if (err != null) {
-                                error = err
-                            } else if (list != null) {
-                                results = list
+                        // Usar NewPipe para buscar videos
+                        coroutineScope.launch {
+                            try {
+                                // Buscar videos con información detallada usando NewPipe
+                                val videosInfo = youtubeSearchManager.searchYouTubeVideosDetailed(searchQuery, 10)
+                                
+                                // Convertir a AudioItem para compatibilidad con la UI existente
+                                val audioItems = videosInfo.map { videoInfo ->
+                                    AudioItem(
+                                        title = "${videoInfo.title} - ${videoInfo.uploader}",
+                                        url = "https://www.youtube.com/watch?v=${videoInfo.videoId}"
+                                    )
+                                }
+                                
+                                isLoading = false
+                                results = audioItems
+                                
+                                if (audioItems.isEmpty()) {
+                                    error = "No se encontraron videos para: $searchQuery"
+                                }
+                                
+                            } catch (e: Exception) {
+                                isLoading = false
+                                error = "Error buscando videos: ${e.message}"
+                                Log.e("MainScreen", "Error en búsqueda", e)
                             }
                         }
                     }
@@ -285,6 +302,31 @@ fun MainScreen(
                                 searchQuery = ""
                                 results = emptyList()
                                 error = null
+                                
+                                // Guardar el ID de YouTube en la base de datos para búsquedas futuras
+                                coroutineScope.launch {
+                                    try {
+                                        // Crear un track temporal para búsquedas manuales
+                                        val searchTrack = TrackEntity(
+                                            id = "search_${System.currentTimeMillis()}", // ID único para búsquedas
+                                            playlistId = "manual_search", // Playlist especial para búsquedas manuales
+                                            spotifyTrackId = id, // Usar el YouTube ID como referencia
+                                            name = item.title.substringBefore(" - "), // Título sin el canal
+                                            artists = item.title.substringAfter(" - ", "YouTube"), // Canal como artista
+                                            youtubeVideoId = id, // Guardar el ID de YouTube
+                                            position = 0, // Posición por defecto
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                        
+                                        // Opcionalmente, guardar en base de datos para futuras referencias
+                                        // localRepository.insertTrack(searchTrack)
+                                        
+                                        Log.d("MainScreen", "Video seleccionado - ID: $id, Título: ${item.title}")
+                                    } catch (e: Exception) {
+                                        Log.e("MainScreen", "Error guardando referencia de búsqueda", e)
+                                    }
+                                }
+                                
                                 onVideoSelected(id, item.title)
                             },
                         verticalAlignment = Alignment.CenterVertically
@@ -724,7 +766,8 @@ fun ConfigScreen(
 @Composable
 fun PlaylistsScreen(
     context: Context,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    playerViewModel: PlayerViewModel? = null
 ) {
     val haptic = LocalHapticFeedback.current
     var dragOffsetX by remember { mutableStateOf(0f) }
@@ -806,8 +849,9 @@ fun PlaylistsScreen(
                     isLoadingTracks = false
                     // Los tracks se actualizan automáticamente a través del LiveData
                     
-                    // Iniciar búsqueda automática de YouTube IDs en background
-                    youtubeSearchManager.searchYouTubeIdsForPlaylist(playlist.id)
+                    // NOTA: Ya no se necesita búsqueda masiva de YouTube IDs
+                    // Los IDs se obtienen automáticamente cuando el usuario hace click en cada canción
+                    Log.d("PlaylistScreen", "✅ Tracks cargados para playlist: ${playlist.name}. IDs de YouTube se obtendrán bajo demanda.")
                 } catch (e: Exception) {
                     isLoadingTracks = false
                     error = "Error cargando tracks: ${e.message}"
@@ -1152,7 +1196,8 @@ fun PlaylistsScreen(
                                 val trackEntity = tracksFromDB.find { it.spotifyTrackId == track.id }
                                 TrackItem(
                                     track = track,
-                                    trackEntity = trackEntity
+                                    trackEntity = trackEntity,
+                                    playerViewModel = playerViewModel
                                 )
                             }
                         }
@@ -1270,7 +1315,8 @@ fun PlaylistItem(
 @Composable
 fun TrackItem(
     track: SpotifyTrack,
-    trackEntity: TrackEntity? = null
+    trackEntity: TrackEntity? = null,
+    playerViewModel: PlayerViewModel? = null
 ) {
     val haptic = LocalHapticFeedback.current
     val hasYouTubeId = trackEntity?.youtubeVideoId != null
@@ -1280,11 +1326,18 @@ fun TrackItem(
             .fillMaxWidth()
             .clickable { 
                 println("🎵 TRACK CLICKED: ${track.getDisplayName()}")
-                if (hasYouTubeId) {
-                    println("✅ Track tiene YouTube ID: ${trackEntity?.youtubeVideoId}")
+                
+                // Reproducir usando PlayerViewModel de forma transparente
+                // Si el track no tiene YouTube ID, se buscará automáticamente y se guardará localmente
+                // El usuario no verá diferencia entre tener el ID guardado o no
+                if (trackEntity != null && playerViewModel != null) {
+                    println("✅ Iniciando reproducción transparente para: ${track.getDisplayName()}")
+                    playerViewModel.initializePlayer()
+                    playerViewModel.loadAudioFromTrack(trackEntity) // Búsqueda automática de YouTube ID si es necesario
                 } else {
-                    println("⚠️ Track sin YouTube ID")
+                    println("⚠️ PlayerViewModel no disponible para: ${track.getDisplayName()}")
                 }
+                
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             }
             .padding(vertical = 6.dp, horizontal = 4.dp), // Padding aumentado para mejor touch

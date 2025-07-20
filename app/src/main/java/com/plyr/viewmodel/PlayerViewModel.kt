@@ -6,10 +6,11 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
-import com.plyr.network.AudioRepository
 import com.plyr.network.YouTubeAudioExtractor
 import com.plyr.utils.isValidAudioUrl
 import com.plyr.utils.Config
+import com.plyr.service.YouTubeSearchManager
+import com.plyr.database.TrackEntity
 import android.os.Handler
 import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     
     // Handler para ejecutar código en el hilo principal
     private val mainHandler = Handler(Looper.getMainLooper())
+    
+    // Agregar YouTubeSearchManager para búsqueda transparente
+    private val youtubeSearchManager = YouTubeSearchManager(application)
     
     fun initializePlayer() {
         if (_exoPlayer == null) {
@@ -91,6 +95,66 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 println("PlayerViewModel: ❌ Error al extraer audio: ${e.message}")
                 _isLoading.postValue(false)
                 _error.postValue("Error al extraer audio: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Cargar audio desde un TrackEntity de forma transparente
+     * Obtiene el YouTube ID automáticamente si no existe
+     */
+    fun loadAudioFromTrack(track: TrackEntity) {
+        println("PlayerViewModel: Cargando audio para track: ${track.name} - ${track.artists}")
+        _isLoading.postValue(true)
+        _error.postValue(null)
+        _currentTitle.postValue("${track.name} - ${track.artists}")
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // Obtener YouTube ID de forma transparente
+                val youtubeId = withContext(Dispatchers.IO) {
+                    youtubeSearchManager.getYouTubeIdTransparently(track)
+                }
+                
+                if (youtubeId != null) {
+                    println("PlayerViewModel: ✅ YouTube ID obtenido: $youtubeId")
+                    
+                    // Obtener URL de audio con el ID
+                    val audioUrl = withContext(Dispatchers.IO) {
+                        YouTubeAudioExtractor.getAudioUrl(youtubeId)
+                    }
+                    
+                    if (audioUrl != null && isValidAudioUrl(audioUrl)) {
+                        println("PlayerViewModel: ✅ URL de audio obtenida: $audioUrl")
+                        _audioUrl.postValue(audioUrl)
+                        
+                        _exoPlayer?.apply {
+                            try {
+                                setMediaItem(MediaItem.fromUri(audioUrl))
+                                prepare()
+                                play()
+                                println("PlayerViewModel: ✅ Reproducción iniciada para: ${track.name}")
+                            } catch (e: Exception) {
+                                println("PlayerViewModel: ❌ Error configurando ExoPlayer: ${e.message}")
+                                _error.postValue("Error al reproducir: ${e.message}")
+                            }
+                        }
+                        
+                        _isLoading.postValue(false)
+                    } else {
+                        println("PlayerViewModel: ❌ No se pudo obtener URL de audio válida")
+                        _isLoading.postValue(false)
+                        _error.postValue("No se pudo obtener el audio para: ${track.name}")
+                    }
+                } else {
+                    println("PlayerViewModel: ❌ No se encontró YouTube ID para: ${track.name}")
+                    _isLoading.postValue(false)
+                    _error.postValue("No se encontró el video para: ${track.name}")
+                }
+            } catch (e: Exception) {
+                println("PlayerViewModel: ❌ Error cargando audio desde track: ${e.message}")
+                _isLoading.postValue(false)
+                _error.postValue("Error al cargar audio: ${e.message}")
             }
         }
     }

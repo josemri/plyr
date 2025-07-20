@@ -109,7 +109,8 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onThemeChanged = { newTheme ->
                                         selectedTheme.value = newTheme
-                                    }
+                                    },
+                                    playerViewModel = playerViewModel // Pasar PlayerViewModel para reproducción transparente
                                 )
                             }
                         }
