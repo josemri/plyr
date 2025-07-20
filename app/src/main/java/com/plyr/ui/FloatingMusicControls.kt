@@ -23,11 +23,15 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.border
 import androidx.compose.animation.core.*
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import android.util.Log
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.IntOffset
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.ui.theme.TerminalTheme
+import com.plyr.database.TrackEntity
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 
@@ -122,6 +126,22 @@ fun FloatingMusicControls(
     val isLoading by playerViewModel.isLoading.observeAsState(false)
     val error by playerViewModel.error.observeAsState()
     
+    // Observar estados de navegación de playlist
+    val hasPrevious by playerViewModel.hasPrevious.observeAsState(false)
+    val hasNext by playerViewModel.hasNext.observeAsState(false)
+    val observedCurrentTrack by playerViewModel.currentTrack.observeAsState()
+    val observedCurrentPlaylist by playerViewModel.currentPlaylist.observeAsState()
+    val observedCurrentTrackIndex by playerViewModel.currentTrackIndex.observeAsState()
+    
+    // Observar estados de cola
+    val isQueueMode by playerViewModel.isQueueMode.observeAsState(false)
+    val playbackQueue by playerViewModel.playbackQueue.observeAsState(mutableListOf())
+    
+    // Debug: Log de estados de navegación
+    LaunchedEffect(hasPrevious, hasNext, observedCurrentPlaylist?.size, observedCurrentTrackIndex, isQueueMode, playbackQueue.size) {
+        Log.d("FloatingControls", "Navigation states: hasPrevious=$hasPrevious, hasNext=$hasNext, playlistSize=${observedCurrentPlaylist?.size}, currentIndex=$observedCurrentTrackIndex, isQueue=$isQueueMode, queueSize=${playbackQueue.size}")
+    }
+    
     // Estados locales del reproductor
     var isPlaying by remember { mutableStateOf(false) }
     var duration by remember { mutableLongStateOf(0L) }
@@ -155,10 +175,17 @@ fun FloatingMusicControls(
             error = error,
             audioUrl = audioUrl,
             currentTitle = currentTitle,
+            currentTrack = observedCurrentTrack,
+            currentPlaylist = observedCurrentPlaylist,
+            currentTrackIndex = observedCurrentTrackIndex,
             position = position,
             duration = duration,
             progress = progress,
             isPlaying = isPlaying,
+            hasPrevious = hasPrevious,
+            hasNext = hasNext,
+            isQueueMode = isQueueMode,
+            queueSize = playbackQueue.size,
             playerViewModel = playerViewModel
         )
     }
@@ -198,10 +225,17 @@ private fun FloatingControlsCard(
     error: String?,
     audioUrl: String?,
     currentTitle: String?,
+    currentTrack: TrackEntity?,
+    currentPlaylist: List<TrackEntity>?,
+    currentTrackIndex: Int?,
     position: Long,
     duration: Long,
     progress: Float,
     isPlaying: Boolean,
+    hasPrevious: Boolean,
+    hasNext: Boolean,
+    isQueueMode: Boolean,
+    queueSize: Int,
     playerViewModel: PlayerViewModel
 ) {
     Card(
@@ -223,6 +257,9 @@ private fun FloatingControlsCard(
                 error = error,
                 audioUrl = audioUrl,
                 currentTitle = currentTitle,
+                currentTrack = currentTrack,
+                currentPlaylist = currentPlaylist,
+                currentTrackIndex = currentTrackIndex,
                 position = position,
                 duration = duration
             )
@@ -241,8 +278,15 @@ private fun FloatingControlsCard(
                 audioUrl = audioUrl,
                 isLoading = isLoading,
                 isPlaying = isPlaying,
+                hasPrevious = hasPrevious,
+                hasNext = hasNext,
                 playerViewModel = playerViewModel
             )
+            
+            // Indicador de cola si está activa
+            if (isQueueMode && queueSize > 0) {
+                QueueIndicator(queueSize = queueSize)
+            }
             
             // Mensaje de error si existe
             error?.let {
@@ -261,6 +305,9 @@ private fun StatusAndTitleRow(
     error: String?,
     audioUrl: String?,
     currentTitle: String?,
+    currentTrack: TrackEntity?,
+    currentPlaylist: List<TrackEntity>?,
+    currentTrackIndex: Int?,
     position: Long,
     duration: Long
 ) {
@@ -276,16 +323,23 @@ private fun StatusAndTitleRow(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            StatusIndicator(isLoading, error, audioUrl)
+            StatusIndicator(isLoading, error, audioUrl, currentPlaylist, currentTrackIndex)
             
             if (audioUrl != null && !isLoading) {
-                TitleWithMarquee(currentTitle)
+                TitleWithMarquee(currentTitle, currentTrack)
             }
         }
         
-        // Información de tiempo
-        if (audioUrl != null && !isLoading) {
-            TimeDisplay(position, duration)
+        // Información de tiempo y playlist
+        Column(
+            horizontalAlignment = Alignment.End
+        ) {
+            if (audioUrl != null && !isLoading) {
+                TimeDisplay(position, duration)
+                
+                // Mostrar información de playlist si está disponible
+                PlaylistInfoDisplay(currentPlaylist, currentTrackIndex)
+            }
         }
     }
 }
@@ -294,11 +348,20 @@ private fun StatusAndTitleRow(
  * Indicador de estado del reproductor.
  */
 @Composable
-private fun StatusIndicator(isLoading: Boolean, error: String?, audioUrl: String?) {
+private fun StatusIndicator(
+    isLoading: Boolean, 
+    error: String?, 
+    audioUrl: String?,
+    currentPlaylist: List<TrackEntity>?,
+    currentTrackIndex: Int?
+) {
+    val hasPlaylist = currentPlaylist != null && currentPlaylist.isNotEmpty()
+    
     Text(
         text = when {
             isLoading -> "$ loading"
             error != null -> "$ error"
+            audioUrl != null && hasPlaylist -> "$ playlist"
             audioUrl != null -> "$ "
             else -> "$ ready"
         },
@@ -319,9 +382,15 @@ private fun StatusIndicator(isLoading: Boolean, error: String?, audioUrl: String
  * Título con efecto marquesina.
  */
 @Composable
-private fun RowScope.TitleWithMarquee(currentTitle: String?) {
+private fun RowScope.TitleWithMarquee(currentTitle: String?, currentTrack: TrackEntity?) {
+    val displayTitle = when {
+        currentTrack != null -> "${currentTrack.name} - ${currentTrack.artists}"
+        currentTitle != null -> currentTitle
+        else -> "Playing audio..."
+    }
+    
     MarqueeText(
-        text = currentTitle ?: "Playing audio...",
+        text = displayTitle,
         modifier = Modifier.weight(1f),
         style = MaterialTheme.typography.bodyMedium.copy(
             fontFamily = FontFamily.Monospace,
@@ -344,6 +413,23 @@ private fun TimeDisplay(position: Long, duration: Long) {
             color = MaterialTheme.colorScheme.secondary
         )
     )
+}
+
+/**
+ * Display de información de playlist.
+ */
+@Composable
+private fun PlaylistInfoDisplay(currentPlaylist: List<TrackEntity>?, currentTrackIndex: Int?) {
+    if (currentPlaylist != null && currentTrackIndex != null && currentPlaylist.isNotEmpty()) {
+        Text(
+            text = "${currentTrackIndex + 1}/${currentPlaylist.size}",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        )
+    }
 }
 
 /**
@@ -506,8 +592,12 @@ private fun PlaybackControlsRow(
     audioUrl: String?,
     isLoading: Boolean,
     isPlaying: Boolean,
+    hasPrevious: Boolean,
+    hasNext: Boolean,
     playerViewModel: PlayerViewModel
 ) {
+    val coroutineScope = rememberCoroutineScope()
+    
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -519,8 +609,12 @@ private fun PlaybackControlsRow(
         PlaybackButton(
             text = "<<",
             fontSize = 16.sp,
-            isEnabled = audioUrl != null && !isLoading,
-            onClick = { /* TODO: Implementar anterior */ }
+            isEnabled = audioUrl != null && !isLoading && hasPrevious,
+            onClick = { 
+                coroutineScope.launch {
+                    playerViewModel.navigateToPrevious()
+                }
+            }
         )
 
         // Botón play/pause principal
@@ -541,8 +635,12 @@ private fun PlaybackControlsRow(
         PlaybackButton(
             text = ">>",
             fontSize = 16.sp,
-            isEnabled = audioUrl != null && !isLoading,
-            onClick = { /* TODO: Implementar siguiente */ }
+            isEnabled = audioUrl != null && !isLoading && hasNext,
+            onClick = { 
+                coroutineScope.launch {
+                    playerViewModel.navigateToNext()
+                }
+            }
         )
     }
 }
@@ -586,6 +684,29 @@ private fun ErrorMessage(error: String) {
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(top = 4.dp)
     )
+}
+
+/**
+ * Indicador de cola que muestra cuántos tracks están pendientes.
+ */
+@Composable
+private fun QueueIndicator(queueSize: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "● QUEUE: $queueSize pending",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFFFF6B6B)
+            )
+        )
+    }
 }
 
 // === PREVIEWS ===

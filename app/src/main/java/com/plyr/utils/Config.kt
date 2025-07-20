@@ -28,17 +28,13 @@ object Config {
     private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
     private const val KEY_SPOTIFY_REFRESH_TOKEN = "spotify_refresh_token"
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
+    private const val KEY_SPOTIFY_CLIENT_ID = "spotify_client_id"
+    private const val KEY_SPOTIFY_CLIENT_SECRET = "spotify_client_secret"
     
     // Valores por defecto
     private const val DEFAULT_THEME = "dark"
     
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
-    
-    /** ID de cliente de Spotify (configurado en Spotify Developer Dashboard) */
-    const val SPOTIFY_CLIENT_ID = "fa1672edc95445519e1d57db29d2b6e2"
-    
-    /** Secreto de cliente de Spotify */
-    const val SPOTIFY_CLIENT_SECRET = "c059755ebd844251bc7273d0daadbb8b"
     
     /** URI de redirección para OAuth de Spotify */
     const val SPOTIFY_REDIRECT_URI = "plyr://spotify/callback"
@@ -153,5 +149,68 @@ object Config {
         val hasValidAccessToken = getSpotifyAccessToken(context) != null
         val hasRefreshToken = getSpotifyRefreshToken(context) != null
         return hasValidAccessToken || hasRefreshToken
+    }
+    
+    /**
+     * Obtiene el Client ID de Spotify configurado por el usuario.
+     * @param context Contexto de la aplicación
+     * @return Client ID del usuario o null si no está configurado
+     */
+    fun getSpotifyClientId(context: Context): String? {
+        return getPrefs(context).getString(KEY_SPOTIFY_CLIENT_ID, null)
+    }
+    
+    /**
+     * Obtiene el Client Secret de Spotify configurado por el usuario.
+     * @param context Contexto de la aplicación
+     * @return Client Secret del usuario o null si no está configurado
+     */
+    fun getSpotifyClientSecret(context: Context): String? {
+        return getPrefs(context).getString(KEY_SPOTIFY_CLIENT_SECRET, null)
+    }
+    
+    /**
+     * Establece las credenciales de Spotify API del usuario.
+     * @param context Contexto de la aplicación
+     * @param clientId Client ID del usuario
+     * @param clientSecret Client Secret del usuario
+     */
+    fun setSpotifyCredentials(context: Context, clientId: String, clientSecret: String) {
+        getPrefs(context).edit {
+            putString(KEY_SPOTIFY_CLIENT_ID, clientId.trim())
+            putString(KEY_SPOTIFY_CLIENT_SECRET, clientSecret.trim())
+        }
+    }
+    
+    /**
+     * Limpia las credenciales de Spotify del usuario.
+     * @param context Contexto de la aplicación
+     */
+    fun clearSpotifyCredentials(context: Context) {
+        getPrefs(context).edit {
+            remove(KEY_SPOTIFY_CLIENT_ID)
+            remove(KEY_SPOTIFY_CLIENT_SECRET)
+        }
+    }
+    
+    /**
+     * Verifica si el usuario tiene credenciales de Spotify configuradas.
+     * @param context Contexto de la aplicación
+     * @return true si tiene credenciales configuradas, false en caso contrario
+     */
+    fun hasSpotifyCredentials(context: Context): Boolean {
+        val prefs = getPrefs(context)
+        val clientId = prefs.getString(KEY_SPOTIFY_CLIENT_ID, null)
+        val clientSecret = prefs.getString(KEY_SPOTIFY_CLIENT_SECRET, null)
+        return !clientId.isNullOrBlank() && !clientSecret.isNullOrBlank()
+    }
+    
+    /**
+     * Verifica si Spotify está completamente configurado (credenciales + conexión).
+     * @param context Contexto de la aplicación
+     * @return true si está completamente configurado, false en caso contrario
+     */
+    fun isSpotifyFullyConfigured(context: Context): Boolean {
+        return hasSpotifyCredentials(context) && isSpotifyConnected(context)
     }
 }

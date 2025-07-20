@@ -309,7 +309,7 @@ class MainActivity : ComponentActivity() {
      * @param code Código de autorización recibido
      */
     private fun handleSpotifyAuthSuccess(code: String) {
-        SpotifyRepository.exchangeCodeForTokens(code) { tokens, tokenError ->
+        SpotifyRepository.exchangeCodeForTokens(this, code) { tokens, tokenError ->
             if (tokens != null && tokenError == null) {
                 saveSpotifyTokens(tokens)
                 println("MainActivity: Spotify OAuth success: Tokens guardados")

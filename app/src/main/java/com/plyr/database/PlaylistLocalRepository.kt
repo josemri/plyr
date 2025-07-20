@@ -335,7 +335,7 @@ class PlaylistLocalRepository(context: Context) {
         val refreshToken = Config.getSpotifyRefreshToken(appContext)
         if (refreshToken != null) {
             var newToken: String? = null
-            SpotifyRepository.refreshAccessToken(refreshToken) { token, error ->
+            SpotifyRepository.refreshAccessToken(appContext, refreshToken) { token, error ->
                 if (token != null) {
                     Config.setSpotifyTokens(appContext, token, refreshToken, 3600)
                     newToken = token

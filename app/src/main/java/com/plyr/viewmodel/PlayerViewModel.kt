@@ -19,20 +19,43 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import android.util.Log
 
 /**
  * PlayerViewModel - Maneja la reproducción de audio usando ExoPlayer y NewPipe
  * 
- * Esta clase es responsable de:
+ * FUNCIONALIDADES PRINCIPALES:
  * - Gestionar el ciclo de vida del ExoPlayer
  * - Extraer URLs de audio de YouTube usando NewPipe Extractor
  * - Proporcionar una interfaz para reproducir audio desde videos o tracks de Spotify
  * - Manejar estados de reproducción (loading, error, etc.)
  * - Proporcionar funcionalidades como play, pause, seek y control de tiempo
  * 
+ * NAVEGACIÓN DE PLAYLIST:
+ * - Mantener el estado de la playlist actual y el índice del track
+ * - Navegación manual hacia adelante/atrás con botones fwd/bwd
+ * - Auto-navegación automática al final de cada canción (configurable)
+ * - Información de posición en playlist (ej: "3 de 10")
+ * - Estados de disponibilidad de navegación (hasPrevious/hasNext)
+ * 
+ * USO:
+ * 1. Llamar setCurrentPlaylist() para establecer la lista de tracks
+ * 2. Los botones fwd/bwd en FloatingMusicControls permiten navegación manual
+ * 3. La auto-navegación se puede habilitar/deshabilitar con setAutoNavigationEnabled()
+ * 4. Los estados de navegación se observan automáticamente en la UI
+ * 
  * @param application Contexto de la aplicación para acceder a recursos del sistema
  */
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
+    
+    // === CONSTANTES ===
+    
+    companion object {
+        private const val TAG = "PlayerViewModel"
+    }
     
     // === PROPIEDADES PRIVADAS ===
     
@@ -60,6 +83,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /** Callback para notificar cuando una canción termina de reproducirse */
     private var playbackEndedCallback: CompletableDeferred<Boolean>? = null
     
+    // === PROPIEDADES DE PLAYLIST ===
+    
+    /** Lista actual de tracks de la playlist */
+    private val _currentPlaylist = MutableLiveData<List<TrackEntity>?>()
+    
+    /** Índice del track actual en la playlist */
+    private val _currentTrackIndex = MutableLiveData<Int>()
+    
+    /** Track actual que se está reproduciendo */
+    private val _currentTrack = MutableLiveData<TrackEntity?>()
+    
+    /** Estado de si hay track anterior disponible */
+    private val _hasPrevious = MutableLiveData<Boolean>(false)
+    
+    /** Estado de si hay track siguiente disponible */
+    private val _hasNext = MutableLiveData<Boolean>(false)
+    
+    /** Estado de auto-navegación habilitada */
+    private val _autoNavigationEnabled = MutableLiveData<Boolean>(true)
+    
+    // === PROPIEDADES DE COLA (QUEUE) ===
+    
+    /** Cola de reproducción - lista de tracks pendientes */
+    private val _playbackQueue = MutableLiveData<MutableList<TrackEntity>>(mutableListOf())
+    
+    /** Indica si está en modo cola (queue) */
+    private val _isQueueMode = MutableLiveData<Boolean>(false)
+    
+    // === PROPIEDADES DE COLA (STATEFLOW) ===
+    
+    /** Estado de la cola como StateFlow para Compose */
+    private val _queueState = MutableStateFlow(QueueState())
+    val queueState: StateFlow<QueueState> = _queueState.asStateFlow()
+
     // === PROPIEDADES PÚBLICAS (READONLY) ===
     
     /** Acceso público de solo lectura al ExoPlayer */
@@ -77,6 +134,38 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /** LiveData observable para mensajes de error */
     val error: LiveData<String?> = _error
     
+    /** LiveData observable para la playlist actual */
+    val currentPlaylist: LiveData<List<TrackEntity>?> = _currentPlaylist
+    
+    /** LiveData observable para el índice del track actual */
+    val currentTrackIndex: LiveData<Int> = _currentTrackIndex
+    
+    /** LiveData observable para el track actual */
+    val currentTrack: LiveData<TrackEntity?> = _currentTrack
+    
+    /** LiveData observable para disponibilidad de track anterior */
+    val hasPrevious: LiveData<Boolean> = _hasPrevious
+    
+    /** LiveData observable para disponibilidad de track siguiente */
+    val hasNext: LiveData<Boolean> = _hasNext
+    
+    /** LiveData observable para el estado de auto-navegación */
+    val autoNavigationEnabled: LiveData<Boolean> = _autoNavigationEnabled
+    
+    /** LiveData observable para la cola de reproducción */
+    val playbackQueue: LiveData<MutableList<TrackEntity>> = _playbackQueue
+    
+    /** LiveData observable para el estado de modo cola */
+    val isQueueMode: LiveData<Boolean> = _isQueueMode
+
+    // === INICIALIZACIÓN ===
+    
+    init {
+        // Inicializar el estado de la cola
+        updateQueueState()
+        Log.d(TAG, "PlayerViewModel inicializado")
+    }
+
     // === MÉTODOS PÚBLICOS ===
     
     /**
@@ -104,6 +193,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         println("PlayerViewModel: 🎵 Canción terminada - Player.STATE_ENDED")
                         playbackEndedCallback?.complete(true)
                         playbackEndedCallback = null
+                        
+                        // Auto-navegación a la siguiente canción si hay playlist activa
+                        handleAutoNavigation()
                     }
                     Player.STATE_IDLE -> {
                         println("PlayerViewModel: ExoPlayer en estado IDLE")
@@ -268,22 +360,33 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _audioUrl.postValue(audioUrl)
         
         return withContext(Dispatchers.Main) {
-            _exoPlayer?.apply {
+            // Verificar que ExoPlayer esté inicializado
+            if (_exoPlayer == null) {
+                Log.e(TAG, "❌ ExoPlayer es null, intentando inicializar...")
+                initializePlayer()
+            }
+            
+            _exoPlayer?.let { player ->
                 try {
-                    setMediaItem(MediaItem.fromUri(audioUrl))
-                    prepare()
-                    play()
-                    println("PlayerViewModel: ✅ Reproducción iniciada para: ${track.name}")
+                    Log.d(TAG, "🎵 Configurando ExoPlayer para: ${track.name}")
+                    player.setMediaItem(MediaItem.fromUri(audioUrl))
+                    player.prepare()
+                    player.play()
+                    Log.d(TAG, "✅ Reproducción iniciada para: ${track.name}")
                     _isLoading.postValue(false)
                     return@withContext true
                 } catch (e: Exception) {
+                    Log.e(TAG, "❌ Error configurando ExoPlayer para ${track.name}", e)
                     handleException("Error configurando ExoPlayer", e)
                     return@withContext false
                 }
+            } ?: run {
+                Log.e(TAG, "❌ ExoPlayer sigue siendo null después de inicialización")
+                diagnoseExoPlayerState()
+                _isLoading.postValue(false)
+                _error.postValue("Error: Reproductor no disponible")
+                return@withContext false
             }
-            
-            _isLoading.postValue(false)
-            return@withContext false
         }
     }
     
@@ -357,6 +460,393 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
     
     
+    /**
+     * Habilita o deshabilita la navegación automática al final de cada canción.
+     * @param enabled true para habilitar, false para deshabilitar
+     */
+    fun setAutoNavigationEnabled(enabled: Boolean) {
+        _autoNavigationEnabled.postValue(enabled)
+        println("PlayerViewModel: Auto-navegación ${if (enabled) "habilitada" else "deshabilitada"}")
+    }
+
+    /**
+     * Obtiene el estado actual de la auto-navegación.
+     * @return true si está habilitada, false en caso contrario
+     */
+    fun isAutoNavigationEnabled(): Boolean {
+        return _autoNavigationEnabled.value ?: true
+    }
+
+    // === MÉTODOS DE NAVEGACIÓN DE PLAYLIST ===
+    
+    /**
+     * Establece la playlist actual y el índice del track.
+     * @param playlist Lista de tracks de la playlist
+     * @param startIndex Índice del track inicial (por defecto 0)
+     */
+    fun setCurrentPlaylist(playlist: List<TrackEntity>, startIndex: Int = 0) {
+        Log.d(TAG, "Estableciendo playlist: ${playlist.size} tracks, startIndex=$startIndex")
+        _currentPlaylist.postValue(playlist)
+        _currentTrackIndex.postValue(startIndex.coerceIn(0, playlist.size - 1))
+        
+        if (playlist.isNotEmpty() && startIndex in playlist.indices) {
+            _currentTrack.postValue(playlist[startIndex])
+            Log.d(TAG, "Track actual establecido: ${playlist[startIndex].name}")
+        }
+        
+        updateNavigationState()
+    }
+    
+    /**
+     * Navega al track siguiente en la playlist o cola.
+     * @return true si pudo navegar, false si no hay siguiente track
+     */
+    suspend fun navigateToNext(): Boolean {
+        // Si está en modo cola, reproducir siguiente de la cola
+        if (_isQueueMode.value == true) {
+            return playNextFromQueue()
+        }
+        
+        // Modo playlist normal
+        val playlist = _currentPlaylist.value ?: return false
+        val currentIndex = _currentTrackIndex.value ?: return false
+        
+        if (currentIndex < playlist.size - 1) {
+            val nextIndex = currentIndex + 1
+            val nextTrack = playlist[nextIndex]
+            
+            _currentTrackIndex.postValue(nextIndex)
+            _currentTrack.postValue(nextTrack)
+            updateNavigationState()
+            
+            // Cargar y reproducir el siguiente track
+            val success = loadAudioFromTrack(nextTrack)
+            if (success) {
+                println("PlayerViewModel: ✅ Navegación exitosa al siguiente track: ${nextTrack.name}")
+            }
+            return success
+        }
+        
+        return false
+    }
+    
+    /**
+     * Navega al track anterior en la playlist.
+     * @return true si pudo navegar, false si no hay track anterior
+     */
+    suspend fun navigateToPrevious(): Boolean {
+        val playlist = _currentPlaylist.value ?: return false
+        val currentIndex = _currentTrackIndex.value ?: return false
+        
+        if (currentIndex > 0) {
+            val previousIndex = currentIndex - 1
+            val previousTrack = playlist[previousIndex]
+            
+            _currentTrackIndex.postValue(previousIndex)
+            _currentTrack.postValue(previousTrack)
+            updateNavigationState()
+            
+            // Cargar y reproducir el track anterior
+            val success = loadAudioFromTrack(previousTrack)
+            if (success) {
+                println("PlayerViewModel: ✅ Navegación exitosa al track anterior: ${previousTrack.name}")
+            }
+            return success
+        }
+        
+        return false
+    }
+    
+    /**
+     * Navega a un track específico en la playlist por índice.
+     * @param index Índice del track al que navegar
+     * @return true si pudo navegar, false si el índice es inválido
+     */
+    suspend fun navigateToTrack(index: Int): Boolean {
+        val playlist = _currentPlaylist.value ?: return false
+        
+        if (index in playlist.indices) {
+            val track = playlist[index]
+            
+            _currentTrackIndex.postValue(index)
+            _currentTrack.postValue(track)
+            updateNavigationState()
+            
+            // Cargar y reproducir el track seleccionado
+            val success = loadAudioFromTrack(track)
+            if (success) {
+                println("PlayerViewModel: ✅ Navegación exitosa al track ${index + 1}: ${track.name}")
+            }
+            return success
+        }
+        
+        return false
+    }
+    
+    /**
+     * Actualiza el estado de navegación (hasPrevious, hasNext).
+     */
+    private fun updateNavigationState() {
+        val isQueue = _isQueueMode.value == true
+        val queueSize = _playbackQueue.value?.size ?: 0
+        val playlist = _currentPlaylist.value
+        val currentIndex = _currentTrackIndex.value
+        
+        Log.d(TAG, "Actualizando estado de navegación: isQueue=$isQueue, queueSize=$queueSize, playlist=${playlist?.size}, index=$currentIndex")
+        
+        if (isQueue) {
+            // En modo cola: no hay "previous", pero sí "next" si hay tracks en cola
+            _hasPrevious.postValue(false)
+            _hasNext.postValue(queueSize > 0)
+            Log.d(TAG, "Modo cola: hasPrevious=false, hasNext=${queueSize > 0}")
+        } else if (playlist != null && currentIndex != null) {
+            val hasPrev = currentIndex > 0
+            val hasNext = currentIndex < playlist.size - 1
+            Log.d(TAG, "Modo playlist: hasPrevious=$hasPrev, hasNext=$hasNext")
+            _hasPrevious.postValue(hasPrev)
+            _hasNext.postValue(hasNext)
+        } else {
+            Log.d(TAG, "Deshabilitando navegación (sin contexto)")
+            _hasPrevious.postValue(false)
+            _hasNext.postValue(false)
+        }
+    }
+    
+    /**
+     * Obtiene información del track actual de la playlist.
+     * @return Información del track actual o null si no hay playlist activa
+     */
+    fun getCurrentTrackInfo(): TrackEntity? {
+        return _currentTrack.value
+    }
+    
+    /**
+     * Obtiene el número total de tracks en la playlist actual.
+     * @return Número de tracks o 0 si no hay playlist
+     */
+    fun getPlaylistSize(): Int {
+        return _currentPlaylist.value?.size ?: 0
+    }
+    
+    /**
+     * Obtiene la posición actual en la playlist (1-indexed para mostrar al usuario).
+     * @return Posición actual (ej: "3 de 10") o null si no hay playlist
+     */
+    fun getCurrentPlaylistPosition(): String? {
+        val playlist = _currentPlaylist.value
+        val currentIndex = _currentTrackIndex.value
+        
+        return if (playlist != null && currentIndex != null) {
+            "${currentIndex + 1} de ${playlist.size}"
+        } else {
+            null
+        }
+    }
+
+    // === MÉTODOS DE GESTIÓN DE COLA (QUEUE) ===
+    
+    /**
+     * Agrega un track a la cola de reproducción.
+     * @param track Track a agregar a la cola
+     */
+    fun addToQueue(track: TrackEntity) {
+        val currentQueue = _playbackQueue.value ?: mutableListOf()
+        currentQueue.add(track)
+        // Crear una nueva lista para asegurar que la UI se actualice
+        val newQueue = currentQueue.toMutableList()
+        _playbackQueue.postValue(newQueue)
+        updateNavigationState()
+        updateQueueState()
+        Log.d(TAG, "Track agregado a la cola: ${track.name} (${newQueue.size} en cola)")
+    }
+    
+    /**
+     * Elimina un track de la cola por índice.
+     * @param index Índice del track a eliminar
+     */
+    fun removeFromQueue(index: Int) {
+        val currentQueue = _playbackQueue.value ?: return
+        if (index in currentQueue.indices) {
+            val removedTrack = currentQueue.removeAt(index)
+            // Crear una nueva lista para asegurar que la UI se actualice
+            val newQueue = currentQueue.toMutableList()
+            _playbackQueue.postValue(newQueue)
+            updateQueueState()
+            Log.d(TAG, "Track eliminado de la cola: ${removedTrack.name} (${newQueue.size} restantes)")
+        }
+    }
+    
+    /**
+     * Limpia toda la cola de reproducción.
+     */
+    fun clearQueue() {
+        _playbackQueue.postValue(mutableListOf())
+        _isQueueMode.postValue(false)
+        updateQueueState()
+        Log.d(TAG, "Cola de reproducción limpiada")
+    }
+    
+    /**
+     * Inicia la reproducción en modo cola.
+     * Reproduce el primer track de la cola y establece el modo cola.
+     */
+    suspend fun startQueueMode(): Boolean {
+        val queue = _playbackQueue.value
+        if (queue.isNullOrEmpty()) {
+            Log.d(TAG, "No hay tracks en la cola para iniciar")
+            return false
+        }
+        
+        _isQueueMode.postValue(true)
+        Log.d(TAG, "Iniciando modo cola con ${queue.size} tracks")
+        
+        // Reproducir el primer track de la cola
+        return playNextFromQueue()
+    }
+    
+    /**
+     * Reproduce el siguiente track de la cola.
+     * @return true si pudo reproducir, false si no hay más tracks en cola
+     */
+    suspend fun playNextFromQueue(): Boolean {
+        val queue = _playbackQueue.value
+        if (queue.isNullOrEmpty()) {
+            Log.d(TAG, "Cola vacía, desactivando modo cola")
+            _isQueueMode.postValue(false)
+            updateNavigationState()
+            return false
+        }
+        
+        // Tomar el primer track de la cola
+        val nextTrack = queue.removeAt(0)
+        _playbackQueue.postValue(queue)
+        updateNavigationState()
+        
+        Log.d(TAG, "🎵 Reproduciendo desde cola: ${nextTrack.name} (${queue.size} tracks restantes en cola)")
+        
+        // Cargar y reproducir el track
+        val success = loadAudioFromTrack(nextTrack)
+        if (success) {
+            // Actualizar el track actual
+            _currentTrack.postValue(nextTrack)
+            Log.d(TAG, "✅ Track de cola cargado exitosamente: ${nextTrack.name}")
+        } else {
+            Log.e(TAG, "❌ Error cargando track de cola: ${nextTrack.name}")
+            diagnoseExoPlayerState()
+        }
+        
+        return success
+    }
+    
+    /**
+     * Reproduce un track específico de la cola por índice.
+     * @param index Índice del track en la cola a reproducir
+     */
+    suspend fun playFromQueue(index: Int) {
+        val queue = _playbackQueue.value ?: return
+        if (index !in queue.indices) {
+            Log.e(TAG, "Índice de cola fuera de rango: $index")
+            return
+        }
+        
+        val track = queue[index]
+        Log.d(TAG, "Reproduciendo track de cola en índice $index: ${track.name}")
+        
+        // Actualizar el estado de la cola
+        updateQueueState()
+        
+        // Cargar y reproducir el track
+        val success = loadAudioFromTrack(track)
+        if (success) {
+            _currentTrack.postValue(track)
+            _isQueueMode.postValue(true)
+        }
+    }
+    
+    /**
+     * Inicia la reproducción de la cola desde el primer track.
+     */
+    fun startQueue() {
+        CoroutineScope(Dispatchers.Main).launch {
+            val success = startQueueMode()
+            if (success) {
+                Log.d(TAG, "Cola iniciada correctamente")
+            } else {
+                Log.w(TAG, "No se pudo iniciar la cola")
+            }
+        }
+    }
+    
+    /**
+     * Mezcla aleatoriamente los tracks en la cola.
+     */
+    fun shuffleQueue() {
+        val currentQueue = _playbackQueue.value ?: return
+        if (currentQueue.size <= 1) return
+        
+        currentQueue.shuffle()
+        // Crear una nueva lista para asegurar que la UI se actualice
+        val newQueue = currentQueue.toMutableList()
+        _playbackQueue.postValue(newQueue)
+        updateQueueState()
+        Log.d(TAG, "Cola mezclada - ${newQueue.size} tracks")
+    }
+    
+    /**
+     * Reproduce la cola desde un índice específico y activa el modo cola.
+     * Esto reorganiza la cola para que comience desde el índice seleccionado
+     * y continúe con el resto de tracks en orden.
+     * 
+     * @param startIndex Índice desde donde comenzar la reproducción
+     */
+    suspend fun playQueueFromIndex(startIndex: Int) {
+        val queue = _playbackQueue.value ?: return
+        if (startIndex !in queue.indices) {
+            Log.e(TAG, "Índice de cola fuera de rango: $startIndex")
+            return
+        }
+        
+        Log.d(TAG, "🎵 Iniciando cola desde índice $startIndex de ${queue.size} tracks")
+        
+        // Asegurar que ExoPlayer esté inicializado
+        if (_exoPlayer == null) {
+            Log.d(TAG, "🔧 Inicializando ExoPlayer para cola...")
+            initializePlayer()
+        }
+        
+        // Reorganizar la cola: tracks desde startIndex hasta el final
+        val reorderedQueue = queue.drop(startIndex).toMutableList()
+        
+        // Actualizar la cola con la nueva secuencia
+        _playbackQueue.postValue(reorderedQueue)
+        
+        // Activar modo cola
+        _isQueueMode.postValue(true)
+        updateQueueState()
+        
+        // Reproducir el primer track de la nueva secuencia
+        val success = playNextFromQueue()
+        if (success) {
+            Log.d(TAG, "✅ Cola iniciada correctamente desde índice $startIndex")
+        } else {
+            Log.w(TAG, "❌ No se pudo iniciar la cola desde índice $startIndex")
+        }
+    }
+    
+    /**
+     * Actualiza el estado de la cola (StateFlow).
+     */
+    private fun updateQueueState() {
+        val queue = _playbackQueue.value ?: emptyList()
+        val isActive = _isQueueMode.value ?: false
+        
+        _queueState.value = QueueState(
+            queue = queue.toList(), // Crear copia inmutable
+            currentIndex = -1, // Por ahora no trackear índice específico
+            isActive = isActive
+        )
+    }
+
     // === MÉTODOS DE ESPERA Y SINCRONIZACIÓN ===
     
     /**
@@ -446,6 +936,59 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playbackEndedCallback = null
     }
     
+    /**
+     * Maneja la navegación automática al final de una canción.
+     * Si hay una playlist activa y hay más canciones, navega automáticamente.
+     */
+    private fun handleAutoNavigation() {
+        // Verificar si la auto-navegación está habilitada
+        if (!isAutoNavigationEnabled()) {
+            println("PlayerViewModel: 🎵 Auto-navegación deshabilitada")
+            return
+        }
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            // Priorizar cola de reproducción si está activa
+            val isQueueActive = _isQueueMode.value ?: false
+            val queue = _playbackQueue.value
+            
+            if (isQueueActive && !queue.isNullOrEmpty()) {
+                println("PlayerViewModel: 🎵 Auto-navegando en modo cola...")
+                
+                // Pequeña pausa antes de la siguiente canción
+                kotlinx.coroutines.delay(1000)
+                
+                // Reproducir siguiente canción de la cola
+                val success = playNextFromQueue()
+                if (!success) {
+                    println("PlayerViewModel: 🎵 Cola terminada, saliendo de modo cola")
+                    _isQueueMode.postValue(false)
+                    updateQueueState()
+                }
+                return@launch
+            }
+            
+            // Si no hay cola activa, usar navegación de playlist
+            val playlist = _currentPlaylist.value
+            val currentIndex = _currentTrackIndex.value
+            
+            // Verificar si hay playlist activa y siguiente canción disponible
+            if (playlist != null && currentIndex != null && 
+                currentIndex < playlist.size - 1) {
+                
+                println("PlayerViewModel: 🎵 Auto-navegando a la siguiente canción de playlist...")
+                
+                // Pequeña pausa antes de la siguiente canción
+                kotlinx.coroutines.delay(1000)
+                
+                // Navegar automáticamente al siguiente track
+                navigateToNext()
+            } else {
+                println("PlayerViewModel: 🎵 Fin de playlist o no hay playlist activa")
+            }
+        }
+    }
+    
     // === MÉTODOS UTILITARIOS PRIVADOS ===
     
     /**
@@ -466,7 +1009,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * @param exception Excepción ocurrida
      */
     private fun handleException(message: String, exception: Exception) {
-        println("PlayerViewModel: ❌ $message: ${exception.message}")
+        Log.e(TAG, "❌ $message: ${exception.message}", exception)
         updateLoadingState(false, "$message: ${exception.message}")
     }
     
@@ -487,6 +1030,33 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         mainHandler.post {
             _exoPlayer?.release()
             _exoPlayer = null
+        }
+    }
+    
+    /**
+     * Estado de la cola de reproducción.
+     * @param queue Lista de tracks en la cola
+     * @param currentIndex Índice del track actual en la cola (-1 si no hay track actual)
+     * @param isActive Si la cola está activa
+     */
+    data class QueueState(
+        val queue: List<TrackEntity> = emptyList(),
+        val currentIndex: Int = -1,
+        val isActive: Boolean = false
+    )
+
+    /**
+     * Diagnostica el estado del ExoPlayer para debugging.
+     */
+    private fun diagnoseExoPlayerState() {
+        Log.d(TAG, "🔍 Diagnóstico ExoPlayer:")
+        Log.d(TAG, "   - ExoPlayer instancia: ${if (_exoPlayer != null) "✅ Existe" else "❌ Es null"}")
+        _exoPlayer?.let { player ->
+            Log.d(TAG, "   - Estado actual: ${player.playbackState}")
+            Log.d(TAG, "   - ¿Está reproduciéndose?: ${player.isPlaying}")
+            Log.d(TAG, "   - ¿Está preparado?: ${player.playbackState == Player.STATE_READY}")
+            Log.d(TAG, "   - Duración: ${player.duration}")
+            Log.d(TAG, "   - Posición actual: ${player.currentPosition}")
         }
     }
 }

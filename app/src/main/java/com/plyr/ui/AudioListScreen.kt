@@ -34,6 +34,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.animation.core.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
@@ -74,7 +76,8 @@ fun AudioListScreen(
             context = context,
             onVideoSelected = onVideoSelected,
             onOpenConfig = { currentScreen = Screen.CONFIG },
-            onOpenPlaylists = { currentScreen = Screen.PLAYLISTS }
+            onOpenPlaylists = { currentScreen = Screen.PLAYLISTS },
+            playerViewModel = playerViewModel
         )
         Screen.CONFIG -> ConfigScreen(
             context = context,
@@ -95,7 +98,8 @@ fun MainScreen(
     context: Context,
     onVideoSelected: (String, String) -> Unit,
     onOpenConfig: () -> Unit,
-    onOpenPlaylists: () -> Unit
+    onOpenPlaylists: () -> Unit,
+    playerViewModel: PlayerViewModel? = null
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<AudioItem>>(emptyList()) }
@@ -289,68 +293,216 @@ fun MainScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp, horizontal = 4.dp)
-                            .clickable { 
-                                // Limpiar resultados y búsqueda al seleccionar
-                                searchQuery = ""
-                                results = emptyList()
-                                error = null
-                                
-                                // Guardar el ID de YouTube en la base de datos para búsquedas futuras
-                                coroutineScope.launch {
-                                    try {
-                                        // Crear un track temporal para búsquedas manuales
-                                        val searchTrack = TrackEntity(
-                                            id = "search_${System.currentTimeMillis()}", // ID único para búsquedas
-                                            playlistId = "manual_search", // Playlist especial para búsquedas manuales
-                                            spotifyTrackId = id, // Usar el YouTube ID como referencia
-                                            name = item.title.substringBefore(" - "), // Título sin el canal
-                                            artists = item.title.substringAfter(" - ", "YouTube"), // Canal como artista
-                                            youtubeVideoId = id, // Guardar el ID de YouTube
-                                            position = 0, // Posición por defecto
-                                            lastSyncTime = System.currentTimeMillis()
-                                        )
-                                        
-                                        // Opcionalmente, guardar en base de datos para futuras referencias
-                                        // localRepository.insertTrack(searchTrack)
-                                        
-                                        Log.d("MainScreen", "Video seleccionado - ID: $id, Título: ${item.title}")
-                                    } catch (e: Exception) {
-                                        Log.e("MainScreen", "Error guardando referencia de búsqueda", e)
-                                    }
-                                }
-                                
-                                onVideoSelected(id, item.title)
-                            },
+                            .padding(vertical = 8.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "> ",
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 18.sp,
-                                color = Color(0xFF4ECDC4)
+                        // Área principal clickable (reproducir inmediatamente)
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { 
+                                    // Limpiar resultados y búsqueda al seleccionar
+                                    searchQuery = ""
+                                    results = emptyList()
+                                    error = null
+                                    
+                                    // Guardar el ID de YouTube en la base de datos para búsquedas futuras
+                                    coroutineScope.launch {
+                                        try {
+                                            // Crear un track temporal para búsquedas manuales
+                                            val searchTrack = TrackEntity(
+                                                id = "search_${System.currentTimeMillis()}", // ID único para búsquedas
+                                                playlistId = "manual_search", // Playlist especial para búsquedas manuales
+                                                spotifyTrackId = id, // Usar el YouTube ID como referencia
+                                                name = item.title.substringBefore(" - "), // Título sin el canal
+                                                artists = item.title.substringAfter(" - ", "YouTube"), // Canal como artista
+                                                youtubeVideoId = id, // Guardar el ID de YouTube
+                                                position = 0, // Posición por defecto
+                                                lastSyncTime = System.currentTimeMillis()
+                                            )
+                                            
+                                            // Opcionalmente, guardar en base de datos para futuras referencias
+                                            // localRepository.insertTrack(searchTrack)
+                                            
+                                            Log.d("MainScreen", "Video seleccionado - ID: $id, Título: ${item.title}")
+                                        } catch (e: Exception) {
+                                            Log.e("MainScreen", "Error guardando referencia de búsqueda", e)
+                                        }
+                                    }
+                                    
+                                    onVideoSelected(id, item.title)
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "> ",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 18.sp,
+                                    color = Color(0xFF4ECDC4)
+                                )
                             )
-                        )
-                        MarqueeText(
-                            text = item.title,
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 16.sp,
-                                color = Color(0xFFE0E0E0)
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
+                            MarqueeText(
+                                text = item.title,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFFE0E0E0)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        
+                        // Botón de cola
                         Text(
-                            text = "",
-                            style = MaterialTheme.typography.bodyLarge.copy(
+                            text = "<queue>",
+                            style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
+                                color = Color(0xFFFF6B6B)
+                            ),
+                            modifier = Modifier
+                                .clickable {
+                                    // Agregar a la cola sin reproducir inmediatamente
+                                    coroutineScope.launch {
+                                        try {
+                                            // Crear un track para la cola
+                                            val queueTrack = TrackEntity(
+                                                id = "queue_${System.currentTimeMillis()}", // ID único para cola
+                                                playlistId = "queue", // Playlist especial para cola
+                                                spotifyTrackId = id, // Usar el YouTube ID como referencia
+                                                name = item.title.substringBefore(" - "), // Título sin el canal
+                                                artists = item.title.substringAfter(" - ", "YouTube"), // Canal como artista
+                                                youtubeVideoId = id, // Guardar el ID de YouTube
+                                                position = 0, // Se ajustará en la cola
+                                                lastSyncTime = System.currentTimeMillis()
+                                            )
+                                            
+                                            // Agregar a la cola del PlayerViewModel
+                                            playerViewModel?.addToQueue(queueTrack)
+                                            
+                                            Log.d("MainScreen", "Track agregado a la cola - ID: $id, Título: ${item.title}")
+                                        } catch (e: Exception) {
+                                            Log.e("MainScreen", "Error agregando a la cola", e)
+                                        }
+                                    }
+                                }
+                                .padding(horizontal = 8.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        // === VISUALIZACIÓN DE LA COLA DE REPRODUCCIÓN ===
+        
+        // Observar la cola de reproducción si playerViewModel está disponible
+        if (playerViewModel != null) {
+            val queueState by playerViewModel.queueState.collectAsStateWithLifecycle()
+            val currentQueue = queueState.queue
+            
+            if (currentQueue.isNotEmpty()) {
+                Spacer(Modifier.height(24.dp))
+                
+                // Header de la cola
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "$ queue [${currentQueue.size}]",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 18.sp,
+                            color = Color(0xFFFFD93D)
+                        )
+                    )
+                    
+                    // Botón para limpiar la cola
+                    TextButton(
+                        onClick = { 
+                            playerViewModel.clearQueue()
+                            Log.d("MainScreen", "Cola limpiada por el usuario")
+                        }
+                    ) {
+                        Text(
+                            text = "clear",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace,
                                 color = Color(0xFF95A5A6)
                             )
                         )
                     }
                 }
+                
+                Spacer(Modifier.height(8.dp))
+                
+                // Lista de tracks en la cola
+                LazyColumn(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
+                    items(currentQueue.size) { index ->
+                        val track = currentQueue[index]
+                        val isCurrentTrack = queueState.currentIndex == index
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp, horizontal = 4.dp)
+                                .clickable {
+                                    // Reproducir desde este track y activar modo cola para toda la secuencia
+                                    coroutineScope.launch {
+                                        playerViewModel.playQueueFromIndex(index)
+                                    }
+                                    Log.d("MainScreen", "Iniciando cola desde índice: $index")
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Indicador de posición y estado
+                            Text(
+                                text = if (isCurrentTrack) "♪ " else "${index + 1}. ",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 14.sp,
+                                    color = if (isCurrentTrack) Color(0xFF4ECDC4) else Color(0xFF95A5A6)
+                                ),
+                                modifier = Modifier.width(32.dp)
+                            )
+                            
+                            // Nombre del track
+                            MarqueeText(
+                                text = track.name,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 14.sp,
+                                    color = if (isCurrentTrack) Color(0xFFE0E0E0) else Color(0xFFBDC3C7)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            // Botón para remover de la cola
+                            TextButton(
+                                onClick = { 
+                                    playerViewModel.removeFromQueue(index)
+                                    Log.d("MainScreen", "Track removido de la cola en índice: $index")
+                                },
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Text(
+                                    text = "×",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 16.sp,
+                                        color = Color(0xFF95A5A6)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
             }
         }
     }
@@ -602,15 +754,25 @@ fun ConfigScreen(
                             isSpotifyConnected = false
                             connectionMessage = "disconnected"
                         } else {
-                            // Conectar con Spotify
-                            isConnecting = true
-                            connectionMessage = "opening_browser..."
-                            try {
-                                SpotifyRepository.startOAuthFlow(context)
-                                connectionMessage = "check_browser"
-                            } catch (e: Exception) {
-                                connectionMessage = "error: ${e.message}"
-                                isConnecting = false
+                            // Verificar que las credenciales estén configuradas
+                            if (!Config.hasSpotifyCredentials(context)) {
+                                connectionMessage = "credentials_required"
+                            } else {
+                                // Conectar con Spotify
+                                isConnecting = true
+                                connectionMessage = "opening_browser..."
+                                try {
+                                    val success = SpotifyRepository.startOAuthFlow(context)
+                                    if (success) {
+                                        connectionMessage = "check_browser"
+                                    } else {
+                                        connectionMessage = "error_starting_oauth"
+                                        isConnecting = false
+                                    }
+                                } catch (e: Exception) {
+                                    connectionMessage = "error: ${e.message}"
+                                    isConnecting = false
+                                }
                             }
                         }
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -651,19 +813,31 @@ fun ConfigScreen(
                     // Estado de conexión
                     Text(
                         text = when {
+                            connectionMessage == "credentials_required" -> "configure credentials first"
                             connectionMessage.isNotEmpty() -> connectionMessage
-                            isSpotifyConnected -> "connected"
-                            else -> "disconnected"
+                            isSpotifyConnected && Config.hasSpotifyCredentials(context) -> "connected"
+                            Config.hasSpotifyCredentials(context) -> "disconnected"
+                            else -> "credentials required"
                         },
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 12.sp,
-                            color = if (isSpotifyConnected) Color(0xFF1DB954) else Color(0xFF95A5A6)
+                            color = when {
+                                connectionMessage == "credentials_required" -> Color(0xFFE74C3C)
+                                !Config.hasSpotifyCredentials(context) -> Color(0xFFE74C3C)
+                                isSpotifyConnected -> Color(0xFF1DB954)
+                                else -> Color(0xFF95A5A6)
+                            }
                         )
                     )
                 }
             }
         }
+        
+        Spacer(modifier = Modifier.height(30.dp))
+        
+        // Nueva sección: Configuración de Spotify API
+        SpotifyApiConfigSection(context = context)
         
         //Spacer(modifier = Modifier.weight(1f))
     }
@@ -1006,6 +1180,13 @@ fun PlaylistsScreen(
                                 if (currentTrackEntity != null && playerViewModel != null) {
                                     // Reproducir la canción actual
                                     playerViewModel.initializePlayer()
+                                    
+                                    // Establecer la playlist en el PlayerViewModel con el track actual
+                                    val trackEntityIndex = tracksFromDB.indexOf(currentTrackEntity)
+                                    if (trackEntityIndex >= 0) {
+                                        playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
+                                    }
+                                    
                                     val loadSuccess = playerViewModel.loadAudioFromTrack(currentTrackEntity)
                                     
                                     if (loadSuccess) {
@@ -1051,6 +1232,13 @@ fun PlaylistsScreen(
                                     if (trackEntity != null && playerViewModel != null) {
                                         // Reproducir la canción usando PlayerViewModel
                                         playerViewModel.initializePlayer()
+                                        
+                                        // Establecer la playlist en el PlayerViewModel con el track aleatorio
+                                        val currentTrackIndex = tracksFromDB.indexOf(trackEntity)
+                                        if (currentTrackIndex >= 0) {
+                                            playerViewModel.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
+                                        }
+                                        
                                         val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
                                         
                                         if (loadSuccess) {
@@ -1086,6 +1274,13 @@ fun PlaylistsScreen(
                                     if (trackEntity != null && playerViewModel != null) {
                                         // Reproducir la canción usando PlayerViewModel
                                         playerViewModel.initializePlayer()
+                                        
+                                        // Establecer la playlist en el PlayerViewModel con el índice actual
+                                        val trackEntityIndex = tracksFromDB.indexOf(trackEntity)
+                                        if (trackEntityIndex >= 0) {
+                                            playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
+                                        }
+                                        
                                         val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
                                         
                                         if (loadSuccess) {
@@ -1322,7 +1517,17 @@ fun TrackItem(
                 } else if (trackEntity != null && playerViewModel != null) {
                     // Reproducción individual (comportamiento original)
                     println("✅ Iniciando reproducción individual para: ${track.getDisplayName()}")
+                    println("🔍 TracksFromDB size: ${tracksFromDB.size}")
                     playerViewModel.initializePlayer()
+                    
+                    // Establecer la playlist completa con el track seleccionado
+                    val trackEntityIndex = tracksFromDB.indexOf(trackEntity)
+                    if (trackEntityIndex >= 0 && tracksFromDB.isNotEmpty()) {
+                        println("✅ Estableciendo playlist context: index=$trackEntityIndex, total=${tracksFromDB.size}")
+                        playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
+                    } else {
+                        println("⚠️ No se pudo establecer contexto de playlist: index=$trackEntityIndex, tracksFromDB.size=${tracksFromDB.size}")
+                    }
                     
                     // Para clicks individuales, lanzar en una corrutina para manejar la carga asíncrona
                     kotlinx.coroutines.GlobalScope.launch {
@@ -1360,5 +1565,331 @@ fun TrackItem(
             ),
             modifier = Modifier.weight(1f)
         )
+    }
+}
+
+/**
+ * Sección de configuración de credenciales de Spotify API.
+ * Permite al usuario configurar su propio Client ID y Client Secret.
+ */
+@Composable
+fun SpotifyApiConfigSection(context: Context) {
+    var showApiConfig by remember { mutableStateOf(!Config.hasSpotifyCredentials(context)) } // Auto-abrir si no hay credenciales
+    var clientId by remember { mutableStateOf("") }
+    var clientSecret by remember { mutableStateOf("") }
+    var showInfo by remember { mutableStateOf(!Config.hasSpotifyCredentials(context)) } // Auto-mostrar info si no hay credenciales
+    val haptic = LocalHapticFeedback.current
+    
+    // Cargar credenciales existentes
+    LaunchedEffect(Unit) {
+        if (Config.hasSpotifyCredentials(context)) {
+            clientId = Config.getSpotifyClientId(context) ?: ""
+            clientSecret = Config.getSpotifyClientSecret(context) ?: ""
+        }
+    }
+    
+    Column {
+        // Header con botón para expandir/contraer
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    showApiConfig = !showApiConfig
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$ spotify_api",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    color = Color(0xFF4ECDC4)
+                )
+            )
+            
+            Text(
+                text = if (showApiConfig) "[-]" else "[+]",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    color = Color(0xFF4ECDC4)
+                )
+            )
+        }
+        
+        // Indicador de estado actual
+        if (!showApiConfig) {
+            Text(
+                text = if (Config.hasSpotifyCredentials(context)) "• credentials configured ✓" else "• credentials required ⚠️",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = if (Config.hasSpotifyCredentials(context)) Color(0xFF1DB954) else Color(0xFFE74C3C)
+                ),
+                modifier = Modifier.padding(start = 16.dp, top = 4.dp)
+            )
+        }
+        
+        // Sección expandible
+        if (showApiConfig) {
+            Column(
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp)
+            ) {
+                // Botón de información
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showInfo = !showInfo
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "> how to get credentials",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFFE67E22)
+                        )
+                    )
+                    
+                    Text(
+                        text = if (showInfo) "[-]" else "[?]",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = Color(0xFFE67E22)
+                        )
+                    )
+                }
+                
+                // Información sobre cómo obtener credenciales
+                if (showInfo) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ IMPORTANTE: Esta app requiere tus propias credenciales de Spotify para funcionar:",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFE74C3C)
+                                ),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            
+                            Text(
+                                text = "📋 Cómo obtener tus credenciales de Spotify:",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            
+                            Text(
+                                text = "1. Ve a: developer.spotify.com/dashboard\n" +
+                                       "2. Inicia sesión con tu cuenta de Spotify\n" +
+                                       "3. Haz clic en 'Create app'\n" +
+                                       "4. Rellena:\n" +
+                                       "   • App name: 'Mi Plyr App'\n" +
+                                       "   • App description: 'Personal music app'\n" +
+                                       "   • Redirect URI: 'plyr://spotify/callback'\n" +
+                                       "5. Acepta los términos y crea la app\n" +
+                                       "6. En la página de tu app encontrarás:\n" +
+                                       "   • Client ID (visible directamente)\n" +
+                                       "   • Client Secret (clic en 'Show client secret')\n" +
+                                       "7. Copia ambos valores aquí abajo",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF95A5A6)
+                                ),
+                                lineHeight = 12.sp
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Campo Client ID
+                Column {
+                    Text(
+                        text = "> client_id",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.secondary
+                        ),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    
+                    OutlinedTextField(
+                        value = clientId,
+                        onValueChange = { clientId = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(
+                                text = "ej: 1a2b3c4d5e6f7g8h9i0j",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp
+                                )
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        ),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                // Campo Client Secret
+                Column {
+                    Text(
+                        text = "> client_secret",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.secondary
+                        ),
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    
+                    var showSecret by remember { mutableStateOf(false) }
+                    
+                    OutlinedTextField(
+                        value = clientSecret,
+                        onValueChange = { clientSecret = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(
+                                text = "ej: 9z8y7x6w5v4u3t2s1r0q",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp
+                                )
+                            )
+                        },
+                        textStyle = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp
+                        ),
+                        singleLine = true,
+                        visualTransformation = if (showSecret) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showSecret = !showSecret }) {
+                                Text(
+                                    text = if (showSecret) "👁" else "🔒",
+                                    fontSize = 16.sp
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Botones de acción
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Botón Guardar
+                    Button(
+                        onClick = {
+                            if (clientId.isNotBlank() && clientSecret.isNotBlank()) {
+                                Config.setSpotifyCredentials(context, clientId, clientSecret)
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        },
+                        enabled = clientId.isNotBlank() && clientSecret.isNotBlank(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "save",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp
+                            )
+                        )
+                    }
+                    
+                    // Botón Reset
+                    OutlinedButton(
+                        onClick = {
+                            Config.clearSpotifyCredentials(context)
+                            Config.clearSpotifyTokens(context) // También limpiar tokens
+                            clientId = ""
+                            clientSecret = ""
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "clear",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp
+                            )
+                        )
+                    }
+                }
+                
+                // Nota sobre reconexión
+                if (Config.hasSpotifyCredentials(context)) {
+                    Text(
+                        text = "Reconnect Spotify after changing credentials",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color(0xFFE67E22)
+                        ),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                } else {
+                    Text(
+                        text = "REQUIRED: Configure your Spotify API credentials to use lists",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color(0xFFE74C3C)
+                        ),
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        }
     }
 }

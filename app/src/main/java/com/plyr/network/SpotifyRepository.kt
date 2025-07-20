@@ -7,6 +7,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import android.util.Base64
+import android.content.Context
 import com.plyr.utils.Config
 
 object SpotifyRepository {
@@ -20,20 +21,39 @@ object SpotifyRepository {
     private const val API_BASE_URL = "https://api.spotify.com/v1"
     
     // Generar URL de autorización
-    fun getAuthorizationUrl(): String {
-        return "$AUTH_URL?client_id=${Config.SPOTIFY_CLIENT_ID}&response_type=code&redirect_uri=${Config.SPOTIFY_REDIRECT_URI}&scope=${Config.SPOTIFY_SCOPES.replace(" ", "%20")}"
+    fun getAuthorizationUrl(context: Context): String? {
+        val clientId = Config.getSpotifyClientId(context)
+        return if (clientId != null) {
+            "$AUTH_URL?client_id=$clientId&response_type=code&redirect_uri=${Config.SPOTIFY_REDIRECT_URI}&scope=${Config.SPOTIFY_SCOPES.replace(" ", "%20")}"
+        } else {
+            null
+        }
     }
     
     // Iniciar flujo OAuth (abrir browser)
-    fun startOAuthFlow(context: android.content.Context) {
-        val authUrl = getAuthorizationUrl()
-        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl))
-        context.startActivity(intent)
+    fun startOAuthFlow(context: Context): Boolean {
+        val authUrl = getAuthorizationUrl(context)
+        return if (authUrl != null) {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl))
+            context.startActivity(intent)
+            true
+        } else {
+            false
+        }
     }
     
     // Intercambiar código de autorización por tokens
-    fun exchangeCodeForTokens(authCode: String, callback: (SpotifyTokens?, String?) -> Unit) {
-        val authHeader = createBasicAuthHeader()
+    fun exchangeCodeForTokens(context: Context, authCode: String, callback: (SpotifyTokens?, String?) -> Unit) {
+        if (!Config.hasSpotifyCredentials(context)) {
+            callback(null, "Spotify credentials not configured")
+            return
+        }
+        
+        val authHeader = createBasicAuthHeader(context)
+        if (authHeader == null) {
+            callback(null, "Failed to create auth header")
+            return
+        }
         val formBody = FormBody.Builder()
             .add("grant_type", "authorization_code")
             .add("code", authCode)
@@ -69,8 +89,17 @@ object SpotifyRepository {
     }
     
     // Renovar access token usando refresh token
-    fun refreshAccessToken(refreshToken: String, callback: (String?, String?) -> Unit) {
-        val authHeader = createBasicAuthHeader()
+    fun refreshAccessToken(context: Context, refreshToken: String, callback: (String?, String?) -> Unit) {
+        if (!Config.hasSpotifyCredentials(context)) {
+            callback(null, "Spotify credentials not configured")
+            return
+        }
+        
+        val authHeader = createBasicAuthHeader(context)
+        if (authHeader == null) {
+            callback(null, "Failed to create auth header")
+            return
+        }
         val formBody = FormBody.Builder()
             .add("grant_type", "refresh_token")
             .add("refresh_token", refreshToken)
@@ -163,8 +192,8 @@ object SpotifyRepository {
         })
     }
     
-    private fun createBasicAuthHeader(): String {
-        val credentials = "${Config.SPOTIFY_CLIENT_ID}:${Config.SPOTIFY_CLIENT_SECRET}"
+    private fun createBasicAuthHeader(context: Context): String {
+        val credentials = "${Config.getSpotifyClientId(context)}:${Config.getSpotifyClientSecret(context)}"
         val encodedCredentials = Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
         return "Basic $encodedCredentials"
     }
