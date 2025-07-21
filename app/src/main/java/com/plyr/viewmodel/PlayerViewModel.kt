@@ -1265,21 +1265,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         Log.d(TAG, "  - PreloadPlayer estado: ${_preloadPlayer?.playbackState}")
         Log.d(TAG, "  - Estado esperado (READY): ${Player.STATE_READY}")
         
-        if (_preloadedTrack == nextTrack && _preloadPlayer != null && 
-            _preloadPlayer?.playbackState == Player.STATE_READY) {
-            Log.d(TAG, "🚀 ✅ Todas las condiciones cumplidas - Track preloaded detectado: ${nextTrack.name}, iniciando intercambio")
-            performSeamlessSwap(nextTrack)
-        } else {
-            // Fallback a navegación normal con delay
-            val reason = when {
-                _preloadedTrack != nextTrack -> "Track preloaded incorrecto (esperado: ${nextTrack.name}, actual: ${_preloadedTrack?.name})"
-                _preloadPlayer == null -> "PreloadPlayer es null"
-                _preloadPlayer?.playbackState != Player.STATE_READY -> "PreloadPlayer no está listo (estado: ${_preloadPlayer?.playbackState})"
-                else -> "Razón desconocida"
+        // Intentar swap instantáneo hasta 500ms si el preloading está casi listo
+        if (_preloadedTrack == nextTrack && _preloadPlayer != null) {
+            val maxAttempts = 5
+            var attempt = 0
+            while (_preloadPlayer?.playbackState != Player.STATE_READY && attempt < maxAttempts) {
+                Log.d(TAG, "⌛ Esperando a que PreloadPlayer esté listo (intento ${attempt + 1}/$maxAttempts)...")
+                Thread.sleep(100)
+                attempt++
             }
-            Log.w(TAG, "⚠️ ❌ No hay preloading válido: $reason. Usando navegación normal")
-            handleAutoNavigation()
+            if (_preloadPlayer?.playbackState == Player.STATE_READY) {
+                Log.d(TAG, "🚀 ✅ Todas las condiciones cumplidas - Track preloaded detectado: ${nextTrack.name}, iniciando intercambio")
+                performSeamlessSwap(nextTrack)
+                return
+            }
         }
+        // Fallback a navegación normal con delay
+        val reason = when {
+            _preloadedTrack != nextTrack -> "Track preloaded incorrecto (esperado: ${nextTrack.name}, actual: ${_preloadedTrack?.name})"
+            _preloadPlayer == null -> "PreloadPlayer es null"
+            _preloadPlayer?.playbackState != Player.STATE_READY -> "PreloadPlayer no está listo (estado: ${_preloadPlayer?.playbackState})"
+            else -> "Razón desconocida"
+        }
+        Log.w(TAG, "⚠️ ❌ No hay preloading válido: $reason. Usando navegación normal")
+        handleAutoNavigation()
     }
     
     /**
