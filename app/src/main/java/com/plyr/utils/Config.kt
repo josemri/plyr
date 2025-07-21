@@ -25,6 +25,7 @@ object Config {
     
     // Claves para SharedPreferences
     private const val KEY_THEME = "theme"
+    private const val KEY_SEARCH_ENGINE = "search_engine"
     private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
     private const val KEY_SPOTIFY_REFRESH_TOKEN = "spotify_refresh_token"
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
@@ -33,6 +34,7 @@ object Config {
     
     // Valores por defecto
     private const val DEFAULT_THEME = "dark"
+    private const val DEFAULT_SEARCH_ENGINE = "spotify"
     
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
     
@@ -212,5 +214,27 @@ object Config {
      */
     fun isSpotifyFullyConfigured(context: Context): Boolean {
         return hasSpotifyCredentials(context) && isSpotifyConnected(context)
+    }
+    
+    // === GESTIÓN DE MOTOR DE BÚSQUEDA ===
+    
+    /**
+     * Establece el motor de búsqueda predeterminado.
+     * @param context Contexto de la aplicación
+     * @param searchEngine Motor de búsqueda a establecer ("spotify", "youtube")
+     */
+    fun setSearchEngine(context: Context, searchEngine: String) {
+        getPrefs(context).edit { 
+            putString(KEY_SEARCH_ENGINE, searchEngine) 
+        }
+    }
+    
+    /**
+     * Obtiene el motor de búsqueda actual de la aplicación.
+     * @param context Contexto de la aplicación
+     * @return Motor de búsqueda actual (por defecto "spotify")
+     */
+    fun getSearchEngine(context: Context): String {
+        return getPrefs(context).getString(KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE) ?: DEFAULT_SEARCH_ENGINE
     }
 }
