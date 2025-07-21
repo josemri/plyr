@@ -2,4 +2,18 @@
 <resources>
 
     <style name="Theme.Plyr" parent="android:Theme.Material.Light.NoActionBar" />
+    
+    <!-- Splash Screen Theme - Completamente negro -->
+    <style name="Theme.Plyr.SplashScreen" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@android:color/black</item>
+        <item name="windowSplashScreenAnimationDuration">2000</item>
+        <item name="postSplashScreenTheme">@style/Theme.Plyr</item>
+    </style>
+    
+    <!-- Fallback splash theme for older Android versions - Solo negro -->
+    <style name="Theme.Plyr.SplashScreen.Fallback" parent="android:Theme.Black.NoTitleBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
 </resources>

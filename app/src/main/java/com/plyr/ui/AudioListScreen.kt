@@ -703,7 +703,7 @@ fun ConfigScreen(
             )
             
             Text(
-                text = "• considera pagarme algo por esto, porfa\n• si tienes esta apk y no me conoces alguien tiene unos cojones muy grandes",
+                text = "• reportadme todos los bugs que encontreis porfa :) \n• y considerad apoyar a los artistas individualmente no a spotify",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp, // Tamaño aumentado
@@ -1117,189 +1117,85 @@ fun PlaylistsScreen(
                     // Estados para los botones de control
                     var isRandomizing by remember { mutableStateOf(false) }
                     var isStarting by remember { mutableStateOf(false) }
-                    var isPlayingFromTrack by remember { mutableStateOf(false) }
                     var randomJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     var startJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-                    var trackPlaylistJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     
                     // Función para parar todas las reproducciones
                     fun stopAllPlayback() {
                         isRandomizing = false
                         isStarting = false
-                        isPlayingFromTrack = false
                         randomJob?.cancel()
                         startJob?.cancel()
-                        trackPlaylistJob?.cancel()
                         randomJob = null
                         startJob = null
-                        trackPlaylistJob = null
                         // Cancelar espera de canción y pausar el reproductor
                         playerViewModel?.cancelWaitForSong()
                         playerViewModel?.pausePlayer()
                     }
                     
-                    // Función auxiliar para esperar a que termine una canción
-                    suspend fun waitForSongToFinish(playerViewModel: PlayerViewModel): Boolean {
-                        return try {
-                            println("⏳ Esperando a que la canción termine usando listeners de ExoPlayer...")
-                            
-                            // Esperar un poco para que ExoPlayer se estabilice
-                            kotlinx.coroutines.delay(2000)
-                            
-                            // Usar la nueva función del PlayerViewModel que tiene listeners
-                            val finished = playerViewModel.waitForCurrentSongToFinish()
-                            
-                            if (finished) {
-                                println("✅ Canción terminada, pasando a la siguiente")
-                            } else {
-                                println("⚠️ Canción cancelada o error, pasando a la siguiente")
-                            }
-                            
-                            true // Siempre continuar a la siguiente canción
-                            
-                        } catch (e: Exception) {
-                            println("❌ Error esperando fin de canción: ${e.message}")
-                            true // En caso de error, continuar con la siguiente canción
-                        }
-                    }
                     
-                    // Función para iniciar playlist desde un track específico
-                    fun startPlaylistFromTrackIndex(startIndex: Int) {
-                        stopAllPlayback() // Parar cualquier reproducción en curso
-                        isPlayingFromTrack = true
-                        
-                        trackPlaylistJob = kotlinx.coroutines.GlobalScope.launch {
-                            var currentIndex = startIndex
-                            
-                            while (currentIndex < playlistTracks.size && isPlayingFromTrack) {
-                                val currentTrack = playlistTracks[currentIndex]
-                                val currentTrackEntity = tracksFromDB.find { it.spotifyTrackId == currentTrack.id }
-                                
-                                println("🎵 PLAYLIST FROM TRACK [${currentIndex + 1}/${playlistTracks.size}]: ${currentTrack.getDisplayName()}")
-                                
-                                if (currentTrackEntity != null && playerViewModel != null) {
-                                    // Reproducir la canción actual
-                                    playerViewModel.initializePlayer()
-                                    
-                                    // Establecer la playlist en el PlayerViewModel con el track actual
-                                    val trackEntityIndex = tracksFromDB.indexOf(currentTrackEntity)
-                                    if (trackEntityIndex >= 0) {
-                                        playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
-                                    }
-                                    
-                                    val loadSuccess = playerViewModel.loadAudioFromTrack(currentTrackEntity)
-                                    
-                                    if (loadSuccess) {
-                                        // Esperar a que termine antes de continuar con la siguiente
-                                        val finished = waitForSongToFinish(playerViewModel)
-                                        
-                                        if (finished) {
-                                            println("✅ Canción terminada, pasando a la siguiente")
-                                        } else {
-                                            println("⚠️ Canción cancelada, parando playlist")
-                                            break // Si se cancela, parar la playlist
-                                        }
-                                    } else {
-                                        println("⚠️ Error cargando audio para: ${currentTrack.getDisplayName()}")
-                                        kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
-                                    }
-                                } else {
-                                    println("⚠️ TrackEntity no encontrado para: ${currentTrack.getDisplayName()}")
-                                    kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
-                                }
-                                
-                                currentIndex++
-                            }
-                            
-                            println("🏁 Playlist desde track terminada")
-                            isPlayingFromTrack = false
-                        }
-                    }
-                    
-                    // Función para randomización
+                    // Función para randomización simplificada - solo reproduce un track aleatorio
                     fun startRandomizing() {
                         stopAllPlayback()
                         isRandomizing = true
                         
                         if (playlistTracks.isNotEmpty() && playerViewModel != null) {
                             randomJob = kotlinx.coroutines.GlobalScope.launch {
-                                while (isRandomizing) {
-                                    val randomTrack = playlistTracks.random()
-                                    val trackEntity = tracksFromDB.find { it.spotifyTrackId == randomTrack.id }
+                                val randomTrack = playlistTracks.random()
+                                val trackEntity = tracksFromDB.find { it.spotifyTrackId == randomTrack.id }
+                                
+                                println("� RANDOM: ${randomTrack.getDisplayName()}")
+                                
+                                if (trackEntity != null && playerViewModel != null) {
+                                    // Reproducir la canción usando PlayerViewModel
+                                    playerViewModel.initializePlayer()
                                     
-                                    println("🎵 RANDOM [${selectedPlaylist!!.name}]: ${randomTrack.getDisplayName()}")
-                                    
-                                    if (trackEntity != null && playerViewModel != null) {
-                                        // Reproducir la canción usando PlayerViewModel
-                                        playerViewModel.initializePlayer()
-                                        
-                                        // Establecer la playlist en el PlayerViewModel con el track aleatorio
-                                        val currentTrackIndex = tracksFromDB.indexOf(trackEntity)
-                                        if (currentTrackIndex >= 0) {
-                                            playerViewModel.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
-                                        }
-                                        
-                                        val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
-                                        
-                                        if (loadSuccess) {
-                                            // Solo esperar si la carga fue exitosa
-                                            waitForSongToFinish(playerViewModel)
-                                        } else {
-                                            println("⚠️ Error cargando audio para: ${randomTrack.getDisplayName()}")
-                                            kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
-                                        }
-                                    } else {
-                                        println("⚠️ TrackEntity no encontrado para: ${randomTrack.getDisplayName()}")
-                                        kotlinx.coroutines.delay(2000) // Esperar 2 segundos antes de intentar la siguiente
+                                    // Establecer la playlist completa con el track aleatorio seleccionado
+                                    val currentTrackIndex = tracksFromDB.indexOf(trackEntity)
+                                    if (currentTrackIndex >= 0) {
+                                        playerViewModel.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
                                     }
+                                    
+                                    // Cargar y reproducir - PlayerViewModel manejará la navegación automática
+                                    playerViewModel.loadAudioFromTrack(trackEntity)
+                                } else {
+                                    println("⚠️ TrackEntity no encontrado para: ${randomTrack.getDisplayName()}")
                                 }
+                                
+                                isRandomizing = false
                             }
                         }
                     }
                     
-                    // Función para reproducción ordenada
+                    // Función para reproducción ordenada simplificada - solo inicia desde el primer track
                     fun startOrderedPlayback() {
                         stopAllPlayback()
                         isStarting = true
                         
                         if (playlistTracks.isNotEmpty() && playerViewModel != null) {
                             startJob = kotlinx.coroutines.GlobalScope.launch {
-                                var currentIndex = 0
-                                while (isStarting && currentIndex < playlistTracks.size) {
-                                    val track = playlistTracks[currentIndex]
-                                    val trackEntity = tracksFromDB.find { it.spotifyTrackId == track.id }
+                                val firstTrack = playlistTracks.first()
+                                val trackEntity = tracksFromDB.find { it.spotifyTrackId == firstTrack.id }
+                                
+                                println("🎵 START [${selectedPlaylist!!.name}]: ${firstTrack.getDisplayName()}")
+                                
+                                if (trackEntity != null && playerViewModel != null) {
+                                    // Reproducir la canción usando PlayerViewModel
+                                    playerViewModel.initializePlayer()
                                     
-                                    println("🎵 START [${selectedPlaylist!!.name}] ${currentIndex + 1}/${playlistTracks.size}: ${track.getDisplayName()}")
-                                    
-                                    if (trackEntity != null && playerViewModel != null) {
-                                        // Reproducir la canción usando PlayerViewModel
-                                        playerViewModel.initializePlayer()
-                                        
-                                        // Establecer la playlist en el PlayerViewModel con el índice actual
-                                        val trackEntityIndex = tracksFromDB.indexOf(trackEntity)
-                                        if (trackEntityIndex >= 0) {
-                                            playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
-                                        }
-                                        
-                                        val loadSuccess = playerViewModel.loadAudioFromTrack(trackEntity)
-                                        
-                                        if (loadSuccess) {
-                                            // Solo esperar si la carga fue exitosa
-                                            waitForSongToFinish(playerViewModel)
-                                        } else {
-                                            println("⚠️ Error cargando audio para: ${track.getDisplayName()}")
-                                            kotlinx.coroutines.delay(2000) // Esperar antes de la siguiente
-                                        }
-                                    } else {
-                                        println("⚠️ TrackEntity no encontrado para: ${track.getDisplayName()}")
-                                        kotlinx.coroutines.delay(2000) // Esperar 2 segundos antes de intentar la siguiente
+                                    // Establecer la playlist completa desde el inicio (índice 0)
+                                    val trackEntityIndex = tracksFromDB.indexOf(trackEntity)
+                                    if (trackEntityIndex >= 0) {
+                                        playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
                                     }
                                     
-                                    currentIndex++
-                                    if (currentIndex >= playlistTracks.size) {
-                                        currentIndex = 0 // Reiniciar desde el principio
-                                    }
+                                    // Cargar y reproducir - PlayerViewModel manejará la navegación automática
+                                    playerViewModel.loadAudioFromTrack(trackEntity)
+                                } else {
+                                    println("⚠️ TrackEntity no encontrado para: ${firstTrack.getDisplayName()}")
                                 }
+                                
+                                isStarting = false
                             }
                         }
                     }
@@ -1375,8 +1271,7 @@ fun PlaylistsScreen(
                                     playerViewModel = playerViewModel,
                                     playlistTracks = playlistTracks,
                                     tracksFromDB = tracksFromDB,
-                                    trackIndex = index,
-                                    onStartPlaylistFromTrack = ::startPlaylistFromTrackIndex
+                                    trackIndex = index
                                 )
                             }
                         }
@@ -1498,8 +1393,7 @@ fun TrackItem(
     playerViewModel: PlayerViewModel? = null,
     playlistTracks: List<SpotifyTrack> = emptyList(),
     tracksFromDB: List<TrackEntity> = emptyList(),
-    trackIndex: Int = -1,
-    onStartPlaylistFromTrack: ((Int) -> Unit)? = null
+    trackIndex: Int = -1
 ) {
     val haptic = LocalHapticFeedback.current
     val hasYouTubeId = trackEntity?.youtubeVideoId != null
@@ -1510,12 +1404,8 @@ fun TrackItem(
             .clickable { 
                 println("🎵 TRACK CLICKED: ${track.getDisplayName()}")
                 
-                // Si está en contexto de playlist, usar la función callback
-                if (playlistTracks.isNotEmpty() && trackIndex >= 0 && onStartPlaylistFromTrack != null) {
-                    println("🎵 Iniciando playlist desde track $trackIndex: ${track.getDisplayName()}")
-                    onStartPlaylistFromTrack(trackIndex)
-                } else if (trackEntity != null && playerViewModel != null) {
-                    // Reproducción individual (comportamiento original)
+                // Solo reproducción individual - el PlayerViewModel maneja automáticamente la navegación en playlist
+                if (trackEntity != null && playerViewModel != null) {
                     println("✅ Iniciando reproducción individual para: ${track.getDisplayName()}")
                     println("🔍 TracksFromDB size: ${tracksFromDB.size}")
                     playerViewModel.initializePlayer()

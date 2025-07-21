@@ -361,7 +361,7 @@ private fun StatusIndicator(
         text = when {
             isLoading -> "$ loading"
             error != null -> "$ error"
-            audioUrl != null && hasPlaylist -> "$ playlist"
+            audioUrl != null && hasPlaylist -> "$ "
             audioUrl != null -> "$ "
             else -> "$ ready"
         },

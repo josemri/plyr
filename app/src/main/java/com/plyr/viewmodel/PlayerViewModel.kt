@@ -6,6 +6,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.exoplayer.ExoPlayer
 import com.plyr.network.YouTubeAudioExtractor
 import com.plyr.utils.isValidAudioUrl
@@ -61,6 +64,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     
     /** Instancia del ExoPlayer para reproducción de audio */
     private var _exoPlayer: ExoPlayer? = null
+    
+    /** ExoPlayer secundario para preloading de la siguiente canción */
+    private var _preloadPlayer: ExoPlayer? = null
+    
+    /** Track que está siendo preloaded */
+    private var _preloadedTrack: TrackEntity? = null
+    
+    /** Estado de preloading activo */
+    private var _isPreloading = false
+    
+    /** Listener actual del ExoPlayer principal para poder removerlo durante intercambios */
+    private var _currentPlayerListener: Player.Listener? = null
     
     /** LiveData privado para la URL de audio actual */
     private val _audioUrl = MutableLiveData<String?>()
@@ -171,13 +186,66 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * Inicializa el ExoPlayer si no ha sido creado aún.
      * Configura los listeners necesarios para el manejo de estados de reproducción.
+     * También inicializa el ExoPlayer de preloading para transiciones sin delay.
      */
     fun initializePlayer() {
-        if (_exoPlayer == null) {
-            _exoPlayer = ExoPlayer.Builder(getApplication()).build().apply {
-                // Configurar listener para eventos de reproducción
-                addListener(createPlayerListener())
+        // Asegurar que la inicialización ocurra en el hilo principal
+        mainHandler.post {
+            if (_exoPlayer == null) {
+                _currentPlayerListener = createPlayerListener()
+                _exoPlayer = ExoPlayer.Builder(getApplication())
+                    .setSeekBackIncrementMs(10000)
+                    .setSeekForwardIncrementMs(10000)
+                    .build().apply {
+                        // Configurar listener para eventos de reproducción
+                        addListener(_currentPlayerListener!!)
+                        // Configurar para liberar recursos inmediatamente cuando se detiene
+                        setHandleAudioBecomingNoisy(true)
+                        
+                        // Aplicar optimizaciones de buffer
+                        optimizeBufferSettings(this)
+                    }
+                Log.d(TAG, "✅ ExoPlayer principal inicializado")
             }
+            
+            // Inicializar el ExoPlayer de preloading si no existe
+            if (_preloadPlayer == null) {
+                _preloadPlayer = ExoPlayer.Builder(getApplication())
+                    .setSeekBackIncrementMs(10000)
+                    .setSeekForwardIncrementMs(10000)
+                    .build().apply {
+                        // Configurar para NO reproducir automáticamente
+                        playWhenReady = false
+                        setHandleAudioBecomingNoisy(false) // Solo el player principal maneja esto
+                        
+                        // Aplicar optimizaciones de buffer
+                        optimizeBufferSettings(this)
+                        
+                        // Agregar listener para monitorear el estado del preloading
+                        addListener(object : Player.Listener {
+                            override fun onPlaybackStateChanged(playbackState: Int) {
+                                when (playbackState) {
+                                    Player.STATE_READY -> {
+                                        Log.d(TAG, "🎯 PreloadPlayer LISTO - Track: ${_preloadedTrack?.name}")
+                                    }
+                                    Player.STATE_BUFFERING -> {
+                                        Log.d(TAG, "🔄 PreloadPlayer bufferizando...")
+                                    }
+                                    Player.STATE_IDLE -> {
+                                        Log.d(TAG, "💤 PreloadPlayer en IDLE")
+                                    }
+                                    Player.STATE_ENDED -> {
+                                        Log.d(TAG, "🔚 PreloadPlayer terminado")
+                                    }
+                                }
+                            }
+                        })
+                    }
+                Log.d(TAG, "✅ ExoPlayer preload inicializado")
+            }
+            
+            // Monitorear uso de memoria después de inicialización
+            monitorMemoryUsage()
         }
     }
     
@@ -190,29 +258,90 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_ENDED -> {
-                        println("PlayerViewModel: 🎵 Canción terminada - Player.STATE_ENDED")
+                        Log.d(TAG, "🎵 Canción terminada - Player.STATE_ENDED")
                         playbackEndedCallback?.complete(true)
                         playbackEndedCallback = null
                         
-                        // Auto-navegación a la siguiente canción si hay playlist activa
-                        handleAutoNavigation()
+                        // Intentar reproducción sin delay usando preloaded track
+                        handleSeamlessTransition()
                     }
                     Player.STATE_IDLE -> {
-                        println("PlayerViewModel: ExoPlayer en estado IDLE")
+                        Log.d(TAG, "ExoPlayer en estado IDLE")
                     }
                     Player.STATE_BUFFERING -> {
-                        println("PlayerViewModel: ExoPlayer bufferizando...")
+                        Log.d(TAG, "ExoPlayer bufferizando...")
                     }
                     Player.STATE_READY -> {
-                        println("PlayerViewModel: ExoPlayer listo para reproducir")
+                        Log.d(TAG, "ExoPlayer listo para reproducir")
+                        
+                        // Cuando el player actual esté listo, iniciar preloading de la siguiente canción
+                        // Pero solo si no hay preloading activo ya
+                        if (!_isPreloading) {
+                            startPreloadingNextTrack()
+                        }
                     }
                 }
             }
             
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                println("PlayerViewModel: Estado de reproducción cambió: $isPlaying")
+                Log.d(TAG, "Estado de reproducción cambió: $isPlaying")
+            }
+            
+            override fun onPlayerError(error: PlaybackException) {
+                Log.e(TAG, "❌ Error de ExoPlayer: ${error.message}", error)
+                // Limpiar recursos y reintentar si es posible
+                handlePlayerError(error)
             }
         }
+    }
+    
+    /**
+     * Maneja errores del ExoPlayer y intenta recuperarse.
+     * @param error El error que ocurrió
+     */
+    private fun handlePlayerError(error: PlaybackException) {
+        Log.e(TAG, "🚨 Manejando error de ExoPlayer: ${error.errorCode}")
+        
+        // Cancelar preloading activo que podría estar causando problemas
+        cancelPreloading()
+        
+        // Liberar y reinicializar ExoPlayers para limpiar estado corrupto
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                releasePlayersForRecovery()
+                kotlinx.coroutines.delay(1000) // Esperar un momento
+                initializePlayer()
+                
+                // Intentar recargar el track actual si existe
+                _currentTrack.value?.let { track ->
+                    Log.d(TAG, "🔄 Reintentando cargar track actual después de error: ${track.name}")
+                    loadAudioFromTrack(track)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error durante recuperación", e)
+                updateLoadingState(false, "Error de reproducción. Reinicia la app si persiste.")
+            }
+        }
+    }
+    
+    /**
+     * Libera ExoPlayers para recuperación de errores.
+     */
+    private fun releasePlayersForRecovery() {
+        Log.d(TAG, "🧹 Liberando ExoPlayers para recuperación")
+        
+        _currentPlayerListener?.let { listener ->
+            _exoPlayer?.removeListener(listener)
+        }
+        
+        _exoPlayer?.release()
+        _exoPlayer = null
+        
+        _preloadPlayer?.release()
+        _preloadPlayer = null
+        
+        _isPreloading = false
+        _preloadedTrack = null
     }
     
     /**
@@ -360,10 +489,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _audioUrl.postValue(audioUrl)
         
         return withContext(Dispatchers.Main) {
-            // Verificar que ExoPlayer esté inicializado
-            if (_exoPlayer == null) {
-                Log.e(TAG, "❌ ExoPlayer es null, intentando inicializar...")
+            // Asegurar que ambos ExoPlayers estén inicializados
+            if (_exoPlayer == null || _preloadPlayer == null) {
+                Log.d(TAG, "🎵 Inicializando ExoPlayers...")
                 initializePlayer()
+                
+                // Esperar a que la inicialización se complete
+                var attempts = 0
+                while ((_exoPlayer == null || _preloadPlayer == null) && attempts < 50) {
+                    kotlinx.coroutines.delay(50)
+                    attempts++
+                }
+                
+                if (_exoPlayer == null || _preloadPlayer == null) {
+                    Log.e(TAG, "❌ Error: ExoPlayers no se inicializaron correctamente")
+                    _isLoading.postValue(false)
+                    _error.postValue("Error: No se pudo inicializar el reproductor")
+                    return@withContext false
+                }
             }
             
             _exoPlayer?.let { player ->
@@ -381,7 +524,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     return@withContext false
                 }
             } ?: run {
-                Log.e(TAG, "❌ ExoPlayer sigue siendo null después de inicialización")
+                Log.e(TAG, "❌ ExoPlayer es null después de inicialización")
                 diagnoseExoPlayerState()
                 _isLoading.postValue(false)
                 _error.postValue("Error: Reproductor no disponible")
@@ -502,6 +645,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * @return true si pudo navegar, false si no hay siguiente track
      */
     suspend fun navigateToNext(): Boolean {
+        // Cancelar cualquier preloading activo ya que es navegación manual
+        cancelPreloading()
+        
         // Si está en modo cola, reproducir siguiente de la cola
         if (_isQueueMode.value == true) {
             return playNextFromQueue()
@@ -522,7 +668,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Cargar y reproducir el siguiente track
             val success = loadAudioFromTrack(nextTrack)
             if (success) {
-                println("PlayerViewModel: ✅ Navegación exitosa al siguiente track: ${nextTrack.name}")
+                Log.d(TAG, "✅ Navegación exitosa al siguiente track: ${nextTrack.name}")
+            } else {
+                Log.w(TAG, "❌ Falló navegación al siguiente track: ${nextTrack.name}")
             }
             return success
         }
@@ -535,6 +683,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * @return true si pudo navegar, false si no hay track anterior
      */
     suspend fun navigateToPrevious(): Boolean {
+        // Cancelar cualquier preloading activo ya que es navegación manual
+        cancelPreloading()
+        
         val playlist = _currentPlaylist.value ?: return false
         val currentIndex = _currentTrackIndex.value ?: return false
         
@@ -549,7 +700,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Cargar y reproducir el track anterior
             val success = loadAudioFromTrack(previousTrack)
             if (success) {
-                println("PlayerViewModel: ✅ Navegación exitosa al track anterior: ${previousTrack.name}")
+                Log.d(TAG, "✅ Navegación exitosa al track anterior: ${previousTrack.name}")
+            } else {
+                Log.w(TAG, "❌ Falló navegación al track anterior: ${previousTrack.name}")
             }
             return success
         }
@@ -563,6 +716,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * @return true si pudo navegar, false si el índice es inválido
      */
     suspend fun navigateToTrack(index: Int): Boolean {
+        // Cancelar cualquier preloading activo ya que es navegación manual
+        cancelPreloading()
+        
         val playlist = _currentPlaylist.value ?: return false
         
         if (index in playlist.indices) {
@@ -575,7 +731,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Cargar y reproducir el track seleccionado
             val success = loadAudioFromTrack(track)
             if (success) {
-                println("PlayerViewModel: ✅ Navegación exitosa al track ${index + 1}: ${track.name}")
+                Log.d(TAG, "✅ Navegación exitosa al track ${index + 1}: ${track.name}")
+            } else {
+                Log.w(TAG, "❌ Falló navegación al track ${index + 1}: ${track.name}")
             }
             return success
         }
@@ -857,12 +1015,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     suspend fun waitForCurrentSongToFinish(): Boolean {
         return try {
-            println("PlayerViewModel: ⏳ Esperando a que termine la canción actual...")
+            Log.d(TAG, "⏳ Esperando a que termine la canción actual...")
             
             // Verificar que hay una canción reproduciéndose
             val hasPlayback = checkCurrentPlayback()
             if (!hasPlayback) {
-                println("PlayerViewModel: ⚠️ No hay canción reproduciéndose")
+                Log.w(TAG, "⚠️ No hay canción reproduciéndose")
                 return false
             }
             
@@ -900,7 +1058,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Esperar hasta que termine o se agote el tiempo
             while (playbackEndedCallback != null && !playbackEndedCallback!!.isCompleted) {
                 if (System.currentTimeMillis() - startTime > timeout) {
-                    println("PlayerViewModel: ⚠️ Timeout esperando fin de canción")
+                    Log.w(TAG, "⚠️ Timeout esperando fin de canción")
                     playbackEndedCallback?.complete(false)
                     break
                 }
@@ -910,7 +1068,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val result = playbackEndedCallback?.await() ?: false
             playbackEndedCallback = null
             
-            println("PlayerViewModel: ${if (result) "✅" else "⚠️"} Canción ${if (result) "terminada" else "cancelada"}")
+            Log.d(TAG, "${if (result) "✅" else "⚠️"} Canción ${if (result) "terminada" else "cancelada"}")
             result
         }
     }
@@ -921,7 +1079,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * @return false indicando fallo
      */
     private fun handleWaitException(e: Exception): Boolean {
-        println("PlayerViewModel: ❌ Error esperando fin de canción: ${e.message}")
+        Log.e(TAG, "❌ Error esperando fin de canción: ${e.message}", e)
         playbackEndedCallback?.complete(false)
         playbackEndedCallback = null
         return false
@@ -943,7 +1101,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun handleAutoNavigation() {
         // Verificar si la auto-navegación está habilitada
         if (!isAutoNavigationEnabled()) {
-            println("PlayerViewModel: 🎵 Auto-navegación deshabilitada")
+            Log.d(TAG, "🎵 Auto-navegación deshabilitada")
             return
         }
         
@@ -953,7 +1111,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val queue = _playbackQueue.value
             
             if (isQueueActive && !queue.isNullOrEmpty()) {
-                println("PlayerViewModel: 🎵 Auto-navegando en modo cola...")
+                Log.d(TAG, "🎵 Auto-navegando en modo cola...")
                 
                 // Pequeña pausa antes de la siguiente canción
                 kotlinx.coroutines.delay(1000)
@@ -961,7 +1119,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 // Reproducir siguiente canción de la cola
                 val success = playNextFromQueue()
                 if (!success) {
-                    println("PlayerViewModel: 🎵 Cola terminada, saliendo de modo cola")
+                    Log.d(TAG, "🎵 Cola terminada, saliendo de modo cola")
                     _isQueueMode.postValue(false)
                     updateQueueState()
                 }
@@ -976,15 +1134,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (playlist != null && currentIndex != null && 
                 currentIndex < playlist.size - 1) {
                 
-                println("PlayerViewModel: 🎵 Auto-navegando a la siguiente canción de playlist...")
+                Log.d(TAG, "🎵 Auto-navegando a la siguiente canción de playlist...")
                 
                 // Pequeña pausa antes de la siguiente canción
                 kotlinx.coroutines.delay(1000)
                 
                 // Navegar automáticamente al siguiente track
-                navigateToNext()
+                try {
+                    navigateToNext()
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Error durante auto-navegación", e)
+                    updateLoadingState(false, "Error navegando al siguiente track")
+                }
             } else {
-                println("PlayerViewModel: 🎵 Fin de playlist o no hay playlist activa")
+                Log.d(TAG, "🎵 Fin de playlist o no hay playlist activa")
             }
         }
     }
@@ -1022,17 +1185,408 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     override fun onCleared() {
         super.onCleared()
         
+        Log.d(TAG, "🧹 Limpiando recursos del PlayerViewModel")
+        
         // Cancelar cualquier callback pendiente
         playbackEndedCallback?.complete(false)
         playbackEndedCallback = null
         
+        // Cancelar preloading activo
+        _isPreloading = false
+        _preloadedTrack = null
+        
         // Liberar ExoPlayer en el hilo principal
         mainHandler.post {
-            _exoPlayer?.release()
-            _exoPlayer = null
+            try {
+                // Remover listeners antes de liberar
+                _currentPlayerListener?.let { listener ->
+                    _exoPlayer?.removeListener(listener)
+                }
+                
+                // Detener y liberar ambos players completamente
+                _exoPlayer?.let { player ->
+                    player.stop()
+                    player.clearMediaItems()
+                    player.release()
+                }
+                _exoPlayer = null
+                
+                _preloadPlayer?.let { player ->
+                    player.stop()
+                    player.clearMediaItems()
+                    player.release()
+                }
+                _preloadPlayer = null
+                
+                // Limpiar referencia del listener
+                _currentPlayerListener = null
+                
+                Log.d(TAG, "✅ Recursos liberados correctamente")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error liberando recursos", e)
+            }
         }
     }
     
+    // === MÉTODOS DE PRELOADING PARA TRANSICIONES SIN DELAY ===
+    
+    /**
+     * Maneja la transición sin delay entre canciones usando el track preloaded.
+     * Si hay un track preloaded listo, intercambia los ExoPlayers instantáneamente.
+     */
+    private fun handleSeamlessTransition() {
+        if (!isAutoNavigationEnabled()) {
+            Log.d(TAG, "🎵 Auto-navegación deshabilitada")
+            return
+        }
+        
+        val nextTrack = getNextTrackToPlay()
+        if (nextTrack == null) {
+            Log.d(TAG, "🎵 No hay siguiente track, finalizando reproducción")
+            return
+        }
+        
+        // Si tenemos el track preloaded y es el correcto, hacer intercambio instantáneo
+        Log.d(TAG, "🔍 Verificando preloading:")
+        Log.d(TAG, "  - Track esperado: ${nextTrack.name}")
+        Log.d(TAG, "  - Track preloaded: ${_preloadedTrack?.name}")
+        Log.d(TAG, "  - PreloadPlayer existe: ${_preloadPlayer != null}")
+        Log.d(TAG, "  - PreloadPlayer estado: ${_preloadPlayer?.playbackState}")
+        Log.d(TAG, "  - Estado esperado (READY): ${Player.STATE_READY}")
+        
+        if (_preloadedTrack == nextTrack && _preloadPlayer != null && 
+            _preloadPlayer?.playbackState == Player.STATE_READY) {
+            Log.d(TAG, "🚀 ✅ Todas las condiciones cumplidas - Track preloaded detectado: ${nextTrack.name}, iniciando intercambio")
+            performSeamlessSwap(nextTrack)
+        } else {
+            // Fallback a navegación normal con delay
+            val reason = when {
+                _preloadedTrack != nextTrack -> "Track preloaded incorrecto (esperado: ${nextTrack.name}, actual: ${_preloadedTrack?.name})"
+                _preloadPlayer == null -> "PreloadPlayer es null"
+                _preloadPlayer?.playbackState != Player.STATE_READY -> "PreloadPlayer no está listo (estado: ${_preloadPlayer?.playbackState})"
+                else -> "Razón desconocida"
+            }
+            Log.w(TAG, "⚠️ ❌ No hay preloading válido: $reason. Usando navegación normal")
+            handleAutoNavigation()
+        }
+    }
+    
+    /**
+     * Realiza el intercambio instantáneo de ExoPlayers para transición sin delay.
+     * @param nextTrack El track que debe reproducirse next
+     */
+    private fun performSeamlessSwap(nextTrack: TrackEntity) {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                Log.d(TAG, "🚀 Iniciando intercambio sin delay para: ${nextTrack.name}")
+                
+                // Verificar que el preload player esté listo
+                if (_preloadPlayer?.playbackState != Player.STATE_READY) {
+                    Log.w(TAG, "⚠️ PreloadPlayer no está listo, usando navegación normal")
+                    handleAutoNavigation()
+                    return@launch
+                }
+                
+                // Detener y limpiar el player actual ANTES del intercambio
+                _exoPlayer?.let { currentPlayer ->
+                    currentPlayer.pause()
+                    currentPlayer.stop()
+                    // Remover listener del player actual
+                    _currentPlayerListener?.let { listener ->
+                        currentPlayer.removeListener(listener)
+                    }
+                }
+                
+                // Guardar referencia al player anterior para limpieza
+                val oldPlayer = _exoPlayer
+                
+                // Intercambiar los ExoPlayers (el preload ya está preparado y listo)
+                _exoPlayer = _preloadPlayer
+                _preloadPlayer = oldPlayer
+                
+                // Configurar el nuevo player principal para reproducción INMEDIATA
+                _exoPlayer?.let { newMainPlayer ->
+                    // Agregar listener al nuevo player principal
+                    _currentPlayerListener?.let { listener ->
+                        newMainPlayer.addListener(listener)
+                    }
+                    
+                    // EL PLAYER YA ESTÁ PREPARADO - solo activar reproducción
+                    newMainPlayer.playWhenReady = true
+                    newMainPlayer.play()
+                    
+                    Log.d(TAG, "⚡ Reproducción instantánea iniciada para: ${nextTrack.name}")
+                }
+                
+                // Limpiar completamente el player anterior para liberar recursos
+                _preloadPlayer?.let { oldPreloadPlayer ->
+                    oldPreloadPlayer.stop()
+                    oldPreloadPlayer.clearMediaItems()
+                    oldPreloadPlayer.playWhenReady = false
+                    // Forzar liberación de buffers
+                    oldPreloadPlayer.release()
+                    
+                    // Recrear el preload player inmediatamente con recursos limpios
+                    _preloadPlayer = ExoPlayer.Builder(getApplication())
+                        .setSeekBackIncrementMs(10000)
+                        .setSeekForwardIncrementMs(10000)
+                        .build().apply {
+                            playWhenReady = false
+                            setHandleAudioBecomingNoisy(false)
+                            
+                            // Aplicar optimizaciones de buffer
+                            optimizeBufferSettings(this)
+                            
+                            addListener(object : Player.Listener {
+                                override fun onPlaybackStateChanged(playbackState: Int) {
+                                    when (playbackState) {
+                                        Player.STATE_READY -> {
+                                            Log.d(TAG, "🎯 Nuevo PreloadPlayer LISTO")
+                                        }
+                                        Player.STATE_BUFFERING -> {
+                                            Log.d(TAG, "🔄 Nuevo PreloadPlayer bufferizando...")
+                                        }
+                                    }
+                                }
+                            })
+                        }
+                    Log.d(TAG, "♻️ PreloadPlayer recreado después de intercambio")
+                }
+                
+                // Actualizar estados de la UI
+                updateTrackStates(nextTrack)
+                
+                // Resetear estado de preloading
+                _preloadedTrack = null
+                _isPreloading = false
+                
+                Log.d(TAG, "✅ Intercambio sin delay completado para: ${nextTrack.name}")
+                
+                // Monitorear memoria después del intercambio
+                monitorMemoryUsage()
+                
+                // Esperar un momento antes de iniciar nuevo preloading para evitar sobrecarga
+                kotlinx.coroutines.delay(2000)
+                
+                // Comenzar a preloading el siguiente track
+                if (!_isPreloading) {
+                    startPreloadingNextTrack()
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error en intercambio sin delay", e)
+                // Limpiar estado y usar navegación normal como fallback
+                _isPreloading = false
+                _preloadedTrack = null
+                handleAutoNavigation()
+            }
+        }
+    }
+    
+    /**
+     * Actualiza los estados del track actual después de un intercambio.
+     * @param track El nuevo track actual
+     */
+    private fun updateTrackStates(track: TrackEntity) {
+        // Actualizar estados según el modo de reproducción
+        if (_isQueueMode.value == true) {
+            // Remover el track de la cola ya que se está reproduciendo
+            val queue = _playbackQueue.value?.toMutableList() ?: mutableListOf()
+            if (queue.isNotEmpty()) {
+                queue.removeAt(0)
+                _playbackQueue.postValue(queue)
+                updateQueueState()
+            }
+        } else {
+            // Modo playlist - actualizar índice
+            val playlist = _currentPlaylist.value
+            if (playlist != null) {
+                val index = playlist.indexOf(track)
+                if (index != -1) {
+                    _currentTrackIndex.postValue(index)
+                    updateNavigationState()
+                }
+            }
+        }
+        
+        _currentTrack.postValue(track)
+        _currentTitle.postValue("${track.name} - ${track.artists}")
+    }
+    
+    /**
+     * Obtiene el siguiente track que debería reproducirse.
+     * @return El siguiente TrackEntity o null si no hay siguiente
+     */
+    private fun getNextTrackToPlay(): TrackEntity? {
+        // Priorizar cola de reproducción
+        if (_isQueueMode.value == true) {
+            val queue = _playbackQueue.value
+            return if (!queue.isNullOrEmpty()) queue[0] else null
+        }
+        
+        // Modo playlist
+        val playlist = _currentPlaylist.value ?: return null
+        val currentIndex = _currentTrackIndex.value ?: return null
+        
+        return if (currentIndex < playlist.size - 1) {
+            playlist[currentIndex + 1]
+        } else null
+    }
+    
+    /**
+     * Inicia el preloading de la siguiente canción en background.
+     * Se llama automáticamente cuando el track actual está listo.
+     */
+    private fun startPreloadingNextTrack() {
+        if (_isPreloading) {
+            Log.d(TAG, "🔄 Ya hay preloading en progreso")
+            return
+        }
+        
+        val nextTrack = getNextTrackToPlay()
+        if (nextTrack == null) {
+            Log.d(TAG, "🎵 No hay siguiente track para preload")
+            return
+        }
+        
+        if (_preloadPlayer == null) {
+            Log.e(TAG, "❌ PreloadPlayer no inicializado")
+            return
+        }
+        
+        _isPreloading = true
+        _preloadedTrack = nextTrack
+        
+        Log.d(TAG, "🔄 Iniciando preloading de: ${nextTrack.name}")
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Obtener YouTube ID y URL de audio
+                val youtubeId = youtubeSearchManager.getYouTubeIdTransparently(nextTrack)
+                if (youtubeId == null) {
+                    Log.e(TAG, "❌ No se encontró YouTube ID para preload: ${nextTrack.name}")
+                    resetPreloadingState()
+                    return@launch
+                }
+                
+                val audioUrl = YouTubeAudioExtractor.getAudioUrl(youtubeId)
+                if (audioUrl == null || !isValidAudioUrl(audioUrl)) {
+                    Log.e(TAG, "❌ No se obtuvo URL válida para preload: ${nextTrack.name}")
+                    resetPreloadingState()
+                    return@launch
+                }
+                
+                // Preparar el track en el preload player
+                withContext(Dispatchers.Main) {
+                    _preloadPlayer?.let { player ->
+                        try {
+                            // Limpiar estado anterior completamente
+                            player.stop()
+                            player.clearMediaItems()
+                            
+                            // Asegurar que NO se reproduzca automáticamente
+                            player.playWhenReady = false
+                            player.setMediaItem(MediaItem.fromUri(audioUrl))
+                            player.prepare()
+                            
+                            // Verificar que efectivamente no esté reproduciéndose
+                            if (player.isPlaying) {
+                                player.pause()
+                            }
+                            
+                            Log.d(TAG, "🔄 Preparando preload para: ${nextTrack.name}")
+                            
+                            // Esperar a que el player esté realmente listo con timeout más corto
+                            var attempts = 0
+                            while (player.playbackState != Player.STATE_READY && attempts < 50) { // 5 segundos máximo
+                                kotlinx.coroutines.delay(100)
+                                attempts++
+                                
+                                // Verificar si el preloading fue cancelado
+                                if (!_isPreloading) {
+                                    Log.d(TAG, "🚫 Preloading cancelado durante espera")
+                                    return@withContext
+                                }
+                            }
+                            
+                            if (player.playbackState == Player.STATE_READY && _isPreloading) {
+                                Log.d(TAG, "✅ Preloading completado para: ${nextTrack.name}")
+                            } else {
+                                Log.w(TAG, "⚠️ Preloading timeout o cancelado para: ${nextTrack.name}")
+                                resetPreloadingState()
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ Error en preparación de preload para ${nextTrack.name}", e)
+                            resetPreloadingState()
+                        }
+                    }
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error en preloading para ${nextTrack.name}", e)
+                resetPreloadingState()
+            }
+        }
+    }
+    
+    /**
+     * Resetea el estado de preloading de forma segura.
+     */
+    private fun resetPreloadingState() {
+        _isPreloading = false
+        _preloadedTrack = null
+    }
+    
+    /**
+     * Cancela el preloading activo si existe.
+     * Útil cuando se cambia manualmente de canción o se reinicia el player.
+     */
+    private fun cancelPreloading() {
+        if (_isPreloading) {
+            Log.d(TAG, "🚫 Cancelando preloading activo")
+            resetPreloadingState()
+            
+            // Limpiar el preload player en el hilo principal de forma más agresiva
+            mainHandler.post {
+                _preloadPlayer?.let { player ->
+                    try {
+                        player.stop()
+                        player.clearMediaItems()
+                        player.playWhenReady = false
+                        
+                        // Liberar completamente el preload player para evitar leaks
+                        player.release()
+                        
+                        // Recrear inmediatamente
+                        _preloadPlayer = ExoPlayer.Builder(getApplication())
+                            .setSeekBackIncrementMs(10000)
+                            .setSeekForwardIncrementMs(10000)
+                            .build().apply {
+                                playWhenReady = false
+                                setHandleAudioBecomingNoisy(false)
+                                
+                                // Aplicar optimizaciones de buffer
+                                optimizeBufferSettings(this)
+                                
+                                addListener(object : Player.Listener {
+                                    override fun onPlaybackStateChanged(playbackState: Int) {
+                                        when (playbackState) {
+                                            Player.STATE_READY -> {
+                                                Log.d(TAG, "🎯 PreloadPlayer recreado y listo")
+                                            }
+                                        }
+                                    }
+                                })
+                            }
+                        Log.d(TAG, "♻️ PreloadPlayer recreado después de cancelación")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Error cancelando preloading", e)
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Estado de la cola de reproducción.
      * @param queue Lista de tracks en la cola
@@ -1046,17 +1600,98 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     )
 
     /**
-     * Diagnostica el estado del ExoPlayer para debugging.
+     * Diagnostica el estado de ambos ExoPlayers para debugging.
      */
     private fun diagnoseExoPlayerState() {
         Log.d(TAG, "🔍 Diagnóstico ExoPlayer:")
-        Log.d(TAG, "   - ExoPlayer instancia: ${if (_exoPlayer != null) "✅ Existe" else "❌ Es null"}")
+        Log.d(TAG, "   - ExoPlayer principal: ${if (_exoPlayer != null) "✅ Existe" else "❌ Es null"}")
         _exoPlayer?.let { player ->
-            Log.d(TAG, "   - Estado actual: ${player.playbackState}")
-            Log.d(TAG, "   - ¿Está reproduciéndose?: ${player.isPlaying}")
-            Log.d(TAG, "   - ¿Está preparado?: ${player.playbackState == Player.STATE_READY}")
-            Log.d(TAG, "   - Duración: ${player.duration}")
-            Log.d(TAG, "   - Posición actual: ${player.currentPosition}")
+            Log.d(TAG, "     - Estado actual: ${player.playbackState}")
+            Log.d(TAG, "     - ¿Está reproduciéndose?: ${player.isPlaying}")
+            Log.d(TAG, "     - ¿Está preparado?: ${player.playbackState == Player.STATE_READY}")
+            Log.d(TAG, "     - Duración: ${player.duration}")
+            Log.d(TAG, "     - Posición actual: ${player.currentPosition}")
+        }
+        
+        Log.d(TAG, "   - ExoPlayer preload: ${if (_preloadPlayer != null) "✅ Existe" else "❌ Es null"}")
+        _preloadPlayer?.let { preloadPlayer ->
+            Log.d(TAG, "     - Estado preload: ${preloadPlayer.playbackState}")
+            Log.d(TAG, "     - ¿Está preparado?: ${preloadPlayer.playbackState == Player.STATE_READY}")
+        }
+        
+        Log.d(TAG, "   - Track preloaded: ${_preloadedTrack?.name ?: "Ninguno"}")
+        Log.d(TAG, "   - Preloading activo: $_isPreloading")
+    }
+    
+    // === CONFIGURACIÓN DE BUFFER Y OPTIMIZACIÓN ===
+    
+    /**
+     * Optimiza la configuración de buffer para reducir uso de memoria.
+     */
+    private fun optimizeBufferSettings(player: ExoPlayer) {
+        try {
+            // Configurar parámetros de buffer más conservadores para evitar exhaustión
+            // Estos valores reducen el uso de memoria pero mantienen buena reproducción
+            player.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                true // Handle audio becoming noisy
+            )
+            
+            Log.d(TAG, "🔧 Configuración de buffer optimizada")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ No se pudo optimizar configuración de buffer", e)
+        }
+    }
+    
+    /**
+     * Fuerza la liberación de recursos de memoria de ExoPlayer.
+     */
+    private fun forceMemoryCleanup(player: ExoPlayer?) {
+        player?.let {
+            try {
+                // Detener reproducción y limpiar media items
+                it.stop()
+                it.clearMediaItems()
+                
+                // Forzar garbage collection (solo en casos críticos)
+                System.gc()
+                
+                Log.d(TAG, "♻️ Limpieza forzada de memoria completada")
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ Error durante limpieza forzada", e)
+            }
+        }
+    }
+    
+    /**
+     * Monitorea el uso de memoria y toma acciones si es necesario.
+     */
+    private fun monitorMemoryUsage() {
+        try {
+            val runtime = Runtime.getRuntime()
+            val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+            val maxMemory = runtime.maxMemory()
+            val memoryPercentage = (usedMemory * 100) / maxMemory
+            
+            Log.d(TAG, "📊 Uso de memoria: ${memoryPercentage}% (${usedMemory / 1024 / 1024}MB / ${maxMemory / 1024 / 1024}MB)")
+            
+            // Si el uso de memoria es alto (>80%), realizar limpieza
+            if (memoryPercentage > 80) {
+                Log.w(TAG, "⚠️ Uso de memoria alto, realizando limpieza preventiva")
+                
+                // Cancelar preloading para liberar memoria
+                if (_isPreloading) {
+                    cancelPreloading()
+                }
+                
+                // Forzar garbage collection
+                System.gc()
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ Error monitoreando memoria", e)
         }
     }
 }

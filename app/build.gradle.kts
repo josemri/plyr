@@ -52,6 +52,10 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose.jvmstubs)
     implementation(libs.androidx.runtime.livedata)
+    
+    // Splash Screen API
+    implementation("androidx.core:core-splashscreen:1.0.1")
+    
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
