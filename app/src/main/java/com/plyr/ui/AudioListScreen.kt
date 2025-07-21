@@ -38,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.animation.core.*
+import androidx.compose.runtime.Stable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.core.tween
@@ -67,6 +68,9 @@ enum class Screen {
     CONFIG,
     PLAYLISTS
 }
+
+@Stable
+data class MenuOption(val screen: Screen, val title: String)
 
 @Composable
 fun AudioListScreen(
@@ -155,19 +159,21 @@ fun HomeScreen(
         )
 
         // Lista de opciones disponibles
-        val options = listOf(
-            Screen.SEARCH to "> search",
-            Screen.QUEUE to "> queue",
-            Screen.PLAYLISTS to "> playlists",
-            Screen.CONFIG to "> settings"
-        )
+        val options = remember {
+            listOf(
+                MenuOption(Screen.SEARCH, "> search"),
+                MenuOption(Screen.QUEUE, "> queue"),
+                MenuOption(Screen.PLAYLISTS, "> playlists"),
+                MenuOption(Screen.CONFIG, "> settings")
+            )
+        }
         
         Column(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            options.forEach { (screen, title) ->
+            options.forEach { option ->
                 Text(
-                    text = title,
+                    text = option.title,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 20.sp,
@@ -176,7 +182,7 @@ fun HomeScreen(
                     modifier = Modifier
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(screen)
+                            onNavigateToScreen(option.screen)
                         }
                         .padding(4.dp)
                 )
@@ -510,7 +516,10 @@ fun SearchScreen(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
-            items(results) { item ->
+            items(
+                items = results,
+                key = { item -> item.url }
+            ) { item ->
                 val id = item.url.toUri().getQueryParameter("v")
                 if (id != null) {
                     Row(
@@ -696,7 +705,10 @@ fun QueueScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    items(currentQueue.size) { index ->
+                    items(
+                        count = currentQueue.size,
+                        key = { index -> currentQueue[index].id }
+                    ) { index ->
                         val track = currentQueue[index]
                         val isCurrentTrack = queueState.currentIndex == index
                         
@@ -1661,14 +1673,6 @@ fun PlaylistsScreen(
                                             overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                    
-                                    Text(
-                                        text = track.getDurationText(),
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFF95A5A6)
-                                        )
-                                    )
                                 }
                             }
                         }
