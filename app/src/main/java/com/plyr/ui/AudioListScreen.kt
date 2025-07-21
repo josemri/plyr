@@ -154,45 +154,32 @@ fun HomeScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // Lista de ventanas disponibles
-        val windows = listOf(
-            Triple(Screen.SEARCH, "> search_audio", "Search for music from Spotify or YouTube"),
-            Triple(Screen.QUEUE, "> queue_manager", "Manage playback queue and current playlist"),
-            Triple(Screen.PLAYLISTS, "> playlists", "Browse and manage your saved playlists"),
-            Triple(Screen.CONFIG, "> settings", "Configure app preferences and connections")
+        // Lista de opciones disponibles
+        val options = listOf(
+            Screen.SEARCH to "> search",
+            Screen.QUEUE to "> queue",
+            Screen.PLAYLISTS to "> playlists",
+            Screen.CONFIG to "> settings"
         )
         
-        windows.forEach { (screen, title, description) ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onNavigateToScreen(screen)
-                    },
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF2C3E50).copy(alpha = 0.8f)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            options.forEach { (screen, title) ->
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 20.sp,
+                        color = Color.White
+                    ),
+                    modifier = Modifier
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(screen)
+                        }
+                        .padding(4.dp)
                 )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF4ECDC4)
-                        )
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
-                        ),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
             }
         }
         
@@ -1697,13 +1684,6 @@ fun PlaylistsScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Text(
-                            text = "● ",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFFFD93D)
-                            )
-                        )
-                        Text(
                             text = if (isSyncing) "$ syncing_from_spotify..." else "$ loading_playlists...",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace,
@@ -1754,26 +1734,21 @@ fun PlaylistsScreen(
                                             color = Color(0xFF4ECDC4)
                                         )
                                     )
-                                    
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = playlist.name,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                    Text(
+                                        text = playlist.name,
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFE0E0E0)
                                         )
-                                        
-                                        Text(
-                                            text = playlist.getTrackCount(),
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFF95A5A6)
-                                            )
+                                    )
+                                    Text(
+                                        text = "  (${playlist.getTrackCount()})",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFF95A5A6)
+
                                         )
-                                    }
+                                    )
                                 }
                             }
                         }
