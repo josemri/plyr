@@ -178,6 +178,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     init {
         // Inicializar el estado de la cola
         updateQueueState()
+        // Observadores para actualizar el estado de navegación automáticamente
+        _playbackQueue.observeForever {
+            updateNavigationState()
+        }
+        _currentPlaylist.observeForever {
+            updateNavigationState()
+        }
+        _currentTrackIndex.observeForever {
+            updateNavigationState()
+        }
         Log.d(TAG, "PlayerViewModel inicializado")
     }
 
@@ -746,14 +756,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     private fun updateNavigationState() {
         val isQueue = _isQueueMode.value == true
-        val queueSize = _playbackQueue.value?.size ?: 0
+        val queue = _playbackQueue.value
+        val queueSize = queue?.size ?: 0
         val playlist = _currentPlaylist.value
         val currentIndex = _currentTrackIndex.value
-        
+
         Log.d(TAG, "Actualizando estado de navegación: isQueue=$isQueue, queueSize=$queueSize, playlist=${playlist?.size}, index=$currentIndex")
-        
+
         if (isQueue) {
-            // En modo cola: no hay "previous", pero sí "next" si hay tracks en cola
+            // En modo cola: no hay "previous", y "next" solo si hay tracks en cola
             _hasPrevious.postValue(false)
             _hasNext.postValue(queueSize > 0)
             Log.d(TAG, "Modo cola: hasPrevious=false, hasNext=${queueSize > 0}")
