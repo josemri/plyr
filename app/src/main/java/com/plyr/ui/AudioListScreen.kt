@@ -153,16 +153,7 @@ fun HomeScreen(
             ),
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        
-        Text(
-            text = "Available windows:",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF95A5A6)
-            ),
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        
+
         // Lista de ventanas disponibles
         val windows = listOf(
             Triple(Screen.SEARCH, "> search_audio", "Search for music from Spotify or YouTube"),
@@ -206,17 +197,7 @@ fun HomeScreen(
         }
         
         Spacer(modifier = Modifier.weight(1f))
-        
-        // Footer info
-        Text(
-            text = "Navigate with touch • Swipe for quick access",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF7F8C8D)
-            ),
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
-        
+
         // Exit message
         if (showExitMessage) {
             Text(
@@ -1089,7 +1070,7 @@ fun ConfigScreen(
                 text = "    ● don't pirate music!",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp, // Tamaño aumentado
+                    fontSize = 14.sp,
                     color = Color(0xFF95A5A6)
                 ),
                 lineHeight = 18.sp
@@ -1125,7 +1106,8 @@ fun ConfigScreen(
                 ),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            
+
+
             // Estado de Spotify (clickeable)
             Row(
                 modifier = Modifier
@@ -1167,11 +1149,11 @@ fun ConfigScreen(
                     text = "    ● client:",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         color = Color(0xFF95A5A6)
                     )
                 )
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1199,8 +1181,9 @@ fun ConfigScreen(
             }
         }
 
-        // Nueva sección: Configuración de Spotify API
+        // Configuración de API de Spotify
         SpotifyApiConfigSection(context = context)
+
     }
 }
 
@@ -2056,188 +2039,183 @@ fun SpotifyResultsMenus(
 
 @Composable
 fun SpotifyApiConfigSection(context: Context) {
+    var isExpanded by remember { mutableStateOf(false) }
     var clientId by remember { mutableStateOf(Config.getSpotifyClientId(context) ?: "") }
     var clientSecret by remember { mutableStateOf(Config.getSpotifyClientSecret(context) ?: "") }
-    var showClientSecret by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf("") }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 16.dp)
-    ) {
-        Text(
-            text = "> spotify_api_config",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                color = Color(0xFF7FB069)
-            ),
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        
-        // Client ID field
-        Column(modifier = Modifier.padding(bottom = 8.dp)) {
+    val haptic = LocalHapticFeedback.current
+    
+    Column {
+        // Campo principal de API - similar al formato del cliente
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { 
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Text(
-                text = "    ● client_id:",
+                text = "    ● api:",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
+                    fontSize = 14.sp,
                     color = Color(0xFF95A5A6)
                 )
             )
             
-            OutlinedTextField(
-                value = clientId,
-                onValueChange = { clientId = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, top = 4.dp),
-                placeholder = {
-                    Text(
-                        text = "Enter your Spotify Client ID",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF5D6D7E)
-                        )
-                    )
-                },
-                textStyle = MaterialTheme.typography.bodySmall.copy(
+            Text(
+                text = if (Config.hasSpotifyCredentials(context)) "configured" else "not_configured",
+                style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFE0E0E0)
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF7FB069),
-                    unfocusedBorderColor = Color(0xFF5D6D7E),
-                    cursorColor = Color(0xFF7FB069)
-                ),
-                singleLine = true
+                    fontSize = 12.sp,
+                    color = if (Config.hasSpotifyCredentials(context)) Color(0xFF1DB954) else Color(0xFFE74C3C)
+                )
             )
         }
         
-        // Client Secret field
-        Column(modifier = Modifier.padding(bottom = 8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        // Desplegable con campos de configuración
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp)
             ) {
+                // Campos de entrada
                 Text(
-                    text = "    ● client_secret:",
+                    text = "      client_id:",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         color = Color(0xFF95A5A6)
-                    )
+                    ),
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
                 
-                TextButton(
-                    onClick = { showClientSecret = !showClientSecret },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = Color(0xFF7FB069)
-                    )
+                OutlinedTextField(
+                    value = clientId,
+                    onValueChange = { 
+                        clientId = it
+                        Config.setSpotifyClientId(context, it)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF1DB954),
+                        unfocusedBorderColor = Color(0xFF95A5A6),
+                        focusedTextColor = Color(0xFFECF0F1),
+                        unfocusedTextColor = Color(0xFFBDC3C7)
+                    ),
+                    placeholder = {
+                        Text(
+                            text = "enter your spotify client id",
+                            style = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFF7F8C8D)
+                            )
+                        )
+                    }
+                )
+                
+                Text(
+                    text = "      client_secret:",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = Color(0xFF95A5A6)
+                    ),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                
+                OutlinedTextField(
+                    value = clientSecret,
+                    onValueChange = { 
+                        clientSecret = it
+                        Config.setSpotifyClientSecret(context, it)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF1DB954),
+                        unfocusedBorderColor = Color(0xFF95A5A6),
+                        focusedTextColor = Color(0xFFECF0F1),
+                        unfocusedTextColor = Color(0xFFBDC3C7)
+                    ),
+                    visualTransformation = PasswordVisualTransformation(),
+                    placeholder = {
+                        Text(
+                            text = "enter your spotify client secret",
+                            style = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFF7F8C8D)
+                            )
+                        )
+                    }
+                )
+                
+                // Explicación detallada
+                Column(
+                    modifier = Modifier.padding(bottom = 16.dp)
                 ) {
                     Text(
-                        text = if (showClientSecret) "hide" else "show",
+                        text = "      > how to get spotify api credentials:",
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp
+                            fontSize = 11.sp,
+                            color = Color(0xFF3498DB)
+                        ),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    
+                    val instructions = listOf(
+                        "1. go to https://developer.spotify.com/dashboard",
+                        "2. log in with your spotify account",
+                        "3. click 'create app'",
+                        "4. fill app name (e.g., 'plyr mobile')",
+                        "5. set redirect uri: 'plyr://spotify/callback'",
+                        "6. select 'mobile' and 'web api'",
+                        "7. click 'save'",
+                        "8. copy client id and client secret",
+                        "9. paste them in the fields above"
+                    )
+                    
+                    instructions.forEach { instruction ->
+                        Text(
+                            text = "        $instruction",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                color = Color(0xFF95A5A6)
+                            ),
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "      note: these credentials are stored locally",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color(0xFF7F8C8D)
                         )
                     )
                 }
             }
-            
-            OutlinedTextField(
-                value = clientSecret,
-                onValueChange = { clientSecret = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 16.dp, top = 4.dp),
-                placeholder = {
-                    Text(
-                        text = "Enter your Spotify Client Secret",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF5D6D7E)
-                        )
-                    )
-                },
-                textStyle = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFE0E0E0)
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF7FB069),
-                    unfocusedBorderColor = Color(0xFF5D6D7E),
-                    cursorColor = Color(0xFF7FB069)
-                ),
-                visualTransformation = if (showClientSecret) VisualTransformation.None else PasswordVisualTransformation(),
-                singleLine = true
-            )
         }
-        
-        // Save button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Button(
-                onClick = {
-                    if (clientId.isNotBlank() && clientSecret.isNotBlank()) {
-                        Config.setSpotifyCredentials(context, clientId, clientSecret)
-                        statusMessage = "credentials saved successfully"
-                    } else {
-                        statusMessage = "both fields are required"
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF1DB954),
-                    contentColor = Color.White
-                ),
-                modifier = Modifier.padding(start = 16.dp)
-            ) {
-                Text(
-                    text = "save_credentials",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
-                    )
-                )
-            }
-        }
-        
-        // Status message
-        if (statusMessage.isNotEmpty()) {
-            Text(
-                text = "    ● status: $statusMessage",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
-                    color = if (statusMessage.contains("success")) Color(0xFF1DB954) else Color(0xFFE74C3C)
-                ),
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-        
-        // Instructions
-        Text(
-            text = """
-                ● Instructions:
-                  1. Go to https://developer.spotify.com/dashboard
-                  2. Create a new app or select existing one
-                  3. Copy Client ID and Client Secret
-                  4. Add redirect URI: plyr://spotify_callback
-                  5. Save credentials above
-            """.trimIndent(),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                color = Color(0xFF95A5A6)
-            ),
-            modifier = Modifier.padding(top = 16.dp),
-            lineHeight = 14.sp
-        )
     }
 }

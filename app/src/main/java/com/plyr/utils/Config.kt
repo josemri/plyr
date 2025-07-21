@@ -172,6 +172,28 @@ object Config {
     }
     
     /**
+     * Establece el Client ID de Spotify del usuario.
+     * @param context Contexto de la aplicación
+     * @param clientId Client ID del usuario
+     */
+    fun setSpotifyClientId(context: Context, clientId: String) {
+        getPrefs(context).edit {
+            putString(KEY_SPOTIFY_CLIENT_ID, clientId.trim())
+        }
+    }
+    
+    /**
+     * Establece el Client Secret de Spotify del usuario.
+     * @param context Contexto de la aplicación
+     * @param clientSecret Client Secret del usuario
+     */
+    fun setSpotifyClientSecret(context: Context, clientSecret: String) {
+        getPrefs(context).edit {
+            putString(KEY_SPOTIFY_CLIENT_SECRET, clientSecret.trim())
+        }
+    }
+    
+    /**
      * Establece las credenciales de Spotify API del usuario.
      * @param context Contexto de la aplicación
      * @param clientId Client ID del usuario
