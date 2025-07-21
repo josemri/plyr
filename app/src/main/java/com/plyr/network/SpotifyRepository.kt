@@ -162,10 +162,10 @@ object SpotifyRepository {
         })
     }
     
-    // Obtener tracks de una playlist
-    fun getPlaylistTracks(accessToken: String, playlistId: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
+    // Obtener tracks de un álbum
+    fun getAlbumTracks(accessToken: String, albumId: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
         val request = Request.Builder()
-            .url("$API_BASE_URL/playlists/$playlistId/tracks")
+            .url("$API_BASE_URL/albums/$albumId/tracks?limit=50")
             .addHeader("Authorization", "Bearer $accessToken")
             .get()
             .build()
@@ -179,11 +179,11 @@ object SpotifyRepository {
                 val body = response.body?.string()
                 if (response.isSuccessful && body != null) {
                     try {
-                        val tracksResponse = gson.fromJson(body, SpotifyTracksResponse::class.java)
-                        val tracks = tracksResponse.items.mapNotNull { it.track }
-                        callback(tracks, null)
+                        android.util.Log.d("SpotifyRepository", "Album tracks response: $body")
+                        val tracksResponse = gson.fromJson(body, SpotifyTracksSearchResult::class.java)
+                        callback(tracksResponse.items, null)
                     } catch (e: Exception) {
-                        callback(null, "Error parsing tracks: ${e.message}")
+                        callback(null, "Error parsing album tracks: ${e.message}")
                     }
                 } else {
                     callback(null, "Error HTTP ${response.code}: $body")
@@ -192,12 +192,135 @@ object SpotifyRepository {
         })
     }
     
+    // Obtener tracks de una playlist
+    fun getPlaylistTracks(accessToken: String, playlistId: String, callback: (List<SpotifyPlaylistTrack>?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId/tracks?limit=50")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+        
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+            
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    try {
+                        android.util.Log.d("SpotifyRepository", "Playlist tracks response: $body")
+                        val tracksResponse = gson.fromJson(body, SpotifyPlaylistTracksResponse::class.java)
+                        callback(tracksResponse.items, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing playlist tracks: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+    
+    // Obtener álbumes de un artista
+    fun getArtistAlbums(accessToken: String, artistId: String, callback: (List<SpotifyAlbum>?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/artists/$artistId/albums?include_groups=album,single&limit=50")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+        
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+            
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    try {
+                        android.util.Log.d("SpotifyRepository", "Artist albums response: $body")
+                        val albumsResponse = gson.fromJson(body, SpotifyAlbumsSearchResult::class.java)
+                        callback(albumsResponse.items, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing artist albums: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+    
+    // Buscar todo tipo de contenido en Spotify (canciones, álbumes, artistas, playlists)
+    fun searchAll(accessToken: String, query: String, callback: (SpotifySearchAllResponse?, String?) -> Unit) {
+        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+        val request = Request.Builder()
+            .url("$API_BASE_URL/search?q=$encodedQuery&type=track,album,artist,playlist&limit=50")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+        
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+            
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    try {
+                        android.util.Log.d("SpotifyRepository", "Search all response: $body")
+                        val searchResponse = gson.fromJson(body, SpotifySearchAllResponse::class.java)
+                        callback(searchResponse, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing search results: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+    
+    // Buscar canciones en Spotify (función mantenida para compatibilidad)
+    fun searchTracks(accessToken: String, query: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
+        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+        val request = Request.Builder()
+            .url("$API_BASE_URL/search?q=$encodedQuery&type=track&limit=20")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+        
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+            
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    try {
+                        android.util.Log.d("SpotifyRepository", "Search response: $body")
+                        val searchResponse = gson.fromJson(body, SpotifySearchResponse::class.java)
+                        callback(searchResponse.tracks.items, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing search results: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
     private fun createBasicAuthHeader(context: Context): String {
         val credentials = "${Config.getSpotifyClientId(context)}:${Config.getSpotifyClientSecret(context)}"
         val encodedCredentials = Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
         return "Basic $encodedCredentials"
     }
 }
+
 
 // Data classes para Spotify API
 data class SpotifyTokens(
@@ -249,7 +372,8 @@ data class SpotifyTrackItem(
 data class SpotifyTrack(
     val id: String,
     val name: String,
-    val artists: List<SpotifyArtist>
+    val artists: List<SpotifyArtist>,
+    @SerializedName("duration_ms") val durationMs: Int? = null
 ) {
     fun getArtistNames(): String {
         return artists.joinToString(", ") { it.name }
@@ -258,8 +382,97 @@ data class SpotifyTrack(
     fun getDisplayName(): String {
         return "$name - ${getArtistNames()}"
     }
+    
+    fun getDurationText(): String {
+        return durationMs?.let {
+            val minutes = it / 60000
+            val seconds = (it % 60000) / 1000
+            "${minutes}:${seconds.toString().padStart(2, '0')}"
+        } ?: "0:00"
+    }
 }
+
+data class SpotifySearchResponse(
+    val tracks: SpotifyTracksSearchResult
+)
+
+data class SpotifySearchAllResponse(
+    val tracks: SpotifyTracksSearchResult,
+    val albums: SpotifyAlbumsSearchResult,
+    val artists: SpotifyArtistsSearchResult,
+    val playlists: SpotifyPlaylistsSearchResult
+)
+
+data class SpotifyTracksSearchResult(
+    val items: List<SpotifyTrack>
+)
+
+data class SpotifyAlbumsSearchResult(
+    val items: List<SpotifyAlbum>
+)
+
+data class SpotifyArtistsSearchResult(
+    val items: List<SpotifyArtistFull>
+)
+
+data class SpotifyPlaylistsSearchResult(
+    val items: List<SpotifyPlaylist>
+)
+
+data class SpotifyAlbum(
+    val id: String,
+    val name: String,
+    val artists: List<SpotifyArtist>,
+    val images: List<SpotifyImage>?,
+    @SerializedName("release_date") val release_date: String? = null,
+    @SerializedName("total_tracks") val total_tracks: Int? = null
+) {
+    fun getArtistNames(): String {
+        return artists.joinToString(", ") { it.name }
+    }
+    
+    fun getDisplayName(): String {
+        return "$name - ${getArtistNames()}"
+    }
+    
+    fun getImageUrl(): String {
+        return images?.firstOrNull()?.url ?: ""
+    }
+}
+
+data class SpotifyArtistFull(
+    val id: String,
+    val name: String,
+    val images: List<SpotifyImage>?,
+    val followers: SpotifyFollowers?,
+    val genres: List<String>?
+) {
+    fun getImageUrl(): String {
+        return images?.firstOrNull()?.url ?: ""
+    }
+    
+    fun getFollowersCount(): String {
+        return followers?.total?.let { "${it} seguidores" } ?: "0 seguidores"
+    }
+    
+    fun getGenresText(): String {
+        return genres?.joinToString(", ") ?: "Sin géneros"
+    }
+}
+
+data class SpotifyFollowers(
+    val total: Int
+)
 
 data class SpotifyArtist(
     val name: String
+)
+
+// Data classes para contenido interno
+data class SpotifyPlaylistTracksResponse(
+    val items: List<SpotifyPlaylistTrack>
+)
+
+data class SpotifyPlaylistTrack(
+    val track: SpotifyTrack?
 )

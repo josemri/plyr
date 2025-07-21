@@ -213,17 +213,22 @@ class PlaylistLocalRepository(context: Context) {
                     )
 
                     // Convertir y guardar tracks
-                    val trackEntities = tracks.mapIndexed { index, track ->
-                        TrackEntity(
-                            id = "${playlistId}_${track.id}",
-                            playlistId = playlistId,
-                            spotifyTrackId = track.id,
-                            name = track.name,
-                            artists = track.getArtistNames(),
-                            youtubeVideoId = null, // Se llenará después si es necesario
-                            position = index,
-                            lastSyncTime = System.currentTimeMillis()
-                        )
+                    val trackEntities = tracks.mapIndexedNotNull { index, playlistTrack ->
+                        val track = playlistTrack.track
+                        if (track != null) {
+                            TrackEntity(
+                                id = "${playlistId}_${track.id}",
+                                playlistId = playlistId,
+                                spotifyTrackId = track.id,
+                                name = track.name,
+                                artists = track.getArtistNames(),
+                                youtubeVideoId = null, // Se llenará después si es necesario
+                                position = index,
+                                lastSyncTime = System.currentTimeMillis()
+                            )
+                        } else {
+                            null
+                        }
                     }
 
                     // Usar runBlocking dentro del callback

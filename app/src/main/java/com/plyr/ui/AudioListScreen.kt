@@ -106,6 +106,10 @@ fun MainScreen(
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     
+    // Estados para resultados de Spotify
+    var spotifyResults by remember { mutableStateOf<com.plyr.network.SpotifySearchAllResponse?>(null) }
+    var showSpotifyResults by remember { mutableStateOf(false) }
+    
     // YouTube search manager para búsquedas locales
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
@@ -168,7 +172,7 @@ fun MainScreen(
             onValueChange = { searchQuery = it },
             label = { 
                 Text(
-                    "> search_audio",
+                    "> search_audio (yt: for YouTube)",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 16.sp
@@ -182,6 +186,8 @@ fun MainScreen(
                         searchQuery = ""
                         results = emptyList()
                         error = null
+                        spotifyResults = null
+                        showSpotifyResults = false
                     }) {
                         Text(
                             text = "x",
@@ -202,30 +208,71 @@ fun MainScreen(
                         error = null
                         results = emptyList()
 
-                        // Usar NewPipe para buscar videos
                         coroutineScope.launch {
                             try {
-                                // Buscar videos con información detallada usando NewPipe
-                                val videosInfo = youtubeSearchManager.searchYouTubeVideosDetailed(searchQuery, 10)
-                                
-                                // Convertir a AudioItem para compatibilidad con la UI existente
-                                val audioItems = videosInfo.map { videoInfo ->
-                                    AudioItem(
-                                        title = "${videoInfo.title} - ${videoInfo.uploader}",
-                                        url = "https://www.youtube.com/watch?v=${videoInfo.videoId}"
-                                    )
-                                }
-                                
-                                isLoading = false
-                                results = audioItems
-                                
-                                if (audioItems.isEmpty()) {
-                                    error = "No se encontraron videos para: $searchQuery"
+                                // Verificar si la consulta empieza con "yt:" para búsqueda de YouTube
+                                if (searchQuery.startsWith("yt:", ignoreCase = true)) {
+                                    // Búsqueda de YouTube - remover el prefijo "yt:"
+                                    val youtubeQuery = searchQuery.substring(3).trim()
+                                    
+                                    if (youtubeQuery.isNotEmpty()) {
+                                        // Buscar videos con información detallada usando NewPipe
+                                        val videosInfo = youtubeSearchManager.searchYouTubeVideosDetailed(youtubeQuery, 10)
+                                        
+                                        // Convertir a AudioItem para compatibilidad con la UI existente
+                                        val audioItems = videosInfo.map { videoInfo ->
+                                            AudioItem(
+                                                title = "${videoInfo.title} - ${videoInfo.uploader}",
+                                                url = "https://www.youtube.com/watch?v=${videoInfo.videoId}"
+                                            )
+                                        }
+                                        
+                                        isLoading = false
+                                        results = audioItems
+                                        
+                                        if (audioItems.isEmpty()) {
+                                            error = "No se encontraron videos de YouTube para: $youtubeQuery"
+                                        }
+                                    } else {
+                                        isLoading = false
+                                        error = "Búsqueda de YouTube vacía después de 'yt:'"
+                                    }
+                                } else {
+                                    // Búsqueda de Spotify
+                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                    if (accessToken != null) {
+                                        SpotifyRepository.searchAll(accessToken, searchQuery) { searchAllResponse, errorMsg ->
+                                            if (searchAllResponse != null) {
+                                                Log.d("MainScreen", "Spotify search all results:")
+                                                Log.d("MainScreen", "- Tracks: ${searchAllResponse.tracks.items.size}")
+                                                Log.d("MainScreen", "- Albums: ${searchAllResponse.albums.items.size}")
+                                                Log.d("MainScreen", "- Artists: ${searchAllResponse.artists.items.size}")
+                                                Log.d("MainScreen", "- Playlists: ${searchAllResponse.playlists.items.size}")
+                                                
+                                                isLoading = false
+                                                spotifyResults = searchAllResponse
+                                                showSpotifyResults = true
+                                                results = emptyList() // Limpiar resultados de YouTube
+                                                
+                                            } else {
+                                                Log.e("MainScreen", "Error en búsqueda de Spotify: $errorMsg")
+                                                isLoading = false
+                                                error = "Error buscando en Spotify: $errorMsg"
+                                                spotifyResults = null
+                                                showSpotifyResults = false
+                                            }
+                                        }
+                                    } else {
+                                        isLoading = false
+                                        error = "Token de Spotify no disponible. Conecta tu cuenta en configuración."
+                                        spotifyResults = null
+                                        showSpotifyResults = false
+                                    }
                                 }
                                 
                             } catch (e: Exception) {
                                 isLoading = false
-                                error = "Error buscando videos: ${e.message}"
+                                error = "Error en búsqueda: ${e.message}"
                                 Log.e("MainScreen", "Error en búsqueda", e)
                             }
                         }
@@ -283,6 +330,90 @@ fun MainScreen(
             )
         }
 
+        // === MENÚS DESPLEGABLES DE SPOTIFY ===
+        if (showSpotifyResults && spotifyResults != null) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                item {
+                    SpotifyResultsMenus(
+                        spotifyResults = spotifyResults!!,
+                        onTrackSelected = { track ->
+                            Log.d("MainScreen", "Track seleccionado: ${track.name} by ${track.getArtistNames()}")
+                        },
+                        onAlbumSelected = { album ->
+                            Log.d("MainScreen", "Album seleccionado: ${album.name} by ${album.getArtistNames()}")
+                            
+                            // Obtener tracks del álbum
+                            if (Config.isSpotifyConnected(context)) {
+                                val accessToken = Config.getSpotifyAccessToken(context)
+                                if (accessToken != null) {
+                                    SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, error ->
+                                        if (tracks != null && tracks.isNotEmpty()) {
+                                            Log.d("MainScreen", "Tracks del álbum '${album.name}':")
+                                            tracks.forEachIndexed { index, track ->
+                                                Log.d("MainScreen", "  ${index + 1}. ${track.name} (${track.getDurationText()})")
+                                            }
+                                        } else {
+                                            Log.e("MainScreen", "❌ Error obteniendo tracks del álbum: $error")
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        onArtistSelected = { artist ->
+                            Log.d("MainScreen", "Artist seleccionado: ${artist.name}")
+                            
+                            // Obtener álbumes del artista
+                            if (Config.isSpotifyConnected(context)) {
+                                val accessToken = Config.getSpotifyAccessToken(context)
+                                if (accessToken != null) {
+                                    SpotifyRepository.getArtistAlbums(accessToken, artist.id) { albums, error ->
+                                        if (albums != null && albums.isNotEmpty()) {
+                                            Log.d("MainScreen", "Álbumes/Singles de '${artist.name}':")
+                                            albums.forEachIndexed { index, album ->
+                                                Log.d("MainScreen", "  ${index + 1}. ${album.name} (${album.release_date ?: "Fecha desconocida"}) - ${album.total_tracks ?: 0} tracks")
+                                            }
+                                        } else {
+                                            Log.e("MainScreen", "❌ Error obteniendo álbumes del artista: $error")
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        onPlaylistSelected = { playlist ->
+                            Log.d("MainScreen", "Playlist seleccionada: ${playlist.name}")
+                            
+                            // Obtener tracks de la playlist
+                            if (Config.isSpotifyConnected(context)) {
+                                val accessToken = Config.getSpotifyAccessToken(context)
+                                if (accessToken != null) {
+                                    SpotifyRepository.getPlaylistTracks(accessToken, playlist.id) { playlistTracks, error ->
+                                        if (playlistTracks != null && playlistTracks.isNotEmpty()) {
+                                            Log.d("MainScreen", "Tracks de la playlist '${playlist.name}':")
+                                            playlistTracks.forEachIndexed { index, playlistTrack ->
+                                                val track = playlistTrack.track
+                                                if (track != null) {
+                                                    Log.d("MainScreen", "  ${index + 1}. ${track.name} - ${track.getArtistNames()} (${track.getDurationText()})")
+                                                } else {
+                                                    Log.d("MainScreen", "  ${index + 1}. [Track eliminado o no disponible]")
+                                                }
+                                            }
+                                        } else {
+                                            Log.e("MainScreen", "❌ Error obteniendo tracks de la playlist: $error")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
         LazyColumn(
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(bottom = 16.dp)
@@ -305,6 +436,8 @@ fun MainScreen(
                                     searchQuery = ""
                                     results = emptyList()
                                     error = null
+                                    spotifyResults = null
+                                    showSpotifyResults = false
                                     
                                     // Guardar el ID de YouTube en la base de datos para búsquedas futuras
                                     coroutineScope.launch {
@@ -1781,5 +1914,324 @@ fun SpotifyApiConfigSection(context: Context) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Composable que muestra menús desplegables para los diferentes tipos de resultados de Spotify
+ */
+@Composable
+fun SpotifyResultsMenus(
+    spotifyResults: com.plyr.network.SpotifySearchAllResponse,
+    onTrackSelected: (com.plyr.network.SpotifyTrack) -> Unit,
+    onAlbumSelected: (com.plyr.network.SpotifyAlbum) -> Unit,
+    onArtistSelected: (com.plyr.network.SpotifyArtistFull) -> Unit,
+    onPlaylistSelected: (com.plyr.network.SpotifyPlaylist) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        // Menú de Tracks
+        if (spotifyResults.tracks.items.isNotEmpty()) {
+            SpotifyCollapsibleMenu(
+                title = "Tracks", // (${spotifyResults.tracks.items.size})",
+                isExpanded = false
+            ) {
+                spotifyResults.tracks.items.forEachIndexed { index, track ->
+                    SpotifyTrackItem(
+                        track = track,
+                        isLast = index == spotifyResults.tracks.items.size - 1,
+                        onClick = { onTrackSelected(track) }
+                    )
+                }
+            }
+        }
+
+        // Menú de Albums
+        if (spotifyResults.albums.items.isNotEmpty()) {
+            SpotifyCollapsibleMenu(
+                title = "Albums", //(${spotifyResults.albums.items.size})",
+                isExpanded = false
+            ) {
+                spotifyResults.albums.items.forEachIndexed { index, album ->
+                    SpotifyAlbumItem(
+                        album = album,
+                        isLast = index == spotifyResults.albums.items.size - 1,
+                        onClick = { onAlbumSelected(album) }
+                    )
+                }
+            }
+        }
+
+        // Menú de Artists
+        if (spotifyResults.artists.items.isNotEmpty()) {
+            SpotifyCollapsibleMenu(
+                title = "Artists", // (${spotifyResults.artists.items.size})",
+                isExpanded = false
+            ) {
+                spotifyResults.artists.items.forEachIndexed { index, artist ->
+                    SpotifyArtistItem(
+                        artist = artist,
+                        isLast = index == spotifyResults.artists.items.size - 1,
+                        onClick = { onArtistSelected(artist) }
+                    )
+                }
+            }
+        }
+
+        // Menú de Playlists
+        if (spotifyResults.playlists.items.isNotEmpty()) {
+            SpotifyCollapsibleMenu(
+                title = "Playlists", // (${spotifyResults.playlists.items.size})",
+                isExpanded = false
+            ) {
+                Log.d("MainScreen", "🔍 Renderizando ${spotifyResults.playlists.items.size} playlists:")
+                spotifyResults.playlists.items.forEachIndexed { index, playlist ->
+                    Log.d("MainScreen", "  $index: ${playlist?.name ?: "null"}")
+                    // Verificar que playlist no sea null antes de usarlo
+                    if (playlist != null) {
+                        SpotifyPlaylistTreeItem(
+                            playlist = playlist,
+                            isLast = index == spotifyResults.playlists.items.size - 1,
+                            onClick = { onPlaylistSelected(playlist) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Composable para un menú desplegable con estilo árbol de archivos
+ */
+@Composable
+fun SpotifyCollapsibleMenu(
+    title: String,
+    isExpanded: Boolean,
+    content: @Composable () -> Unit
+) {
+    var expanded by remember { mutableStateOf(isExpanded) }
+    val haptic = LocalHapticFeedback.current
+
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // Header del menú con estilo árbol
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    expanded = !expanded
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+                .padding(vertical = 4.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (expanded) "v " else "> ",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    color = Color(0xFF4ECDC4)
+                )
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    color = Color(0xFFFFD93D)
+                )
+            )
+        }
+
+        // Contenido del menú (solo si está expandido) con indentación de árbol
+        if (expanded) {
+            Column {
+                content()
+            }
+        }
+    }
+}
+
+/**
+ * Item para mostrar un track de Spotify con estilo árbol
+ */
+@Composable
+fun SpotifyTrackItem(
+    track: com.plyr.network.SpotifyTrack,
+    isLast: Boolean = false,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 2.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (isLast) "└── " else "├── ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFF95A5A6)
+            )
+        )
+        Text(
+            text = " ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFF1DB954)
+            )
+        )
+        MarqueeText(
+            text = "${track.name} - ${track.getArtistNames()}",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFFE0E0E0)
+            ),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/**
+ * Item para mostrar un album de Spotify con estilo árbol
+ */
+@Composable
+fun SpotifyAlbumItem(
+    album: com.plyr.network.SpotifyAlbum,
+    isLast: Boolean = false,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 2.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (isLast) "└── " else "├── ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFF95A5A6)
+            )
+        )
+        Text(
+            text = " ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFF9B59B6)
+            )
+        )
+        MarqueeText(
+            text = "${album.name} - ${album.getArtistNames()}",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFFE0E0E0)
+            ),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/**
+ * Item para mostrar un artista de Spotify con estilo árbol
+ */
+@Composable
+fun SpotifyArtistItem(
+    artist: com.plyr.network.SpotifyArtistFull,
+    isLast: Boolean = false,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 2.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (isLast) "└── " else "├── ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFF95A5A6)
+            )
+        )
+        Text(
+            text = " ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFFE74C3C)
+            )
+        )
+        MarqueeText(
+            text = artist.name,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFFE0E0E0)
+            ),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/**
+ * Item para mostrar una playlist de Spotify con estilo árbol
+ */
+@Composable
+fun SpotifyPlaylistTreeItem(
+    playlist: com.plyr.network.SpotifyPlaylist?,
+    isLast: Boolean = false,
+    onClick: () -> Unit
+) {
+    // Si playlist es null, no mostrar nada
+    if (playlist == null) return
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 2.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (isLast) "└── " else "├── ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFF95A5A6)
+            )
+        )
+        Text(
+            text = " ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFFF39C12)
+            )
+        )
+        MarqueeText(
+            text = playlist.name ?: "Playlist sin nombre",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = Color(0xFFE0E0E0)
+            ),
+            modifier = Modifier.weight(1f)
+        )
     }
 }
