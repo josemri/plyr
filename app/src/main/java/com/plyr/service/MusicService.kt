@@ -80,12 +80,36 @@ class MusicService : Service() {
     /**
      * Configura el listener para responder a cambios de estado del player.
      */
+    // Playlist and current index for background navigation
+    private var playlist: List<String> = emptyList() // List of audio URLs or video IDs
+    private var currentIndex: Int = 0
+
     private fun setupPlayerListener() {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 handlePlaybackStateChange(isPlaying)
             }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    handleTrackEnded()
+                }
+            }
         })
+    }
+
+    /**
+     * Called when a track finishes playing. Plays the next track if available.
+     */
+    private fun handleTrackEnded() {
+        if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
+            currentIndex++
+            val nextUrl = playlist[currentIndex]
+            playAudio(nextUrl)
+        } else {
+            // End of playlist
+            stopForeground(false)
+        }
     }
     
     /**
@@ -160,7 +184,12 @@ class MusicService : Service() {
      * 
      * @param audioUrl URL del archivo de audio a reproducir
      */
+    /**
+     * Play a single audio track and reset playlist state.
+     */
     fun playAudio(audioUrl: String) {
+        playlist = listOf(audioUrl)
+        currentIndex = 0
         try {
             val mediaItem = MediaItem.fromUri(audioUrl)
             player.setMediaItem(mediaItem)
@@ -168,6 +197,17 @@ class MusicService : Service() {
             player.play()
         } catch (e: Exception) {
             println("MusicService: Error reproduciendo audio: ${e.message}")
+        }
+    }
+
+    /**
+     * Play a playlist (list of audio URLs or video IDs).
+     */
+    fun playPlaylist(urls: List<String>, startIndex: Int = 0) {
+        playlist = urls
+        currentIndex = startIndex.coerceIn(0, urls.size - 1)
+        if (playlist.isNotEmpty()) {
+            playAudio(playlist[currentIndex])
         }
     }
     

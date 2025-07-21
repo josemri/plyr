@@ -226,7 +226,24 @@ class MainActivity : ComponentActivity() {
         onVideoIdChange(videoId)
         playerViewModel.initializePlayer()
         playerViewModel.loadAudio(videoId, title)
-        musicService?.playAudio(videoId)
+
+        // Si hay una playlist activa, pasarla al servicio para reproducción en background
+        val playlist = playerViewModel.currentPlaylist.value
+        val currentIndex = playerViewModel.currentTrackIndex.value ?: 0
+        if (playlist != null && playlist.isNotEmpty()) {
+            // Obtener las URLs de audio para cada track
+            // NOTA: Esto requiere que los YouTube IDs ya estén resueltos o que el servicio pueda resolverlos
+            val audioUrls = playlist.mapNotNull { track ->
+                // Si el track tiene un campo audioUrl, úsalo; si no, usa el YouTube ID
+                track.audioUrl ?: track.youtubeId
+            }
+            if (audioUrls.isNotEmpty()) {
+                musicService?.playPlaylist(audioUrls, currentIndex)
+            }
+        } else {
+            // Si no hay playlist, reproducir solo el videoId
+            musicService?.playAudio(videoId)
+        }
     }    
     /**
      * Limpia recursos al destruir la actividad.
