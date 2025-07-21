@@ -445,8 +445,9 @@ private fun ProgressSection(
 ) {
     var isDragging by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableFloatStateOf(0f) }
+    var lastDragProgress by remember { mutableFloatStateOf(0f) }
     val displayProgress = if (isDragging) dragProgress else progress
-    
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -455,31 +456,45 @@ private fun ProgressSection(
         if (isLoading) {
             LoadingProgressBar()
         } else {
-            InteractiveProgressBar(
-                audioUrl = audioUrl,
-                displayProgress = displayProgress,
-                duration = duration,
-                isDragging = isDragging,
-                onDragStart = { progress ->
-                    if (audioUrl != null && duration > 0) {
-                        isDragging = true
-                        dragProgress = progress
+            // Slider interactivo estilo Spotify/YouTube
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                if (audioUrl != null && duration > 0) {
+                                    isDragging = true
+                                    dragProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                                    lastDragProgress = dragProgress
+                                }
+                            },
+                            onDrag = { change, dragAmount ->
+                                if (audioUrl != null && duration > 0) {
+                                    val newProgress = ((change.position.x) / size.width).coerceIn(0f, 1f)
+                                    dragProgress = newProgress
+                                    lastDragProgress = newProgress
+                                }
+                            },
+                            onDragEnd = {
+                                if (isDragging && duration > 0) {
+                                    val newPosition = (duration * lastDragProgress).toLong()
+                                    playerViewModel.seekTo(newPosition)
+                                    isDragging = false
+                                }
+                            }
+                        )
                     }
-                },
-                onDragEnd = { 
-                    if (isDragging && duration > 0) {
-                        val newPosition = (duration * dragProgress).toLong()
-                        playerViewModel.seekTo(newPosition)
-                        isDragging = false
-                    }
-                },
-                onTap = { progress ->
-                    if (audioUrl != null && duration > 0) {
-                        val newPosition = (duration * progress).toLong()
-                        playerViewModel.seekTo(newPosition)
-                    }
+            ) {
+                // Barra de progreso visual
+                if (audioUrl != null) {
+                    ProgressBar(displayProgress)
+                    ProgressIndicator(displayProgress, isDragging)
                 }
-            )
+            }
         }
     }
 }
