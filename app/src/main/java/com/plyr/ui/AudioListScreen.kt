@@ -430,205 +430,218 @@ fun SearchScreen(
 
         // === MENÚS DESPLEGABLES DE SPOTIFY ===
         if (showSpotifyResults && spotifyResults != null) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                item {
-                    SpotifyResultsMenus(
-                        spotifyResults = spotifyResults!!,
-                        onTrackSelected = { track ->
-                            Log.d("MainScreen", "Track seleccionado: ${track.name} by ${track.getArtistNames()}")
-                        },
-                        onAlbumSelected = { album ->
-                            Log.d("MainScreen", "Album seleccionado: ${album.name} by ${album.getArtistNames()}")
-                            
-                            // Obtener tracks del álbum
-                            if (Config.isSpotifyConnected(context)) {
-                                val accessToken = Config.getSpotifyAccessToken(context)
-                                if (accessToken != null) {
-                                    SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, error ->
-                                        if (tracks != null && tracks.isNotEmpty()) {
-                                            Log.d("MainScreen", "Tracks del álbum '${album.name}':")
-                                            tracks.forEachIndexed { index, track ->
-                                                Log.d("MainScreen", "  ${index + 1}. ${track.name} (${track.getDurationText()})")
-                                            }
-                                        } else {
-                                            Log.e("MainScreen", "❌ Error obteniendo tracks del álbum: $error")
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        onArtistSelected = { artist ->
-                            Log.d("MainScreen", "Artist seleccionado: ${artist.name}")
-                            
-                            // Obtener álbumes del artista
-                            if (Config.isSpotifyConnected(context)) {
-                                val accessToken = Config.getSpotifyAccessToken(context)
-                                if (accessToken != null) {
-                                    SpotifyRepository.getArtistAlbums(accessToken, artist.id) { albums, error ->
-                                        if (albums != null && albums.isNotEmpty()) {
-                                            Log.d("MainScreen", "Álbumes/Singles de '${artist.name}':")
-                                            albums.forEachIndexed { index, album ->
-                                                Log.d("MainScreen", "  ${index + 1}. ${album.name} (${album.release_date ?: "Fecha desconocida"}) - ${album.total_tracks ?: 0} tracks")
-                                            }
-                                        } else {
-                                            Log.e("MainScreen", "❌ Error obteniendo álbumes del artista: $error")
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        onPlaylistSelected = { playlist ->
-                            Log.d("MainScreen", "Playlist seleccionada: ${playlist.name}")
-                            
-                            // Obtener tracks de la playlist
-                            if (Config.isSpotifyConnected(context)) {
-                                val accessToken = Config.getSpotifyAccessToken(context)
-                                if (accessToken != null) {
-                                    SpotifyRepository.getPlaylistTracks(accessToken, playlist.id) { playlistTracks, error ->
-                                        if (playlistTracks != null && playlistTracks.isNotEmpty()) {
-                                            Log.d("MainScreen", "Tracks de la playlist '${playlist.name}':")
-                                            playlistTracks.forEachIndexed { index, playlistTrack ->
-                                                val track = playlistTrack.track
-                                                if (track != null) {
-                                                    Log.d("MainScreen", "  ${index + 1}. ${track.name} - ${track.getArtistNames()} (${track.getDurationText()})")
-                                                } else {
-                                                    Log.d("MainScreen", "  ${index + 1}. [Track eliminado o no disponible]")
-                                                }
-                                            }
-                                        } else {
-                                            Log.e("MainScreen", "❌ Error obteniendo tracks de la playlist: $error")
-                                        }
-                                    }
-                                }
-                            }
-                        }
+            val results = spotifyResults
+            val hasResults = results?.tracks?.items?.isNotEmpty() == true ||
+                results?.albums?.items?.isNotEmpty() == true ||
+                results?.artists?.items?.isNotEmpty() == true ||
+                results?.playlists?.items?.isNotEmpty() == true
+
+            if (!hasResults) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "No se encontraron resultados de Spotify.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF95A5A6)
+                        )
                     )
                 }
-            }
-        }
+            } else {
+                // Desplegables para cada tipo de resultado
+                var tracksExpanded by remember { mutableStateOf(false) }
+                var albumsExpanded by remember { mutableStateOf(false) }
+                var artistsExpanded by remember { mutableStateOf(false) }
+                var playlistsExpanded by remember { mutableStateOf(false) }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(bottom = 16.dp)
-        ) {
-            items(
-                items = results,
-                key = { item -> item.url }
-            ) { item ->
-                val id = item.url.toUri().getQueryParameter("v")
-                if (id != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp, horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Área principal clickable (reproducir inmediatamente)
-                        Row(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { 
-                                    // Limpiar resultados y búsqueda al seleccionar
-                                    searchQuery = ""
-                                    results = emptyList()
-                                    error = null
-                                    spotifyResults = null
-                                    showSpotifyResults = false
-                                    
-                                    // Guardar el ID de YouTube en la base de datos para búsquedas futuras
-                                    coroutineScope.launch {
-                                        try {
-                                            // Crear un track temporal para búsquedas manuales
-                                            val searchTrack = TrackEntity(
-                                                id = "search_${System.currentTimeMillis()}", // ID único para búsquedas
-                                                playlistId = "manual_search", // Playlist especial para búsquedas manuales
-                                                spotifyTrackId = id, // Usar el YouTube ID como referencia
-                                                name = item.title.substringBefore(" - "), // Título sin el canal
-                                                artists = item.title.substringAfter(" - ", "YouTube"), // Canal como artista
-                                                youtubeVideoId = id, // Guardar el ID de YouTube
-                                                position = 0, // Posición por defecto
-                                                lastSyncTime = System.currentTimeMillis()
-                                            )
-                                            
-                                            // Opcionalmente, guardar en base de datos para futuras referencias
-                                            // localRepository.insertTrack(searchTrack)
-                                            
-                                            Log.d("MainScreen", "Video seleccionado - ID: $id, Título: ${item.title}")
-                                        } catch (e: Exception) {
-                                            Log.e("MainScreen", "Error guardando referencia de búsqueda", e)
-                                        }
-                                    }
-                                    
-                                    onVideoSelected(id, item.title)
-                                },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "> ",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 18.sp,
-                                    color = Color(0xFF4ECDC4)
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    // Tracks
+                    item {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tracksExpanded = !tracksExpanded }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if(tracksExpanded)"v tracks (${results?.tracks?.items?.size ?: 0})" else "> tracks (${results?.tracks?.items?.size ?: 0})",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFF4ECDC4)
+                                    )
                                 )
-                            )
-                            MarqueeText(
-                                text = item.title,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 16.sp,
-                                    color = Color(0xFFE0E0E0)
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
+                            }
+                            if (tracksExpanded) {
+                                results?.tracks?.items?.forEach { track ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { if (track != null) Log.d("MainScreen", "Track seleccionado: ${track.name} by ${track.getArtistNames()}") }
+                                            .padding(vertical = 4.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = track?.name ?: "Sin nombre",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFE0E0E0)
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        
-                        // Botón de cola
-                        Text(
-                            text = "<queue>",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 14.sp,
-                                color = Color(0xFFFF6B6B)
-                            ),
-                            modifier = Modifier
-                                .clickable {
-                                    // Agregar a la cola sin reproducir inmediatamente
-                                    coroutineScope.launch {
-                                        try {
-                                            // Crear un track para la cola
-                                            val queueTrack = TrackEntity(
-                                                id = "queue_${System.currentTimeMillis()}", // ID único para cola
-                                                playlistId = "queue", // Playlist especial para cola
-                                                spotifyTrackId = id, // Usar el YouTube ID como referencia
-                                                name = item.title.substringBefore(" - "), // Título sin el canal
-                                                artists = item.title.substringAfter(" - ", "YouTube"), // Canal como artista
-                                                youtubeVideoId = id, // Guardar el ID de YouTube
-                                                position = 0, // Se ajustará en la cola
-                                                lastSyncTime = System.currentTimeMillis()
+                    }
+                    // Albums
+                    item {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { albumsExpanded = !albumsExpanded }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if(albumsExpanded)"v albums (${results?.albums?.items?.size ?: 0})" else "> albums (${results?.albums?.items?.size ?: 0})",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFFB2B2FF)
+                                    )
+                                )
+                            }
+                            if (albumsExpanded) {
+                                results?.albums?.items?.forEach { album ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { if (album != null) Log.d("MainScreen", "Album seleccionado: ${album.name} by ${album.getArtistNames()}") }
+                                            .padding(vertical = 4.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = album?.name ?: "Sin nombre",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFE0E0E0)
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Artists
+                    item {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { artistsExpanded = !artistsExpanded }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (artistsExpanded) "v artists (${results?.artists?.items?.size ?: 0})" else "> artists (${results?.artists?.items?.size ?: 0})",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFFFFD93D)
+                                    )
+                                )
+                            }
+                            if (artistsExpanded) {
+                                results?.artists?.items?.forEach { artist ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { if (artist != null) Log.d("MainScreen", "Artista seleccionado: ${artist.name}") }
+                                            .padding(vertical = 4.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = artist?.name ?: "Sin nombre",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFE0E0E0)
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Playlists
+                    item {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { playlistsExpanded = !playlistsExpanded }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (playlistsExpanded) "v playlists (${results?.playlists?.items?.size ?: 0})" else "> playlists (${results?.playlists?.items?.size ?: 0})",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFF7FB069)
+                                    )
+                                )
+                            }
+                            if (playlistsExpanded) {
+                                results?.playlists?.items?.forEach { playlist ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { if (playlist != null) Log.d("MainScreen", "Playlist seleccionada: ${playlist.name}") }
+                                            .padding(vertical = 4.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = playlist?.name ?: "Sin nombre",
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFFE0E0E0)
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                            
-                                            // Agregar a la cola del PlayerViewModel
-                                            playerViewModel?.addToQueue(queueTrack)
-                                            
-                                            Log.d("MainScreen", "Track agregado a la cola - ID: $id, Título: ${item.title}")
-                                        } catch (e: Exception) {
-                                            Log.e("MainScreen", "Error agregando a la cola", e)
+                                            Text(
+                                                text = playlist?.getTrackCount() ?: "0",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFF95A5A6)
+                                                )
+                                            )
                                         }
                                     }
                                 }
-                                .padding(horizontal = 8.dp)
-                        )
+                            }
+                        }
                     }
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun QueueScreen(
@@ -1796,7 +1809,7 @@ fun SpotifyResultsMenus(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "♪ ",
+                        text = " ",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF7FB069)
@@ -1858,7 +1871,7 @@ fun SpotifyResultsMenus(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "♫ ",
+                        text = " ",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF7FB069)
@@ -1920,7 +1933,7 @@ fun SpotifyResultsMenus(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "♪ ",
+                        text = " ",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF7FB069)
@@ -1976,24 +1989,24 @@ fun SpotifyResultsMenus(
             )
             
             spotifyResults.playlists.items.forEach { playlist ->
+                // Null safety: playlist can be null, so use safe access
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onPlaylistSelected(playlist) }
+                        .clickable { if (playlist != null) onPlaylistSelected(playlist) }
                         .padding(vertical = 4.dp, horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "♪ ",
+                        text = " ",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF7FB069)
                         )
                     )
-                    
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = playlist.name,
+                            text = playlist?.name ?: "Sin nombre",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace,
                                 color = Color(0xFFE0E0E0)
@@ -2001,9 +2014,8 @@ fun SpotifyResultsMenus(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        
                         Text(
-                            text = playlist.getTrackCount(),
+                            text = playlist?.getTrackCount() ?: "0",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
                                 color = Color(0xFF95A5A6)

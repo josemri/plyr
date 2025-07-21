@@ -234,8 +234,8 @@ class MainActivity : ComponentActivity() {
             // Obtener las URLs de audio para cada track
             // NOTA: Esto requiere que los YouTube IDs ya estén resueltos o que el servicio pueda resolverlos
             val audioUrls = playlist.mapNotNull { track ->
-                // Si el track tiene un campo audioUrl, úsalo; si no, usa el YouTube ID
-                track.audioUrl ?: track.youtubeId
+                // Usar el YouTube ID del track para obtener la URL de audio
+                track.youtubeVideoId ?: track.spotifyTrackId
             }
             if (audioUrls.isNotEmpty()) {
                 musicService?.playPlaylist(audioUrls, currentIndex)
