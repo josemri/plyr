@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -38,6 +39,9 @@ class MusicService : Service() {
     
     /** ExoPlayer dedicado para este servicio */
     private lateinit var player: ExoPlayer
+
+    // Declarar wakeLock como propiedad de la clase
+    private lateinit var wakeLock: PowerManager.WakeLock
     
     // === CONSTANTES ===
     
@@ -56,13 +60,30 @@ class MusicService : Service() {
      */
     override fun onCreate() {
         super.onCreate()
-        
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock=powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MusicService::WakeLock")
+        wakeLock.acquire()
+
         initializePlayer()
         createMediaSession()
         createNotificationChannel()
         setupPlayerListener()
     }
     
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        createNotificationChannel()
+        val notification = createNotification()
+        startForeground(NOTIFICATION_ID, notification)
+
+        // Manejar intent para reproducir audio
+        val audioUrl = intent?.getStringExtra("AUDIO_URL")
+        if (audioUrl != null) {
+            playAudio(audioUrl)
+        }
+
+        return START_STICKY
+    }
+
     /**
      * Inicializa el ExoPlayer para este servicio.
      */
@@ -150,6 +171,7 @@ class MusicService : Service() {
      * Crea la notificación para el servicio en primer plano.
      * @return Notificación configurada para reproducción de música
      */
+    /*
     private fun createNotification(): Notification {
         val pendingIntent = createMainActivityPendingIntent()
         
@@ -161,6 +183,19 @@ class MusicService : Service() {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
+    }
+    */
+    private fun createNotification(): Notification {
+    val pendingIntent = createMainActivityPendingIntent()
+    return NotificationCompat.Builder(this, CHANNEL_ID)
+        .setContentTitle("Music Player")
+        .setContentText("Reproduciendo música")
+        .setSmallIcon(android.R.drawable.ic_media_play)
+        .setContentIntent(pendingIntent)
+        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        .setPriority(NotificationCompat.PRIORITY_LOW)
+        .setStyle(androidx.media.app.NotificationCompat.MediaStyle())
+        .build()
     }
     
     /**
@@ -238,6 +273,7 @@ class MusicService : Service() {
      * Libera el ExoPlayer y la MediaSession.
      */
     override fun onDestroy() {
+        wakeLock.release()
         cleanupResources()
         super.onDestroy()
     }

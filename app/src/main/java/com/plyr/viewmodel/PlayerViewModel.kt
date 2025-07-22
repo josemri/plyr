@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import android.util.Log
+import android.content.Intent
+import com.plyr.service.MusicService
 
 /**
  * PlayerViewModel - Maneja la reproducción de audio usando ExoPlayer y NewPipe
@@ -393,24 +395,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
     
     /**
-     * Reproduce audio desde una URL específica.
-     * @param audioUrl URL del archivo de audio
+     * Delegar la reproducción al MusicService desde el PlayerViewModel.
      */
-    private fun playAudioFromUrl(audioUrl: String) {
-        _audioUrl.postValue(audioUrl)
-        
-        _exoPlayer?.apply {
-            try {
-                println("PlayerViewModel: Creando MediaItem con URL: $audioUrl")
-                setMediaItem(MediaItem.fromUri(audioUrl))
-                prepare()
-                play()
-                println("PlayerViewModel: ExoPlayer configurado y reproduciendo")
-                _isLoading.postValue(false)
-            } catch (e: Exception) {
-                handleException("Error al configurar ExoPlayer", e)
-            }
+    private fun playAudioInService(audioUrl: String) {
+        val serviceIntent = Intent(getApplication<Application>(), MusicService::class.java).apply {
+            putExtra("AUDIO_URL", audioUrl)
         }
+        getApplication<Application>().startService(serviceIntent)
+    }
+
+    // Reemplazar la lógica de reproducción directa con la delegación al servicio
+    private fun playAudioFromUrl(audioUrl: String) {
+        playAudioInService(audioUrl)
     }
     
     /**
