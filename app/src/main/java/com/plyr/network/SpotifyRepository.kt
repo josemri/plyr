@@ -3,7 +3,7 @@ package com.plyr.network
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import android.util.Base64
@@ -309,6 +309,56 @@ object SpotifyRepository {
                     }
                 } else {
                     callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Seguir una playlist en Spotify
+    fun followPlaylist(accessToken: String, playlistId: String, callback: (Boolean, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/playlists/$playlistId/followers")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .put(RequestBody.create("application/json".toMediaType(), "{}"))
+            .build()
+        
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+            
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body?.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
+    }
+    
+    // Guardar un álbum en la biblioteca de Spotify
+    fun saveAlbum(accessToken: String, albumId: String, callback: (Boolean, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/me/albums")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .put(RequestBody.create("application/json".toMediaType(), """{"ids":["$albumId"]}"""))
+            .build()
+        
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+            
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body?.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
                 }
             }
         })

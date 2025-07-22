@@ -17,7 +17,7 @@ import android.content.Context
  */
 @Database(
     entities = [PlaylistEntity::class, TrackEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class PlaylistDatabase : RoomDatabase() {
@@ -50,7 +50,9 @@ abstract class PlaylistDatabase : RoomDatabase() {
                     context.applicationContext,
                     PlaylistDatabase::class.java,
                     "playlist_database"
-                ).build()
+                )
+                .fallbackToDestructiveMigration() // Recreate database if schema changes
+                .build()
                 INSTANCE = instance
                 instance
             }

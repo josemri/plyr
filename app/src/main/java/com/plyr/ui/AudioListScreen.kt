@@ -1,5 +1,6 @@
 package com.plyr.ui
 
+import android.app.Activity
 import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -55,10 +56,15 @@ import kotlin.math.abs
 import androidx.compose.ui.draw.clipToBounds
 import kotlinx.coroutines.delay
 import androidx.compose.ui.platform.LocalContext
+import com.plyr.network.SpotifyAlbum
+import com.plyr.network.SpotifyArtistFull
+import com.plyr.network.SpotifySearchAllResponse
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import com.plyr.service.YouTubeSearchManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 // Estados para navegación
 enum class Screen {
@@ -131,13 +137,13 @@ fun HomeScreen(
             backPressedTime = currentTime
             showExitMessage = true
             // Hide message after 2 seconds
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                kotlinx.coroutines.delay(2000)
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(2000)
                 showExitMessage = false
             }
         } else {
             // Exit app
-            (context as? android.app.Activity)?.finish()
+            (context as? Activity)?.finish()
         }
     }
     
@@ -220,8 +226,14 @@ fun SearchScreen(
     var error by remember { mutableStateOf<String?>(null) }
     
     // Estados para resultados de Spotify
-    var spotifyResults by remember { mutableStateOf<com.plyr.network.SpotifySearchAllResponse?>(null) }
+    var spotifyResults by remember { mutableStateOf<SpotifySearchAllResponse?>(null) }
     var showSpotifyResults by remember { mutableStateOf(false) }
+    
+    // Estados para vista detallada de playlist/álbum
+    var selectedSpotifyPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
+    var selectedSpotifyAlbum by remember { mutableStateOf<SpotifyAlbum?>(null) }
+    var selectedItemTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+    var isLoadingTracks by remember { mutableStateOf(false) }
     
     // YouTube search manager para búsquedas locales
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
@@ -229,9 +241,217 @@ fun SearchScreen(
     
     val haptic = LocalHapticFeedback.current
 
+    // Search function
+    val performSearch: (String) -> Unit = { searchQuery ->
+        if (searchQuery.isNotBlank() && !isLoading) {
+            isLoading = true
+            error = null
+            results = emptyList()
+            spotifyResults = null
+            showSpotifyResults = false
+            
+            coroutineScope.launch {
+                try {
+                    val searchEngine = Config.getSearchEngine(context)
+                    
+                    // Permitir override temporal con prefijos
+                    val (finalSearchEngine, finalQuery) = when {
+                        searchQuery.startsWith("yt:", ignoreCase = true) -> {
+                            "youtube" to searchQuery.substring(3).trim()
+                        }
+                        searchQuery.startsWith("sp:", ignoreCase = true) -> {
+                            "spotify" to searchQuery.substring(3).trim()
+                        }
+                        else -> searchEngine to searchQuery
+                    }
+                    
+                    if (finalQuery.isEmpty()) {
+                        isLoading = false
+                        error = "Query vacía después de procesar prefijo"
+                        return@launch
+                    }
+                    
+                    when (finalSearchEngine) {
+                        "youtube" -> {
+                            // Search YouTube
+                            val youtubeResults = youtubeSearchManager.searchYouTubeVideos(finalQuery)
+                            // Convert YouTube IDs to AudioItem objects
+                            results = youtubeResults.map { videoId ->
+                                AudioItem(
+                                    title = "Video $videoId", // We'd need actual title from search results
+                                    url = "", // Use empty string for url, required by AudioItem
+                                    videoId = videoId,
+                                    channel = "Unknown", // We'd need actual channel from search results
+                                    duration = "Unknown"
+                                )
+                            }
+                            isLoading = false
+                        }
+                        
+                        "spotify" -> {
+                            // Search Spotify
+                            if (Config.isSpotifyConnected(context)) {
+                                val accessToken = Config.getSpotifyAccessToken(context)
+                                if (accessToken != null) {
+                                    SpotifyRepository.searchAll(accessToken, finalQuery) { searchResults: SpotifySearchAllResponse?, searchError: String? ->
+                                        isLoading = false
+                                        if (searchError != null) {
+                                            error = "Error searching Spotify: $searchError"
+                                            Log.e("SearchScreen", "Error searching Spotify: $searchError")
+                                        } else if (searchResults != null) {
+                                            spotifyResults = searchResults
+                                            showSpotifyResults = true
+                                        }
+                                    }
+                                } else {
+                                    isLoading = false
+                                    error = "Token de Spotify no disponible"
+                                }
+                            } else {
+                                isLoading = false
+                                error = "Spotify no está conectado"
+                            }
+                        }
+                        
+                        else -> {
+                            isLoading = false
+                            error = "Motor de búsqueda no reconocido: $finalSearchEngine"
+                            Log.w("SearchScreen", "Motor de búsqueda no reconocido: $finalSearchEngine")
+                        }
+                    }
+                    
+                } catch (e: Exception) {
+                    isLoading = false
+                    error = "Error en búsqueda: ${e.message}"
+                    Log.e("SearchScreen", "Error en búsqueda", e)
+                }
+            }
+        }
+    }
+
+    // Funciones auxiliares para operaciones de Spotify
+    val saveSpotifyPlaylistToLibrary: () -> Unit = {
+        coroutineScope.launch {
+            try {
+                selectedSpotifyPlaylist?.let { playlist ->
+                    val accessToken = Config.getSpotifyAccessToken(context)
+                    if (accessToken != null) {
+                        Log.d("SearchScreen", "💾 Guardando playlist en biblioteca de Spotify: ${playlist.name}")
+                        SpotifyRepository.followPlaylist(accessToken, playlist.id) { success, errorMsg ->
+                            if (success) {
+                                Log.d("SearchScreen", "✅ Playlist seguida exitosamente: ${playlist.name}")
+                            } else {
+                                Log.e("SearchScreen", "❌ Error siguiendo playlist: $errorMsg")
+                            }
+                        }
+                    } else {
+                        Log.e("SearchScreen", "❌ Token de Spotify no disponible")
+                    }
+                }
+                selectedSpotifyAlbum?.let { album ->
+                    val accessToken = Config.getSpotifyAccessToken(context)
+                    if (accessToken != null) {
+                        Log.d("SearchScreen", "💾 Guardando álbum en biblioteca de Spotify: ${album.name}")
+                        SpotifyRepository.saveAlbum(accessToken, album.id) { success, errorMsg ->
+                            if (success) {
+                                Log.d("SearchScreen", "✅ Álbum guardado exitosamente: ${album.name}")
+                            } else {
+                                Log.e("SearchScreen", "❌ Error guardando álbum: $errorMsg")
+                            }
+                        }
+                    } else {
+                        Log.e("SearchScreen", "❌ Token de Spotify no disponible")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("SearchScreen", "Error guardando en biblioteca de Spotify", e)
+            }
+        }
+    }
+    
+    val loadSpotifyPlaylistTracks: (SpotifyPlaylist) -> Unit = { playlist ->
+        selectedSpotifyPlaylist = playlist
+        selectedSpotifyAlbum = null
+        isLoadingTracks = true
+        error = null
+        selectedItemTracks = emptyList()
+        
+        coroutineScope.launch {
+            try {
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    Log.d("SearchScreen", "🎵 Cargando tracks de la playlist: ${playlist.name}")
+                    SpotifyRepository.getPlaylistTracks(accessToken, playlist.id) { playlistTracks, errorMsg ->
+                        isLoadingTracks = false
+                        if (playlistTracks != null) {
+                            // Convertir SpotifyPlaylistTrack a SpotifyTrack
+                            val tracks = playlistTracks.mapNotNull { it.track }
+                            selectedItemTracks = tracks
+                            Log.d("SearchScreen", "✅ ${tracks.size} tracks cargados para la playlist: ${playlist.name}")
+                        } else {
+                            error = "Error cargando tracks de la playlist: $errorMsg"
+                            Log.e("SearchScreen", "❌ Error cargando tracks de playlist: $errorMsg")
+                        }
+                    }
+                } else {
+                    isLoadingTracks = false
+                    error = "Token de Spotify no disponible"
+                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
+                }
+            } catch (e: Exception) {
+                isLoadingTracks = false
+                error = "Error cargando tracks de la playlist: ${e.message}"
+                Log.e("SearchScreen", "Error cargando playlist tracks", e)
+            }
+        }
+    }
+    
+    val loadSpotifyAlbumTracks: (SpotifyAlbum) -> Unit = { album ->
+        selectedSpotifyAlbum = album
+        selectedSpotifyPlaylist = null
+        isLoadingTracks = true
+        error = null
+        selectedItemTracks = emptyList()
+        
+        coroutineScope.launch {
+            try {
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    Log.d("SearchScreen", "🎵 Cargando tracks del álbum: ${album.name}")
+                    SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, errorMsg ->
+                        isLoadingTracks = false
+                        if (tracks != null) {
+                            selectedItemTracks = tracks
+                            Log.d("SearchScreen", "✅ ${tracks.size} tracks cargados para el álbum: ${album.name}")
+                        } else {
+                            error = "Error cargando tracks del álbum: $errorMsg"
+                            Log.e("SearchScreen", "❌ Error cargando tracks de álbum: $errorMsg")
+                        }
+                    }
+                } else {
+                    isLoadingTracks = false
+                    error = "Token de Spotify no disponible"
+                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
+                }
+            } catch (e: Exception) {
+                isLoadingTracks = false
+                error = "Error cargando tracks del álbum: ${e.message}"
+                Log.e("SearchScreen", "Error cargando album tracks", e)
+            }
+        }
+    }
+
     // Handle back button
     BackHandler {
-        onBack()
+        when {
+            selectedSpotifyPlaylist != null || selectedSpotifyAlbum != null -> {
+                // Volver de la vista detallada a los resultados de búsqueda
+                selectedSpotifyPlaylist = null
+                selectedSpotifyAlbum = null
+                selectedItemTracks = emptyList()
+            }
+            else -> onBack()
+        }
     }
 
     Column(
@@ -239,404 +459,195 @@ fun SearchScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Header
-        Text(
-            text = "$ plyr_search",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 20.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // Search field with clear button and enter action
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            label = {
-                Text(
-                    "> search_audio",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp
-                    )
-                ) 
-            },
-            modifier = Modifier.fillMaxWidth(),
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { 
-                        searchQuery = ""
-                        results = emptyList()
-                        error = null
-                        spotifyResults = null
-                        showSpotifyResults = false
-                    }) {
-                        Text(
-                            text = "x",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 18.sp,
-                                color = Color(0xFF95A5A6)
-                            )
-                        )
-                    }
-                }
-            },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    if (searchQuery.isNotBlank() && !isLoading) {
-                        isLoading = true
-                        error = null
-                        results = emptyList()
-
-                        coroutineScope.launch {
-                            try {
-                                val searchEngine = Config.getSearchEngine(context)
-                                
-                                // Permitir override temporal con prefijos
-                                val (finalSearchEngine, finalQuery) = when {
-                                    searchQuery.startsWith("yt:", ignoreCase = true) -> {
-                                        "youtube" to searchQuery.substring(3).trim()
-                                    }
-                                    searchQuery.startsWith("sp:", ignoreCase = true) -> {
-                                        "spotify" to searchQuery.substring(3).trim()
-                                    }
-                                    else -> searchEngine to searchQuery
-                                }
-                                
-                                if (finalQuery.isEmpty()) {
-                                    isLoading = false
-                                    error = "Búsqueda vacía después del prefijo"
-                                    return@launch
-                                }
-                                
-                                when (finalSearchEngine) {
-                                    "youtube" -> {
-                                        // Búsqueda de YouTube
-                                        val videosInfo = youtubeSearchManager.searchYouTubeVideosDetailed(finalQuery, 10)
-                                        
-                                        // Convertir a AudioItem para compatibilidad con la UI existente
-                                        val audioItems = videosInfo.map { videoInfo ->
-                                            AudioItem(
-                                                title = "${videoInfo.title} - ${videoInfo.uploader}",
-                                                url = "https://www.youtube.com/watch?v=${videoInfo.videoId}"
-                                            )
-                                        }
-                                        
-                                        isLoading = false
-                                        results = audioItems
-                                        spotifyResults = null
-                                        showSpotifyResults = false
-                                        
-                                        if (audioItems.isEmpty()) {
-                                            error = "No se encontraron videos de YouTube para: $finalQuery"
-                                        }
-                                    }
-                                    
-                                    "spotify" -> {
-                                        // Búsqueda de Spotify
-                                        val accessToken = Config.getSpotifyAccessToken(context)
-                                        if (accessToken != null) {
-                                            SpotifyRepository.searchAll(accessToken, finalQuery) { searchAllResponse, errorMsg ->
-                                                if (searchAllResponse != null) {
-                                                    Log.d("MainScreen", "Spotify search all results:")
-                                                    Log.d("MainScreen", "- Tracks: ${searchAllResponse.tracks.items.size}")
-                                                    Log.d("MainScreen", "- Albums: ${searchAllResponse.albums.items.size}")
-                                                    Log.d("MainScreen", "- Artists: ${searchAllResponse.artists.items.size}")
-                                                    Log.d("MainScreen", "- Playlists: ${searchAllResponse.playlists.items.size}")
-                                                    
-                                                    isLoading = false
-                                                    spotifyResults = searchAllResponse
-                                                    showSpotifyResults = true
-                                                    results = emptyList() // Limpiar resultados de YouTube
-                                                    
-                                                } else {
-                                                    Log.e("MainScreen", "Error en búsqueda de Spotify: $errorMsg")
-                                                    isLoading = false
-                                                    error = "Error buscando en Spotify: $errorMsg"
-                                                    spotifyResults = null
-                                                    showSpotifyResults = false
-                                                }
-                                            }
-                                        } else {
-                                            isLoading = false
-                                            error = "Token de Spotify no disponible. Conecta tu cuenta en configuración."
-                                            spotifyResults = null
-                                            showSpotifyResults = false
-                                        }
-                                    }
-                                    
-                                    else -> {
-                                        isLoading = false
-                                        error = "Motor de búsqueda no reconocido: $finalSearchEngine"
+        // Mostrar vista detallada o búsqueda normal
+        when {
+            selectedSpotifyPlaylist != null -> {
+                SpotifyPlaylistDetailView(
+                    playlist = selectedSpotifyPlaylist!!,
+                    tracks = selectedItemTracks,
+                    isLoading = isLoadingTracks,
+                    error = error,
+                    onBack = {
+                        selectedSpotifyPlaylist = null
+                        selectedItemTracks = emptyList()
+                    },
+                    onStart = {
+                        // Reproducir playlist desde el primer track
+                        if (selectedItemTracks.isNotEmpty()) {
+                            Log.d("SearchScreen", "🎵 Iniciando reproducción de la playlist: ${selectedSpotifyPlaylist!!.name}")
+                            
+                            // Convertir SpotifyTrack a TrackEntity
+                            val trackEntities = selectedItemTracks.mapIndexed { index, spotifyTrack ->
+                                TrackEntity(
+                                    id = "spotify_${selectedSpotifyPlaylist!!.id}_${spotifyTrack.id}",
+                                    playlistId = selectedSpotifyPlaylist!!.id,
+                                    spotifyTrackId = spotifyTrack.id,
+                                    name = spotifyTrack.name,
+                                    artists = spotifyTrack.getArtistNames(),
+                                    youtubeVideoId = null, // Se buscará dinámicamente
+                                    audioUrl = null,
+                                    position = index,
+                                    lastSyncTime = System.currentTimeMillis()
+                                )
+                            }
+                            
+                            // Establecer playlist y comenzar reproducción
+                            playerViewModel?.setCurrentPlaylist(trackEntities, 0)
+                            
+                            // Buscar y reproducir el primer track
+                            trackEntities.firstOrNull()?.let { track ->
+                                coroutineScope.launch {
+                                    try {
+                                        playerViewModel?.loadAudioFromTrack(track)
+                                    } catch (e: Exception) {
+                                        Log.e("SearchScreen", "Error al reproducir playlist", e)
                                     }
                                 }
-                                
-                            } catch (e: Exception) {
-                                isLoading = false
-                                error = "Error en búsqueda: ${e.message}"
-                                Log.e("MainScreen", "Error en búsqueda", e)
                             }
                         }
-                    }
-                }
-            ),
-            enabled = !isLoading,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-            ),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp
-            )
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        if (isLoading) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "$ loading...",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFFFFD93D)
-                    )
+                    },
+                    onRandom = {
+                        // Reproducir playlist en orden aleatorio
+                        if (selectedItemTracks.isNotEmpty()) {
+                            Log.d("SearchScreen", "🔀 Iniciando reproducción aleatoria de la playlist: ${selectedSpotifyPlaylist!!.name}")
+                            
+                            // Convertir SpotifyTrack a TrackEntity y mezclar
+                            val shuffledTracks = selectedItemTracks.shuffled()
+                            val trackEntities = shuffledTracks.mapIndexed { index, spotifyTrack ->
+                                TrackEntity(
+                                    id = "spotify_${selectedSpotifyPlaylist!!.id}_${spotifyTrack.id}_shuffled",
+                                    playlistId = selectedSpotifyPlaylist!!.id,
+                                    spotifyTrackId = spotifyTrack.id,
+                                    name = spotifyTrack.name,
+                                    artists = spotifyTrack.getArtistNames(),
+                                    youtubeVideoId = null, // Se buscará dinámicamente
+                                    audioUrl = null,
+                                    position = index,
+                                    lastSyncTime = System.currentTimeMillis()
+                                )
+                            }
+                            
+                            // Establecer playlist mezclada y comenzar reproducción
+                            playerViewModel?.setCurrentPlaylist(trackEntities, 0)
+                            
+                            // Buscar y reproducir el primer track de la lista mezclada
+                            trackEntities.firstOrNull()?.let { track ->
+                                coroutineScope.launch {
+                                    try {
+                                        playerViewModel?.loadAudioFromTrack(track)
+                                    } catch (e: Exception) {
+                                        Log.e("SearchScreen", "Error al reproducir playlist aleatoria", e)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    onSave = saveSpotifyPlaylistToLibrary,
+                    playerViewModel = playerViewModel
                 )
             }
-        }
-
-        error?.let {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "ERR: $it",
-                color = Color(0xFFFF6B6B),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace
+            selectedSpotifyAlbum != null -> {
+                SpotifyAlbumDetailView(
+                    album = selectedSpotifyAlbum!!,
+                    tracks = selectedItemTracks,
+                    isLoading = isLoadingTracks,
+                    error = error,
+                    onBack = {
+                        selectedSpotifyAlbum = null
+                        selectedItemTracks = emptyList()
+                    },
+                    onStart = {
+                        // Reproducir álbum desde el primer track
+                        if (selectedItemTracks.isNotEmpty()) {
+                            Log.d("SearchScreen", "🎵 Iniciando reproducción del álbum: ${selectedSpotifyAlbum!!.name}")
+                            
+                            // Convertir SpotifyTrack a TrackEntity
+                            val trackEntities = selectedItemTracks.mapIndexed { index, spotifyTrack ->
+                                TrackEntity(
+                                    id = "spotify_${selectedSpotifyAlbum!!.id}_${spotifyTrack.id}",
+                                    playlistId = selectedSpotifyAlbum!!.id,
+                                    spotifyTrackId = spotifyTrack.id,
+                                    name = spotifyTrack.name,
+                                    artists = spotifyTrack.getArtistNames(),
+                                    youtubeVideoId = null, // Se buscará dinámicamente
+                                    audioUrl = null,
+                                    position = index,
+                                    lastSyncTime = System.currentTimeMillis()
+                                )
+                            }
+                            
+                            // Establecer playlist y comenzar reproducción
+                            playerViewModel?.setCurrentPlaylist(trackEntities, 0)
+                            
+                            // Buscar y reproducir el primer track
+                            trackEntities.firstOrNull()?.let { track ->
+                                coroutineScope.launch {
+                                    try {
+                                        playerViewModel?.loadAudioFromTrack(track)
+                                    } catch (e: Exception) {
+                                        Log.e("SearchScreen", "Error al reproducir álbum", e)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    onRandom = {
+                        // Reproducir álbum en orden aleatorio
+                        if (selectedItemTracks.isNotEmpty()) {
+                            Log.d("SearchScreen", "🔀 Iniciando reproducción aleatoria del álbum: ${selectedSpotifyAlbum!!.name}")
+                            
+                            // Convertir SpotifyTrack a TrackEntity y mezclar
+                            val shuffledTracks = selectedItemTracks.shuffled()
+                            val trackEntities = shuffledTracks.mapIndexed { index, spotifyTrack ->
+                                TrackEntity(
+                                    id = "spotify_${selectedSpotifyAlbum!!.id}_${spotifyTrack.id}_shuffled",
+                                    playlistId = selectedSpotifyAlbum!!.id,
+                                    spotifyTrackId = spotifyTrack.id,
+                                    name = spotifyTrack.name,
+                                    artists = spotifyTrack.getArtistNames(),
+                                    youtubeVideoId = null, // Se buscará dinámicamente
+                                    audioUrl = null,
+                                    position = index,
+                                    lastSyncTime = System.currentTimeMillis()
+                                )
+                            }
+                            
+                            // Establecer playlist mezclada y comenzar reproducción
+                            playerViewModel?.setCurrentPlaylist(trackEntities, 0)
+                            
+                            // Buscar y reproducir el primer track de la lista mezclada
+                            trackEntities.firstOrNull()?.let { track ->
+                                coroutineScope.launch {
+                                    try {
+                                        playerViewModel?.loadAudioFromTrack(track)
+                                    } catch (e: Exception) {
+                                        Log.e("SearchScreen", "Error al reproducir álbum aleatorio", e)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    onSave = saveSpotifyPlaylistToLibrary,
+                    playerViewModel = playerViewModel
                 )
-            )
-        }
-
-        // === MENÚS DESPLEGABLES DE SPOTIFY ===
-        if (showSpotifyResults && spotifyResults != null) {
-            val results = spotifyResults
-            val hasResults = results?.tracks?.items?.isNotEmpty() == true ||
-                results?.albums?.items?.isNotEmpty() == true ||
-                results?.artists?.items?.isNotEmpty() == true ||
-                results?.playlists?.items?.isNotEmpty() == true
-
-            if (!hasResults) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "No se encontraron resultados de Spotify.",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
-                        )
-                    )
-                }
-            } else {
-                // Desplegables para cada tipo de resultado
-                var tracksExpanded by remember { mutableStateOf(false) }
-                var albumsExpanded by remember { mutableStateOf(false) }
-                var artistsExpanded by remember { mutableStateOf(false) }
-                var playlistsExpanded by remember { mutableStateOf(false) }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(vertical = 8.dp)
-                ) {
-                    // Tracks
-                    item {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { tracksExpanded = !tracksExpanded }
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if(tracksExpanded)"v tracks (${results?.tracks?.items?.size ?: 0})" else "> tracks (${results?.tracks?.items?.size ?: 0})",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFF4ECDC4)
-                                    )
-                                )
-                            }
-                            if (tracksExpanded) {
-                                results?.tracks?.items?.forEach { track ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { if (track != null) Log.d("MainScreen", "Track seleccionado: ${track.name} by ${track.getArtistNames()}") }
-                                            .padding(vertical = 4.dp, horizontal = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = track?.name ?: "Sin nombre",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // Albums
-                    item {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { albumsExpanded = !albumsExpanded }
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if(albumsExpanded)"v albums (${results?.albums?.items?.size ?: 0})" else "> albums (${results?.albums?.items?.size ?: 0})",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFFB2B2FF)
-                                    )
-                                )
-                            }
-                            if (albumsExpanded) {
-                                results?.albums?.items?.forEach { album ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { if (album != null) Log.d("MainScreen", "Album seleccionado: ${album.name} by ${album.getArtistNames()}") }
-                                            .padding(vertical = 4.dp, horizontal = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = album?.name ?: "Sin nombre",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // Artists
-                    item {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { artistsExpanded = !artistsExpanded }
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (artistsExpanded) "v artists (${results?.artists?.items?.size ?: 0})" else "> artists (${results?.artists?.items?.size ?: 0})",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFFFFD93D)
-                                    )
-                                )
-                            }
-                            if (artistsExpanded) {
-                                results?.artists?.items?.forEach { artist ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { if (artist != null) Log.d("MainScreen", "Artista seleccionado: ${artist.name}") }
-                                            .padding(vertical = 4.dp, horizontal = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = artist?.name ?: "Sin nombre",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // Playlists
-                    item {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { playlistsExpanded = !playlistsExpanded }
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (playlistsExpanded) "v playlists (${results?.playlists?.items?.size ?: 0})" else "> playlists (${results?.playlists?.items?.size ?: 0})",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFF7FB069)
-                                    )
-                                )
-                            }
-                            if (playlistsExpanded) {
-                                results?.playlists?.items?.forEach { playlist ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { if (playlist != null) Log.d("MainScreen", "Playlist seleccionada: ${playlist.name}") }
-                                            .padding(vertical = 4.dp, horizontal = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = playlist?.name ?: "Sin nombre",
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = Color(0xFFE0E0E0)
-                                                ),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                text = playlist?.getTrackCount() ?: "0",
-                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = Color(0xFF95A5A6)
-                                                )
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            }
+            else -> {
+                // Vista normal de búsqueda
+                SearchMainView(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = { searchQuery = it },
+                    results = results,
+                    spotifyResults = spotifyResults,
+                    showSpotifyResults = showSpotifyResults,
+                    isLoading = isLoading,
+                    error = error,
+                    onVideoSelected = onVideoSelected,
+                    onAlbumSelected = loadSpotifyAlbumTracks,
+                    onPlaylistSelected = loadSpotifyPlaylistTracks,
+                    onSearchTriggered = performSearch,
+                    playerViewModel = playerViewModel,
+                    coroutineScope = coroutineScope
+                )
             }
         }
     }
@@ -1463,8 +1474,8 @@ fun PlaylistsScreen(
                     // Estados para los botones de control
                     var isRandomizing by remember { mutableStateOf(false) }
                     var isStarting by remember { mutableStateOf(false) }
-                    var randomJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-                    var startJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    var randomJob by remember { mutableStateOf<Job?>(null) }
+                    var startJob by remember { mutableStateOf<Job?>(null) }
                     
                     // Función para parar todas las reproducciones
                     fun stopAllPlayback() {
@@ -1486,7 +1497,7 @@ fun PlaylistsScreen(
                         isRandomizing = true
                         
                         if (playlistTracks.isNotEmpty() && playerViewModel != null) {
-                            randomJob = kotlinx.coroutines.GlobalScope.launch {
+                            randomJob = GlobalScope.launch {
                                 val randomTrack = playlistTracks.random()
                                 val trackEntity = tracksFromDB.find { it.spotifyTrackId == randomTrack.id }
                                 
@@ -1494,16 +1505,16 @@ fun PlaylistsScreen(
                                 
                                 if (trackEntity != null && playerViewModel != null) {
                                     // Reproducir la canción usando PlayerViewModel
-                                    playerViewModel.initializePlayer()
+                                    playerViewModel?.initializePlayer()
                                     
                                     // Establecer la playlist completa con el track aleatorio seleccionado
                                     val currentTrackIndex = tracksFromDB.indexOf(trackEntity)
                                     if (currentTrackIndex >= 0) {
-                                        playerViewModel.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
+                                        playerViewModel?.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
                                     }
                                     
                                     // Cargar y reproducir - PlayerViewModel manejará la navegación automática
-                                    playerViewModel.loadAudioFromTrack(trackEntity)
+                                    playerViewModel?.loadAudioFromTrack(trackEntity)
                                 } else {
                                     println("⚠️ TrackEntity no encontrado para: ${randomTrack.getDisplayName()}")
                                 }
@@ -1519,7 +1530,7 @@ fun PlaylistsScreen(
                         isStarting = true
                         
                         if (playlistTracks.isNotEmpty() && playerViewModel != null) {
-                            startJob = kotlinx.coroutines.GlobalScope.launch {
+                            startJob = GlobalScope.launch {
                                 val firstTrack = playlistTracks.first()
                                 val trackEntity = tracksFromDB.find { it.spotifyTrackId == firstTrack.id }
                                 
@@ -1527,16 +1538,16 @@ fun PlaylistsScreen(
                                 
                                 if (trackEntity != null && playerViewModel != null) {
                                     // Reproducir la canción usando PlayerViewModel
-                                    playerViewModel.initializePlayer()
+                                    playerViewModel?.initializePlayer()
                                     
                                     // Establecer la playlist completa desde el inicio (índice 0)
                                     val trackEntityIndex = tracksFromDB.indexOf(trackEntity)
                                     if (trackEntityIndex >= 0) {
-                                        playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
+                                        playerViewModel?.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
                                     }
                                     
                                     // Cargar y reproducir - PlayerViewModel manejará la navegación automática
-                                    playerViewModel.loadAudioFromTrack(trackEntity)
+                                    playerViewModel?.loadAudioFromTrack(trackEntity)
                                 } else {
                                     println("⚠️ TrackEntity no encontrado para: ${firstTrack.getDisplayName()}")
                                 }
@@ -1629,7 +1640,7 @@ fun PlaylistsScreen(
                                             
                                             // Add to player queue and play
                                             playerViewModel?.let { viewModel ->
-                                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                                                CoroutineScope(Dispatchers.Main).launch {
                                                     try {
                                                         // Create playlist from current tracks
                                                         val playlistEntities = playlistTracks.mapIndexed { idx, spotifyTrack ->
@@ -1649,7 +1660,7 @@ fun PlaylistsScreen(
                                                         viewModel.setCurrentPlaylist(playlistEntities, index)
                                                         viewModel.loadAudioFromTrack(trackEntity)
                                                     } catch (e: Exception) {
-                                                        android.util.Log.e("PlaylistScreen", "Error playing track: ${e.message}")
+                                                        Log.e("PlaylistScreen", "Error playing track: ${e.message}")
                                                     }
                                                 }
                                             }
@@ -1778,11 +1789,11 @@ fun PlaylistsScreen(
 
 @Composable
 fun SpotifyResultsMenus(
-    spotifyResults: com.plyr.network.SpotifySearchAllResponse,
-    onTrackSelected: (com.plyr.network.SpotifyTrack) -> Unit,
-    onAlbumSelected: (com.plyr.network.SpotifyAlbum) -> Unit,
-    onArtistSelected: (com.plyr.network.SpotifyArtistFull) -> Unit,
-    onPlaylistSelected: (com.plyr.network.SpotifyPlaylist) -> Unit
+    spotifyResults: SpotifySearchAllResponse,
+    onTrackSelected: (SpotifyTrack) -> Unit,
+    onAlbumSelected: (SpotifyAlbum) -> Unit,
+    onArtistSelected: (SpotifyArtistFull) -> Unit,
+    onPlaylistSelected: (SpotifyPlaylist) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -2015,10 +2026,11 @@ fun SpotifyResultsMenus(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = playlist?.getTrackCount() ?: "0",
-                            style = MaterialTheme.typography.bodySmall.copy(
+                            text = playlist?.getTrackCount() ?: "0 tracks",
+                            style = MaterialTheme.typography.bodyMedium.copy(
                                 fontFamily = FontFamily.Monospace,
                                 color = Color(0xFF95A5A6)
+
                             )
                         )
                     }
@@ -2205,6 +2217,906 @@ fun SpotifyApiConfigSection(context: Context) {
                             color = Color(0xFF7F8C8D)
                         )
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SpotifyPlaylistDetailView(
+    playlist: SpotifyPlaylist,
+    tracks: List<SpotifyTrack>,
+    isLoading: Boolean,
+    error: String?,
+    onBack: () -> Unit,
+    onStart: () -> Unit,
+    onRandom: () -> Unit,
+    onSave: () -> Unit,
+    playerViewModel: PlayerViewModel?
+) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Header con botón de retroceso
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "<",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 20.sp,
+                    color = Color(0xFF4ECDC4)
+                ),
+                modifier = Modifier
+                    .clickable { onBack() }
+                    .padding(end = 8.dp)
+            )
+            Text(
+                text = "$ ${playlist.name}",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 20.sp,
+                    color = Color(0xFF4ECDC4)
+                ),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        
+        // Información de la playlist
+        playlist.description?.let { description ->
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF95A5A6)
+                ),
+                modifier = Modifier.padding(bottom = 8.dp),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        
+        Text(
+            text = "Tracks: ${playlist.getTrackCount()}",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF95A5A6)
+            ),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // Botones de acción
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ActionButton(
+                text = "<start>",
+                color = Color(0xFF4ECDC4),
+                onClick = onStart,
+                enabled = tracks.isNotEmpty()
+            )
+            ActionButton(
+                text = "<rand>",
+                color = Color(0xFFFFD93D),
+                onClick = onRandom,
+                enabled = tracks.isNotEmpty()
+            )
+            ActionButton(
+                text = "<save>",
+                color = Color(0xFF7FB069),
+                onClick = onSave,
+                enabled = true
+            )
+        }
+        
+        // Estados de carga y error
+        if (isLoading) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    "$ loading tracks...",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFFFD93D)
+                    )
+                )
+            }
+        }
+        
+        error?.let {
+            Text(
+                "ERR: $it",
+                color = Color(0xFFFF6B6B),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace
+                ),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        
+        // Lista de tracks
+        if (tracks.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(tracks.size) { index ->
+                    val track = tracks[index]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                // Reproducir track específico
+                                Log.d("SpotifyPlaylist", "🎵 Track seleccionado: ${track.name}")
+                                
+                                playerViewModel?.let { viewModel ->
+                                    // Convertir todos los tracks de la playlist a TrackEntity
+                                    val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
+                                        TrackEntity(
+                                            id = "spotify_${playlist.id}_${spotifyTrack.id}",
+                                            playlistId = playlist.id,
+                                            spotifyTrackId = spotifyTrack.id,
+                                            name = spotifyTrack.name,
+                                            artists = spotifyTrack.getArtistNames(),
+                                            youtubeVideoId = null, // Se buscará dinámicamente
+                                            audioUrl = null,
+                                            position = trackIndex,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                    }
+                                    
+                                    // Establecer la playlist completa y comenzar desde el track seleccionado
+                                    viewModel.setCurrentPlaylist(trackEntities, index)
+                                    
+                                    // Buscar y reproducir el track seleccionado
+                                    val selectedTrackEntity = trackEntities[index]
+                                    // TODO: Necesitaríamos acceso al scope aquí, por ahora solo log
+                                    Log.d("SpotifyPlaylist", "Configurada playlist con ${trackEntities.size} tracks, iniciando desde track ${index + 1}")
+                                }
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${index + 1}. ",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF95A5A6)
+                            ),
+                            modifier = Modifier.width(32.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.name ?: "Sin título",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFE0E0E0)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = track.getArtistNames(),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF95A5A6)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(
+                            text = track.getDurationText(),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF95A5A6)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    text: String,
+    color: Color,
+    onClick: () -> Unit,
+    enabled: Boolean = true
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 16.sp,
+            color = if (enabled) color else Color(0xFF95A5A6)
+        ),
+        modifier = Modifier
+            .clickable(enabled = enabled) { onClick() }
+            .padding(8.dp)
+    )
+}
+
+@Composable
+private fun SearchMainView(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    results: List<AudioItem>,
+    spotifyResults: SpotifySearchAllResponse?,
+    showSpotifyResults: Boolean,
+    isLoading: Boolean,
+    error: String?,
+    onVideoSelected: (String, String) -> Unit,
+    onAlbumSelected: (SpotifyAlbum) -> Unit,
+    onPlaylistSelected: (SpotifyPlaylist) -> Unit,
+    onSearchTriggered: (String) -> Unit,
+    playerViewModel: PlayerViewModel?,
+    coroutineScope: CoroutineScope
+) {
+    // Header
+    Text(
+        text = "$ plyr_search",
+        style = MaterialTheme.typography.headlineMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 20.sp,
+            color = Color(0xFF4ECDC4)
+        ),
+        modifier = Modifier.padding(bottom = 16.dp)
+    )
+
+    // Search field with clear button and enter action
+    OutlinedTextField(
+        value = searchQuery,
+        onValueChange = onSearchQueryChange,
+        label = {
+            Text(
+                "> search_audio",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp
+                )
+            ) 
+        },
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            if (searchQuery.isNotEmpty()) {
+                IconButton(onClick = { 
+                    onSearchQueryChange("")
+                }) {
+                    Text(
+                        text = "x",
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 18.sp,
+                            color = Color(0xFF95A5A6)
+                        )
+                    )
+                }
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                if (searchQuery.isNotBlank() && !isLoading) {
+                    onSearchTriggered(searchQuery)
+                }
+            }
+        ),
+        enabled = !isLoading,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+        ),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 16.sp
+        )
+    )
+
+    Spacer(Modifier.height(12.dp))
+
+    if (isLoading) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "$ loading...",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFFFD93D)
+                )
+            )
+        }
+    }
+
+    error?.let {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "ERR: $it",
+            color = Color(0xFFFF6B6B),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace
+            )
+        )
+    }
+
+    // === MENÚS DESPLEGABLES DE SPOTIFY ===
+    if (showSpotifyResults && spotifyResults != null) {
+        SpotifySearchResultsView(
+            results = spotifyResults,
+            onAlbumSelected = onAlbumSelected,
+            onPlaylistSelected = onPlaylistSelected
+        )
+    }
+
+    // === RESULTADOS DE YOUTUBE ===
+    if (results.isNotEmpty()) {
+        YouTubeSearchResultsView(
+            results = results,
+            onVideoSelected = onVideoSelected,
+            playerViewModel = playerViewModel,
+            coroutineScope = coroutineScope
+        )
+    }
+}
+
+@Composable
+private fun SpotifySearchResultsView(
+    results: SpotifySearchAllResponse?,
+    onAlbumSelected: (SpotifyAlbum) -> Unit,
+    onPlaylistSelected: (SpotifyPlaylist) -> Unit
+) {
+    val hasResults = results?.tracks?.items?.isNotEmpty() == true ||
+        results?.albums?.items?.isNotEmpty() == true ||
+        results?.artists?.items?.isNotEmpty() == true ||
+        results?.playlists?.items?.isNotEmpty() == true
+
+    if (!hasResults) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "No se encontraron resultados de Spotify.",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF95A5A6)
+                )
+            )
+        }
+    } else {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Desplegables para cada tipo de resultado
+            var tracksExpanded by remember { mutableStateOf(false) }
+            var albumsExpanded by remember { mutableStateOf(false) }
+            var artistsExpanded by remember { mutableStateOf(false) }
+            var playlistsExpanded by remember { mutableStateOf(false) }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                // Tracks
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { tracksExpanded = !tracksExpanded }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if(tracksExpanded)"v tracks (${results?.tracks?.items?.size ?: 0})" else "> tracks (${results?.tracks?.items?.size ?: 0})",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF4ECDC4)
+                                )
+                            )
+                        }
+                        if (tracksExpanded) {
+                            results?.tracks?.items?.forEach { track ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { if (track != null) Log.d("SpotifySearch", "Track seleccionado: ${track.name} by ${track.getArtistNames()}") }
+                                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = track?.name ?: "Sin nombre",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFE0E0E0)
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                // Albums
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { albumsExpanded = !albumsExpanded }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if(albumsExpanded)"v albums (${results?.albums?.items?.size ?: 0})" else "> albums (${results?.albums?.items?.size ?: 0})",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFB2B2FF)
+                                )
+                            )
+                        }
+                        if (albumsExpanded) {
+                            results?.albums?.items?.forEach { album ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { if (album != null) onAlbumSelected(album) }
+                                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = album?.name ?: "Sin nombre",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFE0E0E0)
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                // Artists
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { artistsExpanded = !artistsExpanded }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (artistsExpanded) "v artists (${results?.artists?.items?.size ?: 0})" else "> artists (${results?.artists?.items?.size ?: 0})",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFFFD93D)
+                                )
+                            )
+                        }
+                        if (artistsExpanded) {
+                            results?.artists?.items?.forEach { artist ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { if (artist != null) Log.d("SpotifySearch", "Artista seleccionado: ${artist.name}") }
+                                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = artist?.name ?: "Sin nombre",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFE0E0E0)
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                // Playlists
+                item {
+                    Column {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { playlistsExpanded = !playlistsExpanded }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (playlistsExpanded) "v playlists (${results?.playlists?.items?.size ?: 0})" else "> playlists (${results?.playlists?.items?.size ?: 0})",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF7FB069)
+                                )
+                            )
+                        }
+                        if (playlistsExpanded) {
+                            results?.playlists?.items?.forEach { playlist ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { if (playlist != null) onPlaylistSelected(playlist) }
+                                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = playlist?.name ?: "Sin nombre",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFE0E0E0)
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = playlist?.getTrackCount() ?: "0 tracks",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFF95A5A6)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun YouTubeSearchResultsView(
+    results: List<AudioItem>,
+    onVideoSelected: (String, String) -> Unit,
+    playerViewModel: PlayerViewModel?,
+    coroutineScope: CoroutineScope
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "> youtube_results (${results.size})",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF7FB069)
+            ),
+            modifier = Modifier.padding(vertical = 8.dp)
+        )
+        
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            items(results.size) { index ->
+                val video = results[index]
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onVideoSelected(video.videoId, video.title)
+                            
+                            // También agregar al ViewModel si está disponible
+                            playerViewModel?.let { viewModel ->
+                                coroutineScope.launch {
+                                    try {
+                                        // Crear TrackEntity temporal para reproducción individual
+                                        val trackEntity = TrackEntity(
+                                            id = "youtube_${video.videoId}",
+                                            playlistId = "search_results",
+                                            spotifyTrackId = "", // Empty string for YouTube tracks
+                                            name = video.title,
+                                            artists = video.channel,
+                                            youtubeVideoId = video.videoId,
+                                            audioUrl = null, // Se obtendrá dinámicamente
+                                            position = 0,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                        
+                                        // Establecer como playlist de un solo track
+                                        viewModel.setCurrentPlaylist(listOf(trackEntity), 0)
+                                        
+                                        Log.d("YouTubeSearch", "🎵 Video seleccionado: ${video.title}")
+                                    } catch (e: Exception) {
+                                        Log.e("YouTubeSearch", "Error al configurar reproducción", e)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "▶ ",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF7FB069)
+                        )
+                    )
+                    
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = video.title,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFE0E0E0)
+                            ),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = video.channel,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF95A5A6)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            Text(
+                                text = video.duration,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF95A5A6)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SpotifyAlbumDetailView(
+    album: SpotifyAlbum,
+    tracks: List<SpotifyTrack>,
+    isLoading: Boolean,
+    error: String?,
+    onBack: () -> Unit,
+    onStart: () -> Unit,
+    onRandom: () -> Unit,
+    onSave: () -> Unit,
+    playerViewModel: PlayerViewModel?
+) {
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Header con botón de retroceso
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "<",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 20.sp,
+                    color = Color(0xFF4ECDC4)
+                ),
+                modifier = Modifier
+                    .clickable { onBack() }
+                    .padding(end = 8.dp)
+            )
+            Text(
+                text = "$ ${album.name}",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 20.sp,
+                    color = Color(0xFF4ECDC4)
+                ),
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        
+        // Información del álbum
+        Text(
+            text = "Artist: ${album.getArtistNames()}",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF95A5A6)
+            ),
+            modifier = Modifier.padding(bottom = 4.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        
+        album.release_date?.let { releaseDate ->
+            Text(
+                text = "Released: $releaseDate",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF95A5A6)
+                ),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+        
+        Text(
+            text = "Tracks: ${album.total_tracks ?: tracks.size}",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF95A5A6)
+            ),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // Botones de acción
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ActionButton(
+                text = "<start>",
+                color = Color(0xFF4ECDC4),
+                onClick = onStart,
+                enabled = tracks.isNotEmpty()
+            )
+            ActionButton(
+                text = "<rand>",
+                color = Color(0xFFFFD93D),
+                onClick = onRandom,
+                enabled = tracks.isNotEmpty()
+            )
+            ActionButton(
+                text = "<save>",
+                color = Color(0xFF7FB069),
+                onClick = onSave,
+                enabled = true
+            )
+        }
+        
+        // Estados de carga y error
+        if (isLoading) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    "$ loading tracks...",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFFFD93D)
+                    )
+                )
+            }
+        }
+        
+        error?.let {
+            Text(
+                "ERR: $it",
+                color = Color(0xFFFF6B6B),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace
+                ),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        
+        // Lista de tracks
+        if (tracks.isNotEmpty()) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(tracks.size) { index ->
+                    val track = tracks[index]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                // Reproducir track específico
+                                Log.d("SpotifyAlbum", "🎵 Track seleccionado: ${track.name}")
+                                
+                                playerViewModel?.let { viewModel ->
+                                    // Convertir todos los tracks del álbum a TrackEntity
+                                    val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
+                                        TrackEntity(
+                                            id = "spotify_album_${album.id}_${spotifyTrack.id}",
+                                            playlistId = album.id,
+                                            spotifyTrackId = spotifyTrack.id,
+                                            name = spotifyTrack.name,
+                                            artists = spotifyTrack.getArtistNames(),
+                                            youtubeVideoId = null, // Se buscará dinámicamente
+                                            audioUrl = null,
+                                            position = trackIndex,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                    }
+                                    
+                                    // Establecer la playlist completa y comenzar desde el track seleccionado
+                                    viewModel.setCurrentPlaylist(trackEntities, index)
+                                    
+                                    // Buscar y reproducir el track seleccionado
+                                    val selectedTrackEntity = trackEntities[index]
+                                    Log.d("SpotifyAlbum", "Configurada playlist con ${trackEntities.size} tracks, iniciando desde track ${index + 1}")
+                                }
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${index + 1}. ",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF95A5A6)
+                            ),
+                            modifier = Modifier.width(32.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = track.name ?: "Sin título",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFE0E0E0)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = track.getArtistNames(),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF95A5A6)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(
+                            text = track.getDurationText(),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF95A5A6)
+                            )
+                        )
+                    }
                 }
             }
         }
