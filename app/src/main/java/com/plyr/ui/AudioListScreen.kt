@@ -741,9 +741,12 @@ fun QueueScreen(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp, horizontal = 4.dp)
                                 .clickable {
-                                    // Reproducir desde este track y activar modo cola para toda la secuencia
                                     coroutineScope.launch {
-                                        playerViewModel.playQueueFromIndex(index)
+                                        if (queueState.currentIndex != index) {
+                                            playerViewModel.playQueueFromIndex(index)
+                                        } else {
+                                            playerViewModel.resumeIfPaused()
+                                        }
                                     }
                                     Log.d("QueueScreen", "Iniciando cola desde índice: $index")
                                 },
@@ -1634,6 +1637,7 @@ fun PlaylistsScreen(
                                                 name = track.name,
                                                 artists = track.getArtistNames(),
                                                 youtubeVideoId = null, // Will be resolved during playback
+                                                audioUrl = null, // Se obtendrá dinámicamente
                                                 position = index,
                                                 lastSyncTime = System.currentTimeMillis()
                                             )
@@ -1651,6 +1655,7 @@ fun PlaylistsScreen(
                                                                 name = spotifyTrack.name,
                                                                 artists = spotifyTrack.getArtistNames(),
                                                                 youtubeVideoId = null,
+                                                                audioUrl = null,
                                                                 position = idx,
                                                                 lastSyncTime = System.currentTimeMillis()
                                                             )
@@ -2299,6 +2304,7 @@ fun SpotifyPlaylistDetailView(
                 .padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+
             ActionButton(
                 text = "<start>",
                 color = Color(0xFF4ECDC4),

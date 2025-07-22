@@ -1,3 +1,4 @@
+// ...existing code...
 package com.plyr.viewmodel
 
 import android.app.Application
@@ -560,6 +561,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun playPlayer() {
         mainHandler.post {
             _exoPlayer?.play()
+        }
+    }
+    
+    /**
+     * Reanuda la reproducción si está pausada.
+     */
+    fun resumeIfPaused() {
+        _exoPlayer?.let { player ->
+            if (!player.isPlaying) {
+                player.play()
+            }
         }
     }
     
