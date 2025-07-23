@@ -133,123 +133,281 @@ object SpotifyRepository {
         })
     }
     
-    // Obtener playlists del usuario
+    // Obtener playlists del usuario con paginación
     fun getUserPlaylists(accessToken: String, callback: (List<SpotifyPlaylist>?, String?) -> Unit) {
-        val request = Request.Builder()
-            .url("$API_BASE_URL/me/playlists")
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
+        val maxLimit = 50 // Máximo permitido por Spotify
+        var allPlaylists = mutableListOf<SpotifyPlaylist>()
+        var pageCount = 0
         
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback(null, "Error de red: ${e.message}")
-            }
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(offset: Int = 0) {
+            val request = Request.Builder()
+                .url("$API_BASE_URL/me/playlists?limit=$maxLimit&offset=$offset&fields=items(id,name,description,tracks(total),images)")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
             
-            override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
-                    try {
-                        val playlistResponse = gson.fromJson(body, SpotifyPlaylistResponse::class.java)
-                        callback(playlistResponse.items, null)
-                    } catch (e: Exception) {
-                        callback(null, "Error parsing playlists: ${e.message}")
-                    }
-                } else {
-                    callback(null, "Error HTTP ${response.code}: $body")
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
                 }
-            }
-        })
+                
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && body != null) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "User playlists response (offset=$offset): ${body.take(200)}...")
+                            val playlistResponse = gson.fromJson(body, SpotifyPlaylistResponse::class.java)
+                            
+                            // Debug: log tracks data for each playlist
+                            playlistResponse.items.forEachIndexed { index, playlist ->
+                                android.util.Log.d("SpotifyRepository", "Playlist $index - '${playlist.name}': tracks=${playlist.tracks}, tracks.total=${playlist.tracks?.total}")
+                            }
+                            
+                            // Acumular resultados
+                            allPlaylists.addAll(playlistResponse.items)
+                            pageCount++
+                            
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount loaded: ${playlistResponse.items.size} playlists, total accumulated: ${allPlaylists.size}")
+                            
+                            // Enviar resultados actualizados después de cada página
+                            callback(allPlaylists.toList(), null)
+                            
+                            // Verificar si hay más páginas que cargar
+                            val hasMorePlaylists = playlistResponse.items.size == maxLimit
+                            val nextOffset = offset + maxLimit
+                            val wouldExceedLimit = nextOffset >= 1000
+                            
+                            // Si hay más contenido y no excedemos el límite, continuar paginando
+                            if (hasMorePlaylists && !wouldExceedLimit) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next playlists page: offset=$nextOffset")
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextOffset)
+                                }, 200)
+                            } else {
+                                if (wouldExceedLimit) {
+                                    android.util.Log.d("SpotifyRepository", "Playlists pagination stopped: reached API limit (offset would be $nextOffset >= 1000)")
+                                } else {
+                                    android.util.Log.d("SpotifyRepository", "Playlists pagination completed: no more results available")
+                                }
+                                android.util.Log.d("SpotifyRepository", "Final playlists count: ${allPlaylists.size}")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing playlists: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+        
+        // Iniciar la paginación
+        fetchPage(0)
     }
     
-    // Obtener tracks de un álbum
+    // Obtener tracks de un álbum con paginación
     fun getAlbumTracks(accessToken: String, albumId: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
-        val request = Request.Builder()
-            .url("$API_BASE_URL/albums/$albumId/tracks?limit=50")
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
+        val maxLimit = 50 // Máximo permitido por Spotify
+        var allTracks = mutableListOf<SpotifyTrack>()
+        var pageCount = 0
         
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback(null, "Error de red: ${e.message}")
-            }
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(offset: Int = 0) {
+            val request = Request.Builder()
+                .url("$API_BASE_URL/albums/$albumId/tracks?limit=$maxLimit&offset=$offset")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
             
-            override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
-                    try {
-                        android.util.Log.d("SpotifyRepository", "Album tracks response: $body")
-                        val tracksResponse = gson.fromJson(body, SpotifyTracksSearchResult::class.java)
-                        callback(tracksResponse.items, null)
-                    } catch (e: Exception) {
-                        callback(null, "Error parsing album tracks: ${e.message}")
-                    }
-                } else {
-                    callback(null, "Error HTTP ${response.code}: $body")
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
                 }
-            }
-        })
+                
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && body != null) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "Album tracks response (offset=$offset): ${body.take(200)}...")
+                            val tracksResponse = gson.fromJson(body, SpotifyTracksSearchResultRaw::class.java)
+                            
+                            // Acumular resultados (filtrando nulls)
+                            allTracks.addAll(tracksResponse.items.filterNotNull())
+                            pageCount++
+                            
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount loaded: ${tracksResponse.items.filterNotNull().size} tracks, total accumulated: ${allTracks.size}")
+                            
+                            // Enviar resultados actualizados después de cada página
+                            callback(allTracks.toList(), null)
+                            
+                            // Verificar si hay más páginas que cargar
+                            val hasMoreTracks = tracksResponse.items.size == maxLimit
+                            val nextOffset = offset + maxLimit
+                            val wouldExceedLimit = nextOffset >= 1000
+                            
+                            // Si hay más contenido y no excedemos el límite, continuar paginando
+                            if (hasMoreTracks && !wouldExceedLimit) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next album tracks page: offset=$nextOffset")
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextOffset)
+                                }, 200)
+                            } else {
+                                if (wouldExceedLimit) {
+                                    android.util.Log.d("SpotifyRepository", "Album tracks pagination stopped: reached API limit (offset would be $nextOffset >= 1000)")
+                                } else {
+                                    android.util.Log.d("SpotifyRepository", "Album tracks pagination completed: no more results available")
+                                }
+                                android.util.Log.d("SpotifyRepository", "Final album tracks count: ${allTracks.size}")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing album tracks: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+        
+        // Iniciar la paginación
+        fetchPage(0)
     }
     
-    // Obtener tracks de una playlist
+    // Obtener tracks de una playlist con paginación
     fun getPlaylistTracks(accessToken: String, playlistId: String, callback: (List<SpotifyPlaylistTrack>?, String?) -> Unit) {
-        val request = Request.Builder()
-            .url("$API_BASE_URL/playlists/$playlistId/tracks?limit=50")
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
+        val maxLimit = 50 // Máximo permitido por Spotify
+        var allTracks = mutableListOf<SpotifyPlaylistTrack>()
+        var pageCount = 0
         
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback(null, "Error de red: ${e.message}")
-            }
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(offset: Int = 0) {
+            val request = Request.Builder()
+                .url("$API_BASE_URL/playlists/$playlistId/tracks?limit=$maxLimit&offset=$offset")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
             
-            override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
-                    try {
-                        android.util.Log.d("SpotifyRepository", "Playlist tracks response: $body")
-                        val tracksResponse = gson.fromJson(body, SpotifyPlaylistTracksResponse::class.java)
-                        callback(tracksResponse.items, null)
-                    } catch (e: Exception) {
-                        callback(null, "Error parsing playlist tracks: ${e.message}")
-                    }
-                } else {
-                    callback(null, "Error HTTP ${response.code}: $body")
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
                 }
-            }
-        })
+                
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && body != null) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "Playlist tracks response (offset=$offset): ${body.take(200)}...")
+                            val tracksResponse = gson.fromJson(body, SpotifyPlaylistTracksResponseRaw::class.java)
+                            
+                            // Acumular resultados (filtrando nulls)
+                            allTracks.addAll(tracksResponse.items.filterNotNull())
+                            pageCount++
+                            
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount loaded: ${tracksResponse.items.filterNotNull().size} tracks, total accumulated: ${allTracks.size}")
+                            
+                            // Enviar resultados actualizados después de cada página
+                            callback(allTracks.toList(), null)
+                            
+                            // Verificar si hay más páginas que cargar
+                            val hasMoreTracks = tracksResponse.items.size == maxLimit
+                            val nextOffset = offset + maxLimit
+                            val wouldExceedLimit = nextOffset >= 1000
+                            
+                            // Si hay más contenido y no excedemos el límite, continuar paginando
+                            if (hasMoreTracks && !wouldExceedLimit) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next playlist tracks page: offset=$nextOffset")
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextOffset)
+                                }, 200)
+                            } else {
+                                if (wouldExceedLimit) {
+                                    android.util.Log.d("SpotifyRepository", "Playlist tracks pagination stopped: reached API limit (offset would be $nextOffset >= 1000)")
+                                } else {
+                                    android.util.Log.d("SpotifyRepository", "Playlist tracks pagination completed: no more results available")
+                                }
+                                android.util.Log.d("SpotifyRepository", "Final playlist tracks count: ${allTracks.size}")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing playlist tracks: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+        
+        // Iniciar la paginación
+        fetchPage(0)
     }
     
-    // Obtener álbumes de un artista
+    // Obtener álbumes de un artista con paginación
     fun getArtistAlbums(accessToken: String, artistId: String, callback: (List<SpotifyAlbum>?, String?) -> Unit) {
-        val request = Request.Builder()
-            .url("$API_BASE_URL/artists/$artistId/albums?include_groups=album,single&limit=50")
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
+        val maxLimit = 50 // Máximo permitido por Spotify
+        var allAlbums = mutableListOf<SpotifyAlbum>()
+        var pageCount = 0
         
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback(null, "Error de red: ${e.message}")
-            }
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(offset: Int = 0) {
+            val request = Request.Builder()
+                .url("$API_BASE_URL/artists/$artistId/albums?include_groups=album,single&limit=$maxLimit&offset=$offset")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
             
-            override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
-                    try {
-                        android.util.Log.d("SpotifyRepository", "Artist albums response: $body")
-                        val albumsResponse = gson.fromJson(body, SpotifyAlbumsSearchResult::class.java)
-                        callback(albumsResponse.items, null)
-                    } catch (e: Exception) {
-                        callback(null, "Error parsing artist albums: ${e.message}")
-                    }
-                } else {
-                    callback(null, "Error HTTP ${response.code}: $body")
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
                 }
-            }
-        })
+                
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && body != null) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "Artist albums response (offset=$offset): ${body.take(200)}...")
+                            val albumsResponse = gson.fromJson(body, SpotifyAlbumsSearchResultRaw::class.java)
+                            
+                            // Acumular resultados (filtrando nulls)
+                            allAlbums.addAll(albumsResponse.items.filterNotNull())
+                            pageCount++
+                            
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount loaded: ${albumsResponse.items.filterNotNull().size} albums, total accumulated: ${allAlbums.size}")
+                            
+                            // Enviar resultados actualizados después de cada página
+                            callback(allAlbums.toList(), null)
+                            
+                            // Verificar si hay más páginas que cargar
+                            val hasMoreAlbums = albumsResponse.items.size == maxLimit
+                            val nextOffset = offset + maxLimit
+                            val wouldExceedLimit = nextOffset >= 1000
+                            
+                            // Si hay más contenido y no excedemos el límite, continuar paginando
+                            if (hasMoreAlbums && !wouldExceedLimit) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next artist albums page: offset=$nextOffset")
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextOffset)
+                                }, 200)
+                            } else {
+                                if (wouldExceedLimit) {
+                                    android.util.Log.d("SpotifyRepository", "Artist albums pagination stopped: reached API limit (offset would be $nextOffset >= 1000)")
+                                } else {
+                                    android.util.Log.d("SpotifyRepository", "Artist albums pagination completed: no more results available")
+                                }
+                                android.util.Log.d("SpotifyRepository", "Final artist albums count: ${allAlbums.size}")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing artist albums: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+        
+        // Iniciar la paginación
+        fetchPage(0)
     }
     
     // Buscar todo tipo de contenido en Spotify (canciones, álbumes, artistas, playlists)
@@ -302,8 +460,8 @@ object SpotifyRepository {
                 if (response.isSuccessful && body != null) {
                     try {
                         android.util.Log.d("SpotifyRepository", "Search response: $body")
-                        val searchResponse = gson.fromJson(body, SpotifySearchResponse::class.java)
-                        callback(searchResponse.tracks.items, null)
+                        val searchResponse = gson.fromJson(body, SpotifySearchResponseRaw::class.java)
+                        callback(searchResponse.tracks.items.filterNotNull(), null)
                     } catch (e: Exception) {
                         callback(null, "Error parsing search results: ${e.message}")
                     }
@@ -364,6 +522,128 @@ object SpotifyRepository {
         })
     }
 
+    // Buscar todo tipo de contenido en Spotify con paginación automática optimizada
+    fun searchAllWithPagination(
+        accessToken: String, 
+        query: String, 
+        callback: (SpotifySearchAllResponse?, String?) -> Unit // Simplificamos el callback
+    ) {
+        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
+        val maxLimit = 50 // Máximo permitido por Spotify
+        
+        // Variables para acumular resultados
+        var allTracks = mutableListOf<SpotifyTrack>()
+        var allAlbums = mutableListOf<SpotifyAlbum>()
+        var allArtists = mutableListOf<SpotifyArtistFull>()
+        var allPlaylists = mutableListOf<SpotifyPlaylist>()
+        
+        var pageCount = 0
+        
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(offset: Int = 0) {
+            val request = Request.Builder()
+                .url("$API_BASE_URL/search?q=$encodedQuery&type=track,album,artist,playlist&limit=$maxLimit&offset=$offset")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+            
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
+                }
+                
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    if (response.isSuccessful && body != null) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "Search paginated response (offset=$offset) body excerpt: ${body.take(500)}...")
+                            val searchResponseRaw = gson.fromJson(body, SpotifySearchAllResponseRaw::class.java)
+                            
+                            android.util.Log.d("SpotifyRepository", "Parsed response - tracks: ${searchResponseRaw.tracks.items.size}, albums: ${searchResponseRaw.albums.items.size}, artists: ${searchResponseRaw.artists.items.size}, playlists: ${searchResponseRaw.playlists.items.size}")
+                            
+                            // Acumular resultados (filtrando nulls)
+                            allTracks.addAll(searchResponseRaw.tracks.items.filterNotNull())
+                            allAlbums.addAll(searchResponseRaw.albums.items.filterNotNull())
+                            allArtists.addAll(searchResponseRaw.artists.items.filterNotNull())
+                            allPlaylists.addAll(searchResponseRaw.playlists.items.filterNotNull())
+                            
+                            pageCount++
+                            
+                            // Enviar resultados después de cada página para mostrar progreso
+                            val currentResponse = SpotifySearchAllResponse(
+                                tracks = SpotifyTracksSearchResult(
+                                    items = allTracks.distinctBy { it.id },
+                                    total = searchResponseRaw.tracks.total,
+                                    limit = maxLimit,
+                                    offset = 0,
+                                    next = if (searchResponseRaw.tracks.items.size == maxLimit) "more" else null
+                                ),
+                                albums = SpotifyAlbumsSearchResult(
+                                    items = allAlbums.distinctBy { it.id },
+                                    total = searchResponseRaw.albums.total,
+                                    limit = maxLimit,
+                                    offset = 0,
+                                    next = if (searchResponseRaw.albums.items.size == maxLimit) "more" else null
+                                ),
+                                artists = SpotifyArtistsSearchResult(
+                                    items = allArtists.distinctBy { it.id },
+                                    total = searchResponseRaw.artists.total,
+                                    limit = maxLimit,
+                                    offset = 0,
+                                    next = if (searchResponseRaw.artists.items.size == maxLimit) "more" else null
+                                ),
+                                playlists = SpotifyPlaylistsSearchResult(
+                                    items = allPlaylists.distinctBy { it.id },
+                                    total = searchResponseRaw.playlists.total,
+                                    limit = maxLimit,
+                                    offset = 0,
+                                    next = if (searchResponseRaw.playlists.items.size == maxLimit) "more" else null
+                                )
+                            )
+                            
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount sent: ${allTracks.size} tracks, ${allAlbums.size} albums, ${allArtists.size} artists, ${allPlaylists.size} playlists")
+                            callback(currentResponse, null)
+                            
+                            // Verificar si hay más páginas que cargar
+                            val hasMoreTracks = searchResponseRaw.tracks.items.size == maxLimit && allTracks.size < (searchResponseRaw.tracks.total ?: 0)
+                            val hasMoreAlbums = searchResponseRaw.albums.items.size == maxLimit && allAlbums.size < (searchResponseRaw.albums.total ?: 0)
+                            val hasMoreArtists = searchResponseRaw.artists.items.size == maxLimit && allArtists.size < (searchResponseRaw.artists.total ?: 0)
+                            val hasMorePlaylists = searchResponseRaw.playlists.items.size == maxLimit && allPlaylists.size < (searchResponseRaw.playlists.total ?: 0)
+                            
+                            // Verificar si el próximo offset excedería el límite de Spotify (1000)
+                            val nextOffset = offset + maxLimit
+                            val wouldExceedLimit = nextOffset >= 1000
+                            
+                            // Si hay más contenido en cualquier categoría y no excedemos el límite, continuar paginando
+                            if ((hasMoreTracks || hasMoreAlbums || hasMoreArtists || hasMorePlaylists) && !wouldExceedLimit) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next page: offset=$nextOffset")
+                                // Agregar un pequeño delay para no sobrecargar la API
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextOffset)
+                                }, 200) // 200ms de delay entre requests
+                            } else {
+                                // Paginación completada (por límite de API o porque no hay más resultados)
+                                if (wouldExceedLimit) {
+                                    android.util.Log.d("SpotifyRepository", "Pagination stopped: reached Spotify API limit (offset would be $nextOffset >= 1000)")
+                                } else {
+                                    android.util.Log.d("SpotifyRepository", "Pagination completed: no more results available")
+                                }
+                                android.util.Log.d("SpotifyRepository", "Final results: ${allTracks.size} tracks, ${allAlbums.size} albums, ${allArtists.size} artists, ${allPlaylists.size} playlists")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing search results: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+        
+        // Iniciar la paginación
+        fetchPage(0)
+    }
+
     private fun createBasicAuthHeader(context: Context): String {
         val credentials = "${Config.getSpotifyClientId(context)}:${Config.getSpotifyClientSecret(context)}"
         val encodedCredentials = Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
@@ -402,6 +682,7 @@ data class SpotifyPlaylist(
 }
 
 data class SpotifyPlaylistTracks(
+    val href: String?,
     val total: Int
 )
 
@@ -446,6 +727,10 @@ data class SpotifySearchResponse(
     val tracks: SpotifyTracksSearchResult
 )
 
+data class SpotifySearchResponseRaw(
+    val tracks: SpotifyTracksSearchResultRaw
+)
+
 data class SpotifySearchAllResponse(
     val tracks: SpotifyTracksSearchResult,
     val albums: SpotifyAlbumsSearchResult,
@@ -454,19 +739,35 @@ data class SpotifySearchAllResponse(
 )
 
 data class SpotifyTracksSearchResult(
-    val items: List<SpotifyTrack>
+    val items: List<SpotifyTrack>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
 )
 
 data class SpotifyAlbumsSearchResult(
-    val items: List<SpotifyAlbum>
+    val items: List<SpotifyAlbum>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
 )
 
 data class SpotifyArtistsSearchResult(
-    val items: List<SpotifyArtistFull>
+    val items: List<SpotifyArtistFull>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
 )
 
 data class SpotifyPlaylistsSearchResult(
-    val items: List<SpotifyPlaylist>
+    val items: List<SpotifyPlaylist>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
 )
 
 data class SpotifyAlbum(
@@ -520,9 +821,61 @@ data class SpotifyArtist(
 
 // Data classes para contenido interno
 data class SpotifyPlaylistTracksResponse(
-    val items: List<SpotifyPlaylistTrack>
+    val items: List<SpotifyPlaylistTrack>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
+)
+
+data class SpotifyPlaylistTracksResponseRaw(
+    val items: List<SpotifyPlaylistTrack?>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
 )
 
 data class SpotifyPlaylistTrack(
     val track: SpotifyTrack?
+)
+
+// Data classes auxiliares para parsing (con nullable items)
+data class SpotifyTracksSearchResultRaw(
+    val items: List<SpotifyTrack?>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
+)
+
+data class SpotifyAlbumsSearchResultRaw(
+    val items: List<SpotifyAlbum?>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
+)
+
+data class SpotifyArtistsSearchResultRaw(
+    val items: List<SpotifyArtistFull?>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
+)
+
+data class SpotifyPlaylistsSearchResultRaw(
+    val items: List<SpotifyPlaylist?>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
+)
+
+data class SpotifySearchAllResponseRaw(
+    val tracks: SpotifyTracksSearchResultRaw,
+    val albums: SpotifyAlbumsSearchResultRaw,
+    val artists: SpotifyArtistsSearchResultRaw,
+    val playlists: SpotifyPlaylistsSearchResultRaw
 )

@@ -5,9 +5,11 @@ import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -293,14 +295,22 @@ fun SearchScreen(
                             if (Config.isSpotifyConnected(context)) {
                                 val accessToken = Config.getSpotifyAccessToken(context)
                                 if (accessToken != null) {
-                                    SpotifyRepository.searchAll(accessToken, finalQuery) { searchResults: SpotifySearchAllResponse?, searchError: String? ->
-                                        isLoading = false
-                                        if (searchError != null) {
-                                            error = "Error searching Spotify: $searchError"
-                                            Log.e("SearchScreen", "Error searching Spotify: $searchError")
-                                        } else if (searchResults != null) {
-                                            spotifyResults = searchResults
-                                            showSpotifyResults = true
+                                    Log.d("SearchScreen", "🔍 Iniciando búsqueda con paginación en Spotify: '$finalQuery'")
+                                    SpotifyRepository.searchAllWithPagination(accessToken, finalQuery) { searchResults: SpotifySearchAllResponse?, searchError: String? ->
+                                        // Asegurar que las actualizaciones se ejecuten en el hilo principal
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                            if (searchError != null) {
+                                                isLoading = false
+                                                error = "Error searching Spotify: $searchError"
+                                                Log.e("SearchScreen", "Error searching Spotify: $searchError")
+                                            } else if (searchResults != null) {
+                                                Log.d("SearchScreen", "✅ Resultados actualizados: ${searchResults.tracks.items.size} tracks, ${searchResults.albums.items.size} albums, ${searchResults.artists.items.size} artists, ${searchResults.playlists.items.size} playlists")
+                                                Log.d("SearchScreen", "🔄 Actualizando estado spotifyResults...")
+                                                isLoading = false
+                                                spotifyResults = searchResults
+                                                showSpotifyResults = true
+                                                Log.d("SearchScreen", "🔄 Estado actualizado - showSpotifyResults=$showSpotifyResults")
+                                            }
                                         }
                                     }
                                 } else {
@@ -2567,6 +2577,7 @@ private fun SearchMainView(
     }
 
     // === MENÚS DESPLEGABLES DE SPOTIFY ===
+    android.util.Log.d("SearchMainView", "Renderizando vista principal - showSpotifyResults=$showSpotifyResults, spotifyResults!=null=${spotifyResults != null}")
     if (showSpotifyResults && spotifyResults != null) {
         SpotifySearchResultsView(
             results = spotifyResults,
@@ -2592,6 +2603,9 @@ private fun SpotifySearchResultsView(
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit
 ) {
+    // Debug log para verificar que la UI recibe los datos
+    android.util.Log.d("SpotifySearchResultsView", "Rendering with results: tracks=${results?.tracks?.items?.size}, albums=${results?.albums?.items?.size}, artists=${results?.artists?.items?.size}, playlists=${results?.playlists?.items?.size}")
+    
     val hasResults = results?.tracks?.items?.isNotEmpty() == true ||
         results?.albums?.items?.isNotEmpty() == true ||
         results?.artists?.items?.isNotEmpty() == true ||
