@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlin.math.abs
 import androidx.compose.ui.draw.clipToBounds
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import com.plyr.network.SpotifyAlbum
 import com.plyr.network.SpotifyArtistFull
@@ -65,7 +66,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import com.plyr.service.YouTubeSearchManager
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 
 // Estados para navegación
@@ -84,6 +84,7 @@ data class MenuOption(val screen: Screen, val title: String)
 fun AudioListScreen(
     context: Context,
     onVideoSelected: (String, String) -> Unit,
+    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onThemeChanged: (String) -> Unit = {},
     playerViewModel: PlayerViewModel? = null
 ) {
@@ -102,6 +103,7 @@ fun AudioListScreen(
         Screen.SEARCH -> SearchScreen(
             context = context,
             onVideoSelected = onVideoSelected,
+            onVideoSelectedFromSearch = onVideoSelectedFromSearch,
             onBack = { currentScreen = Screen.HOME },
             playerViewModel = playerViewModel
         )
@@ -219,6 +221,7 @@ fun HomeScreen(
 fun SearchScreen(
     context: Context,
     onVideoSelected: (String, String) -> Unit,
+    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
     playerViewModel: PlayerViewModel? = null
 ) {
@@ -553,7 +556,8 @@ fun SearchScreen(
                         }
                     },
                     onSave = saveSpotifyPlaylistToLibrary,
-                    playerViewModel = playerViewModel
+                    playerViewModel = playerViewModel,
+                    coroutineScope = coroutineScope
                 )
             }
             selectedSpotifyAlbum != null -> {
@@ -638,7 +642,8 @@ fun SearchScreen(
                         }
                     },
                     onSave = saveSpotifyPlaylistToLibrary,
-                    playerViewModel = playerViewModel
+                    playerViewModel = playerViewModel,
+                    coroutineScope = coroutineScope
                 )
             }
             else -> {
@@ -652,6 +657,7 @@ fun SearchScreen(
                     isLoading = isLoading,
                     error = error,
                     onVideoSelected = onVideoSelected,
+                    onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                     onAlbumSelected = loadSpotifyAlbumTracks,
                     onPlaylistSelected = loadSpotifyPlaylistTracks,
                     onSearchTriggered = performSearch,
@@ -2240,7 +2246,8 @@ fun SpotifyPlaylistDetailView(
     onStart: () -> Unit,
     onRandom: () -> Unit,
     onSave: () -> Unit,
-    playerViewModel: PlayerViewModel?
+    playerViewModel: PlayerViewModel?,
+    coroutineScope: CoroutineScope
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
@@ -2390,8 +2397,14 @@ fun SpotifyPlaylistDetailView(
                                     
                                     // Buscar y reproducir el track seleccionado
                                     val selectedTrackEntity = trackEntities[index]
-                                    // TODO: Necesitaríamos acceso al scope aquí, por ahora solo log
-                                    Log.d("SpotifyPlaylist", "Configurada playlist con ${trackEntities.size} tracks, iniciando desde track ${index + 1}")
+                                    coroutineScope.launch {
+                                        try {
+                                            viewModel.loadAudioFromTrack(selectedTrackEntity)
+                                            Log.d("SpotifyPlaylist", "🎵 Reproduciendo track ${index + 1}/${trackEntities.size}: ${selectedTrackEntity.name}")
+                                        } catch (e: Exception) {
+                                            Log.e("SpotifyPlaylist", "Error al reproducir track de playlist", e)
+                                        }
+                                    }
                                 }
                             }
                             .padding(vertical = 4.dp),
@@ -2469,6 +2482,7 @@ private fun SearchMainView(
     isLoading: Boolean,
     error: String?,
     onVideoSelected: (String, String) -> Unit,
+    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
     onSearchTriggered: (String) -> Unit,
@@ -2574,7 +2588,39 @@ private fun SearchMainView(
         SpotifySearchResultsView(
             results = spotifyResults,
             onAlbumSelected = onAlbumSelected,
-            onPlaylistSelected = onPlaylistSelected
+            onPlaylistSelected = onPlaylistSelected,
+            onTrackSelectedFromSearch = { track, allTracks, selectedIndex ->
+                // Convertir tracks de Spotify a TrackEntity y crear playlist temporal
+                val trackEntities = allTracks.mapIndexed { index, spotifyTrack ->
+                    TrackEntity(
+                        id = "spotify_search_${spotifyTrack.id}_$index",
+                        playlistId = "spotify_search_${System.currentTimeMillis()}",
+                        spotifyTrackId = spotifyTrack.id,
+                        name = spotifyTrack.name,
+                        artists = spotifyTrack.getArtistNames(),
+                        youtubeVideoId = null, // Se buscará dinámicamente
+                        audioUrl = null,
+                        position = index,
+                        lastSyncTime = System.currentTimeMillis()
+                    )
+                }
+                
+                // Establecer playlist en el PlayerViewModel
+                playerViewModel?.setCurrentPlaylist(trackEntities, selectedIndex)
+                
+                // Cargar el track seleccionado
+                val selectedTrackEntity = trackEntities[selectedIndex]
+                coroutineScope.launch {
+                    try {
+                        playerViewModel?.loadAudioFromTrack(selectedTrackEntity)
+                        Log.d("SpotifySearch", "🎵 Track Spotify como playlist: ${track.name} (${selectedIndex + 1}/${allTracks.size})")
+                    } catch (e: Exception) {
+                        Log.e("SpotifySearch", "Error al reproducir track de Spotify", e)
+                    }
+                }
+            },
+            playerViewModel = playerViewModel,
+            coroutineScope = coroutineScope
         )
     }
 
@@ -2583,6 +2629,7 @@ private fun SearchMainView(
         YouTubeSearchResultsView(
             results = results,
             onVideoSelected = onVideoSelected,
+            onVideoSelectedFromSearch = onVideoSelectedFromSearch,
             playerViewModel = playerViewModel,
             coroutineScope = coroutineScope
         )
@@ -2593,7 +2640,10 @@ private fun SearchMainView(
 private fun SpotifySearchResultsView(
     results: SpotifySearchAllResponse?,
     onAlbumSelected: (SpotifyAlbum) -> Unit,
-    onPlaylistSelected: (SpotifyPlaylist) -> Unit
+    onPlaylistSelected: (SpotifyPlaylist) -> Unit,
+    onTrackSelectedFromSearch: (SpotifyTrack, List<SpotifyTrack>, Int) -> Unit = { _, _, _ -> },
+    playerViewModel: PlayerViewModel? = null,
+    coroutineScope: CoroutineScope? = null
 ) {
     // Debug log para verificar que la UI recibe los datos
     android.util.Log.d("SpotifySearchResultsView", "Rendering with results: tracks=${results?.tracks?.items?.size}, albums=${results?.albums?.items?.size}, artists=${results?.artists?.items?.size}, playlists=${results?.playlists?.items?.size}")
@@ -2650,11 +2700,15 @@ private fun SpotifySearchResultsView(
                             )
                         }
                         if (tracksExpanded) {
-                            results?.tracks?.items?.forEach { track ->
+                            val allTracks = results?.tracks?.items?.filterNotNull() ?: emptyList()
+                            allTracks.forEachIndexed { index, track ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { if (track != null) Log.d("SpotifySearch", "Track seleccionado: ${track.name} by ${track.getArtistNames()}") }
+                                        .clickable { 
+                                            Log.d("SpotifySearch", "Track seleccionado como playlist: ${track.name} by ${track.getArtistNames()} (${index + 1}/${allTracks.size})")
+                                            onTrackSelectedFromSearch(track, allTracks, index)
+                                        }
                                         .padding(vertical = 4.dp, horizontal = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -2813,6 +2867,7 @@ private fun SpotifySearchResultsView(
 private fun YouTubeSearchResultsView(
     results: List<AudioItem>,
     onVideoSelected: (String, String) -> Unit,
+    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope
 ) {
@@ -2838,34 +2893,10 @@ private fun YouTubeSearchResultsView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
-                            onVideoSelected(video.videoId, video.title)
+                            // Usar la nueva función que configura toda la lista como playlist
+                            onVideoSelectedFromSearch(video.videoId, video.title, results, index)
                             
-                            // También agregar al ViewModel si está disponible
-                            playerViewModel?.let { viewModel ->
-                                coroutineScope.launch {
-                                    try {
-                                        // Crear TrackEntity temporal para reproducción individual
-                                        val trackEntity = TrackEntity(
-                                            id = "youtube_${video.videoId}",
-                                            playlistId = "search_results",
-                                            spotifyTrackId = "", // Empty string for YouTube tracks
-                                            name = video.title,
-                                            artists = video.channel,
-                                            youtubeVideoId = video.videoId,
-                                            audioUrl = null, // Se obtendrá dinámicamente
-                                            position = 0,
-                                            lastSyncTime = System.currentTimeMillis()
-                                        )
-                                        
-                                        // Establecer como playlist de un solo track
-                                        viewModel.setCurrentPlaylist(listOf(trackEntity), 0)
-                                        
-                                        Log.d("YouTubeSearch", "🎵 Video seleccionado: ${video.title}")
-                                    } catch (e: Exception) {
-                                        Log.e("YouTubeSearch", "Error al configurar reproducción", e)
-                                    }
-                                }
-                            }
+                            Log.d("YouTubeSearch", "🎵 Video seleccionado como parte de playlist: ${video.title} (${index + 1}/${results.size})")
                         }
                         .padding(vertical = 4.dp, horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -2929,7 +2960,8 @@ fun SpotifyAlbumDetailView(
     onStart: () -> Unit,
     onRandom: () -> Unit,
     onSave: () -> Unit,
-    playerViewModel: PlayerViewModel?
+    playerViewModel: PlayerViewModel?,
+    coroutineScope: CoroutineScope
 ) {
     Column(
         modifier = Modifier.fillMaxSize()
@@ -3087,7 +3119,14 @@ fun SpotifyAlbumDetailView(
                                     
                                     // Buscar y reproducir el track seleccionado
                                     val selectedTrackEntity = trackEntities[index]
-                                    Log.d("SpotifyAlbum", "Configurada playlist con ${trackEntities.size} tracks, iniciando desde track ${index + 1}")
+                                    coroutineScope.launch {
+                                        try {
+                                            viewModel.loadAudioFromTrack(selectedTrackEntity)
+                                            Log.d("SpotifyAlbum", "🎵 Reproduciendo track ${index + 1}/${trackEntities.size}: ${selectedTrackEntity.name}")
+                                        } catch (e: Exception) {
+                                            Log.e("SpotifyAlbum", "Error al reproducir track de álbum", e)
+                                        }
+                                    }
                                 }
                             }
                             .padding(vertical = 4.dp),

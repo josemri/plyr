@@ -30,6 +30,8 @@ import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyTokens
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyAuthEvent
+import com.plyr.model.AudioItem
+import com.plyr.database.TrackEntity
 import android.net.Uri
 
 /**
@@ -205,6 +207,9 @@ class MainActivity : ComponentActivity() {
                     onVideoSelected = { videoId, title ->
                         handleVideoSelection(videoId, title, onVideoIdChange, playerViewModel)
                     },
+                    onVideoSelectedFromSearch = { videoId, title, searchResults, selectedIndex ->
+                        handleVideoSelectionFromSearch(videoId, title, searchResults, selectedIndex, onVideoIdChange, playerViewModel)
+                    },
                     onThemeChanged = { newTheme ->
                         selectedTheme.value = newTheme
                     },
@@ -216,6 +221,7 @@ class MainActivity : ComponentActivity() {
     
     /**
      * Maneja la selección de un video para reproducir.
+     * Si el video viene de una búsqueda, configura toda la lista como playlist.
      */
     private fun handleVideoSelection(
         videoId: String,
@@ -243,6 +249,49 @@ class MainActivity : ComponentActivity() {
         } else {
             // Si no hay playlist, reproducir solo el videoId
             musicService?.playAudio(videoId)
+        }
+    }
+    
+    /**
+     * Maneja la selección de un video desde resultados de búsqueda.
+     * Configura toda la lista de resultados como playlist temporal.
+     */
+    private fun handleVideoSelectionFromSearch(
+        videoId: String,
+        title: String,
+        searchResults: List<AudioItem>,
+        selectedIndex: Int,
+        onVideoIdChange: (String?) -> Unit,
+        playerViewModel: PlayerViewModel
+    ) {
+        onVideoIdChange(videoId)
+        playerViewModel.initializePlayer()
+        
+        // Convertir los resultados de búsqueda a TrackEntity para crear una playlist temporal
+        val searchPlaylist = searchResults.mapIndexed { index, audioItem ->
+            TrackEntity(
+                id = "search_${audioItem.videoId ?: audioItem.title}_$index",
+                playlistId = "search_results_${System.currentTimeMillis()}",
+                spotifyTrackId = "", // Empty string for YouTube tracks
+                name = audioItem.title,
+                artists = audioItem.channel ?: "Desconocido",
+                youtubeVideoId = audioItem.videoId,
+                audioUrl = null,
+                position = index,
+                lastSyncTime = System.currentTimeMillis()
+            )
+        }
+        
+        // Establecer la playlist de búsqueda en el PlayerViewModel
+        playerViewModel.setCurrentPlaylist(searchPlaylist, selectedIndex)
+        
+        // Cargar el video seleccionado
+        playerViewModel.loadAudio(videoId, title)
+
+        // Configurar el servicio para reproducción en background
+        val audioUrls = searchPlaylist.mapNotNull { it.youtubeVideoId }
+        if (audioUrls.isNotEmpty()) {
+            musicService?.playPlaylist(audioUrls, selectedIndex)
         }
     }    
     /**
