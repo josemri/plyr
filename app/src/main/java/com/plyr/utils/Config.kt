@@ -42,7 +42,7 @@ object Config {
     const val SPOTIFY_REDIRECT_URI = "plyr://spotify/callback"
     
     /** Permisos solicitados a Spotify */
-    const val SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative"
+    const val SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private user-library-modify user-library-read"
     
     // === MÉTODOS PRIVADOS ===
     

@@ -491,7 +491,13 @@ object SpotifyRepository {
                     callback(true, null)
                 } else {
                     val errorBody = response.body?.string()
-                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                    
+                    // Detectar error de scopes insuficientes
+                    if (response.code == 403 && errorBody?.contains("Insufficient client scope") == true) {
+                        callback(false, "Permisos insuficientes. Desconecta y vuelve a conectar Spotify para obtener todos los permisos necesarios.")
+                    } else {
+                        callback(false, "Error HTTP ${response.code}: $errorBody")
+                    }
                 }
             }
         })
@@ -516,7 +522,13 @@ object SpotifyRepository {
                     callback(true, null)
                 } else {
                     val errorBody = response.body?.string()
-                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                    
+                    // Detectar error de scopes insuficientes
+                    if (response.code == 403 && errorBody?.contains("Insufficient client scope") == true) {
+                        callback(false, "Permisos insuficientes. Desconecta y vuelve a conectar Spotify para obtener todos los permisos necesarios.")
+                    } else {
+                        callback(false, "Error HTTP ${response.code}: $errorBody")
+                    }
                 }
             }
         })
