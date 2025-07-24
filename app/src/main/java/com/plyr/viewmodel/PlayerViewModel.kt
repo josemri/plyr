@@ -22,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -286,6 +287,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     Player.STATE_READY -> {
                         Log.d(TAG, "ExoPlayer listo para reproducir")
                         
+                        // Limpiar estado de carga cuando el player esté listo
+                        _isLoading.postValue(false)
+                        
                         // Cuando el player actual esté listo, iniciar preloading de la siguiente canción
                         // Pero solo si no hay preloading activo ya
                         if (!_isPreloading) {
@@ -404,9 +408,47 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         getApplication<Application>().startService(serviceIntent)
     }
 
-    // Reemplazar la lógica de reproducción directa con la delegación al servicio
+    // Reproduce audio directamente usando ExoPlayer en lugar de delegar al servicio
     private fun playAudioFromUrl(audioUrl: String) {
-        playAudioInService(audioUrl)
+        _audioUrl.postValue(audioUrl)
+        
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // Asegurar que el ExoPlayer esté inicializado
+                if (_exoPlayer == null) {
+                    Log.d(TAG, "🎵 Inicializando ExoPlayer para reproducción directa...")
+                    initializePlayer()
+                    
+                    // Esperar a que la inicialización se complete
+                    var attempts = 0
+                    while (_exoPlayer == null && attempts < 50) {
+                        delay(50)
+                        attempts++
+                    }
+                    
+                    if (_exoPlayer == null) {
+                        Log.e(TAG, "❌ Error: ExoPlayer no se inicializó correctamente")
+                        updateLoadingState(false, "Error: No se pudo inicializar el reproductor")
+                        return@launch
+                    }
+                }
+                
+                _exoPlayer?.let { player ->
+                    Log.d(TAG, "🎵 Configurando ExoPlayer para URL: $audioUrl")
+                    player.setMediaItem(MediaItem.fromUri(audioUrl))
+                    player.prepare()
+                    player.play()
+                    Log.d(TAG, "✅ Reproducción iniciada para URL")
+                    updateLoadingState(false) // Limpiar estado de carga
+                } ?: run {
+                    Log.e(TAG, "❌ ExoPlayer es null después de inicialización")
+                    updateLoadingState(false, "Error: Reproductor no disponible")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error configurando ExoPlayer para URL", e)
+                handleException("Error configurando ExoPlayer", e)
+            }
+        }
     }
     
     /**

@@ -275,16 +275,16 @@ fun SearchScreen(
                     
                     when (finalSearchEngine) {
                         "youtube" -> {
-                            // Search YouTube
-                            val youtubeResults = youtubeSearchManager.searchYouTubeVideos(finalQuery)
-                            // Convert YouTube IDs to AudioItem objects
-                            results = youtubeResults.map { videoId ->
+                            // Search YouTube with detailed information
+                            val youtubeResults = youtubeSearchManager.searchYouTubeVideosDetailed(finalQuery)
+                            // Convert YouTube video info to AudioItem objects
+                            results = youtubeResults.map { videoInfo ->
                                 AudioItem(
-                                    title = "Video $videoId", // We'd need actual title from search results
+                                    title = videoInfo.title,
                                     url = "", // Use empty string for url, required by AudioItem
-                                    videoId = videoId,
-                                    channel = "Unknown", // We'd need actual channel from search results
-                                    duration = "Unknown"
+                                    videoId = videoInfo.videoId,
+                                    channel = videoInfo.uploader,
+                                    duration = videoInfo.getFormattedDuration()
                                 )
                             }
                             isLoading = false
@@ -1782,14 +1782,6 @@ fun PlaylistsScreen(
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = FontFamily.Monospace,
                                             color = Color(0xFFE0E0E0)
-                                        )
-                                    )
-                                    Text(
-                                        text = "  (${playlist.getTrackCount()})",
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFF95A5A6)
-
                                         )
                                     )
                                 }

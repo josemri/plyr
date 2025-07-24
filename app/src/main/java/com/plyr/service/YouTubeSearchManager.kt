@@ -34,7 +34,7 @@ class YouTubeSearchManager(private val context: Context) {
     companion object {
         private const val TAG = "YouTubeSearchManager"
         private const val SEARCH_DELAY = 2000L // Delay entre búsquedas para evitar rate limits
-        private const val MAX_RESULTS_DEFAULT = 5
+        private const val MAX_RESULTS_DEFAULT = 50
     }
     
     // === INITIALIZATION ===
