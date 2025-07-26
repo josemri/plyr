@@ -10,13 +10,17 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import com.plyr.MainActivity
-import com.plyr.R
+import com.plyr.PlyrApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * MusicService - Servicio de música que maneja la reproducción en segundo plano
@@ -69,18 +73,30 @@ class MusicService : Service() {
         createNotificationChannel()
         setupPlayerListener()
     }
-    
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        createNotificationChannel()
-        val notification = createNotification()
-        startForeground(NOTIFICATION_ID, notification)
 
-        // Manejar intent para reproducir audio
-        val audioUrl = intent?.getStringExtra("AUDIO_URL")
-        if (audioUrl != null) {
-            playAudio(audioUrl)
+      override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        var plyr = (application as PlyrApp).playerViewModel
+        when (intent?.action) {
+            "ACTION_PLAY" -> plyr.pausePlayer()
+            "ACTION_PAUSE" -> plyr.playPlayer()
+            "ACTION_NEXT" -> CoroutineScope(Dispatchers.Default).launch {
+                if (plyr.hasNext.value) plyr.navigateToNext()
+                else {
+                    Log.d("MusicService", "No next track available")
+                }
+            }
+            "ACTION_PREV" -> CoroutineScope(Dispatchers.Default).launch {
+                if (plyr.hasPrevious.value) plyr.navigateToPrevious()
+                else {
+                    Log.d("MusicService", "No previous track available")
+                }
+            }
+            else -> {
+                // Existing logic for AUDIO_URL
+                val audioUrl = intent?.getStringExtra("AUDIO_URL")
+                if (audioUrl != null) playAudio(audioUrl)
+            }
         }
-
         return START_STICKY
     }
 
@@ -171,31 +187,56 @@ class MusicService : Service() {
      * Crea la notificación para el servicio en primer plano.
      * @return Notificación configurada para reproducción de música
      */
-    /*
     private fun createNotification(): Notification {
-        val pendingIntent = createMainActivityPendingIntent()
-        
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val playIntent = Intent(this, MusicService::class.java).apply { action = "ACTION_PLAY" }
+        val pauseIntent = Intent(this, MusicService::class.java).apply { action = "ACTION_PAUSE" }
+        val nextIntent = Intent(this, MusicService::class.java).apply { action = "ACTION_NEXT" }
+        val prevIntent = Intent(this, MusicService::class.java).apply { action = "ACTION_PREV" }
+
+        val playPendingIntent = PendingIntent.getService(this, 0, playIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val pausePendingIntent = PendingIntent.getService(this, 1, pauseIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val nextPendingIntent = PendingIntent.getService(this, 2, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val prevPendingIntent = PendingIntent.getService(this, 3, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+
+        val plyr = (application as PlyrApp).playerViewModel
+
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Music Player")
             .setContentText("Reproduciendo música")
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(createMainActivityPendingIntent())
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-    }
-    */
-    private fun createNotification(): Notification {
-    val pendingIntent = createMainActivityPendingIntent()
-    return NotificationCompat.Builder(this, CHANNEL_ID)
-        .setContentTitle("Music Player")
-        .setContentText("Reproduciendo música")
-        .setSmallIcon(android.R.drawable.ic_media_play)
-        .setContentIntent(pendingIntent)
-        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-        .setPriority(NotificationCompat.PRIORITY_LOW)
-        .setStyle(androidx.media.app.NotificationCompat.MediaStyle())
-        .build()
+
+        val compactActions = mutableListOf<Int>()
+        var actionIndex=0
+
+        if(plyr.hasPrevious.value){
+            builder.addAction(android.R.drawable.ic_media_previous, "Previous", prevPendingIntent)
+            compactActions.add(actionIndex)
+            actionIndex++
+        }
+
+        builder.addAction(
+            if (plyr.isPlaying()) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+            if (plyr.isPlaying()) "Pause" else "Play",
+            if (plyr.isPlaying()) pausePendingIntent else playPendingIntent
+        )
+        compactActions.add(actionIndex)
+        actionIndex++
+
+        if(plyr.hasNext.value) {
+            builder.addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent)
+            compactActions.add(actionIndex)
+            actionIndex++
+        }
+
+        builder.setStyle(androidx.media.app.NotificationCompat.MediaStyle()
+            .setShowActionsInCompactView(*compactActions.toIntArray())
+        )
+
+
+        return builder.build()
     }
     
     /**

@@ -18,6 +18,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:name=".PlyrApp"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Plyr"
@@ -50,9 +51,9 @@
             </intent-filter>
         </activity>
 
-        <service 
-            android:name=".service.MusicService" 
-            android:exported="false" 
+        <service
+            android:name=".service.MusicService"
+            android:exported="false"
             android:foregroundServiceType="mediaPlayback">
         </service>
 

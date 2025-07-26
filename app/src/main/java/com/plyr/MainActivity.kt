@@ -113,7 +113,8 @@ class MainActivity : ComponentActivity() {
      */
     private fun setupUIContent() {
         setContent {
-            val playerViewModel: PlayerViewModel = viewModel()
+            var playerViewModel = (application as PlyrApp).playerViewModel
+            //val playerViewModel: PlayerViewModel = viewModel()
             var currentScreen by remember { mutableStateOf("list") }
             var selectedVideoId by remember { mutableStateOf<String?>(null) }
             
