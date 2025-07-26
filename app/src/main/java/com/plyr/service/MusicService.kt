@@ -12,9 +12,7 @@ import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import com.plyr.MainActivity
 import com.plyr.PlyrApp
@@ -22,77 +20,76 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-/**
- * MusicService - Servicio de música que maneja la reproducción en segundo plano
- * 
- * Este servicio es responsable de:
- * - Crear y gestionar una MediaSession para integración con el sistema
- * - Mostrar notificaciones de reproducción
- * - Mantener la reproducción activa cuando la app está en segundo plano
- * - Proporcionar controles de medios desde la barra de notificación
- * 
- * Nota: Actualmente funciona como un servicio auxiliar. El PlayerViewModel
- * maneja la lógica principal de reproducción usando NewPipe.
- */
 class MusicService : Service() {
-    
-    // === PROPIEDADES ===
-    
-    /** MediaSession para integración con el sistema de medios de Android */
-    private var mediaSession: MediaSession? = null
-    
-    /** ExoPlayer dedicado para este servicio */
-    private lateinit var player: ExoPlayer
 
-    // Declarar wakeLock como propiedad de la clase
+    // === PROPIEDADES ===
+    private var mediaSession: MediaSession? = null
     private lateinit var wakeLock: PowerManager.WakeLock
-    
+    private var playlist: List<String> = emptyList()
+    private var currentIndex: Int = 0
+
     // === CONSTANTES ===
-    
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "music_channel"
         private const val CHANNEL_NAME = "Music Playback"
         private const val CHANNEL_DESCRIPTION = "Controls for music playback"
     }
-    
+
     // === CICLO DE VIDA DEL SERVICIO ===
-    
-    /**
-     * Inicializa el servicio, ExoPlayer y MediaSession.
-     * Configura el canal de notificación y listeners.
-     */
     override fun onCreate() {
         super.onCreate()
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-        wakeLock=powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MusicService::WakeLock")
+        wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MusicService::WakeLock")
         wakeLock.acquire()
 
-        initializePlayer()
-        createMediaSession()
         createNotificationChannel()
         setupPlayerListener()
+        createMediaSession()
     }
 
-      override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        var plyr = (application as PlyrApp).playerViewModel
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val plyr = (application as PlyrApp).playerViewModel
         when (intent?.action) {
-            "ACTION_PLAY" -> plyr.pausePlayer()
-            "ACTION_PAUSE" -> plyr.playPlayer()
+            "ACTION_PLAY" -> {
+                Log.d("MusicService", "🎵 ACTION_PLAY recibido")
+                plyr.playPlayer()
+
+                // Actualizar notificación después de un breve delay
+                CoroutineScope(Dispatchers.Main).launch {
+                    kotlinx.coroutines.delay(200)
+                    updateNotification()
+                }
+            }
+            "ACTION_PAUSE" -> {
+                Log.d("MusicService", "⏸️ ACTION_PAUSE recibido")
+                plyr.pausePlayer()
+
+                // Actualizar notificación después de un breve delay
+                CoroutineScope(Dispatchers.Main).launch {
+                    kotlinx.coroutines.delay(200)
+                    updateNotification()
+                }
+            }
             "ACTION_NEXT" -> CoroutineScope(Dispatchers.Default).launch {
-                if (plyr.hasNext.value) plyr.navigateToNext()
-                else {
+                if (plyr.hasNext.value) {
+                    plyr.navigateToNext()
+                    kotlinx.coroutines.delay(300)
+                    updateNotification()
+                } else {
                     Log.d("MusicService", "No next track available")
                 }
             }
             "ACTION_PREV" -> CoroutineScope(Dispatchers.Default).launch {
-                if (plyr.hasPrevious.value) plyr.navigateToPrevious()
-                else {
+                if (plyr.hasPrevious.value) {
+                    plyr.navigateToPrevious()
+                    kotlinx.coroutines.delay(300)
+                    updateNotification()
+                } else {
                     Log.d("MusicService", "No previous track available")
                 }
             }
             else -> {
-                // Existing logic for AUDIO_URL
                 val audioUrl = intent?.getStringExtra("AUDIO_URL")
                 if (audioUrl != null) playAudio(audioUrl)
             }
@@ -100,72 +97,151 @@ class MusicService : Service() {
         return START_STICKY
     }
 
-    /**
-     * Inicializa el ExoPlayer para este servicio.
-     */
-    private fun initializePlayer() {
-        player = ExoPlayer.Builder(this).build()
-    }
-    
-    /**
-     * Crea la MediaSession para integración con el sistema.
-     */
+    // === CONFIGURACIÓN DE COMPONENTES ===
     private fun createMediaSession() {
-        mediaSession = MediaSession.Builder(this, player).build()
+        val plyr = (application as PlyrApp).playerViewModel
+        val sharedPlayer = plyr.getPlayer()
+
+        if (sharedPlayer != null) {
+            mediaSession = MediaSession.Builder(this, sharedPlayer).build()
+            Log.d("MusicService", "✅ MediaSession creada correctamente")
+        } else {
+            Log.e("MusicService", "❌ No se pudo obtener el player de PlayerViewModel")
+        }
     }
-    
-    /**
-     * Configura el listener para responder a cambios de estado del player.
-     */
-    // Playlist and current index for background navigation
-    private var playlist: List<String> = emptyList() // List of audio URLs or video IDs
-    private var currentIndex: Int = 0
 
     private fun setupPlayerListener() {
-        player.addListener(object : Player.Listener {
+        val plyr = (application as PlyrApp).playerViewModel
+        val sharedPlayer = plyr.getPlayer()
+
+        sharedPlayer?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                Log.d("MusicService", "🔄 onIsPlayingChanged: isPlaying = $isPlaying")
                 handlePlaybackStateChange(isPlaying)
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                val stateName = when (playbackState) {
+                    Player.STATE_IDLE -> "IDLE"
+                    Player.STATE_BUFFERING -> "BUFFERING"
+                    Player.STATE_READY -> "READY"
+                    Player.STATE_ENDED -> "ENDED"
+                    else -> "UNKNOWN"
+                }
+                Log.d("MusicService", "📊 onPlaybackStateChanged: state = $stateName ($playbackState)")
+
                 if (playbackState == Player.STATE_ENDED) {
                     handleTrackEnded()
                 }
             }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                Log.e("MusicService", "❌ Player error: ${error.message}", error)
+                // Reintentar o manejar el error
+                handlePlayerError(error)
+            }
         })
     }
 
-    /**
-     * Called when a track finishes playing. Plays the next track if available.
-     */
+    // === MÉTODOS DE REPRODUCCIÓN ===
+    fun playAudio(audioUrl: String) {
+        Log.d("MusicService", "🎯 playAudio llamado con: $audioUrl")
+        val plyr = (application as PlyrApp).playerViewModel
+
+        try {
+            plyr.loadAudio(audioUrl, "Audio Track")
+
+            // Esperar un poco antes de mostrar la notificación
+            CoroutineScope(Dispatchers.Main).launch {
+                kotlinx.coroutines.delay(500) // Esperar 500ms
+                startForeground(NOTIFICATION_ID, createNotification())
+            }
+        } catch (e: Exception) {
+            Log.e("MusicService", "❌ Error al reproducir audio: ${e.message}", e)
+        }
+    }
+
+    fun playPlaylist(urls: List<String>, startIndex: Int = 0) {
+        playlist = urls
+        currentIndex = startIndex.coerceIn(0, urls.size - 1)
+
+        if (playlist.isNotEmpty()) {
+            Log.d("MusicService", "📋 Playing playlist: ${playlist.size} tracks, starting at index $currentIndex")
+            playAudio(playlist[currentIndex])
+        } else {
+            Log.w("MusicService", "⚠️ Attempted to play empty playlist")
+        }
+    }
+
+    // === MANEJO DE ESTADOS ===
+    private fun handlePlaybackStateChange(isPlaying: Boolean) {
+        Log.d("MusicService", "🔄 handlePlaybackStateChange: isPlaying = $isPlaying")
+
+        val plyr = (application as PlyrApp).playerViewModel
+        val hasMedia = plyr.getPlayer()?.currentMediaItem != null
+
+        if (hasMedia || isPlaying) {
+            Log.d("MusicService", "🎵 Actualizando notificación - isPlaying: $isPlaying")
+            try {
+                // Para la primera vez, usar startForeground
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    updateNotification()
+                } else {
+                    startForeground(NOTIFICATION_ID, createNotification())
+                }
+            } catch (e: Exception) {
+                Log.e("MusicService", "❌ Error al mostrar notificación: ${e.message}", e)
+            }
+        } else {
+            Log.d("MusicService", "⏸️ Sin contenido, deteniendo servicio en primer plano")
+            stopForeground(STOP_FOREGROUND_DETACH)
+        }
+    }
+
     private fun handleTrackEnded() {
         if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
             currentIndex++
             val nextUrl = playlist[currentIndex]
+            Log.d("MusicService", "⏭️ Track ended, playing next: $nextUrl")
             playAudio(nextUrl)
         } else {
-            // End of playlist
-            stopForeground(false)
+            Log.d("MusicService", "🏁 Playlist ended")
+            stopForeground(STOP_FOREGROUND_DETACH)
         }
     }
-    
-    /**
-     * Maneja cambios en el estado de reproducción.
-     * @param isPlaying true si está reproduciendo, false si está pausado
-     */
-    private fun handlePlaybackStateChange(isPlaying: Boolean) {
-        if (isPlaying) {
-            startForeground(NOTIFICATION_ID, createNotification())
-        } else {
-            stopForeground(false)
+
+    private fun handlePlayerError(error: androidx.media3.common.PlaybackException) {
+        Log.e("MusicService", "❌ Manejando error del player: ${error.message}")
+
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // Limpiar MediaSession
+                cleanupResources()
+
+                // Esperar un momento antes de reintentar
+                kotlinx.coroutines.delay(1000)
+
+                // Recrear MediaSession con el player existente
+                createMediaSession()
+
+                // Reintentar la reproducción si hay un track actual
+                if (playlist.isNotEmpty() && currentIndex < playlist.size) {
+                    Log.d("MusicService", "🔄 Reintentando reproducción del track actual")
+                    playAudio(playlist[currentIndex])
+                }
+
+                Log.d("MusicService", "🔄 Recuperación de error completada")
+            } catch (e: Exception) {
+                Log.e("MusicService", "❌ Error durante la recuperación: ${e.message}", e)
+
+                // Si falla todo, detener el servicio
+                stopForeground(STOP_FOREGROUND_DETACH)
+                stopSelf()
+            }
         }
     }
-    
+
     // === CONFIGURACIÓN DE NOTIFICACIONES ===
-    
-    /**
-     * Crea el canal de notificación requerido para Android O+.
-     */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -176,18 +252,24 @@ class MusicService : Service() {
                 description = CHANNEL_DESCRIPTION
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setSound(null, null) // Sin sonido para la notificación
             }
-            
+
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
         }
     }
-    
-    /**
-     * Crea la notificación para el servicio en primer plano.
-     * @return Notificación configurada para reproducción de música
-     */
     private fun createNotification(): Notification {
+        val plyr = (application as PlyrApp).playerViewModel
+        val player = plyr.getPlayer()
+        val currentMediaItem = player?.currentMediaItem
+        val title = currentMediaItem?.mediaMetadata?.title?.toString() ?: "Music Player"
+
+        // Obtener el estado correcto del player
+        val isCurrentlyPlaying = player?.isPlaying == true
+
+        Log.d("MusicService", "📱 Creando notificación - Playing: $isCurrentlyPlaying, Title: $title")
+
         val playIntent = Intent(this, MusicService::class.java).apply { action = "ACTION_PLAY" }
         val pauseIntent = Intent(this, MusicService::class.java).apply { action = "ACTION_PAUSE" }
         val nextIntent = Intent(this, MusicService::class.java).apply { action = "ACTION_NEXT" }
@@ -198,51 +280,49 @@ class MusicService : Service() {
         val nextPendingIntent = PendingIntent.getService(this, 2, nextIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val prevPendingIntent = PendingIntent.getService(this, 3, prevIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        val plyr = (application as PlyrApp).playerViewModel
-
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Music Player")
-            .setContentText("Reproduciendo música")
-            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setContentText(if (isCurrentlyPlaying) "Reproduciendo..." else "En pausa")
+            .setSmallIcon(if (isCurrentlyPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play)
             .setContentIntent(createMainActivityPendingIntent())
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setShowWhen(false)
 
         val compactActions = mutableListOf<Int>()
-        var actionIndex=0
+        var actionIndex = 0
 
-        if(plyr.hasPrevious.value){
+        // Botón anterior (si hay pista anterior)
+        if (plyr.hasPrevious.value) {
             builder.addAction(android.R.drawable.ic_media_previous, "Previous", prevPendingIntent)
             compactActions.add(actionIndex)
             actionIndex++
         }
 
-        builder.addAction(
-            if (plyr.isPlaying()) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-            if (plyr.isPlaying()) "Pause" else "Play",
-            if (plyr.isPlaying()) pausePendingIntent else playPendingIntent
-        )
+        // Botón play/pause (siempre presente)
+        val playPauseIcon = if (isCurrentlyPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+        val playPauseText = if (isCurrentlyPlaying) "Pause" else "Play"
+        val playPauseIntent = if (isCurrentlyPlaying) pausePendingIntent else playPendingIntent
+
+        builder.addAction(playPauseIcon, playPauseText, playPauseIntent)
         compactActions.add(actionIndex)
         actionIndex++
 
-        if(plyr.hasNext.value) {
+        // Botón siguiente (si hay pista siguiente)
+        if (plyr.hasNext.value) {
             builder.addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent)
             compactActions.add(actionIndex)
-            actionIndex++
         }
 
+        // MediaStyle simplificado sin MediaSession token
         builder.setStyle(androidx.media.app.NotificationCompat.MediaStyle()
             .setShowActionsInCompactView(*compactActions.toIntArray())
         )
 
-
         return builder.build()
     }
-    
-    /**
-     * Crea un PendingIntent para abrir la MainActivity.
-     * @return PendingIntent configurado
-     */
+
     private fun createMainActivityPendingIntent(): PendingIntent {
         val intent = Intent(this, MainActivity::class.java)
         return PendingIntent.getActivity(
@@ -250,81 +330,43 @@ class MusicService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
-    
-    // === MÉTODOS PÚBLICOS ===
-    
     /**
-     * Reproduce audio desde una URL específica.
-     * Nota: Este método existe para compatibilidad, pero la lógica principal
-     * de reproducción se maneja en PlayerViewModel.
-     * 
-     * @param audioUrl URL del archivo de audio a reproducir
+     * Actualiza la notificación existente
      */
-    /**
-     * Play a single audio track and reset playlist state.
-     */
-    fun playAudio(audioUrl: String) {
-        playlist = listOf(audioUrl)
-        currentIndex = 0
+    private fun updateNotification() {
         try {
-            val mediaItem = MediaItem.fromUri(audioUrl)
-            player.setMediaItem(mediaItem)
-            player.prepare()
-            player.play()
+            val notification = createNotification()
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.notify(NOTIFICATION_ID, notification)
+            Log.d("MusicService", "🔄 Notificación actualizada")
         } catch (e: Exception) {
-            println("MusicService: Error reproduciendo audio: ${e.message}")
+            Log.e("MusicService", "❌ Error al actualizar notificación: ${e.message}", e)
         }
     }
 
-    /**
-     * Play a playlist (list of audio URLs or video IDs).
-     */
-    fun playPlaylist(urls: List<String>, startIndex: Int = 0) {
-        playlist = urls
-        currentIndex = startIndex.coerceIn(0, urls.size - 1)
-        if (playlist.isNotEmpty()) {
-            playAudio(playlist[currentIndex])
-        }
-    }
-    
     // === BINDING ===
-    
-    /**
-     * Binder para conectar con la Activity principal.
-     * Permite que la MainActivity acceda a los métodos del servicio.
-     */
     inner class MusicBinder : Binder() {
         fun getService(): MusicService = this@MusicService
     }
-    
-    /** Instancia del binder para conexiones */
+
     private val binder = MusicBinder()
-    
-    /**
-     * Retorna el binder cuando otra componente se conecta al servicio.
-     */
+
     override fun onBind(intent: Intent): IBinder {
         return binder
     }
-    
+
     // === LIMPIEZA DE RECURSOS ===
-    
-    /**
-     * Limpia recursos cuando el servicio es destruido.
-     * Libera el ExoPlayer y la MediaSession.
-     */
     override fun onDestroy() {
-        wakeLock.release()
+        Log.d("MusicService", "🗑️ Destruyendo MusicService")
+        if (::wakeLock.isInitialized && wakeLock.isHeld) {
+            wakeLock.release()
+        }
         cleanupResources()
         super.onDestroy()
     }
-    
-    /**
-     * Limpia todos los recursos del servicio.
-     */
+
     private fun cleanupResources() {
         mediaSession?.run {
-            player.release()
             release()
             mediaSession = null
         }

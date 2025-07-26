@@ -1763,4 +1763,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             Log.w(TAG, "⚠️ Error monitoreando memoria", e)
         }
     }
+    /**
+     * Obtiene la instancia del ExoPlayer para uso externo.
+     * @return ExoPlayer actual o null si no está inicializado
+     */
+    fun getPlayer(): ExoPlayer? {
+        return _exoPlayer
+    }
 }
