@@ -71,20 +71,38 @@ class MusicService : Service() {
                     updateNotification()
                 }
             }
-            "ACTION_NEXT" -> CoroutineScope(Dispatchers.Default).launch {
+            "ACTION_NEXT" -> {
+                Log.d("MusicService", "⏭️ ACTION_NEXT recibido")
                 if (plyr.hasNext.value) {
-                    plyr.navigateToNext()
-                    kotlinx.coroutines.delay(300)
-                    updateNotification()
+                    println("⏭️ NAVEGANDO: Siguiente canción...")
+
+                    // Ejecutar en el hilo principal
+                    CoroutineScope(Dispatchers.Main).launch {
+                        plyr.navigateToNext()
+                        val player = plyr.getPlayer()
+                        player?.playWhenReady = true
+
+                        kotlinx.coroutines.delay(300)
+                        updateNotification()
+                    }
                 } else {
                     Log.d("MusicService", "No next track available")
                 }
             }
-            "ACTION_PREV" -> CoroutineScope(Dispatchers.Default).launch {
+            "ACTION_PREV" -> {
+                Log.d("MusicService", "⏮️ ACTION_PREV recibido")
                 if (plyr.hasPrevious.value) {
-                    plyr.navigateToPrevious()
-                    kotlinx.coroutines.delay(300)
-                    updateNotification()
+                    println("⏮️ NAVEGANDO: Canción anterior...")
+
+                    // Ejecutar en el hilo principal
+                    CoroutineScope(Dispatchers.Main).launch {
+                        plyr.navigateToPrevious()
+                        val player = plyr.getPlayer()
+                        player?.playWhenReady = true
+
+                        kotlinx.coroutines.delay(300)
+                        updateNotification()
+                    }
                 } else {
                     Log.d("MusicService", "No previous track available")
                 }
@@ -117,7 +135,20 @@ class MusicService : Service() {
         sharedPlayer?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 Log.d("MusicService", "🔄 onIsPlayingChanged: isPlaying = $isPlaying")
-                handlePlaybackStateChange(isPlaying)
+
+                // Printear el estado actual
+                if (isPlaying) {
+                    println("🎵 ESTADO: PLAYING - La canción está reproduciéndose")
+                    Log.d("MusicService", "🎵 ESTADO: PLAYING")
+                } else {
+                    println("⏸️ ESTADO: PAUSED - La canción está pausada")
+                    Log.d("MusicService", "⏸️ ESTADO: PAUSED")
+                }
+
+                // Ejecutar en el hilo principal
+                CoroutineScope(Dispatchers.Main).launch {
+                    handlePlaybackStateChange(isPlaying)
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -128,17 +159,52 @@ class MusicService : Service() {
                     Player.STATE_ENDED -> "ENDED"
                     else -> "UNKNOWN"
                 }
-                Log.d("MusicService", "📊 onPlaybackStateChanged: state = $stateName ($playbackState)")
 
-                if (playbackState == Player.STATE_ENDED) {
-                    handleTrackEnded()
+                // Printear los cambios de estado
+                when (playbackState) {
+                    Player.STATE_BUFFERING -> {
+                        println("⏳ ESTADO: LOADING - Cargando canción...")
+                        Log.d("MusicService", "⏳ ESTADO: LOADING - Buffering")
+                    }
+                    Player.STATE_READY -> {
+                        println("✅ ESTADO: READY - Canción lista para reproducir")
+                        Log.d("MusicService", "✅ ESTADO: READY")
+
+                        // Verificar si debe empezar a reproducir automáticamente (en hilo principal)
+                        CoroutineScope(Dispatchers.Main).launch {
+                            val player = plyr.getPlayer()
+                            if (player?.playWhenReady == true && !player.isPlaying) {
+                                println("🚀 INICIANDO REPRODUCCIÓN AUTOMÁTICA")
+                                Log.d("MusicService", "🚀 Iniciando reproducción automática")
+                                player.play()
+                            }
+                            updateNotification()
+                        }
+                    }
+                    Player.STATE_ENDED -> {
+                        println("🏁 ESTADO: ENDED - Canción terminada")
+                        Log.d("MusicService", "🏁 ESTADO: ENDED")
+                        CoroutineScope(Dispatchers.Main).launch {
+                            handleTrackEnded()
+                        }
+                    }
+                    Player.STATE_IDLE -> {
+                        println("💤 ESTADO: IDLE - Player inactivo")
+                        Log.d("MusicService", "💤 ESTADO: IDLE")
+                    }
                 }
+
+                Log.d("MusicService", "📊 onPlaybackStateChanged: state = $stateName ($playbackState)")
             }
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                println("❌ ESTADO: ERROR - ${error.message}")
                 Log.e("MusicService", "❌ Player error: ${error.message}", error)
-                // Reintentar o manejar el error
-                handlePlayerError(error)
+
+                // Ejecutar en el hilo principal
+                CoroutineScope(Dispatchers.Main).launch {
+                    handlePlayerError(error)
+                }
             }
         })
     }
@@ -146,21 +212,26 @@ class MusicService : Service() {
     // === MÉTODOS DE REPRODUCCIÓN ===
     fun playAudio(audioUrl: String) {
         Log.d("MusicService", "🎯 playAudio llamado con: $audioUrl")
+        println("🎯 INICIANDO CARGA: $audioUrl")
+
         val plyr = (application as PlyrApp).playerViewModel
 
         try {
             plyr.loadAudio(audioUrl, "Audio Track")
 
-            // Esperar un poco antes de mostrar la notificación
+            // Asegurar que se reproduce cuando esté listo (en hilo principal)
             CoroutineScope(Dispatchers.Main).launch {
-                kotlinx.coroutines.delay(500) // Esperar 500ms
+                val player = plyr.getPlayer()
+                player?.playWhenReady = true
+
+                kotlinx.coroutines.delay(500)
                 startForeground(NOTIFICATION_ID, createNotification())
             }
         } catch (e: Exception) {
+            println("❌ ERROR AL CARGAR: ${e.message}")
             Log.e("MusicService", "❌ Error al reproducir audio: ${e.message}", e)
         }
     }
-
     fun playPlaylist(urls: List<String>, startIndex: Int = 0) {
         playlist = urls
         currentIndex = startIndex.coerceIn(0, urls.size - 1)
