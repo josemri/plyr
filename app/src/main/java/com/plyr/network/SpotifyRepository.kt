@@ -656,6 +656,78 @@ object SpotifyRepository {
         fetchPage(0)
     }
 
+    // Obtener el user_id del usuario actual
+    fun getCurrentUserId(accessToken: String, callback: (String?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/me")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Network error: ${e.message}")
+            }
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    try {
+                        val json = gson.fromJson(body, Map::class.java)
+                        val userId = json["id"] as? String
+                        callback(userId, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing user id: ${e.message}")
+                    }
+                } else {
+                    callback(null, "HTTP error ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Crear playlist
+    fun createPlaylist(
+        accessToken: String,
+        name: String,
+        description: String,
+        isPublic: Boolean,
+        callback: (Boolean, String?) -> Unit
+    ) {
+        getCurrentUserId(accessToken) { userId, error ->
+            if (userId == null) {
+                callback(false, error ?: "Could not get user id")
+                return@getCurrentUserId
+            }
+            val url = "https://api.spotify.com/v1/users/$userId/playlists"
+            val jsonBody = """
+            {
+                "name": "$name",
+                "description": "$description",
+                "public": $isPublic
+            }
+        """.trimIndent()
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .addHeader("Content-Type", "application/json")
+                .post(jsonBody.toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(false, "Network error: ${e.message}")
+                }
+                override fun onResponse(call: Call, response: Response) {
+                    if (response.isSuccessful) {
+                        callback(true, null)
+                    } else {
+                        val errorBody = response.body?.string()
+                        callback(false, "HTTP error ${response.code}: $errorBody")
+                    }
+                }
+            })
+        }
+    }
+
     private fun createBasicAuthHeader(context: Context): String {
         val credentials = "${Config.getSpotifyClientId(context)}:${Config.getSpotifyClientSecret(context)}"
         val encodedCredentials = Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)

@@ -51,6 +51,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -125,6 +126,141 @@ fun AudioListScreen(
     }
 }
 
+
+// Place this at the top level, outside of any other composable
+@Composable
+fun CreateSpotifyPlaylistScreen(
+    onBack: () -> Unit,
+    onPlaylistCreated: () -> Unit
+) {
+    var playlistName by remember { mutableStateOf("") }
+    var playlistDesc by remember { mutableStateOf("") }
+    var isPublic by remember { mutableStateOf(true) }
+    var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    BackHandler {
+        onBack()
+    }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "$ create_playlist",
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 20.sp,
+                color = Color(0xFF4ECDC4)
+            ),
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(
+            value = playlistName,
+            onValueChange = { playlistName = it },
+            label = { Text("Playlist name") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = playlistDesc,
+            onValueChange = { playlistDesc = it },
+            label = { Text("Description (optional)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            // Opción Public
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable { isPublic = true }
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "public",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (isPublic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(8.dp)
+            ) {
+                Text(
+                    text = "/",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+            // Opción Private
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable { isPublic = false }
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "private",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (!isPublic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = if (isLoading) "<creating...>" else "<create>",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                color = if (isLoading) Color(0xFFFFD93D) else Color(0xFF4ECDC4)
+            ),
+            modifier = Modifier
+                .clickable(enabled = !isLoading && playlistName.isNotBlank()) {
+                    // Acción de crear playlist
+                    isLoading = true
+                    error = null
+                    val accessToken = Config.getSpotifyAccessToken(context)
+                    if (accessToken != null) {
+                        SpotifyRepository.createPlaylist(
+                            accessToken,
+                            playlistName,
+                            playlistDesc,
+                            isPublic
+                        ) { success, errMsg ->
+                            isLoading = false
+                            if (success) onPlaylistCreated() else error = errMsg ?: "Unknown error"
+                        }
+                    } else {
+                        isLoading = false
+                        error = "Spotify not connected"
+                    }
+                }
+                .padding(8.dp)
+        )
+        error?.let {
+            Spacer(Modifier.height(8.dp))
+            Text("Error: $it", color = Color.Red)
+        }
+    }
+}
+
 @Composable
 fun HomeScreen(
     context: Context,
@@ -172,8 +308,8 @@ fun HomeScreen(
         val options = remember {
             listOf(
                 MenuOption(Screen.SEARCH, "> search"),
-                MenuOption(Screen.QUEUE, "> queue"),
                 MenuOption(Screen.PLAYLISTS, "> playlists"),
+                MenuOption(Screen.QUEUE, "> queue"),
                 MenuOption(Screen.CONFIG, "> settings")
             )
         }
@@ -691,10 +827,10 @@ fun QueueScreen(
     ) {
         // Header
         Text(
-            text = "$ queue_manager",
+            text = "$ plyr_queue",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 20.sp,
+                fontSize = 24.sp,
                 color = Color(0xFF4ECDC4)
             ),
             modifier = Modifier.padding(bottom = 16.dp)
@@ -945,7 +1081,7 @@ fun ConfigScreen(
             text = "$ plyr_config",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 20.sp,
+                fontSize = 24.sp,
                 color = Color(0xFF4ECDC4)
             ),
             modifier = Modifier.padding(bottom = 16.dp)
@@ -1109,7 +1245,7 @@ fun ConfigScreen(
             )
             
             Text(
-                text = "    ● don't pirate music!",
+                text = "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
@@ -1259,6 +1395,7 @@ fun PlaylistsScreen(
     var playlistTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
     var isSearchingYouTubeIds by remember { mutableStateOf(false) }
+    var showCreatePlaylistScreen by remember { mutableStateOf(false) }
     
     // Tracks observados desde la base de datos
     val tracksFromDB by if (selectedPlaylistEntity != null) {
@@ -1378,12 +1515,19 @@ fun PlaylistsScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        if (showCreatePlaylistScreen) {
+            CreateSpotifyPlaylistScreen(
+                onBack = { showCreatePlaylistScreen = false },
+                onPlaylistCreated = { showCreatePlaylistScreen = false; loadPlaylists() }
+            )
+            return@Column
+        }
         // Header
         Text(
             text = if (selectedPlaylist == null) "$ plyr_lists" else "$ ${selectedPlaylist!!.name}",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 20.sp,
+                fontSize = 24.sp,
                 color = Color(0xFF4ECDC4)
             ),
             modifier = Modifier.padding(bottom = 16.dp)
@@ -1409,6 +1553,21 @@ fun PlaylistsScreen(
                         .clickable(enabled = !isSyncing) { 
                             forceSyncAll()
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        .padding(8.dp)
+                )
+                // New button
+                Text(
+                    text = "<new>",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = Color(0xFF4ECDC4)
+                    ),
+                    modifier = Modifier
+                        .clickable(enabled = !isSyncing) {
+                            // Set state to show create playlist screen
+                            showCreatePlaylistScreen = true
                         }
                         .padding(8.dp)
                 )
@@ -2494,7 +2653,7 @@ private fun SearchMainView(
         text = "$ plyr_search",
         style = MaterialTheme.typography.headlineMedium.copy(
             fontFamily = FontFamily.Monospace,
-            fontSize = 20.sp,
+            fontSize = 24.sp,
             color = Color(0xFF4ECDC4)
         ),
         modifier = Modifier.padding(bottom = 16.dp)
