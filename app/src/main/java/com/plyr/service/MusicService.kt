@@ -41,9 +41,11 @@ class MusicService : Service() {
         super.onCreate()
         val powerManager = getSystemService(POWER_SERVICE) as PowerManager
         wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MusicService::WakeLock")
-        wakeLock.acquire()
+        wakeLock.acquire(10 * 60 * 1000L /* 10 minutos */)
 
         createNotificationChannel()
+        // Iniciar foreground service con notificación persistente
+        startForeground(NOTIFICATION_ID, createNotification())
         setupPlayerListener()
         createMediaSession()
     }
@@ -73,7 +75,7 @@ class MusicService : Service() {
             }
             "ACTION_NEXT" -> {
                 Log.d("MusicService", "⏭️ ACTION_NEXT recibido")
-                if (plyr.hasNext.value) {
+                if (plyr.hasNext.value == true) {
                     println("⏭️ NAVEGANDO: Siguiente canción...")
 
                     // Ejecutar en el hilo principal
@@ -91,7 +93,7 @@ class MusicService : Service() {
             }
             "ACTION_PREV" -> {
                 Log.d("MusicService", "⏮️ ACTION_PREV recibido")
-                if (plyr.hasPrevious.value) {
+                if (plyr.hasPrevious.value == true) {
                     println("⏮️ NAVEGANDO: Canción anterior...")
 
                     // Ejecutar en el hilo principal
@@ -358,14 +360,15 @@ class MusicService : Service() {
             .setContentIntent(createMainActivityPendingIntent())
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
+            .setOngoing(true) // Notificación persistente
             .setShowWhen(false)
+            .setOnlyAlertOnce(true) // Evita alertas repetidas
 
         val compactActions = mutableListOf<Int>()
         var actionIndex = 0
 
         // Botón anterior (si hay pista anterior)
-        if (plyr.hasPrevious.value) {
+        if (plyr.hasPrevious.value == true) {
             builder.addAction(android.R.drawable.ic_media_previous, "Previous", prevPendingIntent)
             compactActions.add(actionIndex)
             actionIndex++
@@ -381,7 +384,7 @@ class MusicService : Service() {
         actionIndex++
 
         // Botón siguiente (si hay pista siguiente)
-        if (plyr.hasNext.value) {
+        if (plyr.hasNext.value == true) {
             builder.addAction(android.R.drawable.ic_media_next, "Next", nextPendingIntent)
             compactActions.add(actionIndex)
         }
