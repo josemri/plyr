@@ -1385,6 +1385,7 @@ fun PlaylistsScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
     var isSyncing by remember { mutableStateOf(false) }
+    var isEditing by remember { mutableStateOf(false) }
     
     // Convertir entidades a SpotifyPlaylist para compatibilidad con UI existente
     val playlists = playlistsFromDB.map { it.toSpotifyPlaylist() }
@@ -1790,6 +1791,92 @@ fun PlaylistsScreen(
                                     }
                                     .padding(8.dp)
                             )
+                            // Botón <edit>
+                            Text(
+                                text = if (isEditing) "<done>" else "<edit>",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 16.sp,
+                                    color = if (isEditing) Color(0xFF4ECDC4) else Color(0xFF95A5A6)
+                                ),
+                                modifier = Modifier
+                                    .clickable {
+                                        isEditing = !isEditing
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    .padding(8.dp)
+                            )
+                        }
+                        if (isEditing) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                // Botón para añadir canción
+                                Text(
+                                    text = "<add song>",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF4ECDC4)
+                                    ),
+                                    modifier = Modifier
+                                        .clickable { /* TODO: lógica para añadir canción */ }
+                                        .padding(8.dp)
+                                )
+                                // Botón para eliminar canción
+                                Text(
+                                    text = "<remove song>",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFFFF6B6B)
+                                    ),
+                                    modifier = Modifier
+                                        .clickable { /* TODO: lógica para eliminar canción */ }
+                                        .padding(8.dp)
+                                )
+                                // Cambiar título
+                                var newTitle by remember { mutableStateOf(selectedPlaylist?.name ?: "") }
+                                OutlinedTextField(
+                                    value = newTitle,
+                                    onValueChange = { newTitle = it },
+                                    label = { Text("Playlist Title") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    text = "<save title>",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF4ECDC4)
+                                    ),
+                                    modifier = Modifier
+                                        .clickable { /* TODO: lógica para guardar título */ }
+                                        .padding(8.dp)
+                                )
+                                // Cambiar descripción
+                                var newDesc by remember { mutableStateOf(selectedPlaylist?.description ?: "") }
+                                OutlinedTextField(
+                                    value = newDesc,
+                                    onValueChange = { newDesc = it },
+                                    label = { Text("Playlist Description") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    text = "<save desc>",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF4ECDC4)
+                                    ),
+                                    modifier = Modifier
+                                        .clickable { /* TODO: lógica para guardar descripción */ }
+                                        .padding(8.dp)
+                                )
+                            }
                         }
                         // Lista de tracks
                         LazyColumn(
