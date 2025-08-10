@@ -82,4 +82,6 @@ dependencies {
     kapt("androidx.room:room-compiler:2.7.2")
     implementation("androidx.media:media:1.7.0")
 
+    // Coil for image loading
+    implementation("io.coil-kt:coil-compose:2.4.0")
 }

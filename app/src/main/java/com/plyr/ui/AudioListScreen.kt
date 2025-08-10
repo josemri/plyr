@@ -39,23 +39,18 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import kotlin.math.abs
 import androidx.compose.ui.draw.clipToBounds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CoroutineScope
@@ -68,6 +63,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import com.plyr.service.YouTubeSearchManager
 import kotlinx.coroutines.Dispatchers
+import coil.compose.AsyncImage
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+
 
 // Estados para navegación
 enum class Screen {
@@ -2004,37 +2005,50 @@ fun PlaylistsScreen(
                             )
                         }
                     } else {
-                        // Lista de playlists
-                        LazyColumn(
+                        // Grilla de portadas de playlists
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 150.dp),
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             items(playlists.size) { index ->
                                 val playlist = playlists[index]
-                                Row(
+                                val playlistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
+
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
                                             selectedPlaylist = playlist
                                             loadPlaylistTracks(playlist)
-                                        }
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        },
+                                    horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Text(
-                                        text = "> ",
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFF4ECDC4)
-                                        )
+                                    // Portada de la playlist
+                                    AsyncImage(
+                                        model = playlistEntity?.imageUrl,
+                                        contentDescription = "Portada de ${playlist.name}",
+                                        modifier = Modifier
+                                            .size(150.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        placeholder = null,
+                                        error = null,
+                                        fallback = null
                                     )
+
+                                    // Nombre de la playlist (opcional, se puede quitar si solo quieres las portadas)
                                     Text(
                                         text = playlist.name,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                        style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
                                             color = Color(0xFFE0E0E0)
-                                        )
+                                        ),
+                                        modifier = Modifier.padding(top = 8.dp),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
                                 }
                             }
@@ -3093,101 +3107,15 @@ private fun SpotifySearchResultsView(
                                         )
                                         Text(
                                             text = playlist?.getTrackCount() ?: "0 tracks",
-                                            style = MaterialTheme.typography.bodySmall.copy(
+                                            style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
                                                 color = Color(0xFF95A5A6)
+
                                             )
                                         )
                                     }
                                 }
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun YouTubeSearchResultsView(
-    results: List<AudioItem>,
-    onVideoSelected: (String, String) -> Unit,
-    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = "> youtube_results (${results.size})",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF7FB069)
-            ),
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
-        
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            items(results.size) { index ->
-                val video = results[index]
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            // Usar la nueva función que configura toda la lista como playlist
-                            onVideoSelectedFromSearch(video.videoId, video.title, results, index)
-                            
-                            Log.d("YouTubeSearch", "🎵 Video seleccionado como parte de playlist: ${video.title} (${index + 1}/${results.size})")
-                        }
-                        .padding(vertical = 4.dp, horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "▶ ",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF7FB069)
-                        )
-                    )
-                    
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = video.title,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFE0E0E0)
-                            ),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = video.channel,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            
-                            Text(
-                                text = video.duration,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
-                                )
-                            )
                         }
                     }
                 }
@@ -3242,7 +3170,7 @@ fun SpotifyAlbumDetailView(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        
+
         // Información del álbum
         Text(
             text = "Artist: ${album.getArtistNames()}",
@@ -3254,7 +3182,7 @@ fun SpotifyAlbumDetailView(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        
+
         album.release_date?.let { releaseDate ->
             Text(
                 text = "Released: $releaseDate",
@@ -3265,7 +3193,7 @@ fun SpotifyAlbumDetailView(
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }
-        
+
         Text(
             text = "Tracks: ${album.total_tracks ?: tracks.size}",
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -3274,7 +3202,7 @@ fun SpotifyAlbumDetailView(
             ),
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        
+
         // Botones de acción
         Row(
             modifier = Modifier
@@ -3301,7 +3229,7 @@ fun SpotifyAlbumDetailView(
                 enabled = true
             )
         }
-        
+
         // Estados de carga y error
         if (isLoading) {
             Row(
@@ -3317,7 +3245,7 @@ fun SpotifyAlbumDetailView(
                 )
             }
         }
-        
+
         error?.let {
             Text(
                 "ERR: $it",
@@ -3328,7 +3256,7 @@ fun SpotifyAlbumDetailView(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
-        
+
         // Lista de tracks
         if (tracks.isNotEmpty()) {
             LazyColumn(
@@ -3343,7 +3271,7 @@ fun SpotifyAlbumDetailView(
                             .clickable {
                                 // Reproducir track específico
                                 Log.d("SpotifyAlbum", "🎵 Track seleccionado: ${track.name}")
-                                
+
                                 playerViewModel?.let { viewModel ->
                                     // Convertir todos los tracks del álbum a TrackEntity
                                     val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
@@ -3359,10 +3287,10 @@ fun SpotifyAlbumDetailView(
                                             lastSyncTime = System.currentTimeMillis()
                                         )
                                     }
-                                    
+
                                     // Establecer la playlist completa y comenzar desde el track seleccionado
                                     viewModel.setCurrentPlaylist(trackEntities, index)
-                                    
+
                                     // Buscar y reproducir el track seleccionado
                                     val selectedTrackEntity = trackEntities[index]
                                     coroutineScope.launch {
@@ -3419,3 +3347,74 @@ fun SpotifyAlbumDetailView(
         }
     }
 }
+
+@Composable
+private fun YouTubeSearchResultsView(
+    results: List<AudioItem>,
+    onVideoSelected: (String, String) -> Unit,
+    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
+    playerViewModel: PlayerViewModel? = null,
+    coroutineScope: CoroutineScope? = null
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "> youtube results (${results.size})",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFFFF6B6B)
+            ),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            items(results.size) { index ->
+                val result = results[index]
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            Log.d("YouTubeSearch", "Video seleccionado: ${result.title}")
+                            onVideoSelected(result.videoId, result.title)
+                            onVideoSelectedFromSearch(result.videoId, result.title, results, index)
+                        }
+                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = result.title,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFE0E0E0)
+                            ),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = result.channel,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF95A5A6)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = result.duration,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF95A5A6)
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
