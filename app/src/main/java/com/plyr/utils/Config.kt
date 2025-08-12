@@ -259,4 +259,37 @@ object Config {
     fun getSearchEngine(context: Context): String {
         return getPrefs(context).getString(KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE) ?: DEFAULT_SEARCH_ENGINE
     }
+
+    // === GESTIÓN DE TIMESTAMPS DE TOKENS ===
+
+    /**
+     * Obtiene el timestamp de cuando se guardó el token actual.
+     * @param context Contexto de la aplicación
+     * @return Timestamp en milisegundos o 0 si no existe
+     */
+    fun getSpotifyTokenTimestamp(context: Context): Long {
+        return getPrefs(context).getLong(KEY_SPOTIFY_TOKEN_EXPIRY, 0L) - (3600 * 1000L) // Restar la duración del token
+    }
+
+    /**
+     * Obtiene el tiempo de expiración en segundos del token actual.
+     * @param context Contexto de la aplicación
+     * @return Tiempo de expiración en segundos (por defecto 3600 = 1 hora)
+     */
+    fun getSpotifyTokenExpiresIn(context: Context): Int {
+        // Los tokens de Spotify duran 1 hora por defecto
+        return 3600
+    }
+
+    /**
+     * Elimina solo el token de acceso, manteniendo el refresh token.
+     * Útil para forzar renovación sin perder la capacidad de autenticación.
+     * @param context Contexto de la aplicación
+     */
+    fun clearSpotifyAccessToken(context: Context) {
+        getPrefs(context).edit {
+            remove(KEY_SPOTIFY_ACCESS_TOKEN)
+            remove(KEY_SPOTIFY_TOKEN_EXPIRY)
+        }
+    }
 }

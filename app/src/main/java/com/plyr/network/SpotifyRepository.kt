@@ -9,6 +9,7 @@ import java.io.IOException
 import android.util.Base64
 import android.content.Context
 import com.plyr.utils.Config
+import com.plyr.utils.SpotifyTokenManager
 
 object SpotifyRepository {
     
@@ -133,7 +134,14 @@ object SpotifyRepository {
         })
     }
     
-    // Obtener playlists del usuario con paginación
+    // Obtener playlists del usuario con renovación automática de tokens
+    suspend fun getUserPlaylistsWithAutoRefresh(context: Context, callback: (List<SpotifyPlaylist>?, String?) -> Unit) {
+        SpotifyTokenManager.withValidToken(context) { token ->
+            getUserPlaylists(token, callback)
+        }
+    }
+
+    // Obtener playlists del usuario con paginación (versión original para compatibilidad)
     fun getUserPlaylists(accessToken: String, callback: (List<SpotifyPlaylist>?, String?) -> Unit) {
         val maxLimit = 50 // Máximo permitido por Spotify
         var allPlaylists = mutableListOf<SpotifyPlaylist>()

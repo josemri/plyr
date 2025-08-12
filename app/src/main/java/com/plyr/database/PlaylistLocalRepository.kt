@@ -7,6 +7,7 @@ import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyTrack
 import com.plyr.utils.Config
+import com.plyr.utils.SpotifyTokenManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
@@ -327,37 +328,12 @@ class PlaylistLocalRepository(context: Context) {
 
     /**
      * Obtiene un token de acceso válido para Spotify.
-     * Intenta usar el token actual o refrescarlo automáticamente.
+     * Usa el nuevo SpotifyTokenManager para renovación automática.
      *
      * @return Token de acceso válido o null si no se pudo obtener
      */
     private suspend fun getValidAccessToken(): String? = withContext(Dispatchers.IO) {
-        val accessToken = Config.getSpotifyAccessToken(appContext)
-        if (accessToken != null) {
-            return@withContext accessToken
-        }
-
-        val refreshToken = Config.getSpotifyRefreshToken(appContext)
-        if (refreshToken != null) {
-            var newToken: String? = null
-            SpotifyRepository.refreshAccessToken(appContext, refreshToken) { token, error ->
-                if (token != null) {
-                    Config.setSpotifyTokens(appContext, token, refreshToken, 3600)
-                    newToken = token
-                }
-            }
-
-            // Esperar respuesta
-            var attempts = 0
-            while (newToken == null && attempts < 30) {
-                kotlinx.coroutines.delay(100)
-                attempts++
-            }
-
-            return@withContext newToken
-        }
-
-        return@withContext null
+        return@withContext SpotifyTokenManager.getValidAccessToken(appContext)
     }
 
     // === MÉTODOS PÚBLICOS - OPERACIONES ESPECIALES ===
