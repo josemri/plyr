@@ -27,6 +27,7 @@ object Config {
     private const val KEY_THEME = "theme"
     private const val KEY_SEARCH_ENGINE = "search_engine"
     private const val KEY_AUDIO_QUALITY = "audio_quality"
+    private const val KEY_REPEAT_MODE = "repeat_mode"
     private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
     private const val KEY_SPOTIFY_REFRESH_TOKEN = "spotify_refresh_token"
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
@@ -37,6 +38,7 @@ object Config {
     private const val DEFAULT_THEME = "dark"
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
     private const val DEFAULT_AUDIO_QUALITY = "medium"
+    private const val DEFAULT_REPEAT_MODE = "off"
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
 
@@ -65,6 +67,27 @@ object Config {
         AUDIO_QUALITY_WORST to "Baja (Menor uso de datos)",
         AUDIO_QUALITY_MEDIUM to "Media (Equilibrio recomendado)",
         AUDIO_QUALITY_BEST to "Alta (Mejor calidad)"
+    )
+
+    // === CONSTANTES PÚBLICAS DE MODO DE REPETICIÓN ===
+
+    /** Modos de repetición disponibles */
+    const val REPEAT_MODE_OFF = "off"        // Sin repetición
+    const val REPEAT_MODE_ONE = "one"        // Repetir una sola vez
+    const val REPEAT_MODE_ALL = "all"        // Repetir indefinidamente
+
+    /** Lista de todos los modos de repetición disponibles */
+    val REPEAT_MODE_OPTIONS = listOf(
+        REPEAT_MODE_OFF,
+        REPEAT_MODE_ONE,
+        REPEAT_MODE_ALL
+    )
+
+    /** Símbolos para cada modo de repetición en estilo terminal */
+    val REPEAT_MODE_SYMBOLS = mapOf(
+        REPEAT_MODE_OFF to "0",   // Círculo vacío - sin repetición
+        REPEAT_MODE_ONE to "1",   // Círculo con 1 - repetir una vez
+        REPEAT_MODE_ALL to "*"    // Infinito - repetir indefinidamente
     )
 
     // === MÉTODOS PRIVADOS ===
@@ -312,6 +335,51 @@ object Config {
      */
     fun isValidAudioQuality(quality: String): Boolean {
         return quality in AUDIO_QUALITY_OPTIONS
+    }
+
+    // === GESTIÓN DE MODO DE REPETICIÓN ===
+
+    /**
+     * Establece el modo de repetición.
+     * @param context Contexto de la aplicación
+     * @param repeatMode Modo de repetición a establecer ("off", "one", "all")
+     */
+    fun setRepeatMode(context: Context, repeatMode: String) {
+        getPrefs(context).edit {
+            putString(KEY_REPEAT_MODE, repeatMode)
+        }
+    }
+
+    /**
+     * Obtiene el modo de repetición actual de la aplicación.
+     * @param context Contexto de la aplicación
+     * @return Modo de repetición actual (por defecto "off")
+     */
+    fun getRepeatMode(context: Context): String {
+        return getPrefs(context).getString(KEY_REPEAT_MODE, DEFAULT_REPEAT_MODE) ?: DEFAULT_REPEAT_MODE
+    }
+
+    /**
+     * Obtiene el siguiente modo de repetición en el ciclo.
+     * @param currentMode Modo actual
+     * @return Siguiente modo en el ciclo off -> one -> all -> off
+     */
+    fun getNextRepeatMode(currentMode: String): String {
+        return when (currentMode) {
+            REPEAT_MODE_OFF -> REPEAT_MODE_ONE
+            REPEAT_MODE_ONE -> REPEAT_MODE_ALL
+            REPEAT_MODE_ALL -> REPEAT_MODE_OFF
+            else -> REPEAT_MODE_OFF
+        }
+    }
+
+    /**
+     * Verifica si un modo de repetición es válido.
+     * @param repeatMode Modo de repetición a verificar
+     * @return true si es válido, false en caso contrario
+     */
+    fun isValidRepeatMode(repeatMode: String): Boolean {
+        return repeatMode in REPEAT_MODE_OPTIONS
     }
 
     // === GESTIÓN DE TIMESTAMPS DE TOKENS ===

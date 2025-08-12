@@ -275,8 +275,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         playbackEndedCallback?.complete(true)
                         playbackEndedCallback = null
                         
-                        // Intentar reproducción sin delay usando preloaded track
-                        handleSeamlessTransition()
+                        // Verificar modo de repetición antes de manejar la transición
+                        handleRepeatModeTransition()
                     }
                     Player.STATE_IDLE -> {
                         Log.d(TAG, "ExoPlayer en estado IDLE")
@@ -1769,5 +1769,141 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     fun getPlayer(): ExoPlayer? {
         return _exoPlayer
+    }
+
+    // === MÉTODOS DE MODO DE REPETICIÓN ===
+
+    /**
+     * Maneja la transición basada en el modo de repetición configurado.
+     * Se llama cuando una canción termina para determinar qué hacer siguiente.
+     */
+    private fun handleRepeatModeTransition() {
+        val context = getApplication<Application>()
+        val repeatMode = Config.getRepeatMode(context)
+
+        Log.d(TAG, "🔄 Manejando transición con modo de repetición: $repeatMode")
+
+        when (repeatMode) {
+            Config.REPEAT_MODE_OFF -> {
+                // Sin repetición - comportamiento normal (navegar a siguiente)
+                Log.d(TAG, "○ Modo OFF - Navegando a siguiente canción")
+                handleSeamlessTransition()
+            }
+
+            Config.REPEAT_MODE_ONE -> {
+                // Repetir una vez - reproducir la misma canción nuevamente
+                Log.d(TAG, "① Modo ONE - Repitiendo canción actual")
+                repeatCurrentTrack()
+            }
+
+            Config.REPEAT_MODE_ALL -> {
+                // Repetir indefinidamente - al final de playlist, volver al inicio
+                Log.d(TAG, "∞ Modo ALL - Repetición continua")
+                handleInfiniteRepeat()
+            }
+
+            else -> {
+                // Modo desconocido - usar comportamiento por defecto
+                Log.w(TAG, "⚠️ Modo de repetición desconocido: $repeatMode - usando comportamiento normal")
+                handleSeamlessTransition()
+            }
+        }
+    }
+
+    /**
+     * Repite la canción actual (modo "repeat one").
+     */
+    private fun repeatCurrentTrack() {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val currentTrack = _currentTrack.value
+
+                if (currentTrack != null) {
+                    Log.d(TAG, "🔂 Repitiendo: ${currentTrack.name}")
+
+                    // Pequeña pausa antes de reiniciar
+                    kotlinx.coroutines.delay(500)
+
+                    // Recargar y reproducir la misma canción
+                    val success = loadAudioFromTrack(currentTrack)
+                    if (success) {
+                        Log.d(TAG, "✅ Repetición exitosa de: ${currentTrack.name}")
+                    } else {
+                        Log.e(TAG, "❌ Error repitiendo: ${currentTrack.name}")
+                        // Si falla la repetición, usar navegación normal como fallback
+                        handleSeamlessTransition()
+                    }
+                } else {
+                    Log.w(TAG, "⚠️ No hay track actual para repetir")
+                    handleSeamlessTransition()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error en repetición de track actual", e)
+                handleSeamlessTransition()
+            }
+        }
+    }
+
+    /**
+     * Maneja la repetición infinita de playlist (modo "repeat all").
+     * Al final de la playlist, vuelve al inicio automáticamente.
+     */
+    private fun handleInfiniteRepeat() {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // Verificar si hay siguiente canción en la playlist/cola
+                val nextTrack = getNextTrackToPlay()
+
+                if (nextTrack != null) {
+                    // Hay siguiente canción - navegación normal
+                    Log.d(TAG, "🔄 Hay siguiente canción, navegando normalmente")
+                    handleSeamlessTransition()
+                } else {
+                    // Final de playlist - volver al inicio
+                    Log.d(TAG, "🔄 Final de playlist, volviendo al inicio")
+                    restartPlaylistFromBeginning()
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error en repetición infinita", e)
+                handleSeamlessTransition()
+            }
+        }
+    }
+
+    /**
+     * Reinicia la playlist desde el primer track (para repetición infinita).
+     */
+    private suspend fun restartPlaylistFromBeginning() {
+        // Priorizar cola si está activa
+        if (_isQueueMode.value == true) {
+            Log.d(TAG, "🔄 Modo cola activo - fin de cola")
+            _isQueueMode.postValue(false)
+            updateQueueState()
+            return
+        }
+
+        // Reiniciar playlist desde el primer track
+        val playlist = _currentPlaylist.value
+        if (playlist != null && playlist.isNotEmpty()) {
+            Log.d(TAG, "🔄 Reiniciando playlist desde el inicio")
+
+            val firstTrack = playlist[0]
+            _currentTrackIndex.postValue(0)
+            _currentTrack.postValue(firstTrack)
+            updateNavigationState()
+
+            // Pequeña pausa antes de reiniciar
+            kotlinx.coroutines.delay(1000)
+
+            // Cargar y reproducir el primer track
+            val success = loadAudioFromTrack(firstTrack)
+            if (success) {
+                Log.d(TAG, "✅ Playlist reiniciada desde: ${firstTrack.name}")
+            } else {
+                Log.e(TAG, "❌ Error reiniciando playlist")
+            }
+        } else {
+            Log.w(TAG, "⚠️ No hay playlist para reiniciar")
+        }
     }
 }

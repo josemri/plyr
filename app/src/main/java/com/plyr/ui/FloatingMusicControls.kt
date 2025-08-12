@@ -30,6 +30,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.IntOffset
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
+import com.plyr.utils.Config
 import com.plyr.ui.theme.TerminalTheme
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.delay
@@ -600,7 +601,7 @@ private fun ProgressIndicator(progress: Float, isDragging: Boolean) {
 }
 
 /**
- * Fila de controles de reproducción (anterior, play/pause, siguiente).
+ * Fila de controles de reproducción (anterior, play/pause, siguiente, repetición).
  */
 @Composable
 private fun PlaybackControlsRow(
@@ -612,50 +613,78 @@ private fun PlaybackControlsRow(
     playerViewModel: PlayerViewModel
 ) {
     val coroutineScope = rememberCoroutineScope()
-    
-    Row(
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Estado del modo de repetición
+    var currentRepeatMode by remember { mutableStateOf(Config.getRepeatMode(context)) }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 6.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(top = 6.dp)
     ) {
-        // Botón anterior
-        PlaybackButton(
-            text = "<<",
-            fontSize = 16.sp,
-            isEnabled = audioUrl != null && !isLoading && hasPrevious,
-            onClick = { 
-                coroutineScope.launch {
-                    playerViewModel.navigateToPrevious()
+        // Botones principales centrados
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.Center),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Botón anterior
+            PlaybackButton(
+                text = "<<",
+                fontSize = 16.sp,
+                isEnabled = audioUrl != null && !isLoading && hasPrevious,
+                onClick = {
+                    coroutineScope.launch {
+                        playerViewModel.navigateToPrevious()
+                    }
                 }
-            }
-        )
+            )
 
-        // Botón play/pause principal
-        PlaybackButton(
-            text = if (isPlaying) "//" else ">",
-            fontSize = 24.sp,
+            Spacer(modifier = Modifier.width(24.dp))
+
+            // Botón play/pause principal
+            PlaybackButton(
+                text = if (isPlaying) "//" else ">",
+                fontSize = 24.sp,
+                isEnabled = audioUrl != null && !isLoading,
+                onClick = {
+                    if (isPlaying) {
+                        playerViewModel.pausePlayer()
+                    } else {
+                        playerViewModel.playPlayer()
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.width(24.dp))
+
+            // Botón siguiente
+            PlaybackButton(
+                text = ">>",
+                fontSize = 16.sp,
+                isEnabled = audioUrl != null && !isLoading && hasNext,
+                onClick = {
+                    coroutineScope.launch {
+                        playerViewModel.navigateToNext()
+                    }
+                }
+            )
+        }
+
+        // Botón de repetición en la esquina inferior derecha
+        RepeatButton(
+            currentMode = currentRepeatMode,
             isEnabled = audioUrl != null && !isLoading,
             onClick = {
-                if (isPlaying) {
-                    playerViewModel.pausePlayer()
-                } else {
-                    playerViewModel.playPlayer()
-                }
-            }
-        )
-
-        // Botón siguiente
-        PlaybackButton(
-            text = ">>",
-            fontSize = 16.sp,
-            isEnabled = audioUrl != null && !isLoading && hasNext,
-            onClick = { 
-                coroutineScope.launch {
-                    playerViewModel.navigateToNext()
-                }
-            }
+                val nextMode = Config.getNextRepeatMode(currentRepeatMode)
+                currentRepeatMode = nextMode
+                Config.setRepeatMode(context, nextMode)
+                // TODO: Aplicar la lógica de repetición al PlayerViewModel
+            },
+            modifier = Modifier.align(Alignment.BottomEnd)
         )
     }
 }
@@ -680,6 +709,42 @@ private fun PlaybackButton(
         modifier = Modifier
             .clickable(enabled = isEnabled) { onClick() }
             .padding(6.dp)
+    )
+}
+
+/**
+ * Botón de repetición con estilo terminal que cicla entre modos.
+ */
+@Composable
+private fun RepeatButton(
+    currentMode: String,
+    isEnabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val symbol = when (currentMode) {
+        Config.REPEAT_MODE_OFF -> "o"   // Sin repetición
+        Config.REPEAT_MODE_ONE -> "1"   // Repetir una vez
+        Config.REPEAT_MODE_ALL -> "*"   // Repetir indefinidamente
+        else -> "o"
+    }
+    val color = when (currentMode) {
+        Config.REPEAT_MODE_OFF -> MaterialTheme.colorScheme.outline
+        Config.REPEAT_MODE_ONE -> Color(0xFFFFD93D)
+        Config.REPEAT_MODE_ALL -> Color(0xFF4ECDC4)
+        else -> MaterialTheme.colorScheme.outline
+    }
+
+    Text(
+        text = symbol,
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp
+        ),
+        color = if (isEnabled) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+        modifier = modifier
+            .clickable(enabled = isEnabled) { onClick() }
+            .padding(4.dp)
     )
 }
 
