@@ -215,6 +215,118 @@ fun ConfigScreen(
 
         Spacer(modifier = Modifier.height(30.dp))
 
+        // Selector de calidad de audio
+        Text(
+            text = "> audio_quality",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 16.sp,
+            ),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        // Estado para la calidad de audio
+        var selectedAudioQuality by remember { mutableStateOf(Config.getAudioQuality(context)) }
+
+        // Aplicar cambios cuando cambie la selección
+        LaunchedEffect(selectedAudioQuality) {
+            Config.setAudioQuality(context, selectedAudioQuality)
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            // Opción Worst
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable {
+                        selectedAudioQuality = Config.AUDIO_QUALITY_WORST
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "low",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (selectedAudioQuality == Config.AUDIO_QUALITY_WORST) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(8.dp)
+            ){
+                Text(
+                    text = "/",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+
+            // Opción Medium
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable {
+                        selectedAudioQuality = Config.AUDIO_QUALITY_MEDIUM
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "med",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (selectedAudioQuality == Config.AUDIO_QUALITY_MEDIUM) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(8.dp)
+            ){
+                Text(
+                    text = "/",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+
+            // Opción Best
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clickable {
+                        selectedAudioQuality = Config.AUDIO_QUALITY_BEST
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    .padding(8.dp)
+            ) {
+                Text(
+                    text = "high",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = if (selectedAudioQuality == Config.AUDIO_QUALITY_BEST) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(30.dp))
+
         // Información de uso
         Column {
             Text(
@@ -345,6 +457,7 @@ fun ConfigScreen(
         // Configuración de API de Spotify
         SpotifyApiConfigSection(context = context)
 
+        Spacer(modifier = Modifier.height(30.dp))
     }
 }
 
@@ -529,5 +642,17 @@ fun SpotifyApiConfigSection(context: Context) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Función helper para obtener información descriptiva sobre cada calidad de audio
+ */
+private fun getAudioQualityInfo(quality: String): String {
+    return when (quality) {
+        Config.AUDIO_QUALITY_WORST -> "64kbps • ~0.5MB/min • saves data"
+        Config.AUDIO_QUALITY_MEDIUM -> "128kbps • ~1MB/min • balanced (default)"
+        Config.AUDIO_QUALITY_BEST -> "192kbps+ • ~1.5MB/min • best quality"
+        else -> "unknown quality"
     }
 }

@@ -26,6 +26,7 @@ object Config {
     // Claves para SharedPreferences
     private const val KEY_THEME = "theme"
     private const val KEY_SEARCH_ENGINE = "search_engine"
+    private const val KEY_AUDIO_QUALITY = "audio_quality"
     private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
     private const val KEY_SPOTIFY_REFRESH_TOKEN = "spotify_refresh_token"
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
@@ -35,6 +36,7 @@ object Config {
     // Valores por defecto
     private const val DEFAULT_THEME = "dark"
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
+    private const val DEFAULT_AUDIO_QUALITY = "medium"
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
 
@@ -44,6 +46,27 @@ object Config {
     /** Permisos solicitados a Spotify */
     const val SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private user-library-modify user-library-read"
     
+    // === CONSTANTES PÚBLICAS DE CALIDAD DE AUDIO ===
+
+    /** Calidades de audio disponibles */
+    const val AUDIO_QUALITY_WORST = "worst"
+    const val AUDIO_QUALITY_MEDIUM = "medium"
+    const val AUDIO_QUALITY_BEST = "best"
+
+    /** Lista de todas las calidades de audio disponibles */
+    val AUDIO_QUALITY_OPTIONS = listOf(
+        AUDIO_QUALITY_WORST,
+        AUDIO_QUALITY_MEDIUM,
+        AUDIO_QUALITY_BEST
+    )
+
+    /** Descripciones amigables para cada calidad de audio */
+    val AUDIO_QUALITY_DESCRIPTIONS = mapOf(
+        AUDIO_QUALITY_WORST to "Baja (Menor uso de datos)",
+        AUDIO_QUALITY_MEDIUM to "Media (Equilibrio recomendado)",
+        AUDIO_QUALITY_BEST to "Alta (Mejor calidad)"
+    )
+
     // === MÉTODOS PRIVADOS ===
     
     /**
@@ -258,6 +281,37 @@ object Config {
      */
     fun getSearchEngine(context: Context): String {
         return getPrefs(context).getString(KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE) ?: DEFAULT_SEARCH_ENGINE
+    }
+
+    // === GESTIÓN DE CALIDAD DE AUDIO ===
+
+    /**
+     * Establece la calidad de audio predeterminada.
+     * @param context Contexto de la aplicación
+     * @param quality Calidad de audio a establecer ("worst", "medium", "best")
+     */
+    fun setAudioQuality(context: Context, quality: String) {
+        getPrefs(context).edit {
+            putString(KEY_AUDIO_QUALITY, quality)
+        }
+    }
+
+    /**
+     * Obtiene la calidad de audio actual de la aplicación.
+     * @param context Contexto de la aplicación
+     * @return Calidad de audio actual (por defecto "medium")
+     */
+    fun getAudioQuality(context: Context): String {
+        return getPrefs(context).getString(KEY_AUDIO_QUALITY, DEFAULT_AUDIO_QUALITY) ?: DEFAULT_AUDIO_QUALITY
+    }
+
+    /**
+     * Verifica si una calidad de audio es válida.
+     * @param quality Calidad de audio a verificar
+     * @return true si es válida, false en caso contrario
+     */
+    fun isValidAudioQuality(quality: String): Boolean {
+        return quality in AUDIO_QUALITY_OPTIONS
     }
 
     // === GESTIÓN DE TIMESTAMPS DE TOKENS ===
