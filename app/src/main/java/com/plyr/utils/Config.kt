@@ -26,7 +26,6 @@ object Config {
     // Claves para SharedPreferences
     private const val KEY_THEME = "theme"
     private const val KEY_SEARCH_ENGINE = "search_engine"
-    private const val KEY_AUDIO_QUALITY = "audio_quality"
     private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
     private const val KEY_SPOTIFY_REFRESH_TOKEN = "spotify_refresh_token"
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
@@ -36,10 +35,9 @@ object Config {
     // Valores por defecto
     private const val DEFAULT_THEME = "dark"
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
-    private const val DEFAULT_AUDIO_QUALITY = "best"
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
-    
+
     /** URI de redirección para OAuth de Spotify */
     const val SPOTIFY_REDIRECT_URI = "plyr://spotify/callback"
     
@@ -260,27 +258,5 @@ object Config {
      */
     fun getSearchEngine(context: Context): String {
         return getPrefs(context).getString(KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE) ?: DEFAULT_SEARCH_ENGINE
-    }
-
-    // === GESTIÓN DE CALIDAD DE AUDIO ===
-
-    /**
-     * Establece la calidad de audio predeterminada.
-     * @param context Contexto de la aplicación
-     * @param quality Calidad de audio a establecer ("low", "normal", "high", "best")
-     */
-    fun setAudioQuality(context: Context, quality: String) {
-        getPrefs(context).edit {
-            putString(KEY_AUDIO_QUALITY, quality)
-        }
-    }
-
-    /**
-     * Obtiene la calidad de audio actual de la aplicación.
-     * @param context Contexto de la aplicación
-     * @return Calidad de audio actual (por defecto "best")
-     */
-    fun getAudioQuality(context: Context): String {
-        return getPrefs(context).getString(KEY_AUDIO_QUALITY, DEFAULT_AUDIO_QUALITY) ?: DEFAULT_AUDIO_QUALITY
     }
 }
