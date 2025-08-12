@@ -4,9 +4,19 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import com.plyr.model.AudioItem
-import com.plyr.ui.navigation.Screen
-import com.plyr.ui.screens.*
 import com.plyr.viewmodel.PlayerViewModel
+
+// Estados para navegación
+enum class Screen {
+    HOME,
+    SEARCH,
+    QUEUE,
+    CONFIG,
+    PLAYLISTS
+}
+
+@Stable
+data class MenuOption(val screen: Screen, val title: String)
 
 @Composable
 fun AudioListScreen(
@@ -18,16 +28,12 @@ fun AudioListScreen(
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
 
-    // Handle back button - always go to HOME, never exit app
     BackHandler(enabled = currentScreen != Screen.HOME) {
         currentScreen = Screen.HOME
     }
 
     when (currentScreen) {
-        Screen.HOME -> HomeScreen(
-            context = context,
-            onNavigateToScreen = { screen -> currentScreen = screen }
-        )
+        Screen.HOME -> HomeScreen(context) { screen -> currentScreen = screen }
         Screen.SEARCH -> SearchScreen(
             context = context,
             onVideoSelected = onVideoSelected,
