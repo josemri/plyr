@@ -1110,17 +1110,6 @@ fun SpotifyAlbumDetailView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "<",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 20.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
-                modifier = Modifier
-                    .clickable { onBack() }
-                    .padding(end = 8.dp)
-            )
-            Text(
                 text = "$ ${album.name}",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontFamily = FontFamily.Monospace,
@@ -1133,38 +1122,6 @@ fun SpotifyAlbumDetailView(
             )
         }
 
-        // Información del álbum
-        Text(
-            text = "Artist: ${album.getArtistNames()}",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF95A5A6)
-            ),
-            modifier = Modifier.padding(bottom = 4.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        album.release_date?.let { releaseDate ->
-            Text(
-                text = "Released: $releaseDate",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF95A5A6)
-                ),
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-        }
-
-        Text(
-            text = "Tracks: ${album.total_tracks ?: tracks.size}",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF95A5A6)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
         // Botones de acción
         Row(
             modifier = Modifier
@@ -1175,6 +1132,12 @@ fun SpotifyAlbumDetailView(
             ActionButton(
                 text = "<start>",
                 color = Color(0xFF4ECDC4),
+                onClick = onStart,
+                enabled = tracks.isNotEmpty()
+            )
+            ActionButton(
+                text = "<rand>",
+                color = Color(0xFFFFD93D),
                 onClick = onStart,
                 enabled = tracks.isNotEmpty()
             )

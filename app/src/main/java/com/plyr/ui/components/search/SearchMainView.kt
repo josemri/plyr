@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.model.AudioItem
 import com.plyr.network.SpotifyAlbum
+import com.plyr.network.SpotifyArtistFull
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifySearchAllResponse
 import com.plyr.viewmodel.PlayerViewModel
@@ -31,6 +32,7 @@ fun SearchMainView(
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit,
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
+    onArtistSelected: (SpotifyArtistFull) -> Unit, // Agregar parámetro faltante
     onSearchTriggered: (String, Boolean) -> Unit,
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope
@@ -113,6 +115,7 @@ fun SearchMainView(
                     searchResults = spotifyResults,
                     onAlbumSelected = onAlbumSelected,
                     onPlaylistSelected = onPlaylistSelected,
+                    onArtistSelected = onArtistSelected, // Pasar el parámetro
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope
                 )

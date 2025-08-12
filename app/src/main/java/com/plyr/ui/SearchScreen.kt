@@ -35,6 +35,7 @@ import com.plyr.utils.Config
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
+import com.plyr.ui.components.search.SpotifyArtistDetailView
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -62,11 +63,14 @@ fun SearchScreen(
     var hasMoreResults by remember { mutableStateOf(true) }
     val itemsPerPage = 10
 
-    // Estados para vista detallada de playlist/álbum
+    // Estados para vista detallada de playlist/álbum/artista
     var selectedSpotifyPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
     var selectedSpotifyAlbum by remember { mutableStateOf<SpotifyAlbum?>(null) }
+    var selectedSpotifyArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) } // Nuevo estado para artista
     var selectedItemTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+    var selectedArtistAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) } // Nuevo estado para álbumes del artista
     var isLoadingTracks by remember { mutableStateOf(false) }
+    var isLoadingArtistAlbums by remember { mutableStateOf(false) } // Nuevo estado de carga para álbumes
 
     // YouTube search manager para búsquedas locales
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
@@ -344,14 +348,51 @@ fun SearchScreen(
         }
     }
 
+    // Nueva función para cargar álbumes de un artista
+    val loadArtistAlbums: (SpotifyArtistFull) -> Unit = { artist ->
+        selectedSpotifyArtist = artist
+        isLoadingArtistAlbums = true
+        error = null
+        selectedArtistAlbums = emptyList()
+
+        coroutineScope.launch {
+            try {
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    Log.d("SearchScreen", "🎵 Cargando álbumes del artista: ${artist.name}")
+                    SpotifyRepository.getArtistAlbums(accessToken, artist.id) { albums, errorMsg ->
+                        isLoadingArtistAlbums = false
+                        if (albums != null) {
+                            selectedArtistAlbums = albums
+                            Log.d("SearchScreen", "✅ ${albums.size} álbumes cargados para el artista: ${artist.name}")
+                        } else {
+                            error = "Error cargando álbumes del artista: $errorMsg"
+                            Log.e("SearchScreen", "❌ Error cargando álbumes de artista: $errorMsg")
+                        }
+                    }
+                } else {
+                    isLoadingArtistAlbums = false
+                    error = "Token de Spotify no disponible"
+                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
+                }
+            } catch (e: Exception) {
+                isLoadingArtistAlbums = false
+                error = "Error cargando álbumes del artista: ${e.message}"
+                Log.e("SearchScreen", "Error cargando artist albums", e)
+            }
+        }
+    }
+
     // Handle back button
     BackHandler {
         when {
-            selectedSpotifyPlaylist != null || selectedSpotifyAlbum != null -> {
+            selectedSpotifyPlaylist != null || selectedSpotifyAlbum != null || selectedSpotifyArtist != null -> {
                 // Volver de la vista detallada a los resultados de búsqueda
                 selectedSpotifyPlaylist = null
                 selectedSpotifyAlbum = null
+                selectedSpotifyArtist = null
                 selectedItemTracks = emptyList()
+                selectedArtistAlbums = emptyList()
             }
             else -> onBack()
         }
@@ -536,6 +577,72 @@ fun SearchScreen(
                     coroutineScope = coroutineScope
                 )
             }
+            selectedSpotifyArtist != null -> {
+                // Nueva vista detallada para el artista
+                SpotifyArtistDetailView(
+                    artist = selectedSpotifyArtist!!,
+                    albums = selectedArtistAlbums,
+                    isLoading = isLoadingArtistAlbums,
+                    error = error,
+                    onBack = {
+                        selectedSpotifyArtist = null
+                        selectedArtistAlbums = emptyList()
+                    },
+                    onAlbumClick = { album ->
+                        // Navegar al álbum seleccionado
+                        loadSpotifyAlbumTracks(album)
+                    },
+                    onShuffleAll = {
+                        // Reproducir todos los álbumes del artista en orden aleatorio
+                        if (selectedArtistAlbums.isNotEmpty()) {
+                            val firstAlbum = selectedArtistAlbums.first()
+                            Log.d("SearchScreen", "🔀 Iniciando reproducción aleatoria del primer álbum del artista: ${firstAlbum.name}")
+
+                            // Cargar los tracks del primer álbum
+                            val accessToken = Config.getSpotifyAccessToken(context)
+                            if (accessToken != null) {
+                                SpotifyRepository.getAlbumTracks(accessToken, firstAlbum.id) { tracks, errorMsg ->
+                                    if (tracks != null) {
+                                        // Convertir SpotifyTrack a TrackEntity y mezclar
+                                        val shuffledTracks = tracks.shuffled()
+                                        val trackEntities = shuffledTracks.mapIndexed { index, spotifyTrack ->
+                                            TrackEntity(
+                                                id = "spotify_${firstAlbum.id}_${spotifyTrack.id}_shuffled",
+                                                playlistId = firstAlbum.id,
+                                                spotifyTrackId = spotifyTrack.id,
+                                                name = spotifyTrack.name,
+                                                artists = spotifyTrack.getArtistNames(),
+                                                youtubeVideoId = null, // Se buscará dinámicamente
+                                                audioUrl = null,
+                                                position = index,
+                                                lastSyncTime = System.currentTimeMillis()
+                                            )
+                                        }
+
+                                        // Establecer playlist mezclada y comenzar reproducción
+                                        playerViewModel?.setCurrentPlaylist(trackEntities, 0)
+
+                                        // Buscar y reproducir el primer track de la lista mezclada
+                                        trackEntities.firstOrNull()?.let { track ->
+                                            coroutineScope.launch {
+                                                try {
+                                                    playerViewModel?.loadAudioFromTrack(track)
+                                                } catch (e: Exception) {
+                                                    Log.e("SearchScreen", "Error al reproducir álbum del artista aleatorio", e)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Log.e("SearchScreen", "❌ Error cargando tracks para shuffle: $errorMsg")
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    playerViewModel = playerViewModel,
+                    coroutineScope = coroutineScope
+                )
+            }
             else -> {
                 // Vista normal de búsqueda
                 SearchMainView(
@@ -550,6 +657,7 @@ fun SearchScreen(
                     onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                     onAlbumSelected = loadSpotifyAlbumTracks,
                     onPlaylistSelected = loadSpotifyPlaylistTracks,
+                    onArtistSelected = loadArtistAlbums, // Agregar callback para artistas
                     onSearchTriggered = performSearch,
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope
@@ -574,6 +682,7 @@ private fun SearchMainView(
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
+    onArtistSelected: (SpotifyArtistFull) -> Unit, // Nuevo callback para artistas
     onSearchTriggered: (String, Boolean) -> Unit,
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope
@@ -686,6 +795,7 @@ private fun SearchMainView(
                 results = spotifyResults,
                 onAlbumSelected = onAlbumSelected,
                 onPlaylistSelected = onPlaylistSelected,
+                onArtistSelected = onArtistSelected, // Pasar el callback de artista
                 onTrackSelectedFromSearch = { track, allTracks, selectedIndex ->
                     // Convertir tracks de Spotify a TrackEntity y crear playlist temporal
                     val trackEntities = allTracks.mapIndexed { index, spotifyTrack ->
@@ -745,6 +855,7 @@ fun CollapsibleSpotifySearchResultsView(
     results: SpotifySearchAllResponse,
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
+    onArtistSelected: (SpotifyArtistFull) -> Unit, // Agregar parámetro faltante
     onTrackSelectedFromSearch: (SpotifyTrack, List<SpotifyTrack>, Int) -> Unit,
     onLoadMore: () -> Unit,
     playerViewModel: PlayerViewModel?,
@@ -984,7 +1095,7 @@ fun CollapsibleSpotifySearchResultsView(
                         Column(
                             modifier = Modifier
                                 .width(100.dp)
-                                .clickable { /* TODO: Handle artist selection */ },
+                                .clickable { onArtistSelected(artist) }, // Conectar con el callback
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             AsyncImage(
