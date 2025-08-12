@@ -33,6 +33,8 @@ import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.model.AudioItem
 import com.plyr.database.TrackEntity
 import android.net.Uri
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 /**
  * MainActivity - Actividad principal de la aplicación
@@ -59,6 +61,9 @@ class MainActivity : ComponentActivity() {
     /** Indica si el servicio está conectado */
     private var bound = false
     
+    /** Indica si la aplicación está siendo cerrada intencionalmente */
+    private var isAppClosing = false
+
     // === CONFIGURACIÓN DEL SERVICIO ===
     
     /**
@@ -300,7 +305,43 @@ class MainActivity : ComponentActivity() {
      */
     override fun onDestroy() {
         super.onDestroy()
+
+        // Si la aplicación se está cerrando, detener completamente el servicio
+        if (isAppClosing || isFinishing) {
+            stopMusicServiceCompletely()
+        } else {
+            // Solo desconectar el binding, pero mantener el servicio para reproducción en background
+            disconnectMusicService()
+        }
+    }
+
+    /**
+     * Maneja el botón de back para cerrar la aplicación completamente
+     */
+    override fun onBackPressed() {
+        // Marcar que la aplicación se está cerrando intencionalmente
+        isAppClosing = true
+        super.onBackPressed()
+    }
+
+    /**
+     * Detiene completamente el servicio de música y cierra la aplicación
+     */
+    private fun stopMusicServiceCompletely() {
+        musicService?.let { service ->
+            // Parar la reproducción
+            val playerViewModel = (application as PlyrApp).playerViewModel
+            playerViewModel.pausePlayer()
+
+            // Detener el servicio foreground
+            service.stopForegroundService()
+        }
+
+        // Desconectar el binding
         disconnectMusicService()
+
+        // Detener el servicio completamente
+        stopService(Intent(this, MusicService::class.java))
     }
     
     /**
@@ -312,7 +353,7 @@ class MainActivity : ComponentActivity() {
             bound = false
         }
     }
-    
+
     // === MANEJO DE INTENTS ===
     
     /**

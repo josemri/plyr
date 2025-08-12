@@ -109,12 +109,18 @@ class MusicService : Service() {
                     Log.d("MusicService", "No previous track available")
                 }
             }
+            "ACTION_STOP" -> {
+                Log.d("MusicService", "🛑 ACTION_STOP recibido - Deteniendo servicio")
+                stopForegroundService()
+                return START_NOT_STICKY
+            }
             else -> {
                 val audioUrl = intent?.getStringExtra("AUDIO_URL")
                 if (audioUrl != null) playAudio(audioUrl)
             }
         }
-        return START_STICKY
+        // Cambiar a START_NOT_STICKY para que no se reinicie automáticamente
+        return START_NOT_STICKY
     }
 
     // === CONFIGURACIÓN DE COMPONENTES ===
@@ -430,6 +436,27 @@ class MusicService : Service() {
     }
 
     // === LIMPIEZA DE RECURSOS ===
+
+    /**
+     * Detiene el servicio foreground y limpia todos los recursos
+     */
+    fun stopForegroundService() {
+        Log.d("MusicService", "🛑 Deteniendo servicio foreground")
+
+        // Pausar la reproducción
+        val plyr = (application as PlyrApp).playerViewModel
+        plyr.pausePlayer()
+
+        // Detener el servicio foreground
+        stopForeground(STOP_FOREGROUND_REMOVE)
+
+        // Limpiar recursos
+        cleanupResources()
+
+        // Detener el servicio completamente
+        stopSelf()
+    }
+
     override fun onDestroy() {
         Log.d("MusicService", "🗑️ Destruyendo MusicService")
         if (::wakeLock.isInitialized && wakeLock.isHeld) {
