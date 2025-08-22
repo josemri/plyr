@@ -894,17 +894,6 @@ fun SpotifyPlaylistDetailView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "<",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 20.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
-                modifier = Modifier
-                    .clickable { onBack() }
-                    .padding(end = 8.dp)
-            )
-            Text(
                 text = "$ ${playlist.name}",
                 style = MaterialTheme.typography.headlineMedium.copy(
                     fontFamily = FontFamily.Monospace,
@@ -916,28 +905,6 @@ fun SpotifyPlaylistDetailView(
                 overflow = TextOverflow.Ellipsis
             )
         }
-
-        // Información de la playlist
-        playlist.description?.let { description ->
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF95A5A6)
-                ),
-                modifier = Modifier.padding(bottom = 8.dp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Text(
-            text = "Tracks: ${playlist.getTrackCount()}",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF95A5A6)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
 
         // Botones de acción
         Row(

@@ -24,7 +24,7 @@ import com.plyr.service.MusicService
 import com.plyr.ui.AudioListScreen
 import com.plyr.ui.ExoPlyrScreen
 import com.plyr.ui.FloatingMusicControls
-import com.plyr.ui.theme.TerminalTheme
+import com.plyr.ui.theme.PlyrTheme
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyTokens
@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
             val selectedTheme = remember { mutableStateOf(Config.getTheme(this@MainActivity)) }
             val isDarkTheme = selectedTheme.value == "dark"
 
-            TerminalTheme(isDark = isDarkTheme) {
+            PlyrTheme(darkTheme = isDarkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

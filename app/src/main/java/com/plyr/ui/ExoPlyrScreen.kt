@@ -17,7 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.MediaItem
-import com.plyr.ui.theme.TerminalTheme
+import com.plyr.ui.theme.PlyrTheme
 
 @Composable
 fun ExoPlyrScreen(
@@ -157,7 +157,7 @@ fun PreviewExoPlyrScreen() {
 @Preview(showBackground = true, widthDp = 320, heightDp = 640)
 @Composable
 fun ExoPlyrScreenPreview() {
-    TerminalTheme {
+    PlyrTheme {
         // Para preview, usamos un composable simplificado
         ExoPlyrScreenMock()
     }
@@ -166,7 +166,7 @@ fun ExoPlyrScreenPreview() {
 @Preview(showBackground = true, widthDp = 320, heightDp = 640, name = "Player Terminal Theme")
 @Composable
 fun ExoPlyrScreenTerminalPreview() {
-    TerminalTheme {
+    PlyrTheme {
         ExoPlyrScreenMock()
     }
 }

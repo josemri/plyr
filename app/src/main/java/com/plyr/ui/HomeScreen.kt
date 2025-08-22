@@ -20,13 +20,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.plyr.ui.components.*
+import com.plyr.ui.theme.*
 
 @Composable
 fun HomeScreen(
     context: Context,
     onNavigateToScreen: (Screen) -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
     var backPressedTime by remember { mutableStateOf(0L) }
     var showExitMessage by remember { mutableStateOf(false) }
 
@@ -44,64 +45,31 @@ fun HomeScreen(
         }
     }
 
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = "$ plyr_home",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 24.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    PlyrScreenContainer {
+        PlyrCommandTitle("plyr_home")
 
         val options = remember {
             listOf(
-                MenuOption(Screen.SEARCH, "> search"),
-                MenuOption(Screen.PLAYLISTS, "> playlists"),
-                MenuOption(Screen.QUEUE, "> queue"),
-                MenuOption(Screen.CONFIG, "> settings")
+                MenuOption(Screen.SEARCH, "search"),
+                MenuOption(Screen.PLAYLISTS, "playlists"),
+                MenuOption(Screen.QUEUE, "queue"),
+                MenuOption(Screen.CONFIG, "settings")
             )
         }
 
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            options.forEach { option ->
-                Text(
-                    text = option.title,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 20.sp,
-                        color = Color.White
-                    ),
-                    modifier = Modifier
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(option.screen)
-                        }
-                        .padding(4.dp)
-                )
-            }
+        options.forEach { option ->
+            PlyrMenuOption(
+                text = option.title,
+                onClick = { onNavigateToScreen(option.screen) }
+            )
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
         if (showExitMessage) {
-            Text(
-                text = "> Press back again to exit",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFE74C3C)
-                ),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = 8.dp)
+            PlyrErrorText(
+                text = "Press back again to exit",
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
         }
     }

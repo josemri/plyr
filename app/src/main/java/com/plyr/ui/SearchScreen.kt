@@ -694,11 +694,7 @@ private fun SearchMainView(
         // Header
         Text(
             text = "$ plyr_search",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 24.sp,
-                color = Color(0xFF4ECDC4)
-            ),
+            style = MaterialTheme.typography.headlineMedium, // TÍTULOS PRINCIPALES - Azul terminal
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
@@ -709,10 +705,7 @@ private fun SearchMainView(
             label = {
                 Text(
                     "> search_audio",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp
-                    )
+                    style = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
                 )
             },
             modifier = Modifier.fillMaxWidth(),
@@ -723,11 +716,7 @@ private fun SearchMainView(
                     }) {
                         Text(
                             text = "x",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 18.sp,
-                                color = Color(0xFF95A5A6)
-                            )
+                            style = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
                         )
                     }
                 }
@@ -749,10 +738,7 @@ private fun SearchMainView(
                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             ),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp
-            )
+            textStyle = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
         )
 
         Spacer(Modifier.height(12.dp))
@@ -765,10 +751,7 @@ private fun SearchMainView(
             ) {
                 Text(
                     "$ loading...",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFFFFD93D)
-                    )
+                    style = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
                 )
             }
         }
@@ -778,9 +761,7 @@ private fun SearchMainView(
             Text(
                 "ERR: $it",
                 color = Color(0xFFFF6B6B),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace
-                )
+                style = MaterialTheme.typography.bodySmall // TEXTO SECUNDARIO
             )
         }
 
@@ -860,27 +841,23 @@ fun CollapsibleSpotifySearchResultsView(
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope
 ) {
-    var tracksExpanded by remember { mutableStateOf(true) }
-    var albumsExpanded by remember { mutableStateOf(true) }
-    var playlistsExpanded by remember { mutableStateOf(true) }
+    var tracksExpanded by remember { mutableStateOf(false) }
+    var albumsExpanded by remember { mutableStateOf(false) }
+    var playlistsExpanded by remember { mutableStateOf(false) }
     var artistsExpanded by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Tracks section
         if (results.tracks.items.isNotEmpty()) {
             Text(
-                text = "$ tracks [${results.tracks.items.size}] ${if (tracksExpanded) "[-]" else "[+]"}",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
+                text = if (tracksExpanded) "v tracks" else "> tracks",
+                style = MaterialTheme.typography.titleMedium, // TÍTULOS PRINCIPALES - Azul terminal
                 modifier = Modifier
                     .clickable { tracksExpanded = !tracksExpanded }
-                    .padding(bottom = 8.dp)
+                    .padding(4.dp)
             )
 
             if (tracksExpanded) {
@@ -908,15 +885,11 @@ fun CollapsibleSpotifySearchResultsView(
         // Albums section
         if (results.albums.items.isNotEmpty()) {
             Text(
-                text = "$ albums [${results.albums.items.size}] ${if (albumsExpanded) "[-]" else "[+]"}",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
+                text = if (albumsExpanded) "v albums" else "> albums",
+                style = MaterialTheme.typography.titleMedium, // TÍTULOS PRINCIPALES - Azul terminal
                 modifier = Modifier
                     .clickable { albumsExpanded = !albumsExpanded }
-                    .padding(bottom = 8.dp, top = 16.dp)
+                    .padding(4.dp)
             )
 
             if (albumsExpanded) {
@@ -972,15 +945,11 @@ fun CollapsibleSpotifySearchResultsView(
         // Playlists section
         if (results.playlists.items.isNotEmpty()) {
             Text(
-                text = "$ playlists [${results.playlists.items.size}] ${if (playlistsExpanded) "[-]" else "[+]"}",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
+                text = if (playlistsExpanded) "v playlists" else "> playlists",
+                style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier
                     .clickable { playlistsExpanded = !playlistsExpanded }
-                    .padding(bottom = 8.dp, top = 16.dp)
+                    .padding(4.dp)
             )
 
             if (playlistsExpanded) {
@@ -1016,17 +985,6 @@ fun CollapsibleSpotifySearchResultsView(
                                 overflow = TextOverflow.Ellipsis,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
-
-                            Text(
-                                text = "${playlist.getTrackCount()} tracks",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
                         }
                     }
                 }
@@ -1036,15 +994,11 @@ fun CollapsibleSpotifySearchResultsView(
         // Artists section
         if (results.artists.items.isNotEmpty()) {
             Text(
-                text = "$ artists [${results.artists.items.size}] ${if (artistsExpanded) "[-]" else "[+]"}",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
+                text = if (artistsExpanded) "v artists" else "> artists",
+                style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier
                     .clickable { artistsExpanded = !artistsExpanded }
-                    .padding(bottom = 8.dp, top = 16.dp)
+                    .padding(4.dp)
             )
 
             if (artistsExpanded) {
@@ -1104,7 +1058,7 @@ fun CollapsibleYouTubeSearchResultsView(
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            text = "$ youtube_results [${results.size}] ${if (expanded) "[-]" else "[+]"}",
+            text = if (expanded) "v youtube_results" else "> youtube_results",
             style = MaterialTheme.typography.titleMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 16.sp,

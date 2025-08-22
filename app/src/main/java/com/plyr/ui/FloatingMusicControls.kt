@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.IntOffset
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.utils.Config
-import com.plyr.ui.theme.TerminalTheme
+import com.plyr.ui.theme.PlyrTheme
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
@@ -798,7 +798,7 @@ private fun QueueIndicator(queueSize: Int) {
 @Preview(showBackground = true, widthDp = 320, heightDp = 200)
 @Composable
 fun FloatingMusicControlsPreview() {
-    TerminalTheme {
+    PlyrTheme {
         Box(
             modifier = Modifier
                 .fillMaxSize()
