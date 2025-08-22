@@ -29,6 +29,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import android.util.Log
 import android.content.Intent
 import com.plyr.service.MusicService
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.IntentFilter
+import android.media.AudioManager
+import android.os.Build
 
 /**
  * PlayerViewModel - Maneja la reproducción de audio usando ExoPlayer y NewPipe
@@ -80,6 +85,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /** Listener actual del ExoPlayer principal para poder removerlo durante intercambios */
     private var _currentPlayerListener: Player.Listener? = null
     
+    /** AudioManager para detectar cambios en dispositivos de audio */
+    private var audioManager: AudioManager? = null
+
+    /** BroadcastReceiver para detectar conexión/desconexión de auriculares */
+    private var audioOutputReceiver: BroadcastReceiver? = null
+
+    /** Estado previo de conexión de auriculares */
+    private var wasHeadsetConnected = false
+
     /** LiveData privado para la URL de audio actual */
     private val _audioUrl = MutableLiveData<String?>()
     
@@ -191,6 +205,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _currentTrackIndex.observeForever {
             updateNavigationState()
         }
+
+        // Inicializar detección de cambios en salida de audio
+        initializeAudioOutputDetection()
+
         Log.d(TAG, "PlayerViewModel inicializado")
     }
 
@@ -219,6 +237,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         optimizeBufferSettings(this)
                     }
                 Log.d(TAG, "✅ ExoPlayer principal inicializado")
+
+                // Notificar al MusicService que las MediaSessions deben ser creadas ahora
+                try {
+                    val musicServiceIntent = Intent(getApplication(), MusicService::class.java)
+                    musicServiceIntent.action = "ENSURE_MEDIA_SESSIONS"
+                    getApplication<Application>().startService(musicServiceIntent)
+                    Log.d(TAG, "🎧 Solicitando creación de MediaSessions al MusicService")
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ No se pudo notificar al MusicService: ${e.message}")
+                }
             }
             
             // Inicializar el ExoPlayer de preloading si no existe
@@ -1286,6 +1314,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 Log.e(TAG, "❌ Error liberando recursos", e)
             }
         }
+
+        // Limpiar recursos de detección de audio
+        cleanupAudioOutputDetection()
     }
     
     // === MÉTODOS DE PRELOADING PARA TRANSICIONES SIN DELAY ===
@@ -1904,6 +1935,322 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
         } else {
             Log.w(TAG, "⚠️ No hay playlist para reiniciar")
+        }
+    }
+
+    // === MÉTODOS DE DETECCIÓN DE CAMBIOS EN SALIDA DE AUDIO ===
+
+    /**
+     * Inicializa la detección de cambios en la salida de audio.
+     * Configura el AudioManager y el BroadcastReceiver para detectar conexión/desconexión de auriculares.
+     */
+    private fun initializeAudioOutputDetection() {
+        try {
+            // Inicializar AudioManager
+            audioManager = getApplication<Application>().getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+            // Detectar estado inicial de auriculares
+            wasHeadsetConnected = isHeadsetConnected()
+            Log.d(TAG, "🎧 Estado inicial de auriculares: ${if (wasHeadsetConnected) "Conectados" else "Desconectados"}")
+
+            // Configurar BroadcastReceiver para detectar cambios
+            setupAudioOutputReceiver()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error inicializando detección de salida de audio: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Configura el BroadcastReceiver para detectar cambios en la salida de audio.
+     */
+    private fun setupAudioOutputReceiver() {
+        audioOutputReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    Intent.ACTION_HEADSET_PLUG -> {
+                        handleHeadsetPlugEvent(intent)
+                    }
+                    AudioManager.ACTION_AUDIO_BECOMING_NOISY -> {
+                        handleAudioBecomingNoisy()
+                    }
+                    AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED -> {
+                        handleBluetoothScoStateChange(intent)
+                    }
+                    "android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" -> {
+                        handleBluetoothA2dpStateChange(intent)
+                    }
+                }
+            }
+        }
+
+        // Registrar el receiver con los filtros necesarios
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_HEADSET_PLUG)
+            addAction(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+            addAction(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED)
+            addAction("android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED")
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getApplication<Application>().registerReceiver(audioOutputReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                getApplication<Application>().registerReceiver(audioOutputReceiver, filter)
+            }
+            Log.d(TAG, "✅ AudioOutputReceiver registrado correctamente")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error registrando AudioOutputReceiver: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Maneja el evento de conexión/desconexión de auriculares cableados.
+     * @param intent Intent con información del evento
+     */
+    private fun handleHeadsetPlugEvent(intent: Intent) {
+        val state = intent.getIntExtra("state", -1)
+        val name = intent.getStringExtra("name") ?: "Unknown"
+        val microphone = intent.getIntExtra("microphone", -1)
+
+        val isConnected = state == 1
+        Log.d(TAG, "🎧 Auriculares cableados ${if (isConnected) "conectados" else "desconectados"}: $name (micrófono: ${microphone == 1})")
+
+        handleAudioOutputChange(isConnected, "Auriculares cableados", name)
+    }
+
+    /**
+     * Maneja el evento de audio becoming noisy (desconexión abrupta).
+     */
+    private fun handleAudioBecomingNoisy() {
+        Log.d(TAG, "🔇 Audio becoming noisy detectado - pausando inmediatamente")
+
+        // Solo pausar en caso de audio becoming noisy (desconexión abrupta)
+        mainHandler.post {
+            try {
+                _exoPlayer?.let { player ->
+                    if (player.isPlaying) {
+                        player.pause()
+                        Log.d(TAG, "✅ Reproductor pausado por audio becoming noisy")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Error pausando por audio becoming noisy: ${e.message}", e)
+            }
+        }
+    }
+
+    /**
+     * Maneja cambios en el estado de Bluetooth SCO.
+     * @param intent Intent con información del estado
+     */
+    private fun handleBluetoothScoStateChange(intent: Intent) {
+        val state = intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1)
+        when (state) {
+            AudioManager.SCO_AUDIO_STATE_CONNECTED -> {
+                Log.d(TAG, "🎧 Bluetooth SCO conectado")
+                handleAudioOutputChange(true, "Bluetooth SCO", "SCO Audio")
+            }
+            AudioManager.SCO_AUDIO_STATE_DISCONNECTED -> {
+                Log.d(TAG, "🎧 Bluetooth SCO desconectado")
+                handleAudioOutputChange(false, "Bluetooth SCO", "SCO Audio")
+            }
+        }
+    }
+
+    /**
+     * Maneja cambios en el estado de Bluetooth A2DP.
+     * @param intent Intent con información del estado
+     */
+    private fun handleBluetoothA2dpStateChange(intent: Intent) {
+        val state = intent.getIntExtra("android.bluetooth.profile.extra.STATE", -1)
+        when (state) {
+            2 -> { // BluetoothProfile.STATE_CONNECTED
+                Log.d(TAG, "🎧 Bluetooth A2DP conectado")
+                handleAudioOutputChange(true, "Bluetooth A2DP", "A2DP Device")
+            }
+            0 -> { // BluetoothProfile.STATE_DISCONNECTED
+                Log.d(TAG, "🎧 Bluetooth A2DP desconectado")
+                handleAudioOutputChange(false, "Bluetooth A2DP", "A2DP Device")
+            }
+        }
+    }
+
+    /**
+     * Maneja cualquier cambio en la salida de audio.
+     * @param isConnected Si el dispositivo está conectado o desconectado
+     * @param deviceType Tipo de dispositivo (ej: "Auriculares cableados", "Bluetooth")
+     * @param deviceName Nombre del dispositivo
+     */
+    private fun handleAudioOutputChange(isConnected: Boolean, deviceType: String, deviceName: String) {
+        Log.d(TAG, "🔄 Cambio en salida de audio detectado:")
+        Log.d(TAG, "   - Tipo: $deviceType")
+        Log.d(TAG, "   - Dispositivo: $deviceName")
+        Log.d(TAG, "   - Estado: ${if (isConnected) "Conectado" else "Desconectado"}")
+        Log.d(TAG, "   - Estado previo: ${if (wasHeadsetConnected) "Conectado" else "Desconectado"}")
+
+        // Detectar si hubo un cambio real
+        if (isConnected != wasHeadsetConnected) {
+            Log.d(TAG, "⚡ Cambio de estado confirmado - manejando cambio de salida")
+
+            // Actualizar estado previo
+            wasHeadsetConnected = isConnected
+
+            // Cambiar salida de audio automáticamente sin pausar
+            if (!isConnected) {
+                switchToSpeakers()
+            } else {
+                switchToHeadphones()
+            }
+        } else {
+            Log.d(TAG, "ℹ️ Sin cambio de estado - no se requiere acción")
+        }
+    }
+
+    /**
+     * Cambia la salida de audio a los altavoces reconfigurando ExoPlayer.
+     */
+    private fun switchToSpeakers() {
+        try {
+            Log.d(TAG, "🔊 Cambiando salida a altavoces...")
+
+            // Guardar estado actual de reproducción
+            val wasPlaying = _exoPlayer?.isPlaying ?: false
+            val currentPosition = _exoPlayer?.currentPosition ?: 0L
+
+            // Reconfigurar ExoPlayer para forzar cambio de dispositivo
+            _exoPlayer?.let { player ->
+                // Configurar AudioAttributes para altavoces
+                val audioAttributes = AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build()
+
+                player.setAudioAttributes(audioAttributes, false)
+
+                // Pausar momentáneamente para forzar reconexión
+                if (wasPlaying) {
+                    player.pause()
+
+                    // Reanudar después de un breve delay para permitir el cambio de dispositivo
+                    mainHandler.postDelayed({
+                        try {
+                            player.seekTo(currentPosition)
+                            player.play()
+                            Log.d(TAG, "✅ Reproducción reanudada en altavoces")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ Error reanudando en altavoces: ${e.message}", e)
+                        }
+                    }, 100)
+                }
+            }
+
+            // Configurar AudioManager para forzar altavoces
+            audioManager?.let { am ->
+                am.mode = AudioManager.MODE_NORMAL
+                // En versiones modernas de Android, ExoPlayer maneja automáticamente
+                // el routing de audio basado en los dispositivos disponibles
+                Log.d(TAG, "📱 AudioManager configurado para altavoces")
+            }
+
+            Log.d(TAG, "🔊 Salida cambiada a altavoces")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error cambiando a altavoces: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Cambia la salida de audio a los auriculares reconfigurando ExoPlayer.
+     */
+    private fun switchToHeadphones() {
+        try {
+            Log.d(TAG, "🎧 Cambiando salida a auriculares...")
+
+            // Guardar estado actual de reproducción
+            val wasPlaying = _exoPlayer?.isPlaying ?: false
+            val currentPosition = _exoPlayer?.currentPosition ?: 0L
+
+            // Reconfigurar ExoPlayer para forzar cambio de dispositivo
+            _exoPlayer?.let { player ->
+                // Configurar AudioAttributes para auriculares
+                val audioAttributes = AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build()
+
+                player.setAudioAttributes(audioAttributes, false)
+
+                // Pausar momentáneamente para forzar reconexión
+                if (wasPlaying) {
+                    player.pause()
+
+                    // Reanudar después de un breve delay para permitir el cambio de dispositivo
+                    mainHandler.postDelayed({
+                        try {
+                            player.seekTo(currentPosition)
+                            player.play()
+                            Log.d(TAG, "✅ Reproducción reanudada en auriculares")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "❌ Error reanudando en auriculares: ${e.message}", e)
+                        }
+                    }, 100)
+                }
+            }
+
+            // Configurar AudioManager para auriculares
+            audioManager?.let { am ->
+                am.mode = AudioManager.MODE_NORMAL
+                // En versiones modernas de Android, ExoPlayer maneja automáticamente
+                // el routing de audio basado en los dispositivos disponibles
+                Log.d(TAG, "🎧 AudioManager configurado para auriculares")
+            }
+
+            Log.d(TAG, "🎧 Salida cambiada a auriculares")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error cambiando a auriculares: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Verifica si hay auriculares conectados actualmente.
+     * @return true si hay auriculares conectados, false en caso contrario
+     */
+    private fun isHeadsetConnected(): Boolean {
+        return try {
+            audioManager?.let { am ->
+                // Verificar auriculares cableados y bluetooth
+                val isWiredHeadsetOn = am.isWiredHeadsetOn
+                val isBluetoothA2dpOn = am.isBluetoothA2dpOn
+                val isBluetoothScoOn = am.isBluetoothScoOn
+
+                val hasHeadphones = isWiredHeadsetOn || isBluetoothA2dpOn || isBluetoothScoOn
+
+                Log.d(TAG, "🔍 Estado de auriculares:")
+                Log.d(TAG, "   - Cableados: $isWiredHeadsetOn")
+                Log.d(TAG, "   - Bluetooth A2DP: $isBluetoothA2dpOn")
+                Log.d(TAG, "   - Bluetooth SCO: $isBluetoothScoOn")
+                Log.d(TAG, "   - Total: $hasHeadphones")
+
+                hasHeadphones
+            } ?: false
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error verificando estado de auriculares: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Limpia los recursos relacionados con la detección de cambios de audio.
+     */
+    private fun cleanupAudioOutputDetection() {
+        try {
+            audioOutputReceiver?.let { receiver ->
+                getApplication<Application>().unregisterReceiver(receiver)
+                audioOutputReceiver = null
+                Log.d(TAG, "✅ AudioOutputReceiver desregistrado")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error limpiando detección de audio: ${e.message}", e)
         }
     }
 }
