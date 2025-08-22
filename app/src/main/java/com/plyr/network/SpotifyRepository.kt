@@ -167,7 +167,7 @@ object SpotifyRepository {
                             android.util.Log.d("SpotifyRepository", "User playlists response (offset=$offset): ${body.take(200)}...")
                             val playlistResponse = gson.fromJson(body, SpotifyPlaylistResponse::class.java)
                             
-                            // Debug: log tracks data for each playlist
+                            // Debug: log tracks data for cada playlist
                             playlistResponse.items.forEachIndexed { index, playlist ->
                                 android.util.Log.d("SpotifyRepository", "Playlist $index - '${playlist.name}': tracks=${playlist.tracks}, tracks.total=${playlist.tracks?.total}")
                             }
@@ -499,25 +499,22 @@ object SpotifyRepository {
                     callback(true, null)
                 } else {
                     val errorBody = response.body?.string()
-                    
-                    // Detectar error de scopes insuficientes
-                    if (response.code == 403 && errorBody?.contains("Insufficient client scope") == true) {
-                        callback(false, "Permisos insuficientes. Desconecta y vuelve a conectar Spotify para obtener todos los permisos necesarios.")
-                    } else {
-                        callback(false, "Error HTTP ${response.code}: $errorBody")
-                    }
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
                 }
             }
         })
     }
-    
-    // Guardar un álbum en la biblioteca de Spotify
-    fun saveAlbum(accessToken: String, albumId: String, callback: (Boolean, String?) -> Unit) {
+
+    // Añadir una canción a una playlist en Spotify
+    fun addTrackToPlaylist(accessToken: String, playlistId: String, trackId: String, callback: (Boolean, String?) -> Unit) {
+        val jsonBody = gson.toJson(mapOf("uris" to listOf("spotify:track:$trackId")))
+        val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
+
         val request = Request.Builder()
-            .url("https://api.spotify.com/v1/me/albums")
+            .url("$API_BASE_URL/playlists/$playlistId/tracks")
             .addHeader("Authorization", "Bearer $accessToken")
             .addHeader("Content-Type", "application/json")
-            .put(RequestBody.create("application/json".toMediaType(), """{"ids":["$albumId"]}"""))
+            .post(requestBody)
             .build()
         
         client.newCall(request).enqueue(object : Callback {
@@ -530,221 +527,28 @@ object SpotifyRepository {
                     callback(true, null)
                 } else {
                     val errorBody = response.body?.string()
-                    
-                    // Detectar error de scopes insuficientes
-                    if (response.code == 403 && errorBody?.contains("Insufficient client scope") == true) {
-                        callback(false, "Permisos insuficientes. Desconecta y vuelve a conectar Spotify para obtener todos los permisos necesarios.")
-                    } else {
-                        callback(false, "Error HTTP ${response.code}: $errorBody")
-                    }
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
                 }
             }
         })
     }
 
-    // Buscar todo tipo de contenido en Spotify con paginación automática optimizada
-    fun searchAllWithPagination(
-        accessToken: String, 
-        query: String, 
-        callback: (SpotifySearchAllResponse?, String?) -> Unit // Simplificamos el callback
-    ) {
-        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-        val maxLimit = 50 // Máximo permitido por Spotify
-        
-        // Variables para acumular resultados
-        var allTracks = mutableListOf<SpotifyTrack>()
-        var allAlbums = mutableListOf<SpotifyAlbum>()
-        var allArtists = mutableListOf<SpotifyArtistFull>()
-        var allPlaylists = mutableListOf<SpotifyPlaylist>()
-        
-        var pageCount = 0
-        
-        // Función recursiva para obtener todas las páginas
-        fun fetchPage(offset: Int = 0) {
-            val request = Request.Builder()
-                .url("$API_BASE_URL/search?q=$encodedQuery&type=track,album,artist,playlist&limit=$maxLimit&offset=$offset")
-                .addHeader("Authorization", "Bearer $accessToken")
-                .get()
-                .build()
-            
-            client.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    callback(null, "Error de red: ${e.message}")
-                }
-                
-                override fun onResponse(call: Call, response: Response) {
-                    val body = response.body?.string()
-                    if (response.isSuccessful && body != null) {
-                        try {
-                            android.util.Log.d("SpotifyRepository", "Search paginated response (offset=$offset) body excerpt: ${body.take(500)}...")
-                            val searchResponseRaw = gson.fromJson(body, SpotifySearchAllResponseRaw::class.java)
-                            
-                            android.util.Log.d("SpotifyRepository", "Parsed response - tracks: ${searchResponseRaw.tracks.items.size}, albums: ${searchResponseRaw.albums.items.size}, artists: ${searchResponseRaw.artists.items.size}, playlists: ${searchResponseRaw.playlists.items.size}")
-                            
-                            // Acumular resultados (filtrando nulls)
-                            allTracks.addAll(searchResponseRaw.tracks.items.filterNotNull())
-                            allAlbums.addAll(searchResponseRaw.albums.items.filterNotNull())
-                            allArtists.addAll(searchResponseRaw.artists.items.filterNotNull())
-                            allPlaylists.addAll(searchResponseRaw.playlists.items.filterNotNull())
-                            
-                            pageCount++
-                            
-                            // Enviar resultados después de cada página para mostrar progreso
-                            val currentResponse = SpotifySearchAllResponse(
-                                tracks = SpotifyTracksSearchResult(
-                                    items = allTracks.distinctBy { it.id },
-                                    total = searchResponseRaw.tracks.total,
-                                    limit = maxLimit,
-                                    offset = 0,
-                                    next = if (searchResponseRaw.tracks.items.size == maxLimit) "more" else null
-                                ),
-                                albums = SpotifyAlbumsSearchResult(
-                                    items = allAlbums.distinctBy { it.id },
-                                    total = searchResponseRaw.albums.total,
-                                    limit = maxLimit,
-                                    offset = 0,
-                                    next = if (searchResponseRaw.albums.items.size == maxLimit) "more" else null
-                                ),
-                                artists = SpotifyArtistsSearchResult(
-                                    items = allArtists.distinctBy { it.id },
-                                    total = searchResponseRaw.artists.total,
-                                    limit = maxLimit,
-                                    offset = 0,
-                                    next = if (searchResponseRaw.artists.items.size == maxLimit) "more" else null
-                                ),
-                                playlists = SpotifyPlaylistsSearchResult(
-                                    items = allPlaylists.distinctBy { it.id },
-                                    total = searchResponseRaw.playlists.total,
-                                    limit = maxLimit,
-                                    offset = 0,
-                                    next = if (searchResponseRaw.playlists.items.size == maxLimit) "more" else null
-                                )
-                            )
-                            
-                            android.util.Log.d("SpotifyRepository", "Page $pageCount sent: ${allTracks.size} tracks, ${allAlbums.size} albums, ${allArtists.size} artists, ${allPlaylists.size} playlists")
-                            callback(currentResponse, null)
-                            
-                            // Verificar si hay más páginas que cargar
-                            val hasMoreTracks = searchResponseRaw.tracks.items.size == maxLimit && allTracks.size < (searchResponseRaw.tracks.total ?: 0)
-                            val hasMoreAlbums = searchResponseRaw.albums.items.size == maxLimit && allAlbums.size < (searchResponseRaw.albums.total ?: 0)
-                            val hasMoreArtists = searchResponseRaw.artists.items.size == maxLimit && allArtists.size < (searchResponseRaw.artists.total ?: 0)
-                            val hasMorePlaylists = searchResponseRaw.playlists.items.size == maxLimit && allPlaylists.size < (searchResponseRaw.playlists.total ?: 0)
-                            
-                            // Verificar si el próximo offset excedería el límite de Spotify (1000)
-                            val nextOffset = offset + maxLimit
-                            val wouldExceedLimit = nextOffset >= 1000
-                            
-                            // Si hay más contenido en cualquier categoría y no excedemos el límite, continuar paginando
-                            if ((hasMoreTracks || hasMoreAlbums || hasMoreArtists || hasMorePlaylists) && !wouldExceedLimit) {
-                                android.util.Log.d("SpotifyRepository", "Fetching next page: offset=$nextOffset")
-                                // Agregar un pequeño delay para no sobrecargar la API
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                    fetchPage(nextOffset)
-                                }, 200) // 200ms de delay entre requests
-                            } else {
-                                // Paginación completada (por límite de API o porque no hay más resultados)
-                                if (wouldExceedLimit) {
-                                    android.util.Log.d("SpotifyRepository", "Pagination stopped: reached Spotify API limit (offset would be $nextOffset >= 1000)")
-                                } else {
-                                    android.util.Log.d("SpotifyRepository", "Pagination completed: no more results available")
-                                }
-                                android.util.Log.d("SpotifyRepository", "Final results: ${allTracks.size} tracks, ${allAlbums.size} albums, ${allArtists.size} artists, ${allPlaylists.size} playlists")
-                            }
-                        } catch (e: Exception) {
-                            callback(null, "Error parsing search results: ${e.message}")
-                        }
-                    } else {
-                        callback(null, "Error HTTP ${response.code}: $body")
-                    }
-                }
-            })
-        }
-        
-        // Iniciar la paginación
-        fetchPage(0)
+    // Buscar todo tipo de contenido en Spotify con paginación automática
+    fun searchAllWithPagination(accessToken: String, query: String, callback: (SpotifySearchAllResponse?, String?) -> Unit) {
+        // Por ahora, usar la función searchAll existente que ya maneja los resultados
+        searchAll(accessToken, query, callback)
     }
 
-    // Obtener el user_id del usuario actual
-    fun getCurrentUserId(accessToken: String, callback: (String?, String?) -> Unit) {
-        val request = Request.Builder()
-            .url("https://api.spotify.com/v1/me")
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback(null, "Network error: ${e.message}")
-            }
-            override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
-                    try {
-                        val json = gson.fromJson(body, Map::class.java)
-                        val userId = json["id"] as? String
-                        callback(userId, null)
-                    } catch (e: Exception) {
-                        callback(null, "Error parsing user id: ${e.message}")
-                    }
-                } else {
-                    callback(null, "HTTP error ${response.code}: $body")
-                }
-            }
-        })
-    }
-
-    // Crear playlist
-    fun createPlaylist(
-        accessToken: String,
-        name: String,
-        description: String,
-        isPublic: Boolean,
-        callback: (Boolean, String?) -> Unit
-    ) {
-        getCurrentUserId(accessToken) { userId, error ->
-            if (userId == null) {
-                callback(false, error ?: "Could not get user id")
-                return@getCurrentUserId
-            }
-            val url = "https://api.spotify.com/v1/users/$userId/playlists"
-            val jsonBody = """
-            {
-                "name": "$name",
-                "description": "$description",
-                "public": $isPublic
-            }
-        """.trimIndent()
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer $accessToken")
-                .addHeader("Content-Type", "application/json")
-                .post(jsonBody.toRequestBody("application/json".toMediaType()))
-                .build()
-            client.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    callback(false, "Network error: ${e.message}")
-                }
-                override fun onResponse(call: Call, response: Response) {
-                    if (response.isSuccessful) {
-                        callback(true, null)
-                    } else {
-                        val errorBody = response.body?.string()
-                        callback(false, "HTTP error ${response.code}: $errorBody")
-                    }
-                }
-            })
-        }
-    }
-
-    // Añadir tracks a una playlist de Spotify
-    fun addTracksToPlaylist(accessToken: String, playlistId: String, trackUris: List<String>, callback: (Boolean, String?) -> Unit) {
-        val requestBody = gson.toJson(mapOf("uris" to trackUris))
+    // Guardar álbum en la biblioteca del usuario
+    fun saveAlbum(accessToken: String, albumId: String, callback: (Boolean, String?) -> Unit) {
+        val jsonBody = gson.toJson(mapOf("ids" to listOf(albumId)))
+        val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
 
         val request = Request.Builder()
-            .url("$API_BASE_URL/playlists/$playlistId/tracks")
+            .url("$API_BASE_URL/me/albums")
             .addHeader("Authorization", "Bearer $accessToken")
             .addHeader("Content-Type", "application/json")
-            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .put(requestBody)
             .build()
 
         client.newCall(request).enqueue(object : Callback {
@@ -753,29 +557,111 @@ object SpotifyRepository {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
                 if (response.isSuccessful) {
-                    android.util.Log.d("SpotifyRepository", "Track added successfully: $body")
                     callback(true, null)
                 } else {
-                    android.util.Log.e("SpotifyRepository", "Error adding track: ${response.code} - $body")
-
-                    // Detectar error de scopes insuficientes
-                    if (response.code == 403 && body?.contains("Insufficient client scope") == true) {
-                        callback(false, "Permisos insuficientes. Desconecta y vuelve a conectar Spotify para obtener todos los permisos necesarios.")
-                    } else {
-                        callback(false, "Error HTTP ${response.code}: $body")
-                    }
+                    val errorBody = response.body?.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
                 }
             }
         })
     }
 
-    // Versión con renovación automática de tokens
-    suspend fun addTracksToPlaylistWithAutoRefresh(context: Context, playlistId: String, trackUris: List<String>, callback: (Boolean, String?) -> Unit) {
-        SpotifyTokenManager.withValidToken(context) { token ->
-            addTracksToPlaylist(token, playlistId, trackUris, callback)
+    // Añadir múltiples tracks a una playlist en Spotify
+    fun addTracksToPlaylist(accessToken: String, playlistId: String, trackUris: List<String>, callback: (Boolean, String?) -> Unit) {
+        val jsonBody = gson.toJson(mapOf("uris" to trackUris))
+        val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId/tracks")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body?.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
+    }
+
+    // Crear una nueva playlist en Spotify
+    fun createPlaylist(accessToken: String, name: String, description: String, isPublic: Boolean, callback: (Boolean, String?) -> Unit) {
+        // Primero necesitamos obtener el ID del usuario
+        getUserProfile(accessToken) { userId, error ->
+            if (userId != null) {
+                val playlistData = mapOf(
+                    "name" to name,
+                    "description" to description,
+                    "public" to isPublic
+                )
+                val jsonBody = gson.toJson(playlistData)
+                val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
+
+                val request = Request.Builder()
+                    .url("$API_BASE_URL/users/$userId/playlists")
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .addHeader("Content-Type", "application/json")
+                    .post(requestBody)
+                    .build()
+
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        callback(false, "Error de red: ${e.message}")
+                    }
+
+                    override fun onResponse(call: Call, response: Response) {
+                        if (response.isSuccessful) {
+                            callback(true, null)
+                        } else {
+                            val errorBody = response.body?.string()
+                            callback(false, "Error HTTP ${response.code}: $errorBody")
+                        }
+                    }
+                })
+            } else {
+                callback(false, error ?: "Error obteniendo perfil de usuario")
+            }
         }
+    }
+
+    // Obtener el perfil del usuario (necesario para crear playlists)
+    private fun getUserProfile(accessToken: String, callback: (String?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/me")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful && body != null) {
+                    try {
+                        val userProfile = gson.fromJson(body, SpotifyUserProfile::class.java)
+                        callback(userProfile.id, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing user profile: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
     }
 
     private fun createBasicAuthHeader(context: Context): String {
@@ -1013,3 +899,12 @@ data class SpotifySearchAllResponseRaw(
     val artists: SpotifyArtistsSearchResultRaw,
     val playlists: SpotifyPlaylistsSearchResultRaw
 )
+
+// Data class para perfil de usuario de Spotify
+data class SpotifyUserProfile(
+    val id: String,
+    @SerializedName("display_name") val displayName: String?,
+    val email: String?,
+    val images: List<SpotifyImage>?
+)
+

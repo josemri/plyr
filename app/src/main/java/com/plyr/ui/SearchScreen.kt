@@ -5,7 +5,9 @@ import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -35,6 +37,8 @@ import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.search.SpotifyArtistDetailView
+import com.plyr.ui.components.search.YouTubePlaylistDetailView
+import com.plyr.ui.components.search.YouTubeSearchResults
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +60,19 @@ fun SearchScreen(
     var spotifyResults by remember { mutableStateOf<SpotifySearchAllResponse?>(null) }
     var showSpotifyResults by remember { mutableStateOf(false) }
 
+    // Estados para resultados de YouTube (NUEVOS)
+    var youtubeAllResults by remember { mutableStateOf<YouTubeSearchManager.YouTubeSearchAllResult?>(null) }
+    var showYouTubeAllResults by remember { mutableStateOf(false) }
+
+    // Estados para vista detallada de playlist de YouTube (NUEVOS)
+    var selectedYouTubePlaylist by remember { mutableStateOf<YouTubeSearchManager.YouTubePlaylistInfo?>(null) }
+
+    // Estados para añadir canciones a playlist
+    var showPlaylistSelectionDialog by remember { mutableStateOf(false) }
+    var selectedTrackToAdd by remember { mutableStateOf<SpotifyTrack?>(null) }
+    var userPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
+    var isLoadingPlaylists by remember { mutableStateOf(false) }
+
     // Estados para paginación
     var currentOffset by remember { mutableStateOf(0) }
     var isLoadingMore by remember { mutableStateOf(false) }
@@ -65,11 +82,11 @@ fun SearchScreen(
     // Estados para vista detallada de playlist/álbum/artista
     var selectedSpotifyPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
     var selectedSpotifyAlbum by remember { mutableStateOf<SpotifyAlbum?>(null) }
-    var selectedSpotifyArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) } // Nuevo estado para artista
+    var selectedSpotifyArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) }
     var selectedItemTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
-    var selectedArtistAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) } // Nuevo estado para álbumes del artista
+    var selectedArtistAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
-    var isLoadingArtistAlbums by remember { mutableStateOf(false) } // Nuevo estado de carga para álbumes
+    var isLoadingArtistAlbums by remember { mutableStateOf(false) }
 
     // YouTube search manager para búsquedas locales
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
@@ -116,10 +133,19 @@ fun SearchScreen(
 
                     when (finalSearchEngine) {
                         "youtube" -> {
-                            // Search YouTube with detailed information
-                            val youtubeResults = youtubeSearchManager.searchYouTubeVideosDetailed(finalQuery)
-                            // Convert YouTube video info to AudioItem objects
-                            val newResults = youtubeResults.map { videoInfo ->
+                            // Limpiar resultados anteriores de YouTube
+                            youtubeAllResults = null
+                            showYouTubeAllResults = false
+
+                            // Usar la nueva búsqueda completa de YouTube (videos + playlists)
+                            val searchResults = youtubeSearchManager.searchYouTubeAll(finalQuery)
+
+                            // Establecer los nuevos resultados
+                            youtubeAllResults = searchResults
+                            showYouTubeAllResults = true
+
+                            // Mantener compatibilidad con el sistema legacy de videos
+                            val newResults = searchResults.videos.map { videoInfo ->
                                 AudioItem(
                                     title = videoInfo.title,
                                     url = "", // Use empty string for url, required by AudioItem
@@ -382,9 +408,46 @@ fun SearchScreen(
         }
     }
 
+    // Función para cargar playlists del usuario
+    val loadUserPlaylists: () -> Unit = {
+        isLoadingPlaylists = true
+        userPlaylists = emptyList()
+
+        coroutineScope.launch {
+            try {
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    Log.d("SearchScreen", "🎵 Cargando playlists del usuario")
+                    SpotifyRepository.getUserPlaylists(accessToken) { playlists, errorMsg ->
+                        isLoadingPlaylists = false
+                        if (playlists != null) {
+                            userPlaylists = playlists
+                            Log.d("SearchScreen", "✅ ${playlists.size} playlists cargadas del usuario")
+                        } else {
+                            error = "Error cargando playlists del usuario: $errorMsg"
+                            Log.e("SearchScreen", "❌ Error cargando playlists del usuario: $errorMsg")
+                        }
+                    }
+                } else {
+                    isLoadingPlaylists = false
+                    error = "Token de Spotify no disponible"
+                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
+                }
+            } catch (e: Exception) {
+                isLoadingPlaylists = false
+                error = "Error cargando playlists del usuario: ${e.message}"
+                Log.e("SearchScreen", "Error cargando user playlists", e)
+            }
+        }
+    }
+
     // Handle back button
     BackHandler {
         when {
+            selectedYouTubePlaylist != null -> {
+                // Volver de la vista detallada de playlist de YouTube
+                selectedYouTubePlaylist = null
+            }
             selectedSpotifyPlaylist != null || selectedSpotifyAlbum != null || selectedSpotifyArtist != null -> {
                 // Volver de la vista detallada a los resultados de búsqueda
                 selectedSpotifyPlaylist = null
@@ -404,6 +467,17 @@ fun SearchScreen(
     ) {
         // Mostrar vista detallada o búsqueda normal
         when {
+            selectedYouTubePlaylist != null -> {
+                // Nueva vista detallada para playlists de YouTube
+                YouTubePlaylistDetailView(
+                    playlist = selectedYouTubePlaylist!!,
+                    onBack = {
+                        selectedYouTubePlaylist = null
+                    },
+                    playerViewModel = playerViewModel,
+                    coroutineScope = coroutineScope
+                )
+            }
             selectedSpotifyPlaylist != null -> {
                 SpotifyPlaylistDetailView(
                     playlist = selectedSpotifyPlaylist!!,
@@ -656,12 +730,95 @@ fun SearchScreen(
                     onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                     onAlbumSelected = loadSpotifyAlbumTracks,
                     onPlaylistSelected = loadSpotifyPlaylistTracks,
-                    onArtistSelected = loadArtistAlbums, // Agregar callback para artistas
+                    onArtistSelected = loadArtistAlbums,
                     onSearchTriggered = performSearch,
                     playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope
+                    coroutineScope = coroutineScope,
+                    // Pass the missing parameters
+                    youtubeAllResults = youtubeAllResults,
+                    showYouTubeAllResults = showYouTubeAllResults,
+                    onYouTubePlaylistSelected = { playlist ->
+                        selectedYouTubePlaylist = playlist
+                    },
+                    onAddTrackToPlaylist = { track ->
+                        selectedTrackToAdd = track
+                        loadUserPlaylists()
+                        showPlaylistSelectionDialog = true
+                    }
                 )
             }
+        }
+
+        // Diálogo para selección de playlist
+        if (showPlaylistSelectionDialog && selectedTrackToAdd != null) {
+            AlertDialog(
+                onDismissRequest = { showPlaylistSelectionDialog = false },
+                title = { Text("Seleccionar playlist") },
+                text = {
+                    Column {
+                        if (isLoadingPlaylists) {
+                            // Indicador de carga
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        } else {
+                            // Lista de playlists del usuario
+                            LazyColumn {
+                                items(userPlaylists) { playlist ->
+                                    Text(
+                                        text = playlist.name,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                // Añadir la canción a la playlist seleccionada
+                                                coroutineScope.launch {
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null) {
+                                                        SpotifyRepository.addTrackToPlaylist(accessToken, playlist.id, selectedTrackToAdd!!.id) { success, errorMsg ->
+                                                            if (success) {
+                                                                Log.d("SearchScreen", "✅ Canción añadida a la playlist: ${playlist.name}")
+                                                                // Cerrar diálogo y mostrar mensaje de éxito
+                                                                showPlaylistSelectionDialog = false
+                                                            } else {
+                                                                Log.e("SearchScreen", "❌ Error añadiendo canción a la playlist: $errorMsg")
+                                                                // Mostrar error
+                                                                error = "Error añadiendo canción a la playlist: $errorMsg"
+                                                            }
+                                                        }
+                                                    } else {
+                                                        Log.e("SearchScreen", "❌ Token de Spotify no disponible")
+                                                        error = "Token de Spotify no disponible"
+                                                    }
+                                                }
+                                            },
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFE0E0E0)
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            // Cerrar diálogo sin acción
+                            showPlaylistSelectionDialog = false
+                        }
+                    ) {
+                        Text("Cancelar")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(0.9f)
+            )
         }
     }
 }
@@ -681,10 +838,14 @@ private fun SearchMainView(
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
-    onArtistSelected: (SpotifyArtistFull) -> Unit, // Nuevo callback para artistas
+    onArtistSelected: (SpotifyArtistFull) -> Unit,
     onSearchTriggered: (String, Boolean) -> Unit,
     playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
+    coroutineScope: CoroutineScope,
+    youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
+    showYouTubeAllResults: Boolean,
+    onYouTubePlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
+    onAddTrackToPlaylist: (SpotifyTrack) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -694,7 +855,11 @@ private fun SearchMainView(
         // Header
         Text(
             text = "$ plyr_search",
-            style = MaterialTheme.typography.headlineMedium, // TÍTULOS PRINCIPALES - Azul terminal
+            style = MaterialTheme.typography.headlineMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 24.sp,
+                color = Color(0xFF4ECDC4)
+            ),
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
@@ -705,7 +870,9 @@ private fun SearchMainView(
             label = {
                 Text(
                     "> search_audio",
-                    style = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = FontFamily.Monospace
+                    )
                 )
             },
             modifier = Modifier.fillMaxWidth(),
@@ -716,7 +883,9 @@ private fun SearchMainView(
                     }) {
                         Text(
                             text = "x",
-                            style = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace
+                            )
                         )
                     }
                 }
@@ -738,7 +907,9 @@ private fun SearchMainView(
                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             ),
-            textStyle = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
+            textStyle = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace
+            )
         )
 
         Spacer(Modifier.height(12.dp))
@@ -751,7 +922,10 @@ private fun SearchMainView(
             ) {
                 Text(
                     "$ loading...",
-                    style = MaterialTheme.typography.titleMedium // TEXTO NORMAL/OPCIONES
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFFFD93D)
+                    )
                 )
             }
         }
@@ -761,24 +935,22 @@ private fun SearchMainView(
             Text(
                 "ERR: $it",
                 color = Color(0xFFFF6B6B),
-                style = MaterialTheme.typography.bodySmall // TEXTO SECUNDARIO
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace
+                )
             )
         }
 
         // === MENÚS DESPLEGABLES DE SPOTIFY ===
-        android.util.Log.d(
-            "SearchMainView",
-            "Renderizando vista principal - showSpotifyResults=$showSpotifyResults, spotifyResults!=null=${spotifyResults != null}"
-        )
         if (showSpotifyResults && spotifyResults != null) {
             CollapsibleSpotifySearchResultsView(
                 results = spotifyResults,
                 onAlbumSelected = onAlbumSelected,
                 onPlaylistSelected = onPlaylistSelected,
-                onArtistSelected = onArtistSelected, // Pasar el callback de artista
-                onTrackSelectedFromSearch = { track, allTracks, selectedIndex ->
+                onArtistSelected = onArtistSelected,
+                onTrackSelectedFromSearch = { track: SpotifyTrack, allTracks: List<SpotifyTrack>, selectedIndex: Int ->
                     // Convertir tracks de Spotify a TrackEntity y crear playlist temporal
-                    val trackEntities = allTracks.mapIndexed { index, spotifyTrack ->
+                    val trackEntities = allTracks.mapIndexed { index: Int, spotifyTrack: SpotifyTrack ->
                         TrackEntity(
                             id = "spotify_search_${spotifyTrack.id}_$index",
                             playlistId = "spotify_search_${System.currentTimeMillis()}",
@@ -811,12 +983,24 @@ private fun SearchMainView(
                 },
                 onLoadMore = { onSearchTriggered(searchQuery, true) },
                 playerViewModel = playerViewModel,
-                coroutineScope = coroutineScope
+                coroutineScope = coroutineScope,
+                onAddTrackToPlaylist = onAddTrackToPlaylist
             )
         }
 
-        // === RESULTADOS DE YOUTUBE ===
-        if (results.isNotEmpty()) {
+        // === RESULTADOS DE YOUTUBE CON PLAYLISTS (NUEVO) ===
+        if (showYouTubeAllResults && youtubeAllResults != null) {
+            YouTubeSearchResults(
+                results = null, // Legacy results
+                youtubeAllResults = youtubeAllResults,
+                onVideoSelected = onVideoSelected,
+                onVideoSelectedFromSearch = onVideoSelectedFromSearch,
+                onPlaylistSelected = onYouTubePlaylistSelected
+            )
+        }
+
+        // === RESULTADOS DE YOUTUBE LEGACY ===
+        if (results.isNotEmpty() && !showYouTubeAllResults) {
             CollapsibleYouTubeSearchResultsView(
                 results = results,
                 onVideoSelected = onVideoSelected,
@@ -826,20 +1010,33 @@ private fun SearchMainView(
                 coroutineScope = coroutineScope
             )
         }
+
+        // Mensaje cuando no hay resultados
+        if (!isLoading && searchQuery.isNotBlank() &&
+            !showSpotifyResults && !showYouTubeAllResults && results.isEmpty()) {
+            Text(
+                text = "> no results found",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF95A5A6)
+                ),
+                modifier = Modifier.padding(16.dp)
+            )
+        }
     }
 }
-
 
 @Composable
 fun CollapsibleSpotifySearchResultsView(
     results: SpotifySearchAllResponse,
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
-    onArtistSelected: (SpotifyArtistFull) -> Unit, // Agregar parámetro faltante
+    onArtistSelected: (SpotifyArtistFull) -> Unit,
     onTrackSelectedFromSearch: (SpotifyTrack, List<SpotifyTrack>, Int) -> Unit,
     onLoadMore: () -> Unit,
     playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
+    coroutineScope: CoroutineScope,
+    onAddTrackToPlaylist: (SpotifyTrack) -> Unit = {}
 ) {
     var tracksExpanded by remember { mutableStateOf(false) }
     var albumsExpanded by remember { mutableStateOf(false) }
@@ -854,7 +1051,10 @@ fun CollapsibleSpotifySearchResultsView(
         if (results.tracks.items.isNotEmpty()) {
             Text(
                 text = if (tracksExpanded) "v tracks" else "> tracks",
-                style = MaterialTheme.typography.titleMedium, // TÍTULOS PRINCIPALES - Azul terminal
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                ),
                 modifier = Modifier
                     .clickable { tracksExpanded = !tracksExpanded }
                     .padding(4.dp)
@@ -873,8 +1073,7 @@ fun CollapsibleSpotifySearchResultsView(
                                 onTrackSelectedFromSearch(track, results.tracks.items, index)
                             },
                             onAddToPlaylist = { selectedTrack ->
-                                // Show playlist selection dialog for this track
-                                // This will be handled by the new composable
+                                onAddTrackToPlaylist(selectedTrack)
                             }
                         )
                     }
@@ -886,7 +1085,10 @@ fun CollapsibleSpotifySearchResultsView(
         if (results.albums.items.isNotEmpty()) {
             Text(
                 text = if (albumsExpanded) "v albums" else "> albums",
-                style = MaterialTheme.typography.titleMedium, // TÍTULOS PRINCIPALES - Azul terminal
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                ),
                 modifier = Modifier
                     .clickable { albumsExpanded = !albumsExpanded }
                     .padding(4.dp)
@@ -946,7 +1148,10 @@ fun CollapsibleSpotifySearchResultsView(
         if (results.playlists.items.isNotEmpty()) {
             Text(
                 text = if (playlistsExpanded) "v playlists" else "> playlists",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                ),
                 modifier = Modifier
                     .clickable { playlistsExpanded = !playlistsExpanded }
                     .padding(4.dp)
@@ -995,7 +1200,10 @@ fun CollapsibleSpotifySearchResultsView(
         if (results.artists.items.isNotEmpty()) {
             Text(
                 text = if (artistsExpanded) "v artists" else "> artists",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                ),
                 modifier = Modifier
                     .clickable { artistsExpanded = !artistsExpanded }
                     .padding(4.dp)
@@ -1012,7 +1220,7 @@ fun CollapsibleSpotifySearchResultsView(
                         Column(
                             modifier = Modifier
                                 .width(100.dp)
-                                .clickable { onArtistSelected(artist) }, // Conectar con el callback
+                                .clickable { onArtistSelected(artist) },
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             AsyncImage(
@@ -1042,101 +1250,6 @@ fun CollapsibleSpotifySearchResultsView(
     }
 }
 
-
-@Composable
-fun CollapsibleYouTubeSearchResultsView(
-    results: List<AudioItem>,
-    onVideoSelected: (String, String) -> Unit,
-    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit,
-    onLoadMore: () -> Unit,
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
-) {
-    var expanded by remember { mutableStateOf(true) }
-
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = if (expanded) "v youtube_results" else "> youtube_results",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier
-                .clickable { expanded = !expanded }
-                .padding(bottom = 8.dp, top = 16.dp)
-        )
-
-        if (expanded) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                results.take(5).forEachIndexed { index, item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onVideoSelectedFromSearch(item.videoId, item.title, results, index)
-                            }
-                            .padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${index + 1}. ",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF95A5A6)
-                            ),
-                            modifier = Modifier.width(32.dp)
-                        )
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = item.title,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFE0E0E0)
-                                ),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = item.channel ?: "Unknown Channel",
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFF95A5A6)
-                                    ),
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-
-                                item.duration?.let { duration ->
-                                    Text(
-                                        text = duration,
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFF95A5A6)
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 @Composable
 fun TrackRowWithPlaylistButton(
     track: SpotifyTrack,
@@ -1144,16 +1257,9 @@ fun TrackRowWithPlaylistButton(
     onTrackClick: () -> Unit,
     onAddToPlaylist: (SpotifyTrack) -> Unit
 ) {
-    var showPlaylistDialog by remember { mutableStateOf(false) }
-    var userPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
-    var isLoadingPlaylists by remember { mutableStateOf(false) }
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onTrackClick() }
             .padding(vertical = 4.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1166,7 +1272,11 @@ fun TrackRowWithPlaylistButton(
             modifier = Modifier.width(32.dp)
         )
 
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable { onTrackClick() }
+        ) {
             Text(
                 text = track.name,
                 style = MaterialTheme.typography.bodyMedium.copy(
@@ -1187,217 +1297,119 @@ fun TrackRowWithPlaylistButton(
             )
         }
 
-        Text(
-            text = track.getDurationText(),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF95A5A6)
-            ),
-            modifier = Modifier.padding(end = 8.dp)
-        )
-
-        // "..." button to add to playlist
+        // Botón para añadir a playlist
         IconButton(
-            onClick = {
-                showPlaylistDialog = true
-                isLoadingPlaylists = true
-
-                // Load user playlists
-                coroutineScope.launch {
-                    try {
-                        SpotifyRepository.getUserPlaylistsWithAutoRefresh(context) { playlists, error ->
-                            isLoadingPlaylists = false
-                            if (playlists != null) {
-                                userPlaylists = playlists.filter { it.id.isNotEmpty() }
-                                Log.d("PlaylistDialog", "Loaded ${userPlaylists.size} playlists")
-                            } else {
-                                Log.e("PlaylistDialog", "Error loading playlists: $error")
-                            }
-                        }
-                    } catch (e: Exception) {
-                        isLoadingPlaylists = false
-                        Log.e("PlaylistDialog", "Exception loading playlists", e)
-                    }
-                }
-            }
+            onClick = { onAddToPlaylist(track) },
+            modifier = Modifier.size(32.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = "Add to playlist",
-                tint = Color(0xFF95A5A6),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-
-    // Playlist selection dialog
-    if (showPlaylistDialog) {
-        PlaylistSelectionDialog(
-            track = track,
-            userPlaylists = userPlaylists,
-            isLoading = isLoadingPlaylists,
-            onDismiss = { showPlaylistDialog = false },
-            onPlaylistSelected = { playlist ->
-                showPlaylistDialog = false
-                // Add track to selected playlist
-                addTrackToPlaylist(context, track, playlist, coroutineScope)
-            }
-        )
-    }
-}
-
-@Composable
-fun PlaylistSelectionDialog(
-    track: SpotifyTrack,
-    userPlaylists: List<SpotifyPlaylist>,
-    isLoading: Boolean,
-    onDismiss: () -> Unit,
-    onPlaylistSelected: (SpotifyPlaylist) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
             Text(
-                text = "Añadir a playlist",
+                text = "*",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4ECDC4)
                 )
             )
-        },
-        text = {
-            Column {
-                Text(
-                    text = "\"${track.name}\" - ${track.getArtistNames()}",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFFE0E0E0)
-                    ),
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                if (isLoading) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = Color(0xFF4ECDC4)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Cargando playlists...",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF95A5A6)
-                            )
-                        )
-                    }
-                } else if (userPlaylists.isEmpty()) {
-                    Text(
-                        text = "No se encontraron playlists",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
-                        )
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        userPlaylists.take(10).forEach { playlist ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onPlaylistSelected(playlist) },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = Color(0xFF2C3E50)
-                                )
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    AsyncImage(
-                                        model = playlist.getImageUrl(),
-                                        contentDescription = "Playlist cover",
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(RoundedCornerShape(4.dp))
-                                    )
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = playlist.name,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = playlist.getTrackCount(),
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFF95A5A6)
-                                            )
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Cancelar",
-                    color = Color(0xFF95A5A6),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace
-                    )
-                )
-            }
-        }
-    )
-}
-
-private fun addTrackToPlaylist(
-    context: Context,
-    track: SpotifyTrack,
-    playlist: SpotifyPlaylist,
-    coroutineScope: CoroutineScope
-) {
-    coroutineScope.launch {
-        try {
-            val trackUri = "spotify:track:${track.id}"
-            Log.d("AddToPlaylist", "Adding track '${track.name}' to playlist '${playlist.name}'")
-
-            SpotifyRepository.addTracksToPlaylistWithAutoRefresh(
-                context = context,
-                playlistId = playlist.id,
-                trackUris = listOf(trackUri)
-            ) { success, error ->
-                if (success) {
-                    Log.d("AddToPlaylist", "✅ Track added successfully to '${playlist.name}'")
-                    // You could show a toast or snackbar here to inform the user
-                } else {
-                    Log.e("AddToPlaylist", "❌ Error adding track to playlist: $error")
-                    // You could show an error message here
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("AddToPlaylist", "Exception adding track to playlist", e)
         }
     }
 }
 
+@Composable
+fun CollapsibleYouTubeSearchResultsView(
+    results: List<AudioItem>,
+    onVideoSelected: (String, String) -> Unit,
+    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit,
+    onLoadMore: () -> Unit,
+    playerViewModel: PlayerViewModel?,
+    coroutineScope: CoroutineScope
+) {
+    var videosExpanded by remember { mutableStateOf(true) }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Videos section header
+        Text(
+            text = if (videosExpanded) "v youtube results [${results.size}]" else "> youtube results [${results.size}]",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF4ECDC4)
+            ),
+            modifier = Modifier
+                .clickable { videosExpanded = !videosExpanded }
+                .padding(4.dp)
+        )
+
+        if (videosExpanded) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                results.forEachIndexed { index, item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onVideoSelectedFromSearch(
+                                    item.videoId,
+                                    item.title,
+                                    results,
+                                    index
+                                )
+                            }
+                            .padding(vertical = 4.dp, horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.title,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFE0E0E0)
+                                ),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Text(
+                                text = item.channel,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF95A5A6)
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+
+                        item.duration?.let { duration ->
+                            Text(
+                                text = duration,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFF95A5A6)
+                                ),
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Load more button if there are more results
+                if (results.size >= 10) {
+                    Text(
+                        text = "> load more",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF4ECDC4)
+                        ),
+                        modifier = Modifier
+                            .clickable { onLoadMore() }
+                            .padding(8.dp)
+                    )
+                }
+            }
+        }
+    }
+}

@@ -32,10 +32,13 @@ fun SearchMainView(
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit,
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
-    onArtistSelected: (SpotifyArtistFull) -> Unit, // Agregar parámetro faltante
+    onArtistSelected: (SpotifyArtistFull) -> Unit,
     onSearchTriggered: (String, Boolean) -> Unit,
     playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
+    coroutineScope: CoroutineScope,
+    // Add missing YouTube parameters
+    youtubeAllResults: com.plyr.service.YouTubeSearchManager.YouTubeSearchAllResult? = null,
+    onYouTubePlaylistSelected: (com.plyr.service.YouTubeSearchManager.YouTubePlaylistInfo) -> Unit = {}
 ) {
     Column {
         // Search header
@@ -123,8 +126,10 @@ fun SearchMainView(
             results.isNotEmpty() -> {
                 YouTubeSearchResults(
                     results = results,
+                    youtubeAllResults = youtubeAllResults,
                     onVideoSelected = onVideoSelected,
-                    onVideoSelectedFromSearch = onVideoSelectedFromSearch
+                    onVideoSelectedFromSearch = onVideoSelectedFromSearch,
+                    onPlaylistSelected = onYouTubePlaylistSelected
                 )
             }
             !isLoading && searchQuery.isNotBlank() -> {

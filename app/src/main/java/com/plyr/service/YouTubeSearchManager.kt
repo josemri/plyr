@@ -301,12 +301,177 @@ class YouTubeSearchManager(private val context: Context) {
                 else -> viewCount.toString()
             }
         }
-        
+
         private fun Double.format(digits: Int) = "%.${digits}f".format(this).removeSuffix("0").removeSuffix(".")
     }
-    
 
-    
+    /**
+     * Información detallada de una playlist de YouTube
+     */
+    data class YouTubePlaylistInfo(
+        val playlistId: String,
+        val title: String,
+        val uploader: String,
+        val videoCount: Int,
+        val thumbnailUrl: String?,
+        val description: String?,
+        val channel: String? = uploader
+    ) {
+        /**
+         * Número de videos formateado
+         */
+        fun getFormattedVideoCount(): String {
+            return when {
+                videoCount == 1 -> "1 video"
+                videoCount < 1000 -> "$videoCount videos"
+                videoCount >= 1000 -> "${(videoCount / 1000.0).format(1)}K videos"
+                else -> "$videoCount videos"
+            }
+        }
+
+        /**
+         * Obtiene la URL de la imagen de la playlist
+         */
+        fun getImageUrl(): String? {
+            return thumbnailUrl
+        }
+
+        private fun Double.format(digits: Int) = "%.${digits}f".format(this).removeSuffix("0").removeSuffix(".")
+    }
+
+    /**
+     * Resultado combinado de búsqueda de YouTube (videos y playlists)
+     */
+    data class YouTubeSearchAllResult(
+        val videos: List<YouTubeVideoInfo>,
+        val playlists: List<YouTubePlaylistInfo>
+    )
+
+    // === NUEVAS FUNCIONES PARA PLAYLISTS ===
+
+    /**
+     * Busca tanto videos como playlists de YouTube
+     *
+     * @param query Cadena de búsqueda
+     * @param maxVideos Número máximo de videos
+     * @param maxPlaylists Número máximo de playlists
+     * @return Resultado combinado con videos y playlists
+     */
+    suspend fun searchYouTubeAll(
+        query: String,
+        maxVideos: Int = 25,
+        maxPlaylists: Int = 10
+    ): YouTubeSearchAllResult = withContext(Dispatchers.IO) {
+        try {
+            initialize()
+            Log.d(TAG, "🔍 Búsqueda completa YouTube: '$query' (videos: $maxVideos, playlists: $maxPlaylists)")
+
+            val service = ServiceList.YouTube
+            val searchExtractor = service.getSearchExtractor(query)
+            searchExtractor.fetchPage()
+
+            val videos = mutableListOf<YouTubeVideoInfo>()
+            val playlists = mutableListOf<YouTubePlaylistInfo>()
+            val items = searchExtractor.initialPage.items
+
+            for (item in items) {
+                when (item) {
+                    is org.schabi.newpipe.extractor.stream.StreamInfoItem -> {
+                        if (videos.size < maxVideos) {
+                            val videoId = extractVideoIdFromUrl(item.url)
+                            if (videoId != null && videoId.length == 11) {
+                                videos.add(YouTubeVideoInfo(
+                                    videoId = videoId,
+                                    title = item.name,
+                                    uploader = item.uploaderName ?: "Desconocido",
+                                    duration = item.duration,
+                                    viewCount = item.viewCount,
+                                    thumbnailUrl = getThumbnailUrl(videoId)
+                                ))
+                            }
+                        }
+                    }
+                    is org.schabi.newpipe.extractor.playlist.PlaylistInfoItem -> {
+                        if (playlists.size < maxPlaylists) {
+                            val playlistId = extractPlaylistIdFromUrl(item.url)
+                            if (playlistId != null) {
+                                playlists.add(YouTubePlaylistInfo(
+                                    playlistId = playlistId,
+                                    title = item.name,
+                                    uploader = item.uploaderName ?: "Desconocido",
+                                    videoCount = item.streamCount.toInt(),
+                                    thumbnailUrl = getPlaylistThumbnailUrl(playlistId),
+                                    description = null
+                                ))
+                            }
+                        }
+                    }
+                }
+
+                // Parar si ya tenemos suficientes resultados
+                if (videos.size >= maxVideos && playlists.size >= maxPlaylists) {
+                    break
+                }
+            }
+
+            Log.d(TAG, "✅ YouTube búsqueda completa: ${videos.size} videos, ${playlists.size} playlists")
+            YouTubeSearchAllResult(videos, playlists)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error en búsqueda completa YouTube: ${e.message}", e)
+            YouTubeSearchAllResult(emptyList(), emptyList())
+        }
+    }
+
+    /**
+     * Obtiene los videos de una playlist de YouTube
+     *
+     * @param playlistId ID de la playlist
+     * @param maxVideos Número máximo de videos a obtener
+     * @return Lista de información de videos de la playlist
+     */
+    suspend fun getYouTubePlaylistVideos(
+        playlistId: String,
+        maxVideos: Int = 100
+    ): List<YouTubeVideoInfo> = withContext(Dispatchers.IO) {
+        try {
+            initialize()
+            Log.d(TAG, "🔍 Obteniendo videos de playlist: $playlistId")
+
+            val service = ServiceList.YouTube
+            val playlistExtractor = service.getPlaylistExtractor("https://www.youtube.com/playlist?list=$playlistId")
+            playlistExtractor.fetchPage()
+
+            val videos = mutableListOf<YouTubeVideoInfo>()
+            val items = playlistExtractor.initialPage.items
+
+            for (item in items.take(maxVideos)) {
+                if (item is org.schabi.newpipe.extractor.stream.StreamInfoItem) {
+                    val videoId = extractVideoIdFromUrl(item.url)
+                    if (videoId != null && videoId.length == 11) {
+                        videos.add(YouTubeVideoInfo(
+                            videoId = videoId,
+                            title = item.name,
+                            uploader = item.uploaderName ?: "Desconocido",
+                            duration = item.duration,
+                            viewCount = item.viewCount,
+                            thumbnailUrl = getThumbnailUrl(videoId)
+                        ))
+                    }
+                }
+            }
+
+            Log.d(TAG, "✅ Obtenidos ${videos.size} videos de la playlist")
+            videos
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error obteniendo videos de playlist: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    // === MÉTODOS UTILITARIOS PRIVADOS ADICIONALES ===
+
     /**
      * Extraer ID de video de una URL de YouTube
      */
@@ -341,7 +506,31 @@ class YouTubeSearchManager(private val context: Context) {
             null
         }
     }
-    
+
+    /**
+     * Extraer ID de playlist de una URL de YouTube
+     */
+    private fun extractPlaylistIdFromUrl(url: String): String? {
+        return try {
+            when {
+                url.contains("list=") -> {
+                    url.substringAfter("list=").substringBefore("&")
+                }
+                url.contains("/playlist?") -> {
+                    val uri = android.net.Uri.parse(url)
+                    uri.getQueryParameter("list")
+                }
+                else -> {
+                    Log.w(TAG, "Formato de URL de playlist no reconocido: $url")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error extrayendo playlist ID de URL: $url", e)
+            null
+        }
+    }
+
     /**
      * Cancelar búsquedas en curso
      */
@@ -456,5 +645,19 @@ class YouTubeSearchManager(private val context: Context) {
      */
     private fun buildSearchQuery(track: TrackEntity): String {
         return "${track.name} ${track.artists}".trim()
+    }
+
+    /**
+     * Genera URL de thumbnail para un video de YouTube
+     */
+    private fun getThumbnailUrl(videoId: String): String {
+        return "https://img.youtube.com/vi/$videoId/hqdefault.jpg"
+    }
+
+    /**
+     * Genera URL de thumbnail para una playlist de YouTube
+     */
+    private fun getPlaylistThumbnailUrl(playlistId: String): String {
+        return "https://img.youtube.com/vi/undefined/hqdefault.jpg" // Placeholder
     }
 }
