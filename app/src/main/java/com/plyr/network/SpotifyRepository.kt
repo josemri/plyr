@@ -736,6 +736,48 @@ object SpotifyRepository {
         }
     }
 
+    // Añadir tracks a una playlist de Spotify
+    fun addTracksToPlaylist(accessToken: String, playlistId: String, trackUris: List<String>, callback: (Boolean, String?) -> Unit) {
+        val requestBody = gson.toJson(mapOf("uris" to trackUris))
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId/tracks")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                if (response.isSuccessful) {
+                    android.util.Log.d("SpotifyRepository", "Track added successfully: $body")
+                    callback(true, null)
+                } else {
+                    android.util.Log.e("SpotifyRepository", "Error adding track: ${response.code} - $body")
+
+                    // Detectar error de scopes insuficientes
+                    if (response.code == 403 && body?.contains("Insufficient client scope") == true) {
+                        callback(false, "Permisos insuficientes. Desconecta y vuelve a conectar Spotify para obtener todos los permisos necesarios.")
+                    } else {
+                        callback(false, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            }
+        })
+    }
+
+    // Versión con renovación automática de tokens
+    suspend fun addTracksToPlaylistWithAutoRefresh(context: Context, playlistId: String, trackUris: List<String>, callback: (Boolean, String?) -> Unit) {
+        SpotifyTokenManager.withValidToken(context) { token ->
+            addTracksToPlaylist(token, playlistId, trackUris, callback)
+        }
+    }
+
     private fun createBasicAuthHeader(context: Context): String {
         val credentials = "${Config.getSpotifyClientId(context)}:${Config.getSpotifyClientSecret(context)}"
         val encodedCredentials = Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)

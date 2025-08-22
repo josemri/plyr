@@ -11,11 +11,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -890,53 +889,17 @@ fun CollapsibleSpotifySearchResultsView(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     results.tracks.items.take(5).forEachIndexed { index, track ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onTrackSelectedFromSearch(track, results.tracks.items, index)
-                                }
-                                .padding(vertical = 4.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${index + 1}. ",
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
-                                ),
-                                modifier = Modifier.width(32.dp)
-                            )
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = track.name ?: "Unknown Track",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFFE0E0E0)
-                                    ),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = track.getArtistNames(),
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFF95A5A6)
-                                    ),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                        TrackRowWithPlaylistButton(
+                            track = track,
+                            index = index,
+                            onTrackClick = {
+                                onTrackSelectedFromSearch(track, results.tracks.items, index)
+                            },
+                            onAddToPlaylist = { selectedTrack ->
+                                // Show playlist selection dialog for this track
+                                // This will be handled by the new composable
                             }
-
-                            Text(
-                                text = track.getDurationText(),
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
-                                )
-                            )
-                        }
+                        )
                     }
                 }
             }
@@ -1219,3 +1182,268 @@ fun CollapsibleYouTubeSearchResultsView(
         }
     }
 }
+
+@Composable
+fun TrackRowWithPlaylistButton(
+    track: SpotifyTrack,
+    index: Int,
+    onTrackClick: () -> Unit,
+    onAddToPlaylist: (SpotifyTrack) -> Unit
+) {
+    var showPlaylistDialog by remember { mutableStateOf(false) }
+    var userPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
+    var isLoadingPlaylists by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onTrackClick() }
+            .padding(vertical = 4.dp, horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "${index + 1}. ",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF95A5A6)
+            ),
+            modifier = Modifier.width(32.dp)
+        )
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.name,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFE0E0E0)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = track.getArtistNames(),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF95A5A6)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Text(
+            text = track.getDurationText(),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFF95A5A6)
+            ),
+            modifier = Modifier.padding(end = 8.dp)
+        )
+
+        // "..." button to add to playlist
+        IconButton(
+            onClick = {
+                showPlaylistDialog = true
+                isLoadingPlaylists = true
+
+                // Load user playlists
+                coroutineScope.launch {
+                    try {
+                        SpotifyRepository.getUserPlaylistsWithAutoRefresh(context) { playlists, error ->
+                            isLoadingPlaylists = false
+                            if (playlists != null) {
+                                userPlaylists = playlists.filter { it.id.isNotEmpty() }
+                                Log.d("PlaylistDialog", "Loaded ${userPlaylists.size} playlists")
+                            } else {
+                                Log.e("PlaylistDialog", "Error loading playlists: $error")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        isLoadingPlaylists = false
+                        Log.e("PlaylistDialog", "Exception loading playlists", e)
+                    }
+                }
+            }
+        ) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "Add to playlist",
+                tint = Color(0xFF95A5A6),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+
+    // Playlist selection dialog
+    if (showPlaylistDialog) {
+        PlaylistSelectionDialog(
+            track = track,
+            userPlaylists = userPlaylists,
+            isLoading = isLoadingPlaylists,
+            onDismiss = { showPlaylistDialog = false },
+            onPlaylistSelected = { playlist ->
+                showPlaylistDialog = false
+                // Add track to selected playlist
+                addTrackToPlaylist(context, track, playlist, coroutineScope)
+            }
+        )
+    }
+}
+
+@Composable
+fun PlaylistSelectionDialog(
+    track: SpotifyTrack,
+    userPlaylists: List<SpotifyPlaylist>,
+    isLoading: Boolean,
+    onDismiss: () -> Unit,
+    onPlaylistSelected: (SpotifyPlaylist) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Añadir a playlist",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                )
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "\"${track.name}\" - ${track.getArtistNames()}",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFFE0E0E0)
+                    ),
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+
+                if (isLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color(0xFF4ECDC4)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Cargando playlists...",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF95A5A6)
+                            )
+                        )
+                    }
+                } else if (userPlaylists.isEmpty()) {
+                    Text(
+                        text = "No se encontraron playlists",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF95A5A6)
+                        )
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        userPlaylists.take(10).forEach { playlist ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPlaylistSelected(playlist) },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFF2C3E50)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    AsyncImage(
+                                        model = playlist.getImageUrl(),
+                                        contentDescription = "Playlist cover",
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                    )
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = playlist.name,
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFE0E0E0)
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = playlist.getTrackCount(),
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFF95A5A6)
+                                            )
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Cancelar",
+                    color = Color(0xFF95A5A6),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace
+                    )
+                )
+            }
+        }
+    )
+}
+
+private fun addTrackToPlaylist(
+    context: Context,
+    track: SpotifyTrack,
+    playlist: SpotifyPlaylist,
+    coroutineScope: CoroutineScope
+) {
+    coroutineScope.launch {
+        try {
+            val trackUri = "spotify:track:${track.id}"
+            Log.d("AddToPlaylist", "Adding track '${track.name}' to playlist '${playlist.name}'")
+
+            SpotifyRepository.addTracksToPlaylistWithAutoRefresh(
+                context = context,
+                playlistId = playlist.id,
+                trackUris = listOf(trackUri)
+            ) { success, error ->
+                if (success) {
+                    Log.d("AddToPlaylist", "✅ Track added successfully to '${playlist.name}'")
+                    // You could show a toast or snackbar here to inform the user
+                } else {
+                    Log.e("AddToPlaylist", "❌ Error adding track to playlist: $error")
+                    // You could show an error message here
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AddToPlaylist", "Exception adding track to playlist", e)
+        }
+    }
+}
+

@@ -10,7 +10,12 @@ import com.plyr.utils.Config
 import com.plyr.utils.SpotifyTokenManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import android.util.Log
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * PlaylistLocalRepository - Repositorio para gestión local de playlists y tracks
@@ -142,6 +147,7 @@ class PlaylistLocalRepository(context: Context) {
                 return@withContext false
             }
 
+            // Obtener playlists del usuario con paginación
             var success = false
             SpotifyRepository.getUserPlaylists(accessToken) { playlists, error ->
                 if (error != null) {
