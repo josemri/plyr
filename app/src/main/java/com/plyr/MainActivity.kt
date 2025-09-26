@@ -328,20 +328,17 @@ class MainActivity : ComponentActivity() {
      * Detiene completamente el servicio de música y cierra la aplicación
      */
     private fun stopMusicServiceCompletely() {
-        musicService?.let { service ->
+        musicService?.let { service: MusicService ->
             // Parar la reproducción
             val playerViewModel = (application as PlyrApp).playerViewModel
             playerViewModel.pausePlayer()
 
-            // Detener el servicio foreground
-            service.stopForegroundService()
+            // Detener el servicio completamente
+            stopService(Intent(this, MusicService::class.java))
         }
 
         // Desconectar el binding
         disconnectMusicService()
-
-        // Detener el servicio completamente
-        stopService(Intent(this, MusicService::class.java))
     }
     
     /**
