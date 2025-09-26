@@ -35,6 +35,7 @@ import com.plyr.utils.Config
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
+import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
 import com.plyr.ui.components.search.SpotifyArtistDetailView
 import com.plyr.ui.components.search.YouTubePlaylistDetailView
@@ -96,6 +97,8 @@ fun SearchScreen(
                 results = emptyList()
                 spotifyResults = null
                 showSpotifyResults = false
+                youtubeAllResults = null
+                showYouTubeAllResults = false
             }
             error = null
 
@@ -502,7 +505,7 @@ fun SearchScreen(
                             modifier = Modifier.clickable {
                                 // Start playback from first track
                                 if (selectedItemTracks.isNotEmpty()) {
-                                    val trackEntities = selectedItemTracks.mapIndexed { index, spotifyTrack ->
+                                    val trackEntities = selectedItemTracks.mapIndexed { trackIndex, spotifyTrack ->
                                         TrackEntity(
                                             id = "spotify_${album.id}_${spotifyTrack.id}",
                                             playlistId = album.id,
@@ -511,7 +514,7 @@ fun SearchScreen(
                                             artists = spotifyTrack.getArtistNames(),
                                             youtubeVideoId = null,
                                             audioUrl = null,
-                                            position = index,
+                                            position = trackIndex,
                                             lastSyncTime = System.currentTimeMillis()
                                         )
                                     }
@@ -538,7 +541,7 @@ fun SearchScreen(
                                 // Start playback with shuffled tracks
                                 if (selectedItemTracks.isNotEmpty()) {
                                     val shuffledTracks = selectedItemTracks.shuffled()
-                                    val trackEntities = shuffledTracks.mapIndexed { index, spotifyTrack ->
+                                    val trackEntities = shuffledTracks.mapIndexed { trackIndex, spotifyTrack ->
                                         TrackEntity(
                                             id = "spotify_${album.id}_${spotifyTrack.id}_shuffled",
                                             playlistId = album.id,
@@ -547,7 +550,7 @@ fun SearchScreen(
                                             artists = spotifyTrack.getArtistNames(),
                                             youtubeVideoId = null,
                                             audioUrl = null,
-                                            position = index,
+                                            position = trackIndex,
                                             lastSyncTime = System.currentTimeMillis()
                                         )
                                     }
@@ -603,39 +606,36 @@ fun SearchScreen(
                     }
                     // Track list
                     if (selectedItemTracks.isNotEmpty()) {
+                        val trackEntities = selectedItemTracks.mapIndexed { trackIndex, spotifyTrack ->
+                            TrackEntity(
+                                id = "spotify_${album.id}_${spotifyTrack.id}",
+                                playlistId = album.id,
+                                spotifyTrackId = spotifyTrack.id,
+                                name = spotifyTrack.name,
+                                artists = spotifyTrack.getArtistNames(),
+                                youtubeVideoId = null,
+                                audioUrl = null,
+                                position = trackIndex,
+                                lastSyncTime = System.currentTimeMillis()
+                            )
+                        }
                         LazyColumn(
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(bottom = 16.dp)
                         ) {
                             items(selectedItemTracks.size) { index ->
                                 val track = selectedItemTracks[index]
-                                SongListItem(
+                                val song = Song(
                                     number = index + 1,
                                     title = track.name ?: "Sin título",
-                                    artist = track.getArtistNames(),
-                                    onClick = {
-                                        val trackEntities = selectedItemTracks.mapIndexed { trackIndex, spotifyTrack ->
-                                            TrackEntity(
-                                                id = "spotify_${album.id}_${spotifyTrack.id}",
-                                                playlistId = album.id,
-                                                spotifyTrackId = spotifyTrack.id,
-                                                name = spotifyTrack.name,
-                                                artists = spotifyTrack.getArtistNames(),
-                                                youtubeVideoId = null,
-                                                audioUrl = null,
-                                                position = trackIndex,
-                                                lastSyncTime = System.currentTimeMillis()
-                                            )
-                                        }
-                                        playerViewModel?.setCurrentPlaylist(trackEntities, index)
-                                        val selectedTrackEntity = trackEntities[index]
-                                        coroutineScope.launch {
-                                            try {
-                                                playerViewModel?.loadAudioFromTrack(selectedTrackEntity)
-                                            } catch (e: Exception) {
-                                            }
-                                        }
-                                    },
+                                    artist = track.getArtistNames()
+                                )
+                                SongListItem(
+                                    song = song,
+                                    trackEntities = trackEntities,
+                                    index = index,
+                                    playerViewModel = playerViewModel,
+                                    coroutineScope = coroutineScope,
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
@@ -1041,19 +1041,36 @@ fun CollapsibleSpotifySearchResultsView(
             )
 
             if (tracksExpanded) {
+                val trackEntities = results.tracks.items.take(5).mapIndexed { trackIndex, track ->
+                    TrackEntity(
+                        id = "spotify_search_${track.id}_$trackIndex",
+                        playlistId = "spotify_search_${System.currentTimeMillis()}",
+                        spotifyTrackId = track.id,
+                        name = track.name,
+                        artists = track.getArtistNames(),
+                        youtubeVideoId = null,
+                        audioUrl = null,
+                        position = trackIndex,
+                        lastSyncTime = System.currentTimeMillis()
+                    )
+                }
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
                     results.tracks.items.take(5).forEachIndexed { index, track ->
-                        SongListItem(
+                        val song = Song(
                             number = index + 1,
                             title = track.name,
-                            artist = track.getArtistNames(),
-                            onClick = {
-                                onTrackSelectedFromSearch(track, results.tracks.items, index)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
+                            artist = track.getArtistNames()
+                        )
+                        SongListItem(
+                            song = song,
+                            trackEntities = trackEntities,
+                            index = index,
+                            playerViewModel = playerViewModel,
+                            coroutineScope = coroutineScope,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
@@ -1320,23 +1337,35 @@ fun CollapsibleYouTubeSearchResultsView(
         )
 
         if (videosExpanded) {
+            val trackEntities = results.mapIndexed { trackIndex, item ->
+                TrackEntity(
+                    id = "youtube_${item.videoId}",
+                    playlistId = "youtube_search",
+                    spotifyTrackId = item.videoId,
+                    name = item.title,
+                    artists = item.channel,
+                    youtubeVideoId = item.videoId,
+                    audioUrl = null,
+                    position = trackIndex,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            }
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 results.forEachIndexed { index, item ->
-                    SongListItem(
+                    val song = Song(
                         number = index + 1,
                         title = item.title,
-                        artist = item.channel,
-                        onClick = {
-                            onVideoSelectedFromSearch(
-                                item.videoId,
-                                item.title,
-                                results,
-                                index
-                            )
-                        },
+                        artist = item.channel
+                    )
+                    SongListItem(
+                        song = song,
+                        trackEntities = trackEntities,
+                        index = index,
+                        playerViewModel = playerViewModel,
+                        coroutineScope = coroutineScope,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

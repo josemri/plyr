@@ -12,16 +12,27 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.plyr.ui.theme.PlyrDimensions
+import com.plyr.database.TrackEntity
+import com.plyr.viewmodel.PlayerViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import com.plyr.ui.theme.PlyrSpacing
 import com.plyr.ui.theme.PlyrTextStyles
 
+// Data class para unificar los datos de la canción
+data class Song(
+    val number: Int,
+    val title: String,
+    val artist: String
+)
+
 @Composable
 fun SongListItem(
-    number: Int,
-    title: String,
-    artist: String,
-    onClick: () -> Unit,
+    song: Song,
+    trackEntities: List<TrackEntity>,
+    index: Int,
+    playerViewModel: PlayerViewModel?,
+    coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false
 ) {
@@ -31,26 +42,36 @@ fun SongListItem(
         modifier = modifier
             .clickable {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onClick()
+                playerViewModel?.let { viewModel ->
+                    viewModel.setCurrentPlaylist(trackEntities, index)
+                    val selectedTrackEntity = trackEntities[index]
+                    coroutineScope.launch {
+                        try {
+                            viewModel.loadAudioFromTrack(selectedTrackEntity)
+                            Log.d("SongListItem", "🎵 Reproduciendo track ${index + 1}/${trackEntities.size}: ${selectedTrackEntity.name}")
+                        } catch (e: Exception) {
+                            Log.e("SongListItem", "Error al reproducir track", e)
+                        }
+                    }
+                }
             }
             .fillMaxWidth()
-            .height(32.dp), // Standard height, no extra padding
+            .height(32.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Track number
         Text(
-            text = number.toString(),
+            text = song.number.toString(),
             style = PlyrTextStyles.trackArtist(),
-            modifier = Modifier.padding(end = PlyrSpacing.small) // Less space between number and text
+            modifier = Modifier.padding(end = PlyrSpacing.small)
         )
-
         // Song title and artist
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = title,
+                text = song.title,
                 style = if (isSelected)
                     PlyrTextStyles.selectableOption(true)
                 else
@@ -59,18 +80,17 @@ fun SongListItem(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = artist,
+                text = song.artist,
                 style = PlyrTextStyles.trackArtist(),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 0.dp) // Remove extra space above artist
+                modifier = Modifier.padding(top = 0.dp)
             )
         }
-
         // Action button ("*")
         IconButton(onClick = {
-            Log.d("SongListItem", "Track options clicked for: $title")
-        }, modifier = Modifier.size(32.dp)) { // Smaller button
+            Log.d("SongListItem", "Track options clicked for: ${song.title}")
+        }, modifier = Modifier.size(32.dp)) {
             Text(text = "*", style = PlyrTextStyles.menuOption())
         }
     }

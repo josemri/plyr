@@ -11,6 +11,8 @@ import com.plyr.model.AudioItem
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.*
 import com.plyr.ui.theme.*
+import com.plyr.viewmodel.PlayerViewModel
+import kotlinx.coroutines.CoroutineScope
 
 @Composable
 fun YouTubeSearchResults(
@@ -81,7 +83,9 @@ private fun YouTubePlaylistsSection(
 private fun YouTubeVideosFromSearchSection(
     videos: List<YouTubeSearchManager.YouTubeVideoInfo>,
     onVideoSelected: (String, String) -> Unit,
-    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit
+    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit,
+    playerViewModel: PlayerViewModel? = null,
+    coroutineScope: CoroutineScope? = null
 ) {
     Column {
         Text(
@@ -90,31 +94,33 @@ private fun YouTubeVideosFromSearchSection(
             modifier = Modifier.padding(bottom = PlyrSpacing.small)
         )
 
-        // Convertir YouTubeVideoInfo a AudioItem para compatibilidad
         val audioItems = videos.map { video ->
             AudioItem(
                 videoId = video.videoId,
                 title = video.title,
-                url = "", // Empty URL as it's not needed for YouTube videos
+                url = "",
                 channel = video.uploader,
                 duration = video.getFormattedDuration()
             )
         }
 
+        // Dummy TrackEntity list for compatibility
+        val dummyTrackEntities = emptyList<com.plyr.database.TrackEntity>()
+        val dummyCoroutineScope = coroutineScope ?: rememberCoroutineScope()
+
         audioItems.forEachIndexed { index, item ->
             SongListItem(
-                number = index + 1,
-                title = item.title,
-                artist = item.channel,
-                onClick = {
-                    onVideoSelectedFromSearch(
-                        item.videoId,
-                        item.title,
-                        audioItems,
-                        index
-                    )
-                },
-                modifier = Modifier.padding(vertical = PlyrSpacing.xs, horizontal = PlyrSpacing.small)
+                song = Song(
+                    number = index + 1,
+                    title = item.title,
+                    artist = item.channel
+                ),
+                trackEntities = dummyTrackEntities,
+                index = index,
+                playerViewModel = playerViewModel,
+                coroutineScope = dummyCoroutineScope,
+                modifier = Modifier.padding(vertical = PlyrSpacing.xs, horizontal = PlyrSpacing.small),
+                isSelected = false
             )
         }
     }
@@ -175,7 +181,7 @@ private fun YouTubeLegacyResultsSection(
                         )
                     }
 
-                    item.duration?.let { duration ->
+                    item.duration.let { duration ->
                         Text(
                             text = duration,
                             style = PlyrTextStyles.trackArtist(),

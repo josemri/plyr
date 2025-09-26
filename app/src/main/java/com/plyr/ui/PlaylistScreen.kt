@@ -34,6 +34,7 @@ import com.plyr.network.SpotifyTrack
 import com.plyr.utils.Config
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
+import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.GlobalScope
@@ -564,85 +565,19 @@ fun PlaylistsScreen(
                         ) {
                             items(playlistTracks.size) { index ->
                                 val track = playlistTracks[index]
-                                val trackEntity = tracksFromDB.find { it.spotifyTrackId == track.id }
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            // Create TrackEntity from SpotifyTrack and play
-                                            val trackEntity = TrackEntity(
-                                                id = "spotify_${System.currentTimeMillis()}_${track.id}",
-                                                playlistId = "spotify_playlist",
-                                                spotifyTrackId = track.id,
-                                                name = track.name,
-                                                artists = track.getArtistNames(),
-                                                youtubeVideoId = null, // Se buscará dinámicamente
-                                                audioUrl = null, // Se obtendrá dinámicamente
-                                                position = index,
-                                                lastSyncTime = System.currentTimeMillis()
-                                            )
-
-                                            // Add to player queue and play
-                                            playerViewModel?.let { viewModel ->
-                                                CoroutineScope(Dispatchers.Main).launch {
-                                                    try {
-                                                        // Create playlist from current tracks
-                                                        val playlistEntities = playlistTracks.mapIndexed { idx, spotifyTrack ->
-                                                            TrackEntity(
-                                                                id = "spotify_${System.currentTimeMillis()}_${spotifyTrack.id}_$idx",
-                                                                playlistId = "spotify_playlist",
-                                                                spotifyTrackId = spotifyTrack.id,
-                                                                name = spotifyTrack.name,
-                                                                artists = spotifyTrack.getArtistNames(),
-                                                                youtubeVideoId = null,
-                                                                audioUrl = null,
-                                                                position = idx,
-                                                                lastSyncTime = System.currentTimeMillis()
-                                                            )
-                                                        }
-
-                                                        // Set current playlist and play from index
-                                                        viewModel.setCurrentPlaylist(playlistEntities, index)
-                                                        viewModel.loadAudioFromTrack(trackEntity)
-                                                    } catch (e: Exception) {
-                                                        Log.e("PlaylistScreen", "Error playing track: ${e.message}")
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .padding(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "${index + 1}. ",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFF95A5A6)
-                                        )
-                                    )
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = track.name,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-
-                                        Text(
-                                            text = track.getArtistNames(),
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFF95A5A6)
-                                            ),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
+                                val song = Song(
+                                    number = index + 1,
+                                    title = track.name ?: "Sin título",
+                                    artist = track.getArtistNames()
+                                )
+                                SongListItem(
+                                    song = song,
+                                    trackEntities = tracksFromDB,
+                                    index = index,
+                                    playerViewModel = playerViewModel,
+                                    coroutineScope = coroutineScope,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                     }
@@ -970,37 +905,30 @@ fun SpotifyPlaylistDetailView(
             ) {
                 items(tracks.size) { index ->
                     val track = tracks[index]
-                    SongListItem(
+                    val song = Song(
                         number = index + 1,
                         title = track.name ?: "Sin título",
-                        artist = track.getArtistNames(),
-                        onClick = {
-                            playerViewModel?.let { viewModel ->
-                                val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
-                                    TrackEntity(
-                                        id = "spotify_${spotifyTrack.id}",
-                                        playlistId = "spotify_album",
-                                        spotifyTrackId = spotifyTrack.id,
-                                        name = spotifyTrack.name,
-                                        artists = spotifyTrack.getArtistNames(),
-                                        youtubeVideoId = null,
-                                        audioUrl = null,
-                                        position = trackIndex,
-                                        lastSyncTime = System.currentTimeMillis()
-                                    )
-                                }
-                                viewModel.setCurrentPlaylist(trackEntities, index)
-                                val selectedTrackEntity = trackEntities[index]
-                                coroutineScope.launch {
-                                    try {
-                                        viewModel.loadAudioFromTrack(selectedTrackEntity)
-                                        Log.d("SpotifyAlbum", "🎵 Reproduciendo track ${index + 1}/${trackEntities.size}: ${selectedTrackEntity.name}")
-                                    } catch (e: Exception) {
-                                        Log.e("SpotifyAlbum", "Error al reproducir track de álbum", e)
-                                    }
-                                }
-                            }
-                        },
+                        artist = track.getArtistNames()
+                    )
+                    val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
+                        TrackEntity(
+                            id = "spotify_${spotifyTrack.id}",
+                            playlistId = "spotify_album",
+                            spotifyTrackId = spotifyTrack.id,
+                            name = spotifyTrack.name,
+                            artists = spotifyTrack.getArtistNames(),
+                            youtubeVideoId = null,
+                            audioUrl = null,
+                            position = trackIndex,
+                            lastSyncTime = System.currentTimeMillis()
+                        )
+                    }
+                    SongListItem(
+                        song = song,
+                        trackEntities = trackEntities,
+                        index = index,
+                        playerViewModel = playerViewModel,
+                        coroutineScope = coroutineScope,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
