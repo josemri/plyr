@@ -53,46 +53,6 @@ fun PlyrMenuOption(
 }
 
 @Composable
-fun PlyrTrackItem(
-    title: String,
-    artist: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isSelected: Boolean = false
-) {
-    val haptic = LocalHapticFeedback.current
-
-    Column(
-        modifier = modifier
-            .clickable {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onClick()
-            }
-            .padding(PlyrSpacing.small)
-            .fillMaxWidth()
-    ) {
-        Text(
-            text = title,
-            style = if (isSelected)
-                PlyrTextStyles.selectableOption(true)
-            else
-                PlyrTextStyles.trackTitle(),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        if (artist.isNotBlank()) {
-            Text(
-                text = artist,
-                style = PlyrTextStyles.trackArtist(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
 fun PlyrSeparator(
     modifier: Modifier = Modifier
 ) {
@@ -128,31 +88,6 @@ fun PlyrInfoText(
 }
 
 // === COMPONENTES DE SELECCIÓN ===
-
-@Composable
-fun PlyrSelectableRow(
-    options: List<String>,
-    selectedOption: String,
-    onOptionSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier
-    ) {
-        options.forEachIndexed { index, option ->
-            PlyrSelectableOption(
-                text = option,
-                isSelected = selectedOption == option,
-                onClick = { onOptionSelected(option) }
-            )
-
-            if (index < options.size - 1) {
-                PlyrSeparator()
-            }
-        }
-    }
-}
 
 @Composable
 fun PlyrSelectableOption(
@@ -191,30 +126,6 @@ fun PlyrScreenContainer(
     )
 }
 
-@Composable
-fun PlyrSection(
-    title: String? = null,
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(modifier = modifier) {
-        title?.let {
-            PlyrMenuOption(
-                text = it,
-                onClick = { },
-                enabled = false
-            )
-        }
-
-        Column(
-            verticalArrangement = Arrangement.spacedBy(PlyrSpacing.medium),
-            content = content
-        )
-
-        Spacer(modifier = Modifier.height(PlyrSpacing.xxl))
-    }
-}
-
 // === COMPONENTES DE BOTONES ===
 
 @Composable
@@ -238,58 +149,6 @@ fun PlyrPrimaryButton(
     }
 }
 
-@Composable
-fun PlyrSecondaryButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true
-) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.height(PlyrDimensions.buttonHeight),
-        enabled = enabled,
-        colors = PlyrButtonStyles.secondaryButton(),
-        shape = PlyrShapes.medium
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium
-        )
-    }
-}
-
-// === COMPONENTES DE INPUT ===
-
-@Composable
-fun PlyrTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    singleLine: Boolean = true
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = {
-            Text(
-                text = placeholder,
-                style = PlyrTextStyles.trackArtist()
-            )
-        },
-        modifier = modifier.height(PlyrDimensions.inputHeight),
-        enabled = enabled,
-        singleLine = singleLine,
-        textStyle = MaterialTheme.typography.bodyMedium,
-        shape = PlyrShapes.medium,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline
-        )
-    )
-}
 
 // === COMPONENTES DE ESTADO ===
 
@@ -308,19 +167,6 @@ fun PlyrLoadingIndicator(
             style = PlyrTextStyles.trackArtist()
         )
     }
-}
-
-@Composable
-fun PlyrStatusMessage(
-    message: String,
-    isError: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    Text(
-        text = "${PlyrSymbols.PROMPT} $message",
-        style = if (isError) PlyrTextStyles.errorText() else PlyrTextStyles.infoText(),
-        modifier = modifier
-    )
 }
 
 // === COMPONENTES DE LISTA ===
@@ -386,5 +232,3 @@ fun PlyrMediumSpacer() = Spacer(modifier = Modifier.height(PlyrSpacing.medium))
 @Composable
 fun PlyrLargeSpacer() = Spacer(modifier = Modifier.height(PlyrSpacing.large))
 
-@Composable
-fun PlyrXLSpacer() = Spacer(modifier = Modifier.height(PlyrSpacing.xl))

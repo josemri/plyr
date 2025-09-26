@@ -16,12 +16,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.plyr.database.TrackEntity
 import com.plyr.network.SpotifyArtistFull
 import com.plyr.network.SpotifyAlbum
 import com.plyr.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 /**
  * Vista detallada de un artista de Spotify
@@ -262,13 +260,3 @@ private fun AlbumItem(
     }
 }
 
-/**
- * Formatea el número de seguidores para mostrar de manera legible
- */
-private fun formatFollowers(followers: Int): String {
-    return when {
-        followers >= 1_000_000 -> "${followers / 1_000_000}M"
-        followers >= 1_000 -> "${followers / 1_000}K"
-        else -> followers.toString()
-    }
-}

@@ -19,10 +19,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.plyr.service.MusicService
 import com.plyr.ui.AudioListScreen
-import com.plyr.ui.ExoPlyrScreen
 import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.PlyrTheme
 import com.plyr.viewmodel.PlayerViewModel
@@ -33,8 +31,6 @@ import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.model.AudioItem
 import com.plyr.database.TrackEntity
 import android.net.Uri
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.launch
 
 /**
  * MainActivity - Actividad principal de la aplicación
@@ -198,31 +194,19 @@ class MainActivity : ComponentActivity() {
         playerViewModel: PlayerViewModel,
         selectedTheme: MutableState<String>
     ) {
-        when (currentScreen) {
-            "player" -> {
-                playerViewModel.exoPlayer?.let { player ->
-                    ExoPlyrScreen(
-                        player = player,
-                        onBack = { onScreenChange("list") }
-                    )
-                }
-            }
-            else -> {
-                AudioListScreen(
-                    context = this@MainActivity,
-                    onVideoSelected = { videoId, title ->
-                        handleVideoSelection(videoId, title, onVideoIdChange, playerViewModel)
-                    },
-                    onVideoSelectedFromSearch = { videoId, title, searchResults, selectedIndex ->
-                        handleVideoSelectionFromSearch(videoId, title, searchResults, selectedIndex, onVideoIdChange, playerViewModel)
-                    },
-                    onThemeChanged = { newTheme ->
-                        selectedTheme.value = newTheme
-                    },
-                    playerViewModel = playerViewModel
-                )
-            }
-        }
+        AudioListScreen(
+            context = this@MainActivity,
+            onVideoSelected = { videoId, title ->
+                handleVideoSelection(videoId, title, onVideoIdChange, playerViewModel)
+            },
+            onVideoSelectedFromSearch = { videoId, title, searchResults, selectedIndex ->
+                handleVideoSelectionFromSearch(videoId, title, searchResults, selectedIndex, onVideoIdChange, playerViewModel)
+            },
+            onThemeChanged = { newTheme ->
+                selectedTheme.value = newTheme
+            },
+            playerViewModel = playerViewModel
+        )
     }
     
     /**

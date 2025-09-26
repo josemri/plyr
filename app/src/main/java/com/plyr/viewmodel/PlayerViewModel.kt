@@ -35,7 +35,6 @@ import android.content.Context
 import android.content.IntentFilter
 import android.media.AudioManager
 import android.os.Build
-import androidx.media3.common.util.UnstableApi
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     companion object {

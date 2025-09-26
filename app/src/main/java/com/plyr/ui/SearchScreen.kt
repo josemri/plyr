@@ -1,7 +1,6 @@
 package com.plyr.ui
 
 import android.content.Context
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -74,12 +73,6 @@ fun SearchScreen(
     var userPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
     var isLoadingPlaylists by remember { mutableStateOf(false) }
 
-    // Estados para paginación
-    var currentOffset by remember { mutableStateOf(0) }
-    var isLoadingMore by remember { mutableStateOf(false) }
-    var hasMoreResults by remember { mutableStateOf(true) }
-    val itemsPerPage = 10
-
     // Estados para vista detallada de playlist/álbum/artista
     var selectedSpotifyPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
     var selectedSpotifyAlbum by remember { mutableStateOf<SpotifyAlbum?>(null) }
@@ -93,20 +86,16 @@ fun SearchScreen(
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    val haptic = LocalHapticFeedback.current
-
     // Search function with pagination support
     val performSearch: (String, Boolean) -> Unit = { searchQuery, isLoadMore ->
         if (searchQuery.isNotBlank() && (!isLoading || isLoadMore)) {
             if (isLoadMore) {
-                isLoadingMore = true
+                isLoading = true
             } else {
                 isLoading = true
-                currentOffset = 0
                 results = emptyList()
                 spotifyResults = null
                 showSpotifyResults = false
-                hasMoreResults = true
             }
             error = null
 
@@ -127,7 +116,6 @@ fun SearchScreen(
 
                     if (finalQuery.isEmpty()) {
                         isLoading = false
-                        isLoadingMore = false
                         error = "Query vacía después de procesar prefijo"
                         return@launch
                     }
@@ -156,15 +144,9 @@ fun SearchScreen(
                                 )
                             }
 
-                            if (isLoadMore) {
-                                results = results + newResults
-                            } else {
-                                results = newResults
-                            }
+                            results = newResults
 
-                            hasMoreResults = newResults.size >= itemsPerPage
                             isLoading = false
-                            isLoadingMore = false
                         }
 
                         "spotify" -> {
@@ -172,91 +154,41 @@ fun SearchScreen(
                             if (Config.isSpotifyConnected(context)) {
                                 val accessToken = Config.getSpotifyAccessToken(context)
                                 if (accessToken != null) {
-                                    Log.d("SearchScreen", "🔍 Iniciando búsqueda en Spotify: '$finalQuery'")
                                     SpotifyRepository.searchAllWithPagination(accessToken, finalQuery) { searchResults: SpotifySearchAllResponse?, searchError: String? ->
                                         // Asegurar que las actualizaciones se ejecuten en el hilo principal
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                                             if (searchError != null) {
                                                 isLoading = false
-                                                isLoadingMore = false
                                                 error = "Error searching Spotify: $searchError"
-                                                Log.e("SearchScreen", "Error searching Spotify: $searchError")
                                             } else if (searchResults != null) {
-                                                Log.d("SearchScreen", "✅ Resultados actualizados: ${searchResults.tracks.items.size} tracks, ${searchResults.albums.items.size} albums, ${searchResults.artists.items.size} artists, ${searchResults.playlists.items.size} playlists")
-
-                                                if (isLoadMore && spotifyResults != null) {
-                                                    // Combinar resultados existentes con nuevos
-                                                    val combinedResults = SpotifySearchAllResponse(
-                                                        tracks = SpotifyTracksSearchResult(
-                                                            items = spotifyResults!!.tracks.items + searchResults.tracks.items,
-                                                            total = searchResults.tracks.total,
-                                                            limit = searchResults.tracks.limit,
-                                                            offset = searchResults.tracks.offset,
-                                                            next = searchResults.tracks.next
-                                                        ),
-                                                        albums = SpotifyAlbumsSearchResult(
-                                                            items = spotifyResults!!.albums.items + searchResults.albums.items,
-                                                            total = searchResults.albums.total,
-                                                            limit = searchResults.albums.limit,
-                                                            offset = searchResults.albums.offset,
-                                                            next = searchResults.albums.next
-                                                        ),
-                                                        artists = SpotifyArtistsSearchResult(
-                                                            items = spotifyResults!!.artists.items + searchResults.artists.items,
-                                                            total = searchResults.artists.total,
-                                                            limit = searchResults.artists.limit,
-                                                            offset = searchResults.artists.offset,
-                                                            next = searchResults.artists.next
-                                                        ),
-                                                        playlists = SpotifyPlaylistsSearchResult(
-                                                            items = spotifyResults!!.playlists.items + searchResults.playlists.items,
-                                                            total = searchResults.playlists.total,
-                                                            limit = searchResults.playlists.limit,
-                                                            offset = searchResults.playlists.offset,
-                                                            next = searchResults.playlists.next
-                                                        )
-                                                    )
-                                                    spotifyResults = combinedResults
-                                                } else {
-                                                    spotifyResults = searchResults
-                                                }
+                                                spotifyResults = searchResults
 
                                                 // Para esta implementación, como searchAllWithPagination ya obtiene todos los resultados,
                                                 // no hay paginación manual adicional necesaria
-                                                hasMoreResults = false
-
                                                 isLoading = false
-                                                isLoadingMore = false
                                                 showSpotifyResults = true
-                                                Log.d("SearchScreen", "🔄 Estado actualizado - showSpotifyResults=$showSpotifyResults")
                                             }
                                         }
                                     }
                                 } else {
                                     isLoading = false
-                                    isLoadingMore = false
                                     error = "Token de Spotify no disponible"
                                 }
                             } else {
                                 isLoading = false
-                                isLoadingMore = false
                                 error = "Spotify no está conectado"
                             }
                         }
 
                         else -> {
                             isLoading = false
-                            isLoadingMore = false
                             error = "Motor de búsqueda no reconocido: $finalSearchEngine"
-                            Log.w("SearchScreen", "Motor de búsqueda no reconocido: $finalSearchEngine")
                         }
                     }
 
                 } catch (e: Exception) {
                     isLoading = false
-                    isLoadingMore = false
                     error = "Error en búsqueda: ${e.message}"
-                    Log.e("SearchScreen", "Error en búsqueda", e)
                 }
             }
         }
@@ -269,35 +201,24 @@ fun SearchScreen(
                 selectedSpotifyPlaylist?.let { playlist ->
                     val accessToken = Config.getSpotifyAccessToken(context)
                     if (accessToken != null) {
-                        Log.d("SearchScreen", "💾 Guardando playlist en biblioteca de Spotify: ${playlist.name}")
                         SpotifyRepository.followPlaylist(accessToken, playlist.id) { success, errorMsg ->
                             if (success) {
-                                Log.d("SearchScreen", "✅ Playlist seguida exitosamente: ${playlist.name}")
                             } else {
-                                Log.e("SearchScreen", "❌ Error siguiendo playlist: $errorMsg")
                             }
                         }
-                    } else {
-                        Log.e("SearchScreen", "❌ Token de Spotify no disponible")
                     }
                 }
                 selectedSpotifyAlbum?.let { album ->
                     val accessToken = Config.getSpotifyAccessToken(context)
                     if (accessToken != null) {
-                        Log.d("SearchScreen", "💾 Guardando álbum en biblioteca de Spotify: ${album.name}")
                         SpotifyRepository.saveAlbum(accessToken, album.id) { success, errorMsg ->
                             if (success) {
-                                Log.d("SearchScreen", "✅ Álbum guardado exitosamente: ${album.name}")
                             } else {
-                                Log.e("SearchScreen", "❌ Error guardando álbum: $errorMsg")
                             }
                         }
-                    } else {
-                        Log.e("SearchScreen", "❌ Token de Spotify no disponible")
                     }
                 }
             } catch (e: Exception) {
-                Log.e("SearchScreen", "Error guardando en biblioteca de Spotify", e)
             }
         }
     }
@@ -313,28 +234,23 @@ fun SearchScreen(
             try {
                 val accessToken = Config.getSpotifyAccessToken(context)
                 if (accessToken != null) {
-                    Log.d("SearchScreen", "🎵 Cargando tracks de la playlist: ${playlist.name}")
                     SpotifyRepository.getPlaylistTracks(accessToken, playlist.id) { playlistTracks, errorMsg ->
                         isLoadingTracks = false
                         if (playlistTracks != null) {
                             // Convertir SpotifyPlaylistTrack a SpotifyTrack
                             val tracks = playlistTracks.mapNotNull { it.track }
                             selectedItemTracks = tracks
-                            Log.d("SearchScreen", "✅ ${tracks.size} tracks cargados para la playlist: ${playlist.name}")
                         } else {
                             error = "Error cargando tracks de la playlist: $errorMsg"
-                            Log.e("SearchScreen", "❌ Error cargando tracks de playlist: $errorMsg")
                         }
                     }
                 } else {
                     isLoadingTracks = false
                     error = "Token de Spotify no disponible"
-                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
                 }
             } catch (e: Exception) {
                 isLoadingTracks = false
                 error = "Error cargando tracks de la playlist: ${e.message}"
-                Log.e("SearchScreen", "Error cargando playlist tracks", e)
             }
         }
     }
@@ -350,31 +266,25 @@ fun SearchScreen(
             try {
                 val accessToken = Config.getSpotifyAccessToken(context)
                 if (accessToken != null) {
-                    Log.d("SearchScreen", "🎵 Cargando tracks del álbum: ${album.name}")
                     SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, errorMsg ->
                         isLoadingTracks = false
                         if (tracks != null) {
                             selectedItemTracks = tracks
-                            Log.d("SearchScreen", "✅ ${tracks.size} tracks cargados para el álbum: ${album.name}")
                         } else {
                             error = "Error cargando tracks del álbum: $errorMsg"
-                            Log.e("SearchScreen", "❌ Error cargando tracks de álbum: $errorMsg")
                         }
                     }
                 } else {
                     isLoadingTracks = false
                     error = "Token de Spotify no disponible"
-                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
                 }
             } catch (e: Exception) {
                 isLoadingTracks = false
                 error = "Error cargando tracks del álbum: ${e.message}"
-                Log.e("SearchScreen", "Error cargando album tracks", e)
             }
         }
     }
 
-    // Nueva función para cargar álbumes de un artista
     val loadArtistAlbums: (SpotifyArtistFull) -> Unit = { artist ->
         selectedSpotifyArtist = artist
         isLoadingArtistAlbums = true
@@ -385,31 +295,25 @@ fun SearchScreen(
             try {
                 val accessToken = Config.getSpotifyAccessToken(context)
                 if (accessToken != null) {
-                    Log.d("SearchScreen", "🎵 Cargando álbumes del artista: ${artist.name}")
                     SpotifyRepository.getArtistAlbums(accessToken, artist.id) { albums, errorMsg ->
                         isLoadingArtistAlbums = false
                         if (albums != null) {
                             selectedArtistAlbums = albums
-                            Log.d("SearchScreen", "✅ ${albums.size} álbumes cargados para el artista: ${artist.name}")
                         } else {
                             error = "Error cargando álbumes del artista: $errorMsg"
-                            Log.e("SearchScreen", "❌ Error cargando álbumes de artista: $errorMsg")
                         }
                     }
                 } else {
                     isLoadingArtistAlbums = false
                     error = "Token de Spotify no disponible"
-                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
                 }
             } catch (e: Exception) {
                 isLoadingArtistAlbums = false
                 error = "Error cargando álbumes del artista: ${e.message}"
-                Log.e("SearchScreen", "Error cargando artist albums", e)
             }
         }
     }
 
-    // Función para cargar playlists del usuario
     val loadUserPlaylists: () -> Unit = {
         isLoadingPlaylists = true
         userPlaylists = emptyList()
@@ -418,26 +322,21 @@ fun SearchScreen(
             try {
                 val accessToken = Config.getSpotifyAccessToken(context)
                 if (accessToken != null) {
-                    Log.d("SearchScreen", "🎵 Cargando playlists del usuario")
                     SpotifyRepository.getUserPlaylists(accessToken) { playlists, errorMsg ->
                         isLoadingPlaylists = false
                         if (playlists != null) {
                             userPlaylists = playlists
-                            Log.d("SearchScreen", "✅ ${playlists.size} playlists cargadas del usuario")
                         } else {
                             error = "Error cargando playlists del usuario: $errorMsg"
-                            Log.e("SearchScreen", "❌ Error cargando playlists del usuario: $errorMsg")
                         }
                     }
                 } else {
                     isLoadingPlaylists = false
                     error = "Token de Spotify no disponible"
-                    Log.e("SearchScreen", "❌ Token de Spotify no disponible")
                 }
             } catch (e: Exception) {
                 isLoadingPlaylists = false
                 error = "Error cargando playlists del usuario: ${e.message}"
-                Log.e("SearchScreen", "Error cargando user playlists", e)
             }
         }
     }
@@ -492,7 +391,6 @@ fun SearchScreen(
                     onStart = {
                         // Reproducir playlist desde el primer track
                         if (selectedItemTracks.isNotEmpty()) {
-                            Log.d("SearchScreen", "🎵 Iniciando reproducción de la playlist: ${selectedSpotifyPlaylist!!.name}")
 
                             // Convertir SpotifyTrack a TrackEntity
                             val trackEntities = selectedItemTracks.mapIndexed { index, spotifyTrack ->
@@ -518,7 +416,6 @@ fun SearchScreen(
                                     try {
                                         playerViewModel?.loadAudioFromTrack(track)
                                     } catch (e: Exception) {
-                                        Log.e("SearchScreen", "Error al reproducir playlist", e)
                                     }
                                 }
                             }
@@ -527,7 +424,6 @@ fun SearchScreen(
                     onRandom = {
                         // Reproducir playlist en orden aleatorio
                         if (selectedItemTracks.isNotEmpty()) {
-                            Log.d("SearchScreen", "🔀 Iniciando reproducción aleatoria de la playlist: ${selectedSpotifyPlaylist!!.name}")
 
                             // Convertir SpotifyTrack a TrackEntity y mezclar
                             val shuffledTracks = selectedItemTracks.shuffled()
@@ -554,7 +450,6 @@ fun SearchScreen(
                                     try {
                                         playerViewModel?.loadAudioFromTrack(track)
                                     } catch (e: Exception) {
-                                        Log.e("SearchScreen", "Error al reproducir playlist aleatoria", e)
                                     }
                                 }
                             }
@@ -626,7 +521,6 @@ fun SearchScreen(
                                             try {
                                                 playerViewModel?.loadAudioFromTrack(track)
                                             } catch (e: Exception) {
-                                                Log.e("SearchScreen", "Error al reproducir álbum", e)
                                             }
                                         }
                                     }
@@ -663,7 +557,6 @@ fun SearchScreen(
                                             try {
                                                 playerViewModel?.loadAudioFromTrack(track)
                                             } catch (e: Exception) {
-                                                Log.e("SearchScreen", "Error al reproducir álbum aleatorio", e)
                                             }
                                         }
                                     }
@@ -740,7 +633,6 @@ fun SearchScreen(
                                             try {
                                                 playerViewModel?.loadAudioFromTrack(selectedTrackEntity)
                                             } catch (e: Exception) {
-                                                Log.e("SearchScreen", "Error al reproducir track de álbum", e)
                                             }
                                         }
                                     },
@@ -770,8 +662,6 @@ fun SearchScreen(
                         // Reproducir todos los álbumes del artista en orden aleatorio
                         if (selectedArtistAlbums.isNotEmpty()) {
                             val firstAlbum = selectedArtistAlbums.first()
-                            Log.d("SearchScreen", "🔀 Iniciando reproducción aleatoria del primer álbum del artista: ${firstAlbum.name}")
-
                             // Cargar los tracks del primer álbum
                             val accessToken = Config.getSpotifyAccessToken(context)
                             if (accessToken != null) {
@@ -802,12 +692,9 @@ fun SearchScreen(
                                                 try {
                                                     playerViewModel?.loadAudioFromTrack(track)
                                                 } catch (e: Exception) {
-                                                    Log.e("SearchScreen", "Error al reproducir álbum del artista aleatorio", e)
                                                 }
                                             }
                                         }
-                                    } else {
-                                        Log.e("SearchScreen", "❌ Error cargando tracks para shuffle: $errorMsg")
                                     }
                                 }
                             }
@@ -881,17 +768,14 @@ fun SearchScreen(
                                                     if (accessToken != null) {
                                                         SpotifyRepository.addTrackToPlaylist(accessToken, playlist.id, selectedTrackToAdd!!.id) { success, errorMsg ->
                                                             if (success) {
-                                                                Log.d("SearchScreen", "✅ Canción añadida a la playlist: ${playlist.name}")
                                                                 // Cerrar diálogo y mostrar mensaje de éxito
                                                                 showPlaylistSelectionDialog = false
                                                             } else {
-                                                                Log.e("SearchScreen", "❌ Error añadiendo canción a la playlist: $errorMsg")
                                                                 // Mostrar error
                                                                 error = "Error añadiendo canción a la playlist: $errorMsg"
                                                             }
                                                         }
                                                     } else {
-                                                        Log.e("SearchScreen", "❌ Token de Spotify no disponible")
                                                         error = "Token de Spotify no disponible"
                                                     }
                                                 }
@@ -1073,12 +957,7 @@ private fun SearchMainView(
                     coroutineScope.launch {
                         try {
                             playerViewModel?.loadAudioFromTrack(selectedTrackEntity)
-                            Log.d(
-                                "SpotifySearch",
-                                "🎵 Track Spotify como playlist: ${track.name} (${selectedIndex + 1}/${allTracks.size})"
-                            )
                         } catch (e: Exception) {
-                            Log.e("SpotifySearch", "Error al reproducir track de Spotify", e)
                         }
                     }
                 },
