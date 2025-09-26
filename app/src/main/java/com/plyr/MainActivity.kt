@@ -140,7 +140,7 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
+
     private fun handleVideoSelection(
         videoId: String,
         title: String,
@@ -162,7 +162,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    @OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun handleVideoSelectionFromSearch(
         videoId: String,
         title: String,

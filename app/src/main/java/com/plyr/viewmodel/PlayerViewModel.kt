@@ -35,6 +35,8 @@ import android.content.Context
 import android.content.IntentFilter
 import android.media.AudioManager
 import android.os.Build
+import androidx.annotation.OptIn
+import androidx.media3.common.util.UnstableApi
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
@@ -112,6 +114,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var waitForSongJob: Job? = null
 
+    // Variables para precarga de la siguiente canción
+    private var preloadedNextAudioUrl: String? = null
+    private var preloadedNextVideoId: String? = null
+
     init {
         updateQueueState()
         _playbackQueue.observeForever {
@@ -129,25 +135,31 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         Log.d(TAG, "PlayerViewModel inicializado")
     }
 
-    @androidx.media3.common.util.UnstableApi
-    fun initializePlayer() {
-        mainHandler.post {
-            if (_exoPlayer == null) {
-                _currentPlayerListener = createPlayerListener()
-                _exoPlayer = ExoPlayer.Builder(getApplication())
-                    .setSeekBackIncrementMs(10000)
-                    .setSeekForwardIncrementMs(10000)
-                    .build().apply {
-                        addListener(_currentPlayerListener!!)
-                        setHandleAudioBecomingNoisy(true)
 
-                        optimizeBufferSettings(this)
-                    }
+    fun initializePlayer() {
+        CoroutineScope(Dispatchers.Main).launch {
+            if (_exoPlayer == null) {
+                _exoPlayer = buildPlayer().also { setupPlayer(it) }
                 Log.d(TAG, "ExoPlayer principal inicializado")
             }
             monitorMemoryUsage()
         }
     }
+
+    @OptIn(UnstableApi::class)
+    private fun buildPlayer(): ExoPlayer =
+        ExoPlayer.Builder(getApplication())
+            .setSeekBackIncrementMs(10_000)
+            .setSeekForwardIncrementMs(10_000)
+            .build()
+
+    private fun setupPlayer(player: ExoPlayer) {
+        _currentPlayerListener = createPlayerListener()
+        _currentPlayerListener?.let { player.addListener(it) }
+        player.setHandleAudioBecomingNoisy(true)
+        optimizeBufferSettings(player)
+    }
+
 
     private fun createPlayerListener(): Player.Listener {
         return object : Player.Listener {
@@ -200,16 +212,54 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _currentTitle.postValue(title)
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                val audioUrl = extractAudioUrl(videoId)
-                if (audioUrl != null && isValidAudioUrl(audioUrl)) {
-                    playAudioFromUrl(audioUrl)
+                // Si la URL está precargada y corresponde al videoId solicitado, usarla
+                if (preloadedNextAudioUrl != null && preloadedNextVideoId == videoId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
+                    playAudioFromUrl(preloadedNextAudioUrl!!)
+                    // Limpiar precarga tras usarla
+                    preloadedNextAudioUrl = null
+                    preloadedNextVideoId = null
                 } else {
-                    handleAudioExtractionError(videoId, audioUrl)
+                    val audioUrl = extractAudioUrl(videoId)
+                    if (audioUrl != null && isValidAudioUrl(audioUrl)) {
+                        playAudioFromUrl(audioUrl)
+                    } else {
+                        handleAudioExtractionError(videoId, audioUrl)
+                    }
                 }
+                // Precargar la siguiente canción si existe
+                precacheNextTrack(videoId)
             } catch (e: Exception) {
                 _isLoading.postValue(false)
                 _error.postValue("Error al extraer audio: ${e.message}")
             }
+        }
+    }
+
+    // Precarga la siguiente canción si existe en la playlist
+    private fun precacheNextTrack(currentVideoId: String) {
+        val playlist = _currentPlaylist.value
+        val index = _currentTrackIndex.value ?: -1
+        if (playlist != null && index >= 0 && index + 1 < playlist.size) {
+            val nextTrack = playlist[index + 1]
+            CoroutineScope(Dispatchers.IO).launch {
+                val nextVideoId = obtainYouTubeId(nextTrack)
+                if (nextVideoId != null) {
+                    val nextAudioUrl = YouTubeAudioExtractor.getAudioUrl(nextVideoId)
+                    if (nextAudioUrl != null && isValidAudioUrl(nextAudioUrl)) {
+                        preloadedNextAudioUrl = nextAudioUrl
+                        preloadedNextVideoId = nextVideoId
+                    } else {
+                        preloadedNextAudioUrl = null
+                        preloadedNextVideoId = null
+                    }
+                } else {
+                    preloadedNextAudioUrl = null
+                    preloadedNextVideoId = null
+                }
+            }
+        } else {
+            preloadedNextAudioUrl = null
+            preloadedNextVideoId = null
         }
     }
 
@@ -275,7 +325,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _currentTitle.postValue("${track.name} - ${track.artists}")
             val youtubeId = obtainYouTubeId(track)
             if (youtubeId != null) {
-                return@withContext playTrackAudio(youtubeId, track)
+                // Si la URL está precargada y corresponde al videoId solicitado, usarla
+                if (preloadedNextAudioUrl != null && preloadedNextVideoId == youtubeId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
+                    playAudioFromUrl(preloadedNextAudioUrl!!)
+                    preloadedNextAudioUrl = null
+                    preloadedNextVideoId = null
+                    precacheNextTrack(youtubeId)
+                    return@withContext true
+                } else {
+                    val result = playTrackAudio(youtubeId, track)
+                    precacheNextTrack(youtubeId)
+                    return@withContext result
+                }
             } else {
                 _isLoading.postValue(false)
                 _error.postValue("No se encontró el video para: ${track.name}")
