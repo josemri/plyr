@@ -36,6 +36,7 @@ import com.plyr.utils.Config
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
+import com.plyr.ui.components.SongListItem
 import com.plyr.ui.components.search.SpotifyArtistDetailView
 import com.plyr.ui.components.search.YouTubePlaylistDetailView
 import com.plyr.ui.components.search.YouTubeSearchResults
@@ -565,90 +566,190 @@ fun SearchScreen(
                 )
             }
             selectedSpotifyAlbum != null -> {
-                SpotifyAlbumDetailView(
-                    album = selectedSpotifyAlbum!!,
-                    tracks = selectedItemTracks,
-                    isLoading = isLoadingTracks,
-                    error = error,
-                    onBack = {
-                        selectedSpotifyAlbum = null
-                        selectedItemTracks = emptyList()
-                    },
-                    onStart = {
-                        // Reproducir álbum desde el primer track
-                        if (selectedItemTracks.isNotEmpty()) {
-                            Log.d("SearchScreen", "🎵 Iniciando reproducción del álbum: ${selectedSpotifyAlbum!!.name}")
-
-                            // Convertir SpotifyTrack a TrackEntity
-                            val trackEntities = selectedItemTracks.mapIndexed { index, spotifyTrack ->
-                                TrackEntity(
-                                    id = "spotify_${selectedSpotifyAlbum!!.id}_${spotifyTrack.id}",
-                                    playlistId = selectedSpotifyAlbum!!.id,
-                                    spotifyTrackId = spotifyTrack.id,
-                                    name = spotifyTrack.name,
-                                    artists = spotifyTrack.getArtistNames(),
-                                    youtubeVideoId = null, // Se buscará dinámicamente
-                                    audioUrl = null,
-                                    position = index,
-                                    lastSyncTime = System.currentTimeMillis()
-                                )
-                            }
-
-                            // Establecer playlist y comenzar reproducción
-                            playerViewModel?.setCurrentPlaylist(trackEntities, 0)
-
-                            // Buscar y reproducir el primer track
-                            trackEntities.firstOrNull()?.let { track ->
-                                coroutineScope.launch {
-                                    try {
-                                        playerViewModel?.loadAudioFromTrack(track)
-                                    } catch (e: Exception) {
-                                        Log.e("SearchScreen", "Error al reproducir álbum", e)
+                val album = selectedSpotifyAlbum!!
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(16.dp)
+                ) {
+                    // Album header
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AsyncImage(
+                            model = album.getImageUrl(),
+                            contentDescription = "Album cover",
+                            modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = album.name,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 20.sp,
+                                color = Color(0xFF4ECDC4)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    // Action buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "<start>",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                color = Color(0xFF4ECDC4)
+                            ),
+                            modifier = Modifier.clickable {
+                                // Start playback from first track
+                                if (selectedItemTracks.isNotEmpty()) {
+                                    val trackEntities = selectedItemTracks.mapIndexed { index, spotifyTrack ->
+                                        TrackEntity(
+                                            id = "spotify_${album.id}_${spotifyTrack.id}",
+                                            playlistId = album.id,
+                                            spotifyTrackId = spotifyTrack.id,
+                                            name = spotifyTrack.name,
+                                            artists = spotifyTrack.getArtistNames(),
+                                            youtubeVideoId = null,
+                                            audioUrl = null,
+                                            position = index,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                    }
+                                    playerViewModel?.setCurrentPlaylist(trackEntities, 0)
+                                    trackEntities.firstOrNull()?.let { track ->
+                                        coroutineScope.launch {
+                                            try {
+                                                playerViewModel?.loadAudioFromTrack(track)
+                                            } catch (e: Exception) {
+                                                Log.e("SearchScreen", "Error al reproducir álbum", e)
+                                            }
+                                        }
                                     }
                                 }
-                            }
-                        }
-                    },
-                    onRandom = {
-                        // Reproducir álbum en orden aleatorio
-                        if (selectedItemTracks.isNotEmpty()) {
-                            Log.d("SearchScreen", "🔀 Iniciando reproducción aleatoria del álbum: ${selectedSpotifyAlbum!!.name}")
-
-                            // Convertir SpotifyTrack a TrackEntity y mezclar
-                            val shuffledTracks = selectedItemTracks.shuffled()
-                            val trackEntities = shuffledTracks.mapIndexed { index, spotifyTrack ->
-                                TrackEntity(
-                                    id = "spotify_${selectedSpotifyAlbum!!.id}_${spotifyTrack.id}_shuffled",
-                                    playlistId = selectedSpotifyAlbum!!.id,
-                                    spotifyTrackId = spotifyTrack.id,
-                                    name = spotifyTrack.name,
-                                    artists = spotifyTrack.getArtistNames(),
-                                    youtubeVideoId = null, // Se buscará dinámicamente
-                                    audioUrl = null,
-                                    position = index,
-                                    lastSyncTime = System.currentTimeMillis()
-                                )
-                            }
-
-                            // Establecer playlist mezclada y comenzar reproducción
-                            playerViewModel?.setCurrentPlaylist(trackEntities, 0)
-
-                            // Buscar y reproducir el primer track de la lista mezclada
-                            trackEntities.firstOrNull()?.let { track ->
-                                coroutineScope.launch {
-                                    try {
-                                        playerViewModel?.loadAudioFromTrack(track)
-                                    } catch (e: Exception) {
-                                        Log.e("SearchScreen", "Error al reproducir álbum aleatorio", e)
+                            }.padding(8.dp)
+                        )
+                        Text(
+                            text = "<rand>",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                color = Color(0xFFFFD93D)
+                            ),
+                            modifier = Modifier.clickable {
+                                // Start playback with shuffled tracks
+                                if (selectedItemTracks.isNotEmpty()) {
+                                    val shuffledTracks = selectedItemTracks.shuffled()
+                                    val trackEntities = shuffledTracks.mapIndexed { index, spotifyTrack ->
+                                        TrackEntity(
+                                            id = "spotify_${album.id}_${spotifyTrack.id}_shuffled",
+                                            playlistId = album.id,
+                                            spotifyTrackId = spotifyTrack.id,
+                                            name = spotifyTrack.name,
+                                            artists = spotifyTrack.getArtistNames(),
+                                            youtubeVideoId = null,
+                                            audioUrl = null,
+                                            position = index,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                    }
+                                    playerViewModel?.setCurrentPlaylist(trackEntities, 0)
+                                    trackEntities.firstOrNull()?.let { track ->
+                                        coroutineScope.launch {
+                                            try {
+                                                playerViewModel?.loadAudioFromTrack(track)
+                                            } catch (e: Exception) {
+                                                Log.e("SearchScreen", "Error al reproducir álbum aleatorio", e)
+                                            }
+                                        }
                                     }
                                 }
+                            }.padding(8.dp)
+                        )
+                        Text(
+                            text = "<back>",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                color = Color(0xFF95A5A6)
+                            ),
+                            modifier = Modifier.clickable {
+                                selectedSpotifyAlbum = null
+                                selectedItemTracks = emptyList()
+                            }.padding(8.dp)
+                        )
+                    }
+                    // Loading and error states
+                    if (isLoadingTracks) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "$ loading tracks...",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFFFD93D)
+                                )
+                            )
+                        }
+                    }
+                    error?.let {
+                        Text(
+                            "ERR: $it",
+                            color = Color(0xFFFF6B6B),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+                    // Track list
+                    if (selectedItemTracks.isNotEmpty()) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(bottom = 16.dp)
+                        ) {
+                            items(selectedItemTracks.size) { index ->
+                                val track = selectedItemTracks[index]
+                                SongListItem(
+                                    number = index + 1,
+                                    title = track.name ?: "Sin título",
+                                    artist = track.getArtistNames(),
+                                    onClick = {
+                                        val trackEntities = selectedItemTracks.mapIndexed { trackIndex, spotifyTrack ->
+                                            TrackEntity(
+                                                id = "spotify_${album.id}_${spotifyTrack.id}",
+                                                playlistId = album.id,
+                                                spotifyTrackId = spotifyTrack.id,
+                                                name = spotifyTrack.name,
+                                                artists = spotifyTrack.getArtistNames(),
+                                                youtubeVideoId = null,
+                                                audioUrl = null,
+                                                position = trackIndex,
+                                                lastSyncTime = System.currentTimeMillis()
+                                            )
+                                        }
+                                        playerViewModel?.setCurrentPlaylist(trackEntities, index)
+                                        val selectedTrackEntity = trackEntities[index]
+                                        coroutineScope.launch {
+                                            try {
+                                                playerViewModel?.loadAudioFromTrack(selectedTrackEntity)
+                                            } catch (e: Exception) {
+                                                Log.e("SearchScreen", "Error al reproducir track de álbum", e)
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
-                    },
-                    onSave = saveSpotifyPlaylistToLibrary,
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope
-                )
+                    }
+                }
             }
             selectedSpotifyArtist != null -> {
                 // Nueva vista detallada para el artista
@@ -1063,18 +1164,17 @@ fun CollapsibleSpotifySearchResultsView(
             if (tracksExpanded) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
                     results.tracks.items.take(5).forEachIndexed { index, track ->
-                        TrackRowWithPlaylistButton(
-                            track = track,
-                            index = index,
-                            onTrackClick = {
+                        SongListItem(
+                            number = index + 1,
+                            title = track.name,
+                            artist = track.getArtistNames(),
+                            onClick = {
                                 onTrackSelectedFromSearch(track, results.tracks.items, index)
                             },
-                            onAddToPlaylist = { selectedTrack ->
-                                onAddTrackToPlaylist(selectedTrack)
-                            }
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
@@ -1346,54 +1446,20 @@ fun CollapsibleYouTubeSearchResultsView(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 results.forEachIndexed { index, item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onVideoSelectedFromSearch(
-                                    item.videoId,
-                                    item.title,
-                                    results,
-                                    index
-                                )
-                            }
-                            .padding(vertical = 4.dp, horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = item.title,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFE0E0E0)
-                                ),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                    SongListItem(
+                        number = index + 1,
+                        title = item.title,
+                        artist = item.channel,
+                        onClick = {
+                            onVideoSelectedFromSearch(
+                                item.videoId,
+                                item.title,
+                                results,
+                                index
                             )
-
-                            Text(
-                                text = item.channel,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
-
-                        item.duration?.let { duration ->
-                            Text(
-                                text = duration,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
-                                ),
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                    }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 // Load more button if there are more results

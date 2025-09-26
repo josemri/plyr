@@ -106,45 +106,20 @@ private fun YouTubeVideosFromSearchSection(
         }
 
         audioItems.forEachIndexed { index, item ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        onVideoSelectedFromSearch(
-                            item.videoId,
-                            item.title,
-                            audioItems,
-                            index
-                        )
-                    }
-                    .padding(vertical = PlyrSpacing.xs, horizontal = PlyrSpacing.small),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.title,
-                        style = PlyrTextStyles.trackTitle(),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+            SongListItem(
+                number = index + 1,
+                title = item.title,
+                artist = item.channel,
+                onClick = {
+                    onVideoSelectedFromSearch(
+                        item.videoId,
+                        item.title,
+                        audioItems,
+                        index
                     )
-
-                    Text(
-                        text = item.channel,
-                        style = PlyrTextStyles.trackArtist(),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = PlyrSpacing.xxs)
-                    )
-                }
-
-                item.duration?.let { duration ->
-                    Text(
-                        text = duration,
-                        style = PlyrTextStyles.trackArtist(),
-                        modifier = Modifier.padding(start = PlyrSpacing.small)
-                    )
-                }
-            }
+                },
+                modifier = Modifier.padding(vertical = PlyrSpacing.xs, horizontal = PlyrSpacing.small)
+            )
         }
     }
 }
