@@ -3,15 +3,26 @@ package com.plyr.ui.components
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.window.Dialog
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +48,7 @@ fun SongListItem(
     isSelected: Boolean = false
 ) {
     val haptic = LocalHapticFeedback.current
+    var showPopup by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier
@@ -89,9 +101,52 @@ fun SongListItem(
         }
         // Action button ("*")
         IconButton(onClick = {
-            Log.d("SongListItem", "Track options clicked for: ${song.title}")
-        }, modifier = Modifier.size(32.dp)) {
-            Text(text = "*", style = PlyrTextStyles.menuOption())
+            showPopup = true
+            }, modifier = Modifier.size(32.dp)) {
+            Text(
+                text = "*", style = PlyrTextStyles.menuOption(),
+                color = Color(0xFF3FFFEF)
+            )
+        }
+    }
+
+    if (showPopup) {
+        Dialog(onDismissRequest = { showPopup = false }) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF181818))
+                    .padding(24.dp)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    val options = listOf(
+                        "add to queue",
+                        "add to playlist",
+                        "copy link",
+                        "fetch info",
+                        "download",
+                        "delete"
+                    )
+                    options.forEach { option ->
+                        Text(
+                            text = option,
+                            color = Color(0xFF3FFFEF),
+                            fontWeight = FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    Log.d("SongListItemPopup", option)
+                                    showPopup = false
+                                }
+                                .padding(vertical = 4.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
