@@ -37,6 +37,7 @@ import android.media.AudioManager
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.offline.DownloadService.startForeground
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
@@ -113,13 +114,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     val isQueueMode: LiveData<Boolean> = _isQueueMode
 
     private var waitForSongJob: Job? = null
+    private val NOTIFICATION_ID = 1
 
     // Variables para precarga de la siguiente canción
     private var preloadedNextAudioUrl: String? = null
     private var preloadedNextVideoId: String? = null
-
-    // Add this property to allow external callback for MediaSession
     var onStartMediaSession: ((ExoPlayer) -> Unit)? = null
+    var onNextTrackReady: ((String) -> Unit)? = null
+
+    fun setNextTrackReadyCallback(callback: (String) -> Unit) {
+        onNextTrackReady = callback
+    }
+
 
     init {
         updateQueueState()
@@ -161,6 +167,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _currentPlayerListener?.let { player.addListener(it) }
         player.setHandleAudioBecomingNoisy(true)
         optimizeBufferSettings(player)
+
+        // Añade listener para precargar la siguiente pista en cada transición
+        player.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                Log.d(TAG, "Cambio de pista: ${mediaItem?.mediaId}")
+                val playlist = currentPlaylist.value
+                val index = currentTrackIndex.value ?: -1
+                if (playlist != null && index + 1 < playlist.size) {
+                    val nextTrack = playlist[index + 1]
+                    CoroutineScope(Dispatchers.Main).launch {
+                        val nextYoutubeId = withContext(Dispatchers.IO) { obtainYouTubeId(nextTrack) }
+                        if (nextYoutubeId != null) {
+                            precacheNextTrack(nextYoutubeId)
+                        }
+                    }
+                }
+            }
+        })
     }
 
 
@@ -239,7 +263,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // Precarga la siguiente canción si existe en la playlist
-    private fun precacheNextTrack(currentVideoId: String) {
+    @OptIn(UnstableApi::class)
+    fun precacheNextTrack(currentVideoId: String) {
         val playlist = _currentPlaylist.value
         val index = _currentTrackIndex.value ?: -1
         if (playlist != null && index >= 0 && index + 1 < playlist.size) {
@@ -251,6 +276,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     if (nextAudioUrl != null && isValidAudioUrl(nextAudioUrl)) {
                         preloadedNextAudioUrl = nextAudioUrl
                         preloadedNextVideoId = nextVideoId
+                        withContext(Dispatchers.Main) {
+                            _exoPlayer?.addMediaItem(MediaItem.fromUri(nextAudioUrl))
+                            // Llamamos al callback, el Service lo recibe
+                            onNextTrackReady?.invoke(nextAudioUrl)
+                        }
                     } else {
                         preloadedNextAudioUrl = null
                         preloadedNextVideoId = null
@@ -355,7 +385,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private suspend fun obtainYouTubeId(track: TrackEntity): String? {
+    suspend fun obtainYouTubeId(track: TrackEntity): String? {
         return withContext(Dispatchers.IO) {
             youtubeSearchManager.getYouTubeIdTransparently(track)
         }
