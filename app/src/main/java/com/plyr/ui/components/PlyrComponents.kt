@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.plyr.ui.theme.*
 
@@ -40,7 +41,7 @@ fun PlyrMenuOption(
 
     Text(
         text = "${PlyrSymbols.PROMPT}$text",
-        style = PlyrTextStyles.menuOption(),
+        style = PlyrTextStyles.menuOption().copy(textAlign = TextAlign.Center),
         modifier = modifier
             .clickable(enabled = enabled) {
                 if (enabled) {
@@ -231,4 +232,3 @@ fun PlyrMediumSpacer() = Spacer(modifier = Modifier.height(PlyrSpacing.medium))
 
 @Composable
 fun PlyrLargeSpacer() = Spacer(modifier = Modifier.height(PlyrSpacing.large))
-
