@@ -22,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.media3.common.Player
 
 
 class MusicService : Service() {
@@ -87,6 +88,13 @@ class MusicService : Service() {
                 )
             )
             .build()
+
+        // Listener para actualizar la notificación al cambiar de canción
+        player.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
+                updateNotification(player)
+            }
+        })
 
         // Iniciar servicio en primer plano
         startForeground(NOTIFICATION_ID, createNotification(player))
