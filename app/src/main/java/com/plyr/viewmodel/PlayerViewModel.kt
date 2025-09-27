@@ -251,14 +251,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 // Si la URL está precargada y corresponde al videoId solicitado, usarla
                 if (preloadedNextAudioUrl != null && preloadedNextVideoId == videoId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
-                    playAudioFromUrl(preloadedNextAudioUrl!!)
+                    playAudioFromUrl(preloadedNextAudioUrl!!, title, null)
                     // Limpiar precarga tras usarla
                     preloadedNextAudioUrl = null
                     preloadedNextVideoId = null
                 } else {
                     val audioUrl = extractAudioUrl(videoId)
                     if (audioUrl != null && isValidAudioUrl(audioUrl)) {
-                        playAudioFromUrl(audioUrl)
+                        playAudioFromUrl(audioUrl, title, null)
                     } else {
                         handleAudioExtractionError(videoId, audioUrl)
                     }
@@ -287,7 +287,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         preloadedNextAudioUrl = nextAudioUrl
                         preloadedNextVideoId = nextVideoId
                         withContext(Dispatchers.Main) {
-                            _exoPlayer?.addMediaItem(MediaItem.fromUri(nextAudioUrl))
+                            val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
+                                .setTitle(nextTrack.name)
+                                .setArtist(nextTrack.artists)
+                                .build()
+                            val mediaItem = androidx.media3.common.MediaItem.Builder()
+                                .setUri(nextAudioUrl)
+                                .setMediaMetadata(mediaMetadata)
+                                .build()
+                            _exoPlayer?.addMediaItem(mediaItem)
                             // Llamamos al callback, el Service lo recibe
                             onNextTrackReady?.invoke(nextAudioUrl)
                         }
@@ -319,7 +327,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         getApplication<Application>().startService(serviceIntent)
     }
 
-    private fun playAudioFromUrl(audioUrl: String) {
+    private fun playAudioFromUrl(audioUrl: String, title: String? = null, artist: String? = null) {
         _audioUrl.postValue(audioUrl)
         CoroutineScope(Dispatchers.Main).launch {
             try {
@@ -337,7 +345,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 _exoPlayer?.let { player ->
-                    player.setMediaItem(MediaItem.fromUri(audioUrl))
+                    val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(title ?: "Unknown Title")
+                        .setArtist(artist ?: "Unknown Artist")
+                        .build()
+                    val mediaItem = androidx.media3.common.MediaItem.Builder()
+                        .setUri(audioUrl)
+                        .setMediaMetadata(mediaMetadata)
+                        .build()
+                    player.setMediaItem(mediaItem)
                     player.prepare()
                     player.play()
                     _isLoading.postValue(false)
@@ -369,7 +385,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val youtubeId = obtainYouTubeId(track)
             if (youtubeId != null) {
                 if (preloadedNextAudioUrl != null && preloadedNextVideoId == youtubeId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
-                    playAudioFromUrl(preloadedNextAudioUrl!!)
                     preloadedNextAudioUrl = null
                     preloadedNextVideoId = null
                     precacheNextTrack(youtubeId)
@@ -432,7 +447,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
             _exoPlayer?.let { player ->
                 try {
-                    player.setMediaItem(MediaItem.fromUri(audioUrl))
+                    val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
+                        .setTitle(track.name)
+                        .setArtist(track.artists)
+                        .build()
+                    val mediaItem = androidx.media3.common.MediaItem.Builder()
+                        .setUri(audioUrl)
+                        .setMediaMetadata(mediaMetadata)
+                        .build()
+                    player.setMediaItem(mediaItem)
                     player.prepare()
                     player.play()
                     _isLoading.postValue(false)
