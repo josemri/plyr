@@ -46,48 +46,7 @@ class MusicService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val audioUrl = intent?.getStringExtra("AUDIO_URL")
-        if (audioUrl != null) playAudio(audioUrl)
         return START_NOT_STICKY
-    }
-
-    fun playAudio(audioUrl: String) {
-        Log.d(TAG, "playAudio llamado con: $audioUrl")
-        val plyr = (application as PlyrApp).playerViewModel
-        try {
-            plyr.loadAudio(audioUrl, "Audio Track")
-            CoroutineScope(Dispatchers.Main).launch {
-                val player = plyr.getPlayer()
-                player?.playWhenReady = true
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error al reproducir audio: ${e.message}", e)
-        }
-    }
-
-    fun playPlaylist(urls: List<String>, startIndex: Int = 0) {
-        playlist = urls
-        currentIndex = startIndex.coerceIn(0, urls.size - 1)
-        if (playlist.isNotEmpty()) {
-            Log.d(TAG, "Playing playlist: ${playlist.size} tracks, starting at index $currentIndex")
-            playAudio(playlist[currentIndex])
-        } else {
-            Log.w(TAG, "Attempted to play empty playlist")
-        }
-    }
-
-    private fun handleTrackEnded() {
-        if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
-            currentIndex++
-            val nextUrl = playlist[currentIndex]
-            Log.d(TAG, "Track ended, playing next: $nextUrl")
-            playAudio(nextUrl)
-        } else {
-            Log.d(TAG, "Playlist ended")
-        }
-    }
-
-    private fun handlePlayerError(error: Exception) {
-        Log.e(TAG, "Error del player: ${error.message}")
     }
 
     inner class MusicBinder : Binder() {

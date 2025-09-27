@@ -167,11 +167,6 @@ class MainActivity : ComponentActivity() {
             val audioUrls = playlist.map { track ->
                 track.youtubeVideoId ?: track.spotifyTrackId
             }.filterNotNull()
-            if (audioUrls.isNotEmpty()) {
-                musicService?.playPlaylist(audioUrls, currentIndex)
-            }
-        } else {
-            musicService?.playAudio(videoId)
         }
     }
 
@@ -199,9 +194,6 @@ class MainActivity : ComponentActivity() {
         playerViewModel.setCurrentPlaylist(searchPlaylist, selectedIndex)
         playerViewModel.loadAudio(videoId, title)
         val audioUrls = searchPlaylist.mapNotNull { it.youtubeVideoId }
-        if (audioUrls.isNotEmpty()) {
-            musicService?.playPlaylist(audioUrls, selectedIndex)
-        }
     }
 
     override fun onDestroy() {
