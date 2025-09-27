@@ -13,15 +13,22 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.plyr.MainActivity
+import com.plyr.viewmodel.PlayerViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 class MusicService : Service() {
     private var CHANNEL_ID = "playback_channel"
     private val NOTIFICATION_ID = 1
     lateinit var mediaSession: MediaSession
+    var playerViewModel: PlayerViewModel? = null
     companion object {
         private const val TAG = "MusicService"
     }
@@ -76,5 +83,11 @@ class MusicService : Service() {
 
         // Iniciar servicio en primer plano
         startForeground(NOTIFICATION_ID, createNotification())
+    }
+
+    fun updateNotification() {
+        if (::mediaSession.isInitialized) {
+            startForeground(NOTIFICATION_ID, createNotification())
+        }
     }
 }

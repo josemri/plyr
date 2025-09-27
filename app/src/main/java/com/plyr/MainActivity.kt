@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
             // Set the callback for MediaSession setup
             val playerViewModel = (application as PlyrApp).playerViewModel
             musicService?.let { svc ->
+                svc.playerViewModel = playerViewModel // <-- Añade esta línea
                 playerViewModel.onStartMediaSession = { exoPlayer ->
                     svc.startMediaSession(exoPlayer)
                 }
@@ -69,6 +70,7 @@ class MainActivity : ComponentActivity() {
             // Remove callback when disconnected
             val playerViewModel = (application as PlyrApp).playerViewModel
             playerViewModel.onStartMediaSession = null
+            musicService?.playerViewModel = null // <-- Añade esta línea
         }
     }
 
