@@ -173,10 +173,27 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ){
                     CoroutineScope(Dispatchers.Main).launch {
-                        navigateToNext() // >> de la notificacion falta por hacer el <<
+                        navigateToNext()
                     }
                 }
             }
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
+                if (reason == Player.DISCONTINUITY_REASON_SEEK &&
+                    oldPosition.mediaItemIndex == newPosition.mediaItemIndex &&
+                    newPosition.positionMs == 0L &&
+                    oldPosition.positionMs > 1000L // estaba avanzando en la pista
+                ) {
+                    // 👇 interpretamos este caso como PREV
+                    CoroutineScope(Dispatchers.Main).launch {
+                        navigateToPrevious()
+                    }
+                }
+            }
+
         })
     }
 
