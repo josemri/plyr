@@ -290,9 +290,9 @@ private fun FloatingControlsCard(
             }
             
             // Mensaje de error si existe
-            error?.let {
-                ErrorMessage(it)
-            }
+//            error?.let {
+//                ErrorMessage(it)
+//            }
         }
     }
 }
@@ -361,10 +361,10 @@ private fun StatusIndicator(
     Text(
         text = when {
             isLoading -> "$ loading"
-            error != null -> "$ error"
-            audioUrl != null && hasPlaylist -> "$ "
-            audioUrl != null -> "$ "
-            else -> "$ ready"
+            //error != null -> "$ error"
+            //audioUrl != null && hasPlaylist -> "$ TEST2"
+            //audioUrl != null -> "$ TEST "
+            else -> ""
         },
         style = MaterialTheme.typography.bodyMedium.copy(
             fontFamily = FontFamily.Monospace,
@@ -751,20 +751,20 @@ private fun RepeatButton(
 /**
  * Mensaje de error compacto.
  */
-@Composable
-private fun ErrorMessage(error: String) {
-    Text(
-        text = "ERR: ${error.take(40)}${if (error.length > 40) "..." else ""}",
-        style = MaterialTheme.typography.bodyMedium.copy(
-            fontFamily = FontFamily.Monospace,
-            fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.error
-        ),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.padding(top = 4.dp)
-    )
-}
+//@Composable
+//private fun ErrorMessage(error: String) {
+//    Text(
+//        text = "ERR: ${error.take(40)}${if (error.length > 40) "..." else ""}",
+//        style = MaterialTheme.typography.bodyMedium.copy(
+//            fontFamily = FontFamily.Monospace,
+//            fontSize = 10.sp,
+//            color = MaterialTheme.colorScheme.error
+//        ),
+//        maxLines = 1,
+//        overflow = TextOverflow.Ellipsis,
+//        modifier = Modifier.padding(top = 4.dp)
+//    )
+//}
 
 /**
  * Indicador de cola que muestra cuántos tracks están pendientes.

@@ -168,19 +168,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         player.setHandleAudioBecomingNoisy(true)
         optimizeBufferSettings(player)
 
-        // Añade listener para precargar la siguiente pista en cada transición
+        // Ahora, al cambiar de pista, navega igual que el botón "siguiente"
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                Log.d(TAG, "Cambio de pista: ${mediaItem?.mediaId}")
-                val playlist = currentPlaylist.value
-                val index = currentTrackIndex.value ?: -1
-                if (playlist != null && index + 1 < playlist.size) {
-                    val nextTrack = playlist[index + 1]
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ){
                     CoroutineScope(Dispatchers.Main).launch {
-                        val nextYoutubeId = withContext(Dispatchers.IO) { obtainYouTubeId(nextTrack) }
-                        if (nextYoutubeId != null) {
-                            precacheNextTrack(nextYoutubeId)
-                        }
+                        navigateToNext() // >> de la notificacion falta por hacer el <<
                     }
                 }
             }
