@@ -1,8 +1,10 @@
 package com.plyr
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import androidx.activity.ComponentActivity
@@ -30,6 +32,9 @@ import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.model.AudioItem
 import com.plyr.database.TrackEntity
 import android.net.Uri
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 /**
  * MainActivity - Entry point for Plyr app
@@ -59,6 +64,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Solicitar permiso de notificaciones en Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 123)
+            }
+        }
+
         handleSpotifyCallback(intent)
         enableEdgeToEdge()
         setupMusicService()
@@ -202,6 +215,7 @@ class MainActivity : ComponentActivity() {
 
     // Migrate deprecated onBackPressed to OnBackPressedDispatcher
     override fun onBackPressed() {
+        super.onBackPressed()
         isAppClosing = true
         onBackPressedDispatcher.onBackPressed()
     }

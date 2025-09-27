@@ -10,10 +10,25 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+import android.app.Notification
+import android.app.PendingIntent
+import androidx.annotation.OptIn
+import androidx.core.app.NotificationChannelCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaSession
+import androidx.media3.session.MediaStyleNotificationHelper
+import com.plyr.MainActivity
+
+
 class MusicService : Service() {
+    private var CHANNEL_ID = "playback_channel"
+    private val NOTIFICATION_ID = 1
     private var playlist: List<String> = emptyList()
     private var currentIndex: Int = 0
-
+    lateinit var mediaSession: MediaSession
     companion object {
         private const val TAG = "MusicService"
     }
@@ -21,6 +36,12 @@ class MusicService : Service() {
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "MusicService creado")
+        // Crear canal de notificación
+        NotificationManagerCompat.from(this).createNotificationChannel(
+            NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
+                .setName("Reproducción")
+                .build()
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -75,8 +96,35 @@ class MusicService : Service() {
     private val binder = MusicBinder()
     override fun onBind(intent: Intent): IBinder = binder
 
+    @OptIn(UnstableApi::class)
+    private fun createNotification(): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle("Reproduciendo")
+            .setStyle(MediaStyleNotificationHelper.MediaStyle(mediaSession))
+            .setOngoing(true)
+            .build()
+
+    fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = mediaSession
+
     override fun onDestroy() {
         Log.d(TAG, "MusicService destruido")
+        mediaSession.release()
         super.onDestroy()
+    }
+
+    fun startMediaSession(player: ExoPlayer){
+        mediaSession = MediaSession.Builder(this, player)
+            .setSessionActivity(
+                PendingIntent.getActivity(
+                    this, 0,
+                    Intent(this, MainActivity::class.java),
+                    PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            .build()
+
+        // Iniciar servicio en primer plano
+        startForeground(NOTIFICATION_ID, createNotification())
     }
 }
