@@ -56,13 +56,20 @@ class MusicService : Service() {
     override fun onBind(intent: Intent): IBinder = binder
 
     @OptIn(UnstableApi::class)
-    private fun createNotification(): Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun createNotification(player: ExoPlayer): Notification {
+        val mediaItem = player.currentMediaItem
+        Log.d(TAG, "Creando notificación para: ${player.currentMediaItem}")
+        val title = mediaItem?.mediaMetadata?.title ?: "Unknown Title"
+        val artist = mediaItem?.mediaMetadata?.artist ?: "Unknown Artist"
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("Reproduciendo")
+            .setContentTitle(title)
+            .setContentText(artist)
             .setStyle(MediaStyleNotificationHelper.MediaStyle(mediaSession))
             .setOngoing(true)
             .build()
+    }
 
     override fun onDestroy() {
         Log.d(TAG, "MusicService destruido")
@@ -82,12 +89,12 @@ class MusicService : Service() {
             .build()
 
         // Iniciar servicio en primer plano
-        startForeground(NOTIFICATION_ID, createNotification())
+        startForeground(NOTIFICATION_ID, createNotification(player))
     }
 
-    fun updateNotification() {
+    fun updateNotification(player: ExoPlayer) {
         if (::mediaSession.isInitialized) {
-            startForeground(NOTIFICATION_ID, createNotification())
+            startForeground(NOTIFICATION_ID, createNotification(player))
         }
     }
 }
