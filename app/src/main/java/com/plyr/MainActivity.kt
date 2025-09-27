@@ -56,9 +56,19 @@ class MainActivity : ComponentActivity() {
             val binder = service as MusicService.MusicBinder
             musicService = binder.getService()
             bound = true
+            // Set the callback for MediaSession setup
+            val playerViewModel = (application as PlyrApp).playerViewModel
+            musicService?.let { svc ->
+                playerViewModel.onStartMediaSession = { exoPlayer ->
+                    svc.startMediaSession(exoPlayer)
+                }
+            }
         }
         override fun onServiceDisconnected(arg0: ComponentName) {
             bound = false
+            // Remove callback when disconnected
+            val playerViewModel = (application as PlyrApp).playerViewModel
+            playerViewModel.onStartMediaSession = null
         }
     }
 

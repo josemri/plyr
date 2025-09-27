@@ -118,6 +118,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var preloadedNextAudioUrl: String? = null
     private var preloadedNextVideoId: String? = null
 
+    // Add this property to allow external callback for MediaSession
+    var onStartMediaSession: ((ExoPlayer) -> Unit)? = null
+
     init {
         updateQueueState()
         _playbackQueue.observeForever {
@@ -325,16 +328,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _currentTitle.postValue("${track.name} - ${track.artists}")
             val youtubeId = obtainYouTubeId(track)
             if (youtubeId != null) {
-                // Si la URL está precargada y corresponde al videoId solicitado, usarla
                 if (preloadedNextAudioUrl != null && preloadedNextVideoId == youtubeId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
                     playAudioFromUrl(preloadedNextAudioUrl!!)
                     preloadedNextAudioUrl = null
                     preloadedNextVideoId = null
                     precacheNextTrack(youtubeId)
+                    // Call MediaSession setup after playback starts
+                    _exoPlayer?.let { onStartMediaSession?.invoke(it) }
                     return@withContext true
                 } else {
                     val result = playTrackAudio(youtubeId, track)
                     precacheNextTrack(youtubeId)
+                    // Call MediaSession setup after playback starts
+                    _exoPlayer?.let { onStartMediaSession?.invoke(it) }
                     return@withContext result
                 }
             } else {

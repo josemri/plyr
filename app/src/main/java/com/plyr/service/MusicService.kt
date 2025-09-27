@@ -5,11 +5,6 @@ import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
 import android.util.Log
-import com.plyr.PlyrApp
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-
 import android.app.Notification
 import android.app.PendingIntent
 import androidx.annotation.OptIn
@@ -26,8 +21,6 @@ import com.plyr.MainActivity
 class MusicService : Service() {
     private var CHANNEL_ID = "playback_channel"
     private val NOTIFICATION_ID = 1
-    private var playlist: List<String> = emptyList()
-    private var currentIndex: Int = 0
     lateinit var mediaSession: MediaSession
     companion object {
         private const val TAG = "MusicService"
@@ -39,7 +32,7 @@ class MusicService : Service() {
         // Crear canal de notificación
         NotificationManagerCompat.from(this).createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-                .setName("Reproducción")
+                .setName("plyr")
                 .build()
         )
     }
@@ -63,8 +56,6 @@ class MusicService : Service() {
             .setStyle(MediaStyleNotificationHelper.MediaStyle(mediaSession))
             .setOngoing(true)
             .build()
-
-    fun onGetSession(controllerInfo: MediaSession.ControllerInfo) = mediaSession
 
     override fun onDestroy() {
         Log.d(TAG, "MusicService destruido")
