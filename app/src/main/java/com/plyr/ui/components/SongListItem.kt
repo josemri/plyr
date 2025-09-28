@@ -102,24 +102,13 @@ fun SongListItem(
                 modifier = Modifier.padding(top = 0.dp)
             )
         }
-        // Duración (opcional)
-        if (duration != null) {
+        IconButton(onClick = {
+            showPopup = true
+        }, modifier = Modifier.size(32.dp)) {
             Text(
-                text = duration,
-                style = PlyrTextStyles.trackArtist(),
-                modifier = Modifier.padding(start = PlyrSpacing.small)
+                text = "*", style = PlyrTextStyles.menuOption(),
+                color = Color(0xFF3FFFEF)
             )
-        }
-        // Action button (solo si no se pasa duration para mantener espacio compacto cuando hay duración al final?)
-        if (duration == null) {
-            IconButton(onClick = {
-                showPopup = true
-                }, modifier = Modifier.size(32.dp)) {
-                Text(
-                    text = "*", style = PlyrTextStyles.menuOption(),
-                    color = Color(0xFF3FFFEF)
-                )
-            }
         }
     }
 
