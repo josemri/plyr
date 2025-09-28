@@ -45,7 +45,8 @@ fun SongListItem(
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
-    isSelected: Boolean = false
+    isSelected: Boolean = false,
+    duration: String? = null
 ) {
     val haptic = LocalHapticFeedback.current
     var showPopup by remember { mutableStateOf(false) }
@@ -55,14 +56,16 @@ fun SongListItem(
             .clickable {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 playerViewModel?.let { viewModel ->
-                    viewModel.setCurrentPlaylist(trackEntities, index)
-                    val selectedTrackEntity = trackEntities[index]
-                    coroutineScope.launch {
-                        try {
-                            viewModel.loadAudioFromTrack(selectedTrackEntity)
-                            Log.d("SongListItem", "🎵 Reproduciendo track ${index + 1}/${trackEntities.size}: ${selectedTrackEntity.name}")
-                        } catch (e: Exception) {
-                            Log.e("SongListItem", "Error al reproducir track", e)
+                    if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
+                        viewModel.setCurrentPlaylist(trackEntities, index)
+                        val selectedTrackEntity = trackEntities[index]
+                        coroutineScope.launch {
+                            try {
+                                viewModel.loadAudioFromTrack(selectedTrackEntity)
+                                Log.d("SongListItem", "🎵 Reproduciendo track ${index + 1}/${trackEntities.size}: ${selectedTrackEntity.name}")
+                            } catch (e: Exception) {
+                                Log.e("SongListItem", "Error al reproducir track", e)
+                            }
                         }
                     }
                 }
@@ -99,14 +102,24 @@ fun SongListItem(
                 modifier = Modifier.padding(top = 0.dp)
             )
         }
-        // Action button ("*")
-        IconButton(onClick = {
-            showPopup = true
-            }, modifier = Modifier.size(32.dp)) {
+        // Duración (opcional)
+        if (duration != null) {
             Text(
-                text = "*", style = PlyrTextStyles.menuOption(),
-                color = Color(0xFF3FFFEF)
+                text = duration,
+                style = PlyrTextStyles.trackArtist(),
+                modifier = Modifier.padding(start = PlyrSpacing.small)
             )
+        }
+        // Action button (solo si no se pasa duration para mantener espacio compacto cuando hay duración al final?)
+        if (duration == null) {
+            IconButton(onClick = {
+                showPopup = true
+                }, modifier = Modifier.size(32.dp)) {
+                Text(
+                    text = "*", style = PlyrTextStyles.menuOption(),
+                    color = Color(0xFF3FFFEF)
+                )
+            }
         }
     }
 

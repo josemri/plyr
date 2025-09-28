@@ -975,7 +975,9 @@ private fun SearchMainView(
                 youtubeAllResults = youtubeAllResults,
                 onVideoSelected = onVideoSelected,
                 onVideoSelectedFromSearch = onVideoSelectedFromSearch,
-                onPlaylistSelected = onYouTubePlaylistSelected
+                onPlaylistSelected = onYouTubePlaylistSelected,
+                playerViewModel = playerViewModel,
+                coroutineScope = coroutineScope
             )
         }
 

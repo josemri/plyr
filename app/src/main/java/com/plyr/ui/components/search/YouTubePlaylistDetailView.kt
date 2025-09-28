@@ -13,11 +13,29 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import coil.compose.AsyncImage
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
+import com.plyr.ui.components.PlyrErrorText
+import com.plyr.ui.components.PlyrInfoText
+import com.plyr.ui.components.PlyrLoadingIndicator
+import com.plyr.ui.components.PlyrMediumSpacer
+import com.plyr.ui.components.PlyrMenuOption
+import com.plyr.ui.components.PlyrSmallSpacer
 import com.plyr.viewmodel.PlayerViewModel
-import com.plyr.ui.components.*
+import com.plyr.ui.components.Song
+import com.plyr.ui.components.SongListItem
 import com.plyr.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -32,21 +50,33 @@ fun YouTubePlaylistDetailView(
     var videos by remember { mutableStateOf<List<YouTubeSearchManager.YouTubeVideoInfo>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
+    var coverUrl by remember { mutableStateOf<String?>(playlist.thumbnailUrl) }
 
-    val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
 
-    // Cargar videos de la playlist
     LaunchedEffect(playlist.playlistId) {
         try {
             isLoading = true
             errorMessage = null
-
-            // Usar el YouTubeSearchManager para obtener los videos
             val youtubeSearchManager = YouTubeSearchManager(context)
             val playlistVideos = youtubeSearchManager.getYouTubePlaylistVideos(playlist.playlistId)
-
             videos = playlistVideos
+            // Crear TrackEntities para reproducción
+            trackEntities = playlistVideos.mapIndexed { index, video ->
+                TrackEntity(
+                    id = "ytpl_${playlist.playlistId}_${video.videoId}_$index",
+                    playlistId = playlist.playlistId,
+                    spotifyTrackId = video.videoId,
+                    name = video.title,
+                    artists = video.uploader,
+                    youtubeVideoId = video.videoId,
+                    audioUrl = null,
+                    position = index,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            }
+            coverUrl = playlistVideos.firstOrNull()?.thumbnailUrl ?: playlist.thumbnailUrl
             isLoading = false
         } catch (e: Exception) {
             errorMessage = "Error loading playlist: ${e.message}"
@@ -57,256 +87,99 @@ fun YouTubePlaylistDetailView(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(PlyrSpacing.large)
     ) {
-        // Header con info de la playlist
-        YouTubePlaylistHeader(
-            playlist = playlist,
-            onBack = onBack,
-            onPlayAll = {
-                if (videos.isNotEmpty()) {
-                    playYouTubePlaylist(videos, playerViewModel, coroutineScope)
-                }
-            }
-        )
-
-        PlyrLargeSpacer()
-
-        // Estado de carga o error
-        when {
-            isLoading -> {
-                PlyrLoadingIndicator("loading playlist")
-            }
-            errorMessage != null -> {
-                PlyrErrorText(errorMessage!!)
-            }
-            videos.isEmpty() -> {
-                PlyrInfoText("No videos found in this playlist")
-            }
-            else -> {
-                YouTubePlaylistTracksList(
-                    videos = videos,
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope
-                )
-            }
+        // Header estilo Spotify playlist detail
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "$ ${playlist.title}",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
         }
-    }
-}
-
-@Composable
-private fun YouTubePlaylistHeader(
-    playlist: YouTubeSearchManager.YouTubePlaylistInfo,
-    onBack: () -> Unit,
-    onPlayAll: () -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-
-    Column {
-        // Botón de regreso
-        PlyrMenuOption(
-            text = "back",
-            onClick = onBack
-        )
-
-        PlyrMediumSpacer()
-
-        // Información de la playlist
+        PlyrSmallSpacer()
+        // Action bar
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.large)
         ) {
-            // Thumbnail de la playlist
-            playlist.thumbnailUrl?.let { thumbnailUrl ->
-                AsyncImage(
-                    model = thumbnailUrl,
-                    contentDescription = "Playlist thumbnail",
-                    modifier = Modifier
-                        .size(120.dp)
-                        .padding(PlyrSpacing.small)
-                )
-            }
+            Text(
+                text = "<start>",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                ),
+                modifier = Modifier.clickable(enabled = videos.isNotEmpty()) {
+                    if (trackEntities.isNotEmpty() && playerViewModel != null) {
+                        playerViewModel.setCurrentPlaylist(trackEntities, 0)
+                        coroutineScope.launch { playerViewModel.loadAudioFromTrack(trackEntities.first()) }
+                    }
+                }
+            )
+            Text(
+                text = "<rand>",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFFFD93D)
+                ),
+                modifier = Modifier.clickable(enabled = videos.isNotEmpty()) {
+                    if (trackEntities.isNotEmpty() && playerViewModel != null) {
+                        val shuffled = trackEntities.shuffled()
+                        playerViewModel.setCurrentPlaylist(shuffled, 0)
+                        coroutineScope.launch { playerViewModel.loadAudioFromTrack(shuffled.first()) }
+                    }
+                }
+            )
+            Text(
+                text = "<save>",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF7FB069)
+                ),
+                modifier = Modifier.clickable { /* futuro guardado */ }
+            )
+        }
+        PlyrMediumSpacer()
 
-            // Info de la playlist
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(PlyrSpacing.xs)
-            ) {
-                Text(
-                    text = playlist.title,
-                    style = PlyrTextStyles.trackTitle(),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Text(
-                    text = "by ${playlist.uploader}",
-                    style = PlyrTextStyles.trackArtist()
-                )
-
-                Text(
-                    text = playlist.getFormattedVideoCount(),
-                    style = PlyrTextStyles.trackArtist()
-                )
-
-                playlist.description?.let { description ->
-                    if (description.isNotBlank()) {
-                        Text(
-                            text = description,
-                            style = PlyrTextStyles.infoText(),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+        when {
+            isLoading -> PlyrLoadingIndicator("loading playlist")
+            errorMessage != null -> PlyrErrorText(errorMessage!!)
+            videos.isEmpty() -> PlyrInfoText("No videos found in this playlist")
+            else -> {
+                // Listado SongListItem con duración
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = PlyrSpacing.large),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(videos.size) { idx ->
+                        val v = videos[idx]
+                        val song = Song(
+                            number = idx + 1,
+                            title = v.title,
+                            artist = v.uploader
+                        )
+                        val isSelected = playerViewModel?.currentTrack?.value?.id == trackEntities.getOrNull(idx)?.id
+                        SongListItem(
+                            song = song,
+                            trackEntities = trackEntities,
+                            index = idx,
+                            playerViewModel = playerViewModel,
+                            coroutineScope = coroutineScope,
+                            isSelected = isSelected,
+                            duration = v.getFormattedDuration()
                         )
                     }
                 }
             }
         }
-
-        PlyrMediumSpacer()
-
-        // Botón de reproducir todo
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.medium)
-        ) {
-            PlyrPrimaryButton(
-                text = "play all",
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onPlayAll()
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun YouTubePlaylistTracksList(
-    videos: List<YouTubeSearchManager.YouTubeVideoInfo>,
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
-) {
-    Column {
-        PlyrMenuOption(
-            text = "tracks [${videos.size}]",
-            onClick = { },
-            enabled = false
-        )
-
-        PlyrSmallSpacer()
-
-        videos.forEachIndexed { index, video ->
-            YouTubeVideoItem(
-                video = video,
-                index = index + 1,
-                onClick = {
-                    playYouTubeVideo(video, videos, index, playerViewModel, coroutineScope)
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun YouTubeVideoItem(
-    video: YouTubeSearchManager.YouTubeVideoInfo,
-    index: Int,
-    onClick: () -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onClick()
-            }
-            .padding(vertical = PlyrSpacing.xs),
-        horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.small),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Número de track
-        Text(
-            text = "${index}.",
-            style = PlyrTextStyles.trackArtist(),
-            modifier = Modifier.width(30.dp)
-        )
-
-        // Info del video
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = video.title,
-                style = PlyrTextStyles.trackTitle(),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Text(
-                text = video.uploader,
-                style = PlyrTextStyles.trackArtist(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Duración
-        Text(
-            text = video.getFormattedDuration(),
-            style = PlyrTextStyles.trackArtist()
-        )
-    }
-}
-
-// === FUNCIONES DE REPRODUCCIÓN ===
-
-private fun playYouTubeVideo(
-    video: YouTubeSearchManager.YouTubeVideoInfo,
-    allVideos: List<YouTubeSearchManager.YouTubeVideoInfo>,
-    selectedIndex: Int,
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
-) {
-    playerViewModel?.let { viewModel ->
-        coroutineScope.launch {
-            try {
-                // Convertir videos de YouTube a TrackEntity para crear playlist temporal
-                val youtubePlaylist = allVideos.mapIndexed { index, youtubeVideo ->
-                    TrackEntity(
-                        id = "youtube_${youtubeVideo.videoId}_$index",
-                        playlistId = "youtube_playlist_${System.currentTimeMillis()}",
-                        spotifyTrackId = "", // Empty for YouTube tracks
-                        name = youtubeVideo.title,
-                        artists = youtubeVideo.uploader,
-                        youtubeVideoId = youtubeVideo.videoId,
-                        audioUrl = null,
-                        position = index,
-                        lastSyncTime = System.currentTimeMillis()
-                    )
-                }
-
-                // Establecer playlist en el PlayerViewModel
-                viewModel.setCurrentPlaylist(youtubePlaylist, selectedIndex)
-
-                // Inicializar player y cargar el video seleccionado
-                viewModel.initializePlayer()
-                viewModel.loadAudio(video.videoId, video.title)
-
-            } catch (e: Exception) {
-                println("Error playing YouTube video: ${e.message}")
-            }
-        }
-    }
-}
-
-private fun playYouTubePlaylist(
-    videos: List<YouTubeSearchManager.YouTubeVideoInfo>,
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
-) {
-    if (videos.isNotEmpty()) {
-        playYouTubeVideo(videos.first(), videos, 0, playerViewModel, coroutineScope)
     }
 }

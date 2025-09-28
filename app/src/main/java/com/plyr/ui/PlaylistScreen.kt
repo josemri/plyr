@@ -563,6 +563,8 @@ fun PlaylistsScreen(
                             contentPadding = PaddingValues(bottom = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            // Prepara trackEntities una sola vez
+                            val trackEntitiesList = tracksFromDB
                             items(playlistTracks.size) { index ->
                                 val track = playlistTracks[index]
                                 val song = Song(
@@ -572,11 +574,12 @@ fun PlaylistsScreen(
                                 )
                                 SongListItem(
                                     song = song,
-                                    trackEntities = tracksFromDB,
+                                    trackEntities = trackEntitiesList,
                                     index = index,
                                     playerViewModel = playerViewModel,
                                     coroutineScope = coroutineScope,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    duration = track.getDurationText()
                                 )
                             }
                         }
@@ -899,6 +902,20 @@ fun SpotifyPlaylistDetailView(
 
         // Lista de tracks
         if (tracks.isNotEmpty()) {
+            // Crear trackEntities una sola vez fuera del LazyColumn
+            val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
+                TrackEntity(
+                    id = "spotify_${spotifyTrack.id}",
+                    playlistId = playlist.id,
+                    spotifyTrackId = spotifyTrack.id,
+                    name = spotifyTrack.name,
+                    artists = spotifyTrack.getArtistNames(),
+                    youtubeVideoId = null,
+                    audioUrl = null,
+                    position = trackIndex,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(bottom = 16.dp)
@@ -910,26 +927,14 @@ fun SpotifyPlaylistDetailView(
                         title = track.name ?: "Sin título",
                         artist = track.getArtistNames()
                     )
-                    val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
-                        TrackEntity(
-                            id = "spotify_${spotifyTrack.id}",
-                            playlistId = "spotify_album",
-                            spotifyTrackId = spotifyTrack.id,
-                            name = spotifyTrack.name,
-                            artists = spotifyTrack.getArtistNames(),
-                            youtubeVideoId = null,
-                            audioUrl = null,
-                            position = trackIndex,
-                            lastSyncTime = System.currentTimeMillis()
-                        )
-                    }
                     SongListItem(
                         song = song,
                         trackEntities = trackEntities,
                         index = index,
                         playerViewModel = playerViewModel,
                         coroutineScope = coroutineScope,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        duration = track.getDurationText()
                     )
                 }
             }
