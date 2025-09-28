@@ -174,8 +174,7 @@ fun YouTubePlaylistDetailView(
                             index = idx,
                             playerViewModel = playerViewModel,
                             coroutineScope = coroutineScope,
-                            isSelected = isSelected,
-                            duration = v.getFormattedDuration()
+                            isSelected = isSelected // duration removed to show action button
                         )
                     }
                 }
