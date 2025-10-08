@@ -36,6 +36,7 @@ import android.media.AudioManager
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import android.media.AudioDeviceInfo
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
@@ -72,15 +73,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private val _currentTrack = MutableLiveData<TrackEntity?>()
 
-    private val _hasPrevious = MutableLiveData<Boolean>(false)
+    private val _hasPrevious = MutableLiveData(false)
 
-    private val _hasNext = MutableLiveData<Boolean>(false)
-
-    private val _autoNavigationEnabled = MutableLiveData<Boolean>(true)
+    private val _hasNext = MutableLiveData(false)
 
     private val _playbackQueue = MutableLiveData<MutableList<TrackEntity>>(mutableListOf())
 
-    private val _isQueueMode = MutableLiveData<Boolean>(false)
+    private val _isQueueMode = MutableLiveData(false)
 
     private val _queueState = MutableStateFlow(QueueState())
     val queueState: StateFlow<QueueState> = _queueState.asStateFlow()
@@ -105,24 +104,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     val hasNext: LiveData<Boolean> = _hasNext
 
-    val autoNavigationEnabled: LiveData<Boolean> = _autoNavigationEnabled
-
     val playbackQueue: LiveData<MutableList<TrackEntity>> = _playbackQueue
 
     val isQueueMode: LiveData<Boolean> = _isQueueMode
 
     private var waitForSongJob: Job? = null
-    private val NOTIFICATION_ID = 1
 
     // Variables para precarga de la siguiente canción
     private var preloadedNextAudioUrl: String? = null
     private var preloadedNextVideoId: String? = null
     var onStartMediaSession: ((ExoPlayer) -> Unit)? = null
     var onNextTrackReady: ((String) -> Unit)? = null
-
-    fun setNextTrackReadyCallback(callback: (String) -> Unit) {
-        onNextTrackReady = callback
-    }
 
 
     init {
@@ -196,33 +188,49 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         return object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
+                    Player.STATE_BUFFERING -> {
+                        // Show loading indicator when buffering
+                        _isLoading.postValue(true)
+                        Log.d(TAG, "Player is buffering")
+                    }
+                    Player.STATE_READY -> {
+                        // Hide loading indicator when ready
+                        _isLoading.postValue(false)
+                        Log.d(TAG, "Player is ready")
+                    }
                     Player.STATE_ENDED -> {
+                        // Hide loading indicator and handle repeat logic
+                        _isLoading.postValue(false)
                         playbackEndedCallback?.complete(true)
                         playbackEndedCallback = null
                         handleRepeatModeTransition()
+                        Log.d(TAG, "Playback ended")
                     }
-                    Player.STATE_READY -> {
+                    Player.STATE_IDLE -> {
+                        // Hide loading indicator and log idle state
                         _isLoading.postValue(false)
+                        Log.d(TAG, "Player is idle")
                     }
                 }
             }
-            override fun onIsPlayingChanged(isPlaying: Boolean) {}
             override fun onPlayerError(error: PlaybackException) {
-                handlePlayerError(error)
+                _isLoading.postValue(false)
+                _error.postValue("Error de reproducción: ${error.message}")
+                Log.e(TAG, "Playback error: ${error.message}", error)
             }
         }
     }
 
-    private fun handlePlayerError(error: PlaybackException) {
+    private fun handlePlayerError() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 releasePlayersForRecovery()
-                kotlinx.coroutines.delay(1000)
+                delay(1000)
                 initializePlayer()
                 _currentTrack.value?.let { track ->
                     loadAudioFromTrack(track)
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 _isLoading.postValue(false)
                 _error.postValue("Error de reproducción. Reinicia la app si persiste.")
             }
@@ -258,7 +266,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 // Precargar la siguiente canción si existe
-                precacheNextTrack(videoId)
+                precacheNextTrack()
             } catch (e: Exception) {
                 _isLoading.postValue(false)
                 _error.postValue("Error al extraer audio: ${e.message}")
@@ -268,7 +276,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     // Precarga la siguiente canción si existe en la playlist
     @OptIn(UnstableApi::class)
-    fun precacheNextTrack(currentVideoId: String) {
+    fun precacheNextTrack() {
         val playlist = _currentPlaylist.value
         val index = _currentTrackIndex.value ?: -1
         if (playlist != null && index >= 0 && index + 1 < playlist.size) {
@@ -285,7 +293,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                                 .setTitle(nextTrack.name)
                                 .setArtist(nextTrack.artists)
                                 .build()
-                            val mediaItem = androidx.media3.common.MediaItem.Builder()
+                            val mediaItem = MediaItem.Builder()
                                 .setUri(nextAudioUrl)
                                 .setMediaMetadata(mediaMetadata)
                                 .build()
@@ -336,7 +344,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         .setTitle(title ?: "Unknown Title")
                         .setArtist(artist ?: "Unknown Artist")
                         .build()
-                    val mediaItem = androidx.media3.common.MediaItem.Builder()
+                    val mediaItem = MediaItem.Builder()
                         .setUri(audioUrl)
                         .setMediaMetadata(mediaMetadata)
                         .build()
@@ -374,13 +382,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 if (preloadedNextAudioUrl != null && preloadedNextVideoId == youtubeId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
                     preloadedNextAudioUrl = null
                     preloadedNextVideoId = null
-                    precacheNextTrack(youtubeId)
+                    precacheNextTrack()
                     // Call MediaSession setup after playback starts
                     _exoPlayer?.let { onStartMediaSession?.invoke(it) }
                     return@withContext true
                 } else {
                     val result = playTrackAudio(youtubeId, track)
-                    precacheNextTrack(youtubeId)
+                    precacheNextTrack()
                     // Call MediaSession setup after playback starts
                     _exoPlayer?.let { onStartMediaSession?.invoke(it) }
                     return@withContext result
@@ -423,7 +431,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 initializePlayer()
                 var attempts = 0
                 while (_exoPlayer == null && attempts < 50) {
-                    kotlinx.coroutines.delay(50)
+                    delay(50)
                     attempts++
                 }
                 if (_exoPlayer == null) {
@@ -439,7 +447,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         .setTitle(track.name)
                         .setArtist(track.artists)
                         .build()
-                    val mediaItem = androidx.media3.common.MediaItem.Builder()
+                    val mediaItem = MediaItem.Builder()
                         .setUri(audioUrl)
                         .setMediaMetadata(mediaMetadata)
                         .build()
@@ -569,19 +577,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         return false
     }
 
-    suspend fun navigateToTrack(index: Int): Boolean {
-        val playlist = _currentPlaylist.value ?: return false
-        if (index in playlist.indices) {
-            val track = playlist[index]
-            _currentTrackIndex.postValue(index)
-            _currentTrack.postValue(track)
-            updateNavigationState()
-            val success = loadAudioFromTrack(track)
-            return success
-        }
-        return false
-    }
-
     private fun updateQueueState() {
         val queue = _playbackQueue.value ?: emptyList()
         val isActive = _isQueueMode.value ?: false
@@ -616,18 +611,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val isActive: Boolean = false
     )
 
-    private fun diagnoseExoPlayerState() {
-        Log.d(TAG, "🔍 Diagnóstico ExoPlayer:")
-        Log.d(TAG, "   - ExoPlayer principal: ${if (_exoPlayer != null) "✅ Existe" else "❌ Es null"}")
-        _exoPlayer?.let { player ->
-            Log.d(TAG, "     - Estado actual: ${player.playbackState}")
-            Log.d(TAG, "     - ¿Está reproduciéndose?: ${player.isPlaying}")
-            Log.d(TAG, "     - ¿Está preparado?: ${player.playbackState == Player.STATE_READY}")
-            Log.d(TAG, "     - Duración: ${player.duration}")
-            Log.d(TAG, "     - Posición actual: ${player.currentPosition}")
-        }
-    }
-
     private fun optimizeBufferSettings(player: ExoPlayer) {
         try {
             player.setAudioAttributes(
@@ -640,14 +623,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ No se pudo optimizar configuración de buffer", e)
         }
-    }
-
-    /**
-     * Obtiene la instancia del ExoPlayer para uso externo.
-     * @return ExoPlayer actual o null si no está inicializado
-     */
-    fun getPlayer(): ExoPlayer? {
-        return _exoPlayer
     }
 
     // === MÉTODOS DE MODO DE REPETICIÓN ===
@@ -693,7 +668,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val currentTrack = _currentTrack.value
 
                 if (currentTrack != null) {
-                    kotlinx.coroutines.delay(500)
+                    delay(500)
 
                     val success = loadAudioFromTrack(currentTrack)
                     if (!success) {
@@ -706,7 +681,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         navigateToNext()
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 CoroutineScope(Dispatchers.Main).launch {
                     navigateToNext()
                 }
@@ -750,7 +725,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             updateNavigationState()
 
             // Pequeña pausa antes de reiniciar
-            kotlinx.coroutines.delay(1000)
+            delay(1000)
 
             // Cargar y reproducir el primer track
             val success = loadAudioFromTrack(firstTrack)
@@ -833,11 +808,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     private fun handleHeadsetPlugEvent(intent: Intent) {
         val state = intent.getIntExtra("state", -1)
-        val name = intent.getStringExtra("name") ?: "Unknown"
-        val microphone = intent.getIntExtra("microphone", -1)
+        intent.getStringExtra("name") ?: "Unknown"
+        intent.getIntExtra("microphone", -1)
 
         val isConnected = state == 1
-        handleAudioOutputChange(isConnected, "Auriculares cableados", name)
+        handleAudioOutputChange(isConnected)
     }
 
     /**
@@ -865,10 +840,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val state = intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1)
         when (state) {
             AudioManager.SCO_AUDIO_STATE_CONNECTED -> {
-                handleAudioOutputChange(true, "Bluetooth SCO", "SCO Audio")
+                handleAudioOutputChange(true)
             }
             AudioManager.SCO_AUDIO_STATE_DISCONNECTED -> {
-                handleAudioOutputChange(false, "Bluetooth SCO", "SCO Audio")
+                handleAudioOutputChange(false)
             }
         }
     }
@@ -881,10 +856,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val state = intent.getIntExtra("android.bluetooth.profile.extra.STATE", -1)
         when (state) {
             2 -> {
-                handleAudioOutputChange(true, "Bluetooth A2DP", "A2DP Device")
+                handleAudioOutputChange(true)
             }
             0 -> {
-                handleAudioOutputChange(false, "Bluetooth A2DP", "A2DP Device")
+                handleAudioOutputChange(false)
             }
         }
     }
@@ -892,10 +867,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * Maneja cualquier cambio en la salida de audio.
      * @param isConnected Si el dispositivo está conectado o desconectado
-     * @param deviceType Tipo de dispositivo (ej: "Auriculares cableados", "Bluetooth")
-     * @param deviceName Nombre del dispositivo
      */
-    private fun handleAudioOutputChange(isConnected: Boolean, deviceType: String, deviceName: String) {
+    private fun handleAudioOutputChange(isConnected: Boolean) {
         if (isConnected != wasHeadsetConnected) {
             wasHeadsetConnected = isConnected
 
@@ -990,9 +963,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun isHeadsetConnected(): Boolean {
         return try {
             audioManager?.let { am ->
-                val isWiredHeadsetOn = am.isWiredHeadsetOn
-                val isBluetoothA2dpOn = am.isBluetoothA2dpOn
-                val isBluetoothScoOn = am.isBluetoothScoOn
+                val devices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                val isWiredHeadsetOn = devices.any {
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES
+                }
+                val isBluetoothA2dpOn = devices.any {
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+                }
+                val isBluetoothScoOn = devices.any {
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                }
                 val hasHeadphones = isWiredHeadsetOn || isBluetoothA2dpOn || isBluetoothScoOn
                 hasHeadphones
             } ?: false
