@@ -10,6 +10,7 @@ import android.util.Base64
 import android.content.Context
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyTokenManager
+import okhttp3.RequestBody.Companion.toRequestBody
 
 object SpotifyRepository {
     
@@ -51,10 +52,6 @@ object SpotifyRepository {
         }
         
         val authHeader = createBasicAuthHeader(context)
-        if (authHeader == null) {
-            callback(null, "Failed to create auth header")
-            return
-        }
         val formBody = FormBody.Builder()
             .add("grant_type", "authorization_code")
             .add("code", authCode)
@@ -97,10 +94,6 @@ object SpotifyRepository {
         }
         
         val authHeader = createBasicAuthHeader(context)
-        if (authHeader == null) {
-            callback(null, "Failed to create auth header")
-            return
-        }
         val formBody = FormBody.Builder()
             .add("grant_type", "refresh_token")
             .add("refresh_token", refreshToken)
@@ -486,7 +479,7 @@ object SpotifyRepository {
             .url("https://api.spotify.com/v1/playlists/$playlistId/followers")
             .addHeader("Authorization", "Bearer $accessToken")
             .addHeader("Content-Type", "application/json")
-            .put(RequestBody.create("application/json".toMediaType(), "{}"))
+            .put("{}".toRequestBody("application/json".toMediaType()))
             .build()
         
         client.newCall(request).enqueue(object : Callback {
@@ -508,7 +501,7 @@ object SpotifyRepository {
     // Añadir una canción a una playlist en Spotify
     fun addTrackToPlaylist(accessToken: String, playlistId: String, trackId: String, callback: (Boolean, String?) -> Unit) {
         val jsonBody = gson.toJson(mapOf("uris" to listOf("spotify:track:$trackId")))
-        val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
             .url("$API_BASE_URL/playlists/$playlistId/tracks")
@@ -542,7 +535,7 @@ object SpotifyRepository {
     // Guardar álbum en la biblioteca del usuario
     fun saveAlbum(accessToken: String, albumId: String, callback: (Boolean, String?) -> Unit) {
         val jsonBody = gson.toJson(mapOf("ids" to listOf(albumId)))
-        val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
             .url("$API_BASE_URL/me/albums")
@@ -570,7 +563,7 @@ object SpotifyRepository {
     // Añadir múltiples tracks a una playlist en Spotify
     fun addTracksToPlaylist(accessToken: String, playlistId: String, trackUris: List<String>, callback: (Boolean, String?) -> Unit) {
         val jsonBody = gson.toJson(mapOf("uris" to trackUris))
-        val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
             .url("$API_BASE_URL/playlists/$playlistId/tracks")
@@ -606,7 +599,7 @@ object SpotifyRepository {
                     "public" to isPublic
                 )
                 val jsonBody = gson.toJson(playlistData)
-                val requestBody = RequestBody.create("application/json".toMediaType(), jsonBody)
+                val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
 
                 val request = Request.Builder()
                     .url("$API_BASE_URL/users/$userId/playlists")

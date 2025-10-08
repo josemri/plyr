@@ -51,7 +51,7 @@ abstract class PlaylistDatabase : RoomDatabase() {
                     PlaylistDatabase::class.java,
                     "playlist_database"
                 )
-                .fallbackToDestructiveMigration() // Recreate database if schema changes
+                    .fallbackToDestructiveMigration(false)
                 .build()
                 INSTANCE = instance
                 instance

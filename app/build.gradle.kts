@@ -7,11 +7,12 @@ plugins {
 
 android {
     namespace = "com.plyr"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.plyr"
         minSdk = 24
+        //noinspection OldTargetApi
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -54,15 +55,15 @@ dependencies {
     implementation(libs.androidx.runtime.livedata)
 
 
-    implementation("com.google.zxing:core:3.5.2")
-    implementation("androidx.camera:camera-core:1.1.0")
-    implementation("androidx.camera:camera-camera2:1.1.0")
-    implementation("androidx.camera:camera-lifecycle:1.1.0")
-    implementation("androidx.camera:camera-view:1.0.0-alpha32")
+    implementation(libs.core)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
 
 
     // Splash Screen API
-    implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.foundation)
 
     testImplementation(libs.junit)
@@ -80,17 +81,17 @@ dependencies {
     implementation(libs.gson)
 
     // NewPipe Extractor
-    implementation("com.github.teamnewpipe:NewPipeExtractor:0.24.6")
+    implementation(libs.newpipeextractor)
 
     // Coroutines (si no las tienes ya)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+    implementation(libs.kotlinx.coroutines.android)
 
     // Room Database
-    implementation("androidx.room:room-runtime:2.7.2")
-    implementation("androidx.room:room-ktx:2.7.2")
-    kapt("androidx.room:room-compiler:2.7.2")
-    implementation("androidx.media:media:1.7.0")
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    kapt(libs.androidx.room.compiler)
+    implementation(libs.androidx.media)
 
     // Coil for image loading
-    implementation("io.coil-kt:coil-compose:2.4.0")
+    implementation(libs.coil.compose)
 }
