@@ -616,7 +616,7 @@ private fun PlaybackControlsRow(
                 isEnabled = audioUrl != null && !isLoading && hasNext,
                 onClick = {
                     coroutineScope.launch {
-                        playerViewModel.navigateToNext()
+                        playerViewModel.handleRepeatModeTransition()
                     }
                 }
             )

@@ -578,7 +578,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Maneja la transición basada en el modo de repetición configurado.
      * Se llama cuando una canción termina para determinar qué hacer siguiente.
      */
-    private fun handleRepeatModeTransition() {
+    fun handleRepeatModeTransition() {
         val context = getApplication<Application>()
         val repeatMode = Config.getRepeatMode(context)
 
