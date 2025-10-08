@@ -52,7 +52,15 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose.jvmstubs)
     implementation(libs.androidx.runtime.livedata)
-    
+
+
+    implementation("com.google.zxing:core:3.5.2")
+    implementation("androidx.camera:camera-core:1.1.0")
+    implementation("androidx.camera:camera-camera2:1.1.0")
+    implementation("androidx.camera:camera-lifecycle:1.1.0")
+    implementation("androidx.camera:camera-view:1.0.0-alpha32")
+
+
     // Splash Screen API
     implementation("androidx.core:core-splashscreen:1.0.1")
     implementation(libs.androidx.foundation)

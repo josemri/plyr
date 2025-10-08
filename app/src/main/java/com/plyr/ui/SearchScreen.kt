@@ -40,6 +40,7 @@ import com.plyr.ui.components.SongListItem
 import com.plyr.ui.components.search.SpotifyArtistDetailView
 import com.plyr.ui.components.search.YouTubePlaylistDetailView
 import com.plyr.ui.components.search.YouTubeSearchResults
+import com.plyr.ui.components.QrScannerDialog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +87,9 @@ fun SearchScreen(
     // YouTube search manager para búsquedas locales
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
+
+    // Definir el estado en el composable principal
+    var showQrScanner by remember { mutableStateOf(false) }
 
     // Search function with pagination support
     val performSearch: (String, Boolean) -> Unit = { searchQuery, isLoadMore ->
@@ -722,7 +726,6 @@ fun SearchScreen(
                     onSearchTriggered = performSearch,
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope,
-                    // Pass the missing parameters
                     youtubeAllResults = youtubeAllResults,
                     showYouTubeAllResults = showYouTubeAllResults,
                     onYouTubePlaylistSelected = { playlist ->
@@ -732,8 +735,20 @@ fun SearchScreen(
                         selectedTrackToAdd = track
                         loadUserPlaylists()
                         showPlaylistSelectionDialog = true
-                    }
+                    },
+                    showQrScanner = showQrScanner,
+                    onShowQrScannerChange = { showQrScanner = it }
                 )
+                if (showQrScanner) {
+                    QrScannerDialog(
+                        onDismiss = { showQrScanner = false },
+                        onQrScanned = { qrContent ->
+                            searchQuery = qrContent
+                            performSearch(qrContent, false)
+                            showQrScanner = false
+                        }
+                    )
+                }
             }
         }
 
@@ -830,7 +845,9 @@ private fun SearchMainView(
     youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
     showYouTubeAllResults: Boolean,
     onYouTubePlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
-    onAddTrackToPlaylist: (SpotifyTrack) -> Unit = {}
+    onAddTrackToPlaylist: (SpotifyTrack) -> Unit = {},
+    showQrScanner: Boolean,
+    onShowQrScannerChange: (Boolean) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -862,15 +879,23 @@ private fun SearchMainView(
             },
             modifier = Modifier.fillMaxWidth(),
             trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = {
-                        onSearchQueryChange("")
-                    }) {
-                        Text(
-                            text = "x",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace
+                Row {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = {
+                            onSearchQueryChange("")
+                        }) {
+                            Text(
+                                text = "x",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Monospace
+                                )
                             )
+                        }
+                    }
+                    IconButton(onClick = { onShowQrScannerChange(true) }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert, // Cambia por un icono de QR si lo tienes
+                            contentDescription = "Escanear QR"
                         )
                     }
                 }
@@ -896,6 +921,14 @@ private fun SearchMainView(
                 fontFamily = FontFamily.Monospace
             )
         )
+        if (showQrScanner) {
+            // Aquí irá el componente de escaneo QR
+            // QrScannerDialog(onDismiss = { showQrScanner = false }, onQrScanned = { qrContent ->
+            //     onSearchQueryChange(qrContent)
+            //     onSearchTriggered(qrContent, false)
+            //     showQrScanner = false
+            // })
+        }
 
         Spacer(Modifier.height(12.dp))
 

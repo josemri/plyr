@@ -50,6 +50,7 @@ fun SongListItem(
 ) {
     val haptic = LocalHapticFeedback.current
     var showPopup by remember { mutableStateOf(false) }
+    var showQrDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier
@@ -130,7 +131,8 @@ fun SongListItem(
                         "copy link",
                         "fetch info",
                         "download",
-                        "delete"
+                        "delete",
+                        "generar QR"
                     )
                     options.forEach { option ->
                         Text(
@@ -141,8 +143,13 @@ fun SongListItem(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    Log.d("SongListItemPopup", option)
-                                    showPopup = false
+                                    if (option == "generar QR") {
+                                        showQrDialog = true
+                                        showPopup = false
+                                    } else {
+                                        Log.d("SongListItemPopup", option)
+                                        showPopup = false
+                                    }
                                 }
                                 .padding(vertical = 4.dp)
                         )
@@ -150,5 +157,8 @@ fun SongListItem(
                 }
             }
         }
+    }
+    if (showQrDialog) {
+        QRDialog(song = song, onDismiss = { showQrDialog = false })
     }
 }
