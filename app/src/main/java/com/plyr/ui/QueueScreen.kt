@@ -1,6 +1,5 @@
 package com.plyr.ui
 
-import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -11,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -28,11 +26,10 @@ import androidx.compose.ui.draw.clipToBounds
 
 @Composable
 fun QueueScreen(
-    context: Context,
     onBack: () -> Unit,
     playerViewModel: PlayerViewModel? = null
 ) {
-    val haptic = LocalHapticFeedback.current
+    LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
     // Handle back button
@@ -217,8 +214,8 @@ fun MarqueeText(
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
-    var textWidth by remember { mutableStateOf(0) }
-    var containerWidth by remember { mutableStateOf(0) }
+    var textWidth by remember { mutableIntStateOf(0) }
+    var containerWidth by remember { mutableIntStateOf(0) }
     val shouldAnimate = textWidth > containerWidth && containerWidth > 0
 
     val infiniteTransition = rememberInfiniteTransition(label = "marquee")

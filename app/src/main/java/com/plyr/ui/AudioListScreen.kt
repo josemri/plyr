@@ -42,7 +42,6 @@ fun AudioListScreen(
             playerViewModel = playerViewModel
         )
         Screen.QUEUE -> QueueScreen(
-            context = context,
             onBack = { currentScreen = Screen.HOME },
             playerViewModel = playerViewModel
         )

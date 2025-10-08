@@ -14,12 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
@@ -45,8 +40,7 @@ fun SongListItem(
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
-    isSelected: Boolean = false,
-    duration: String? = null
+    isSelected: Boolean = false
 ) {
     val haptic = LocalHapticFeedback.current
     var showPopup by remember { mutableStateOf(false) }

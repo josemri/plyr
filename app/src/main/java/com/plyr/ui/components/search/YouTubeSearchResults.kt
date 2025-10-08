@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,7 +15,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.plyr.database.TrackEntity
@@ -31,7 +29,6 @@ import kotlinx.coroutines.CoroutineScope
 fun YouTubeSearchResults(
     results: List<AudioItem>?,
     youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
-    onVideoSelected: (String, String) -> Unit,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit,
     onPlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
     playerViewModel: PlayerViewModel?,
@@ -52,7 +49,6 @@ fun YouTubeSearchResults(
             if (legacy.isNotEmpty()) {
                 YouTubeLegacyResultsSection(
                     results = legacy,
-                    onVideoSelected = onVideoSelected,
                     onVideoSelectedFromSearch = onVideoSelectedFromSearch
                 )
             }
@@ -111,7 +107,7 @@ private fun YouTubeCollapsibleResults(
                     verticalArrangement = Arrangement.spacedBy(PlyrSpacing.small)
                 ) {
                     playlists.forEach { playlist ->
-                        val coverUrl by produceState<String?>(
+                        val coverUrl by produceState(
                             initialValue = coverCache[playlist.playlistId] ?: playlist.getImageUrl(),
                             key1 = playlist.playlistId
                         ) {
@@ -234,7 +230,6 @@ private fun YouTubeVideosList(
 @Composable
 private fun YouTubeLegacyResultsSection(
     results: List<AudioItem>,
-    onVideoSelected: (String, String) -> Unit,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit
 ) {
     Column {
@@ -286,13 +281,11 @@ private fun YouTubeLegacyResultsSection(
                         )
                     }
 
-                    item.duration.let { duration ->
-                        Text(
-                            text = duration,
-                            style = PlyrTextStyles.trackArtist(),
-                            modifier = Modifier.padding(start = PlyrSpacing.small)
-                        )
-                    }
+                    Text(
+                        text = item.duration,
+                        style = PlyrTextStyles.trackArtist(),
+                        modifier = Modifier.padding(start = PlyrSpacing.small)
+                    )
                 }
             }
         }

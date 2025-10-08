@@ -18,8 +18,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.plyr.network.SpotifyArtistFull
 import com.plyr.network.SpotifyAlbum
-import com.plyr.viewmodel.PlayerViewModel
-import kotlinx.coroutines.CoroutineScope
 
 /**
  * Vista detallada de un artista de Spotify
@@ -31,11 +29,7 @@ fun SpotifyArtistDetailView(
     albums: List<SpotifyAlbum>,
     isLoading: Boolean,
     error: String?,
-    onBack: () -> Unit,
-    onAlbumClick: (SpotifyAlbum) -> Unit,
-    onShuffleAll: () -> Unit,
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
+    onAlbumClick: (SpotifyAlbum) -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize()

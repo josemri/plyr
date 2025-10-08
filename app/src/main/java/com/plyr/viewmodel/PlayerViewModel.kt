@@ -221,30 +221,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun handlePlayerError() {
-        CoroutineScope(Dispatchers.Main).launch {
-            try {
-                releasePlayersForRecovery()
-                delay(1000)
-                initializePlayer()
-                _currentTrack.value?.let { track ->
-                    loadAudioFromTrack(track)
-                }
-            } catch (_: Exception) {
-                _isLoading.postValue(false)
-                _error.postValue("Error de reproducción. Reinicia la app si persiste.")
-            }
-        }
-    }
-
-    private fun releasePlayersForRecovery() {
-        _currentPlayerListener?.let { listener ->
-            _exoPlayer?.removeListener(listener)
-        }
-        _exoPlayer?.release()
-        _exoPlayer = null
-    }
-
     fun loadAudio(videoId: String, title: String? = null) {
         _isLoading.postValue(true)
         _error.postValue(null)

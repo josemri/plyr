@@ -2,7 +2,6 @@ package com.plyr.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -26,8 +25,6 @@ import androidx.compose.animation.core.*
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import android.util.Log
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.unit.IntOffset
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.utils.Config
@@ -35,6 +32,7 @@ import com.plyr.ui.theme.PlyrTheme
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
+import androidx.compose.material3.LinearProgressIndicator
 
 /**
  * FloatingMusicControls - Controles flotantes de música que aparecen en la parte inferior
@@ -67,8 +65,8 @@ fun MarqueeText(
     maxLines: Int = 1
 ) {
     val density = LocalDensity.current
-    var textWidth by remember { mutableStateOf(0) }
-    var containerWidth by remember { mutableStateOf(0) }
+    var textWidth by remember { mutableIntStateOf(0) }
+    var containerWidth by remember { mutableIntStateOf(0) }
     val shouldAnimate = textWidth > containerWidth && containerWidth > 0
     
     val infiniteTransition = rememberInfiniteTransition(label = "marquee")
@@ -195,7 +193,7 @@ fun FloatingMusicControls(
 /**
  * Actualiza los estados del reproductor desde ExoPlayer.
  */
-private suspend fun updatePlayerState(
+private fun updatePlayerState(
     playerViewModel: PlayerViewModel,
     onUpdate: (Boolean, Long, Long, Float) -> Unit
 ) {
@@ -324,7 +322,7 @@ private fun StatusAndTitleRow(
             modifier = Modifier.weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            StatusIndicator(isLoading, error, audioUrl, currentPlaylist, currentTrackIndex)
+            StatusIndicator(isLoading, error, audioUrl, currentPlaylist)
             
             if (audioUrl != null && !isLoading) {
                 TitleWithMarquee(currentTitle, currentTrack)
@@ -353,17 +351,13 @@ private fun StatusIndicator(
     isLoading: Boolean, 
     error: String?, 
     audioUrl: String?,
-    currentPlaylist: List<TrackEntity>?,
-    currentTrackIndex: Int?
+    currentPlaylist: List<TrackEntity>?
 ) {
-    val hasPlaylist = currentPlaylist != null && currentPlaylist.isNotEmpty()
+    currentPlaylist != null && currentPlaylist.isNotEmpty()
     
     Text(
         text = when {
             isLoading -> "$ loading"
-            //error != null -> "$ error"
-            //audioUrl != null && hasPlaylist -> "$ TEST2"
-            //audioUrl != null -> "$ TEST "
             else -> ""
         },
         style = MaterialTheme.typography.bodyMedium.copy(
@@ -513,50 +507,6 @@ private fun LoadingProgressBar() {
         color = Color(0xFFFFD93D),
         trackColor = Color(0xFF2C2C2C).copy(alpha = 0.3f),
     )
-}
-
-/**
- * Barra de progreso interactiva para reproducción.
- */
-@Composable
-private fun InteractiveProgressBar(
-    audioUrl: String?,
-    displayProgress: Float,
-    duration: Long,
-    isDragging: Boolean,
-    onDragStart: (Float) -> Unit,
-    onDragEnd: () -> Unit,
-    onTap: (Float) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        val progress = (offset.x / size.width).coerceIn(0f, 1f)
-                        onDragStart(progress)
-                    },
-                    onDrag = { _, _ -> /* Handled in start/end */ },
-                    onDragEnd = { onDragEnd() }
-                )
-            }
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val progress = (offset.x / size.width).coerceIn(0f, 1f)
-                    onTap(progress)
-                }
-            }
-    ) {
-        // Barra de progreso visual
-        if (audioUrl != null) {
-            ProgressBar(displayProgress)
-            ProgressIndicator(displayProgress, isDragging)
-        }
-    }
 }
 
 /**
@@ -856,13 +806,14 @@ private fun MockFloatingControls(modifier: Modifier = Modifier) {
             
             // Barra de progreso mock
             LinearProgressIndicator(
-                progress = 0.3f,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+            progress = { 0.3f },
+            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
             )
 
             Spacer(modifier = Modifier.height(6.dp))

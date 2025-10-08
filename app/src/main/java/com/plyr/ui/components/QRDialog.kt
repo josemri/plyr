@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.set
 
 @Composable
 fun QRDialog(song: Song, onDismiss: () -> Unit) {
@@ -40,14 +42,15 @@ fun generateQrBitmap(content: String): Bitmap? {
     return try {
         val size = 512
         val bits = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
-        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+        val bmp = createBitmap(size, size, Bitmap.Config.RGB_565)
         for (x in 0 until size) {
             for (y in 0 until size) {
-                bmp.setPixel(x, y, if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+                bmp[x, y] =
+                    if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
             }
         }
         bmp
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         null
     }
 }

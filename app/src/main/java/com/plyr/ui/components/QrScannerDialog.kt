@@ -1,11 +1,7 @@
 package com.plyr.ui.components
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.ImageFormat
-import android.os.Build
-import android.util.Log
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -21,31 +17,22 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.PermissionChecker
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.google.common.util.concurrent.ListenableFuture
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.common.HybridBinarizer
-import com.google.zxing.Result
 import com.google.zxing.PlanarYUVLuminanceSource
-import com.google.zxing.RGBLuminanceSource
-import com.google.zxing.qrcode.QRCodeReader
 import java.util.concurrent.Executors
 
 @Composable
 fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
     val context = LocalContext.current
-    var scannedText by remember { mutableStateOf<String?>(null) }
     var cameraPermissionGranted by remember { mutableStateOf(false) }
     var permissionRequested by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -72,7 +59,7 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                 if (!cameraPermissionGranted) {
                     // No mostrar nada, solo esperar a que el usuario responda la notificación
                 } else {
-                    var previewView: PreviewView? = null
+                    var previewView: PreviewView?
                     Box(
                         modifier = Modifier
                             .size(300.dp)
@@ -85,13 +72,13 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                         AndroidView(
                             factory = { ctx ->
                                 previewView = PreviewView(ctx)
-                                previewView!!.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                previewView.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                                 val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
                                 cameraProviderFuture.addListener({
                                     try {
                                         val cameraProvider = cameraProviderFuture.get()
                                         val preview = Preview.Builder().build().also {
-                                            it.setSurfaceProvider(previewView!!.surfaceProvider)
+                                            it.setSurfaceProvider(previewView.surfaceProvider)
                                         }
                                         val imageAnalysis = ImageAnalysis.Builder()
                                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
@@ -99,7 +86,6 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                                         imageAnalysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
                                             val result = scanQrFromImageProxy(imageProxy)
                                             if (result != null) {
-                                                scannedText = result
                                                 onQrScanned(result)
                                                 onDismiss()
                                                 imageProxy.close()
@@ -118,7 +104,7 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                                         cameraError = "Error iniciando la cámara: ${e.message}"
                                     }
                                 }, ContextCompat.getMainExecutor(ctx))
-                                previewView!!
+                                previewView
                             },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -147,7 +133,7 @@ fun scanQrFromImageProxy(imageProxy: ImageProxy): String? {
         val bitmap = BinaryBitmap(HybridBinarizer(source))
         val result = MultiFormatReader().decode(bitmap)
         result.text
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         null
     }
 }

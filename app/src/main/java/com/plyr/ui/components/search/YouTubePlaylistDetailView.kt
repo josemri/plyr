@@ -2,36 +2,22 @@ package com.plyr.ui.components.search
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
-import coil.compose.AsyncImage
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.PlyrErrorText
 import com.plyr.ui.components.PlyrInfoText
 import com.plyr.ui.components.PlyrLoadingIndicator
 import com.plyr.ui.components.PlyrMediumSpacer
-import com.plyr.ui.components.PlyrMenuOption
 import com.plyr.ui.components.PlyrSmallSpacer
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.ui.components.Song
@@ -43,7 +29,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun YouTubePlaylistDetailView(
     playlist: YouTubeSearchManager.YouTubePlaylistInfo,
-    onBack: () -> Unit,
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope
 ) {
@@ -51,7 +36,6 @@ fun YouTubePlaylistDetailView(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
-    var coverUrl by remember { mutableStateOf<String?>(playlist.thumbnailUrl) }
 
     val context = LocalContext.current
 
@@ -76,7 +60,6 @@ fun YouTubePlaylistDetailView(
                     lastSyncTime = System.currentTimeMillis()
                 )
             }
-            coverUrl = playlistVideos.firstOrNull()?.thumbnailUrl ?: playlist.thumbnailUrl
             isLoading = false
         } catch (e: Exception) {
             errorMessage = "Error loading playlist: ${e.message}"

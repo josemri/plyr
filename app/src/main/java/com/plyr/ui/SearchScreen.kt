@@ -14,15 +14,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,7 +40,6 @@ import com.plyr.ui.components.search.YouTubeSearchResults
 import com.plyr.ui.components.QrScannerDialog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 
 @Composable
 fun SearchScreen(
@@ -225,7 +221,7 @@ fun SearchScreen(
                         }
                     }
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
             }
         }
     }
@@ -321,7 +317,7 @@ fun SearchScreen(
         }
     }
 
-    val loadUserPlaylists: () -> Unit = {
+    {
         isLoadingPlaylists = true
         userPlaylists = emptyList()
 
@@ -378,9 +374,6 @@ fun SearchScreen(
                 // Nueva vista detallada para playlists de YouTube
                 YouTubePlaylistDetailView(
                     playlist = selectedYouTubePlaylist!!,
-                    onBack = {
-                        selectedYouTubePlaylist = null
-                    },
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope
                 )
@@ -422,7 +415,7 @@ fun SearchScreen(
                                 coroutineScope.launch {
                                     try {
                                         playerViewModel?.loadAudioFromTrack(track)
-                                    } catch (e: Exception) {
+                                    } catch (_: Exception) {
                                     }
                                 }
                             }
@@ -456,7 +449,7 @@ fun SearchScreen(
                                 coroutineScope.launch {
                                     try {
                                         playerViewModel?.loadAudioFromTrack(track)
-                                    } catch (e: Exception) {
+                                    } catch (_: Exception) {
                                     }
                                 }
                             }
@@ -527,7 +520,7 @@ fun SearchScreen(
                                         coroutineScope.launch {
                                             try {
                                                 playerViewModel?.loadAudioFromTrack(track)
-                                            } catch (e: Exception) {
+                                            } catch (_: Exception) {
                                             }
                                         }
                                     }
@@ -563,7 +556,7 @@ fun SearchScreen(
                                         coroutineScope.launch {
                                             try {
                                                 playerViewModel?.loadAudioFromTrack(track)
-                                            } catch (e: Exception) {
+                                            } catch (_: Exception) {
                                             }
                                         }
                                     }
@@ -631,7 +624,7 @@ fun SearchScreen(
                                 val track = selectedItemTracks[index]
                                 val song = Song(
                                     number = index + 1,
-                                    title = track.name ?: "Sin título",
+                                    title = track.name,
                                     artist = track.getArtistNames()
                                 )
                                 SongListItem(
@@ -654,58 +647,10 @@ fun SearchScreen(
                     albums = selectedArtistAlbums,
                     isLoading = isLoadingArtistAlbums,
                     error = error,
-                    onBack = {
-                        selectedSpotifyArtist = null
-                        selectedArtistAlbums = emptyList()
-                    },
                     onAlbumClick = { album ->
                         // Navegar al álbum seleccionado
                         loadSpotifyAlbumTracks(album)
-                    },
-                    onShuffleAll = {
-                        // Reproducir todos los álbumes del artista en orden aleatorio
-                        if (selectedArtistAlbums.isNotEmpty()) {
-                            val firstAlbum = selectedArtistAlbums.first()
-                            // Cargar los tracks del primer álbum
-                            val accessToken = Config.getSpotifyAccessToken(context)
-                            if (accessToken != null) {
-                                SpotifyRepository.getAlbumTracks(accessToken, firstAlbum.id) { tracks, errorMsg ->
-                                    if (tracks != null) {
-                                        // Convertir SpotifyTrack a TrackEntity y mezclar
-                                        val shuffledTracks = tracks.shuffled()
-                                        val trackEntities = shuffledTracks.mapIndexed { index, spotifyTrack ->
-                                            TrackEntity(
-                                                id = "spotify_${firstAlbum.id}_${spotifyTrack.id}_shuffled",
-                                                playlistId = firstAlbum.id,
-                                                spotifyTrackId = spotifyTrack.id,
-                                                name = spotifyTrack.name,
-                                                artists = spotifyTrack.getArtistNames(),
-                                                youtubeVideoId = null, // Se buscará dinámicamente
-                                                audioUrl = null,
-                                                position = index,
-                                                lastSyncTime = System.currentTimeMillis()
-                                            )
-                                        }
-
-                                        // Establecer playlist mezclada y comenzar reproducción
-                                        playerViewModel?.setCurrentPlaylist(trackEntities, 0)
-
-                                        // Buscar y reproducir el primer track de la lista mezclada
-                                        trackEntities.firstOrNull()?.let { track ->
-                                            coroutineScope.launch {
-                                                try {
-                                                    playerViewModel?.loadAudioFromTrack(track)
-                                                } catch (e: Exception) {
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope
+                    }
                 )
             }
             else -> {
@@ -730,11 +675,6 @@ fun SearchScreen(
                     showYouTubeAllResults = showYouTubeAllResults,
                     onYouTubePlaylistSelected = { playlist ->
                         selectedYouTubePlaylist = playlist
-                    },
-                    onAddTrackToPlaylist = { track ->
-                        selectedTrackToAdd = track
-                        loadUserPlaylists()
-                        showPlaylistSelectionDialog = true
                     },
                     showQrScanner = showQrScanner,
                     onShowQrScannerChange = { showQrScanner = it }
@@ -845,7 +785,6 @@ private fun SearchMainView(
     youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
     showYouTubeAllResults: Boolean,
     onYouTubePlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
-    onAddTrackToPlaylist: (SpotifyTrack) -> Unit = {},
     showQrScanner: Boolean,
     onShowQrScannerChange: (Boolean) -> Unit
 ) {
@@ -966,38 +905,8 @@ private fun SearchMainView(
                 onAlbumSelected = onAlbumSelected,
                 onPlaylistSelected = onPlaylistSelected,
                 onArtistSelected = onArtistSelected,
-                onTrackSelectedFromSearch = { track: SpotifyTrack, allTracks: List<SpotifyTrack>, selectedIndex: Int ->
-                    // Convertir tracks de Spotify a TrackEntity y crear playlist temporal
-                    val trackEntities = allTracks.mapIndexed { index: Int, spotifyTrack: SpotifyTrack ->
-                        TrackEntity(
-                            id = "spotify_search_${spotifyTrack.id}_$index",
-                            playlistId = "spotify_search_${System.currentTimeMillis()}",
-                            spotifyTrackId = spotifyTrack.id,
-                            name = spotifyTrack.name,
-                            artists = spotifyTrack.getArtistNames(),
-                            youtubeVideoId = null, // Se buscará dinámicamente
-                            audioUrl = null,
-                            position = index,
-                            lastSyncTime = System.currentTimeMillis()
-                        )
-                    }
-
-                    // Establecer playlist en el PlayerViewModel
-                    playerViewModel?.setCurrentPlaylist(trackEntities, selectedIndex)
-
-                    // Cargar el track seleccionado
-                    val selectedTrackEntity = trackEntities[selectedIndex]
-                    coroutineScope.launch {
-                        try {
-                            playerViewModel?.loadAudioFromTrack(selectedTrackEntity)
-                        } catch (e: Exception) {
-                        }
-                    }
-                },
-                onLoadMore = { onSearchTriggered(searchQuery, true) },
                 playerViewModel = playerViewModel,
-                coroutineScope = coroutineScope,
-                onAddTrackToPlaylist = onAddTrackToPlaylist
+                coroutineScope = coroutineScope
             )
         }
 
@@ -1006,7 +915,6 @@ private fun SearchMainView(
             YouTubeSearchResults(
                 results = null, // Legacy results
                 youtubeAllResults = youtubeAllResults,
-                onVideoSelected = onVideoSelected,
                 onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                 onPlaylistSelected = onYouTubePlaylistSelected,
                 playerViewModel = playerViewModel,
@@ -1018,8 +926,6 @@ private fun SearchMainView(
         if (results.isNotEmpty() && !showYouTubeAllResults) {
             CollapsibleYouTubeSearchResultsView(
                 results = results,
-                onVideoSelected = onVideoSelected,
-                onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                 onLoadMore = { onSearchTriggered(searchQuery, true) },
                 playerViewModel = playerViewModel,
                 coroutineScope = coroutineScope
@@ -1047,11 +953,8 @@ fun CollapsibleSpotifySearchResultsView(
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
     onArtistSelected: (SpotifyArtistFull) -> Unit,
-    onTrackSelectedFromSearch: (SpotifyTrack, List<SpotifyTrack>, Int) -> Unit,
-    onLoadMore: () -> Unit,
     playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope,
-    onAddTrackToPlaylist: (SpotifyTrack) -> Unit = {}
+    coroutineScope: CoroutineScope
 ) {
     var tracksExpanded by remember { mutableStateOf(false) }
     var albumsExpanded by remember { mutableStateOf(false) }
@@ -1282,73 +1185,8 @@ fun CollapsibleSpotifySearchResultsView(
 }
 
 @Composable
-fun TrackRowWithPlaylistButton(
-    track: SpotifyTrack,
-    index: Int,
-    onTrackClick: () -> Unit,
-    onAddToPlaylist: (SpotifyTrack) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp, horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "${index + 1}. ",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF95A5A6)
-            ),
-            modifier = Modifier.width(32.dp)
-        )
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .clickable { onTrackClick() }
-        ) {
-            Text(
-                text = track.name,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFE0E0E0)
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = track.getArtistNames(),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF95A5A6)
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Botón para añadir a playlist
-        IconButton(
-            onClick = { onAddToPlaylist(track) },
-            modifier = Modifier.size(32.dp)
-        ) {
-            Text(
-                text = "*",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4ECDC4)
-                )
-            )
-        }
-    }
-}
-
-@Composable
 fun CollapsibleYouTubeSearchResultsView(
     results: List<AudioItem>,
-    onVideoSelected: (String, String) -> Unit,
-    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit,
     onLoadMore: () -> Unit,
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope

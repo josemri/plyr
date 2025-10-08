@@ -3,20 +3,14 @@ package com.plyr.ui
 import android.app.Activity
 import android.content.Context
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,7 +26,7 @@ fun HomeScreen(
     context: Context,
     onNavigateToScreen: (Screen) -> Unit
 ) {
-    var backPressedTime by remember { mutableStateOf(0L) }
+    var backPressedTime by remember { mutableLongStateOf(0L) }
     var showExitMessage by remember { mutableStateOf(false) }
 
     // List of ASCII arts (add your own manually)

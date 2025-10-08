@@ -27,7 +27,6 @@ import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.plyr.database.*
-import com.plyr.network.SpotifyAlbum
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyTrack
@@ -39,7 +38,6 @@ import com.plyr.ui.components.SongListItem
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 
 
@@ -578,8 +576,7 @@ fun PlaylistsScreen(
                                     index = index,
                                     playerViewModel = playerViewModel,
                                     coroutineScope = coroutineScope,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    duration = track.getDurationText()
+                                    modifier = Modifier.fillMaxWidth()
                                 )
                             }
                         }
@@ -933,8 +930,7 @@ fun SpotifyPlaylistDetailView(
                         index = index,
                         playerViewModel = playerViewModel,
                         coroutineScope = coroutineScope,
-                        modifier = Modifier.fillMaxWidth(),
-                        duration = track.getDurationText()
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }

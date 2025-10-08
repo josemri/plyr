@@ -174,11 +174,11 @@ class MainActivity : ComponentActivity() {
         playerViewModel.initializePlayer()
         playerViewModel.loadAudio(videoId, title)
         val playlist = playerViewModel.currentPlaylist.value
-        val currentIndex = playerViewModel.currentTrackIndex.value ?: 0
+        playerViewModel.currentTrackIndex.value ?: 0
         if (playlist != null && playlist.isNotEmpty()) {
-            val audioUrls = playlist.map { track ->
+            playlist.map { track ->
                 track.youtubeVideoId ?: track.spotifyTrackId
-            }.filterNotNull()
+            }
         }
     }
 
@@ -205,7 +205,7 @@ class MainActivity : ComponentActivity() {
         }
         playerViewModel.setCurrentPlaylist(searchPlaylist, selectedIndex)
         playerViewModel.loadAudio(videoId, title)
-        val audioUrls = searchPlaylist.mapNotNull { it.youtubeVideoId }
+        searchPlaylist.mapNotNull { it.youtubeVideoId }
     }
 
     override fun onDestroy() {
@@ -215,13 +215,6 @@ class MainActivity : ComponentActivity() {
         } else {
             disconnectMusicService()
         }
-    }
-
-    // Migrate deprecated onBackPressed to OnBackPressedDispatcher
-    override fun onBackPressed() {
-        super.onBackPressed()
-        isAppClosing = true
-        onBackPressedDispatcher.onBackPressed()
     }
 
     private fun stopMusicServiceCompletely() {

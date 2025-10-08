@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.sp
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.network.SpotifyRepository
-import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 
 @Composable
@@ -34,7 +33,6 @@ fun ConfigScreen(
 
     // Estado para Spotify
     var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
-    var isConnecting by remember { mutableStateOf(false) }
     var connectionMessage by remember { mutableStateOf("") }
 
     LaunchedEffect(selectedTheme) {
@@ -355,7 +353,6 @@ fun ConfigScreen(
         // Escuchar eventos de autenticación de Spotify
         LaunchedEffect(Unit) {
             SpotifyAuthEvent.setAuthCallback { success, message ->
-                isConnecting = false
                 isSpotifyConnected = success
                 connectionMessage = message ?: if (success) "connected" else "error"
             }
@@ -397,19 +394,16 @@ fun ConfigScreen(
                                 connectionMessage = "credentials_required"
                             } else {
                                 // Conectar con Spotify
-                                isConnecting = true
                                 connectionMessage = "opening_browser..."
                                 try {
                                     val success = SpotifyRepository.startOAuthFlow(context)
-                                    if (success) {
-                                        connectionMessage = "check_browser"
+                                    connectionMessage = if (success) {
+                                        "check_browser"
                                     } else {
-                                        connectionMessage = "error_starting_oauth"
-                                        isConnecting = false
+                                        "error_starting_oauth"
                                     }
                                 } catch (e: Exception) {
                                     connectionMessage = "error: ${e.message}"
-                                    isConnecting = false
                                 }
                             }
                         }
@@ -645,14 +639,3 @@ fun SpotifyApiConfigSection(context: Context) {
     }
 }
 
-/**
- * Función helper para obtener información descriptiva sobre cada calidad de audio
- */
-private fun getAudioQualityInfo(quality: String): String {
-    return when (quality) {
-        Config.AUDIO_QUALITY_WORST -> "64kbps • ~0.5MB/min • saves data"
-        Config.AUDIO_QUALITY_MEDIUM -> "128kbps • ~1MB/min • balanced (default)"
-        Config.AUDIO_QUALITY_BEST -> "192kbps+ • ~1.5MB/min • best quality"
-        else -> "unknown quality"
-    }
-}
