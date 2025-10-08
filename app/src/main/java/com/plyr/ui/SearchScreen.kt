@@ -384,10 +384,6 @@ fun SearchScreen(
                     tracks = selectedItemTracks,
                     isLoading = isLoadingTracks,
                     error = error,
-                    onBack = {
-                        selectedSpotifyPlaylist = null
-                        selectedItemTracks = emptyList()
-                    },
                     onStart = {
                         // Reproducir playlist desde el primer track
                         if (selectedItemTracks.isNotEmpty()) {

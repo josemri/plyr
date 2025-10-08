@@ -39,9 +39,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 
 
-
+@OptIn(DelicateCoroutinesApi::class)
 @Composable
 fun PlaylistsScreen(
     context: Context,
@@ -49,7 +50,6 @@ fun PlaylistsScreen(
     playerViewModel: PlayerViewModel? = null
 ) {
     val haptic = LocalHapticFeedback.current
-    var dragOffsetX by remember { mutableStateOf(0f) }
 
     // Repositorio local y manager de búsqueda
     val localRepository = remember { PlaylistLocalRepository(context) }
@@ -59,7 +59,6 @@ fun PlaylistsScreen(
     // Estado para las playlists y autenticación
     val playlistsFromDB by localRepository.getAllPlaylistsLiveData().asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
     var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
     var isSyncing by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
@@ -72,7 +71,6 @@ fun PlaylistsScreen(
     var selectedPlaylistEntity by remember { mutableStateOf<PlaylistEntity?>(null) }
     var playlistTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
-    var isSearchingYouTubeIds by remember { mutableStateOf(false) }
     var showCreatePlaylistScreen by remember { mutableStateOf(false) }
 
     // Tracks observados desde la base de datos
@@ -81,7 +79,7 @@ fun PlaylistsScreen(
             .asFlow()
             .collectAsStateWithLifecycle(initialValue = emptyList())
     } else {
-        remember { mutableStateOf(emptyList<TrackEntity>()) }
+        remember { mutableStateOf(emptyList()) }
     }
 
     // Actualizar tracks cuando cambien en la DB
@@ -94,20 +92,17 @@ fun PlaylistsScreen(
     // Función para cargar playlists con sincronización automática
     val loadPlaylists = {
         if (!isSpotifyConnected) {
-            error = "Spotify no está conectado"
         } else {
             isLoading = true
-            error = null
 
             // Usar corrutina para operaciones asíncronas
             coroutineScope.launch {
                 try {
-                    val playlistEntities = localRepository.getPlaylistsWithAutoSync()
+                    localRepository.getPlaylistsWithAutoSync()
                     isLoading = false
                     // Las playlists se actualizan automáticamente a través del LiveData
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     isLoading = false
-                    error = "Error cargando playlists: ${e.message}"
                 }
             }
         }
@@ -121,21 +116,19 @@ fun PlaylistsScreen(
 
         if (selectedPlaylistEntity == null) {
             isLoadingTracks = false
-            error = "Playlist no encontrada en base de datos local"
         } else {
             // Usar corrutina para operaciones asíncronas
             coroutineScope.launch {
                 try {
-                    val trackEntities = localRepository.getTracksWithAutoSync(playlist.id)
+                    localRepository.getTracksWithAutoSync(playlist.id)
                     isLoadingTracks = false
                     // Los tracks se actualizan automáticamente a través del LiveData
 
                     // NOTA: Ya no se necesita búsqueda masiva de YouTube IDs
                     // Los IDs se obtienen automáticamente cuando el usuario hace click en cada canción
                     Log.d("PlaylistScreen", "✅ Tracks cargados para playlist: ${playlist.name}. IDs de YouTube se obtendrán bajo demanda.")
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     isLoadingTracks = false
-                    error = "Error cargando tracks: ${e.message}"
                 }
             }
         }
@@ -144,21 +137,15 @@ fun PlaylistsScreen(
     // Función para forzar sincronización completa
     val forceSyncAll = {
         if (!isSpotifyConnected) {
-            error = "Spotify no está conectado"
         } else {
             isSyncing = true
-            error = null
 
             coroutineScope.launch {
                 try {
-                    val success = localRepository.forceSyncAll()
+                    localRepository.forceSyncAll()
                     isSyncing = false
-                    if (!success) {
-                        error = "Error en la sincronización"
-                    }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     isSyncing = false
-                    error = "Error en sincronización: ${e.message}"
                 }
             }
         }
@@ -359,18 +346,18 @@ fun PlaylistsScreen(
 
                                 println("� RANDOM: ${randomTrack.getDisplayName()}")
 
-                                if (trackEntity != null && playerViewModel != null) {
+                                if (trackEntity != null) {
                                     // Reproducir la canción usando PlayerViewModel
-                                    playerViewModel?.initializePlayer()
+                                    playerViewModel.initializePlayer()
 
                                     // Establecer la playlist completa con el track aleatorio seleccionado
                                     val currentTrackIndex = tracksFromDB.indexOf(trackEntity)
                                     if (currentTrackIndex >= 0) {
-                                        playerViewModel?.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
+                                        playerViewModel.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
                                     }
 
                                     // Cargar y reproducir - PlayerViewModel manejará la navegación automática
-                                    playerViewModel?.loadAudioFromTrack(trackEntity)
+                                    playerViewModel.loadAudioFromTrack(trackEntity)
                                 } else {
                                     println("⚠️ TrackEntity no encontrado para: ${randomTrack.getDisplayName()}")
                                 }
@@ -392,18 +379,18 @@ fun PlaylistsScreen(
 
                                 println("🎵 START [${selectedPlaylist!!.name}]: ${firstTrack.getDisplayName()}")
 
-                                if (trackEntity != null && playerViewModel != null) {
+                                if (trackEntity != null) {
                                     // Reproducir la canción usando PlayerViewModel
-                                    playerViewModel?.initializePlayer()
+                                    playerViewModel.initializePlayer()
 
                                     // Establecer la playlist completa desde el inicio (índice 0)
                                     val trackEntityIndex = tracksFromDB.indexOf(trackEntity)
                                     if (trackEntityIndex >= 0) {
-                                        playerViewModel?.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
+                                        playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
                                     }
 
                                     // Cargar y reproducir - PlayerViewModel manejará la navegación automática
-                                    playerViewModel?.loadAudioFromTrack(trackEntity)
+                                    playerViewModel.loadAudioFromTrack(trackEntity)
                                 } else {
                                     println("⚠️ TrackEntity no encontrado para: ${firstTrack.getDisplayName()}")
                                 }
@@ -567,7 +554,7 @@ fun PlaylistsScreen(
                                 val track = playlistTracks[index]
                                 val song = Song(
                                     number = index + 1,
-                                    title = track.name ?: "Sin título",
+                                    title = track.name,
                                     artist = track.getArtistNames()
                                 )
                                 SongListItem(
@@ -812,7 +799,6 @@ fun SpotifyPlaylistDetailView(
     tracks: List<SpotifyTrack>,
     isLoading: Boolean,
     error: String?,
-    onBack: () -> Unit,
     onStart: () -> Unit,
     onRandom: () -> Unit,
     onSave: () -> Unit,
@@ -921,7 +907,7 @@ fun SpotifyPlaylistDetailView(
                     val track = tracks[index]
                     val song = Song(
                         number = index + 1,
-                        title = track.name ?: "Sin título",
+                        title = track.name,
                         artist = track.getArtistNames()
                     )
                     SongListItem(

@@ -1,5 +1,6 @@
 package com.plyr
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -18,7 +19,10 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
  * 
  * Muestra una pantalla completamente negra durante 2 segundos
  * antes de navegar a la actividad principal.
+ *
+ * CREO QUE SE TIENE QUE ELIMINAR ESTO
  */
+@SuppressLint("CustomSplashScreen")
 class SplashActivity : ComponentActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
