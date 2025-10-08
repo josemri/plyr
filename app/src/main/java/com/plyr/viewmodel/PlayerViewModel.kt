@@ -1,6 +1,7 @@
 package com.plyr.viewmodel
 
 import android.app.Application
+import android.content.BroadcastReceiver
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -28,16 +29,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import android.util.Log
-import android.content.Intent
-import com.plyr.service.MusicService
-import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
 import android.os.Build
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.offline.DownloadService.startForeground
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
@@ -138,10 +136,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _currentTrackIndex.observeForever {
             updateNavigationState()
         }
-
         initializeAudioOutputDetection()
-
-        Log.d(TAG, "PlayerViewModel inicializado")
     }
 
 
@@ -149,7 +144,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         CoroutineScope(Dispatchers.Main).launch {
             if (_exoPlayer == null) {
                 _exoPlayer = buildPlayer().also { setupPlayer(it) }
-                Log.d(TAG, "ExoPlayer principal inicializado")
             }
             monitorMemoryUsage()
         }
@@ -320,13 +314,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun playAudioInService(audioUrl: String) {
-        val serviceIntent = Intent(getApplication<Application>(), MusicService::class.java).apply {
-            putExtra("AUDIO_URL", audioUrl)
-        }
-        getApplication<Application>().startService(serviceIntent)
-    }
-
     private fun playAudioFromUrl(audioUrl: String, title: String? = null, artist: String? = null) {
         _audioUrl.postValue(audioUrl)
         CoroutineScope(Dispatchers.Main).launch {
@@ -445,7 +432,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     return@withContext false
                 }
             }
-            _exoPlayer?.let { player ->
+            val player = _exoPlayer
+            if (player != null) {
                 try {
                     val mediaMetadata = androidx.media3.common.MediaMetadata.Builder()
                         .setTitle(track.name)
@@ -459,16 +447,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     player.prepare()
                     player.play()
                     _isLoading.postValue(false)
-                    return@withContext true
+                    true
                 } catch (e: Exception) {
                     _isLoading.postValue(false)
                     _error.postValue("Error configurando ExoPlayer: ${e.message}")
-                    return@withContext false
+                    false
                 }
-            } ?: run {
+            } else {
                 _isLoading.postValue(false)
                 _error.postValue("Error: Reproductor no disponible")
-                return@withContext false
+                false
             }
         }
     }
@@ -506,33 +494,26 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val playlist = _currentPlaylist.value
         val currentIndex = _currentTrackIndex.value
 
-        Log.d(TAG, "Actualizando estado de navegación: isQueue=$isQueue, queueSize=$queueSize, playlist=${playlist?.size}, index=$currentIndex")
-
         if (isQueue) {
             _hasPrevious.postValue(false)
             _hasNext.postValue(queueSize > 0)
-            Log.d(TAG, "Modo cola: hasPrevious=false, hasNext=${queueSize > 0}")
         } else if (playlist != null && currentIndex != null) {
             val hasPrev = currentIndex > 0
             val hasNext = currentIndex < playlist.size - 1
-            Log.d(TAG, "Modo playlist: hasPrevious=$hasPrev, hasNext=$hasNext")
             _hasPrevious.postValue(hasPrev)
             _hasNext.postValue(hasNext)
         } else {
-            Log.d(TAG, "Deshabilitando navegación (sin contexto)")
             _hasPrevious.postValue(false)
             _hasNext.postValue(false)
         }
     }
 
     fun setCurrentPlaylist(playlist: List<TrackEntity>, startIndex: Int = 0) {
-        Log.d(TAG, "Estableciendo playlist: ${playlist.size} tracks, startIndex=$startIndex")
         _currentPlaylist.postValue(playlist)
         _currentTrackIndex.postValue(startIndex.coerceIn(0, playlist.size - 1))
 
         if (playlist.isNotEmpty() && startIndex in playlist.indices) {
             _currentTrack.postValue(playlist[startIndex])
-            Log.d(TAG, "Track actual establecido: ${playlist[startIndex].name}")
         }
 
         updateNavigationState()
@@ -619,8 +600,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val maxMemory = runtime.maxMemory()
             val memoryPercentage = (usedMemory * 100) / maxMemory
 
-            Log.d(TAG, "📊 Uso de memoria: ${memoryPercentage}% (${usedMemory / 1024 / 1024}MB / ${maxMemory / 1024 / 1024}MB)")
-
             if (memoryPercentage > 80) {
                 Log.w(TAG, "⚠️ Uso de memoria alto, realizando limpieza preventiva")
 
@@ -658,8 +637,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     .build(),
                 true
             )
-
-            Log.d(TAG, "🔧 Configuración de buffer optimizada")
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ No se pudo optimizar configuración de buffer", e)
         }
@@ -683,8 +660,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val context = getApplication<Application>()
         val repeatMode = Config.getRepeatMode(context)
 
-        Log.d(TAG, "🔄 Manejando transición con modo de repetición: $repeatMode")
-
         when (repeatMode) {
             Config.REPEAT_MODE_OFF -> {
                 CoroutineScope(Dispatchers.Main).launch {
@@ -693,19 +668,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             Config.REPEAT_MODE_ONE -> {
-                // Repetir una vez - reproducir la misma canción nuevamente
-                Log.d(TAG, "① Modo ONE - Repitiendo canción actual")
                 repeatCurrentTrack()
             }
 
             Config.REPEAT_MODE_ALL -> {
-                // Repetir indefinidamente - al final de playlist, volver al inicio
-                Log.d(TAG, "∞ Modo ALL - Repetición continua")
                 handleInfiniteRepeat()
             }
 
             else -> {
-                // Modo desconocido - usar comportamiento por defecto
                 Log.w(TAG, "⚠️ Modo de repetición desconocido: $repeatMode - usando comportamiento normal")
                 CoroutineScope(Dispatchers.Main).launch {
                     navigateToNext()
@@ -723,12 +693,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val currentTrack = _currentTrack.value
 
                 if (currentTrack != null) {
-                    Log.d(TAG, "🔂 Repitiendo: ${currentTrack.name}")
-
-                    // Pequeña pausa antes de reiniciar
                     kotlinx.coroutines.delay(500)
 
-                    // Recargar y reproducir la misma canción
                     val success = loadAudioFromTrack(currentTrack)
                     if (!success) {
                         CoroutineScope(Dispatchers.Main).launch {
@@ -770,7 +736,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private suspend fun restartPlaylistFromBeginning() {
         // Priorizar cola si está activa
         if (_isQueueMode.value == true) {
-            Log.d(TAG, "🔄 Modo cola activo - fin de cola")
             _isQueueMode.postValue(false)
             updateQueueState()
             return
@@ -779,8 +744,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         // Reiniciar playlist desde el primer track
         val playlist = _currentPlaylist.value
         if (playlist != null && playlist.isNotEmpty()) {
-            Log.d(TAG, "🔄 Reiniciando playlist desde el inicio")
-
             val firstTrack = playlist[0]
             _currentTrackIndex.postValue(0)
             _currentTrack.postValue(firstTrack)
@@ -792,7 +755,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Cargar y reproducir el primer track
             val success = loadAudioFromTrack(firstTrack)
             if (success) {
-                Log.d(TAG, "✅ Playlist reiniciada desde: ${firstTrack.name}")
+                Log.d(TAG, "✅ Playlist reiniciada desde el inicio")
             } else {
                 Log.e(TAG, "❌ Error reiniciando playlist")
             }
@@ -814,7 +777,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             // Detectar estado inicial de auriculares
             wasHeadsetConnected = isHeadsetConnected()
-            Log.d(TAG, "🎧 Estado inicial de auriculares: ${if (wasHeadsetConnected) "Conectados" else "Desconectados"}")
 
             // Configurar BroadcastReceiver para detectar cambios
             setupAudioOutputReceiver()
@@ -860,7 +822,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 getApplication<Application>().registerReceiver(audioOutputReceiver, filter)
             }
-            Log.d(TAG, "✅ AudioOutputReceiver registrado correctamente")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error registrando AudioOutputReceiver: ${e.message}", e)
         }
@@ -876,8 +837,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val microphone = intent.getIntExtra("microphone", -1)
 
         val isConnected = state == 1
-        Log.d(TAG, "🎧 Auriculares cableados ${if (isConnected) "conectados" else "desconectados"}: $name (micrófono: ${microphone == 1})")
-
         handleAudioOutputChange(isConnected, "Auriculares cableados", name)
     }
 
@@ -885,14 +844,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Maneja el evento de audio becoming noisy (desconexión abrupta).
      */
     private fun handleAudioBecomingNoisy() {
-        Log.d(TAG, "🔇 Audio becoming noisy detectado - pausando inmediatamente")
-
         mainHandler.post {
             try {
                 _exoPlayer?.let { player ->
                     if (player.isPlaying) {
                         player.pause()
-                        Log.d(TAG, "✅ Reproductor pausado por audio becoming noisy")
                     }
                 }
             } catch (e: Exception) {
@@ -909,11 +865,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val state = intent.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1)
         when (state) {
             AudioManager.SCO_AUDIO_STATE_CONNECTED -> {
-                Log.d(TAG, "🎧 Bluetooth SCO conectado")
                 handleAudioOutputChange(true, "Bluetooth SCO", "SCO Audio")
             }
             AudioManager.SCO_AUDIO_STATE_DISCONNECTED -> {
-                Log.d(TAG, "🎧 Bluetooth SCO desconectado")
                 handleAudioOutputChange(false, "Bluetooth SCO", "SCO Audio")
             }
         }
@@ -926,12 +880,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun handleBluetoothA2dpStateChange(intent: Intent) {
         val state = intent.getIntExtra("android.bluetooth.profile.extra.STATE", -1)
         when (state) {
-            2 -> { // BluetoothProfile.STATE_CONNECTED
-                Log.d(TAG, "🎧 Bluetooth A2DP conectado")
+            2 -> {
                 handleAudioOutputChange(true, "Bluetooth A2DP", "A2DP Device")
             }
-            0 -> { // BluetoothProfile.STATE_DISCONNECTED
-                Log.d(TAG, "🎧 Bluetooth A2DP desconectado")
+            0 -> {
                 handleAudioOutputChange(false, "Bluetooth A2DP", "A2DP Device")
             }
         }
@@ -944,15 +896,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * @param deviceName Nombre del dispositivo
      */
     private fun handleAudioOutputChange(isConnected: Boolean, deviceType: String, deviceName: String) {
-        Log.d(TAG, "🔄 Cambio en salida de audio detectado:")
-        Log.d(TAG, "   - Tipo: $deviceType")
-        Log.d(TAG, "   - Dispositivo: $deviceName")
-        Log.d(TAG, "   - Estado: ${if (isConnected) "Conectado" else "Desconectado"}")
-        Log.d(TAG, "   - Estado previo: ${if (wasHeadsetConnected) "Conectado" else "Desconectado"}")
-
         if (isConnected != wasHeadsetConnected) {
-            Log.d(TAG, "⚡ Cambio de estado confirmado - manejando cambio de salida")
-
             wasHeadsetConnected = isConnected
 
             if (!isConnected) {
@@ -960,8 +904,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 switchToHeadphones()
             }
-        } else {
-            Log.d(TAG, "ℹ️ Sin cambio de estado - no se requiere acción")
         }
     }
 
@@ -970,8 +912,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     private fun switchToSpeakers() {
         try {
-            Log.d(TAG, "🔊 Cambiando salida a altavoces...")
-
             val wasPlaying = _exoPlayer?.isPlaying ?: false
             val currentPosition = _exoPlayer?.currentPosition ?: 0L
 
@@ -990,7 +930,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         try {
                             player.seekTo(currentPosition)
                             player.play()
-                            Log.d(TAG, "✅ Reproducción reanudada en altavoces")
                         } catch (e: Exception) {
                             Log.e(TAG, "❌ Error reanudando en altavoces: ${e.message}", e)
                         }
@@ -1000,10 +939,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             audioManager?.let { am ->
                 am.mode = AudioManager.MODE_NORMAL
-                Log.d(TAG, "📱 AudioManager configurado para altavoces")
             }
-
-            Log.d(TAG, "🔊 Salida cambiada a altavoces")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error cambiando a altavoces: ${e.message}", e)
         }
@@ -1014,8 +950,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     private fun switchToHeadphones() {
         try {
-            Log.d(TAG, "🎧 Cambiando salida a auriculares...")
-
             val wasPlaying = _exoPlayer?.isPlaying ?: false
             val currentPosition = _exoPlayer?.currentPosition ?: 0L
 
@@ -1034,7 +968,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         try {
                             player.seekTo(currentPosition)
                             player.play()
-                            Log.d(TAG, "✅ Reproducción reanudada en auriculares")
                         } catch (e: Exception) {
                             Log.e(TAG, "❌ Error reanudando en auriculares: ${e.message}", e)
                         }
@@ -1044,10 +977,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             audioManager?.let { am ->
                 am.mode = AudioManager.MODE_NORMAL
-                Log.d(TAG, "🎧 AudioManager configurado para auriculares")
             }
-
-            Log.d(TAG, "🎧 Salida cambiada a auriculares")
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error cambiando a auriculares: ${e.message}", e)
         }
@@ -1060,19 +990,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun isHeadsetConnected(): Boolean {
         return try {
             audioManager?.let { am ->
-                // Verificar auriculares cableados y bluetooth
                 val isWiredHeadsetOn = am.isWiredHeadsetOn
                 val isBluetoothA2dpOn = am.isBluetoothA2dpOn
                 val isBluetoothScoOn = am.isBluetoothScoOn
-
                 val hasHeadphones = isWiredHeadsetOn || isBluetoothA2dpOn || isBluetoothScoOn
-
-                Log.d(TAG, "🔍 Estado de auriculares:")
-                Log.d(TAG, "   - Cableados: $isWiredHeadsetOn")
-                Log.d(TAG, "   - Bluetooth A2DP: $isBluetoothA2dpOn")
-                Log.d(TAG, "   - Bluetooth SCO: $isBluetoothScoOn")
-                Log.d(TAG, "   - Total: $hasHeadphones")
-
                 hasHeadphones
             } ?: false
         } catch (e: Exception) {
