@@ -36,7 +36,6 @@ fun AudioListScreen(
         Screen.HOME -> HomeScreen(context) { screen -> currentScreen = screen }
         Screen.SEARCH -> SearchScreen(
             context = context,
-            onVideoSelected = onVideoSelected,
             onVideoSelectedFromSearch = onVideoSelectedFromSearch,
             onBack = { currentScreen = Screen.HOME },
             playerViewModel = playerViewModel

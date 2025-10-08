@@ -44,7 +44,6 @@ import kotlinx.coroutines.CoroutineScope
 @Composable
 fun SearchScreen(
     context: Context,
-    onVideoSelected: (String, String) -> Unit,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
     playerViewModel: PlayerViewModel? = null
@@ -205,9 +204,6 @@ fun SearchScreen(
                     val accessToken = Config.getSpotifyAccessToken(context)
                     if (accessToken != null) {
                         SpotifyRepository.followPlaylist(accessToken, playlist.id) { success, errorMsg ->
-                            if (success) {
-                            } else {
-                            }
                         }
                     }
                 }
@@ -215,9 +211,6 @@ fun SearchScreen(
                     val accessToken = Config.getSpotifyAccessToken(context)
                     if (accessToken != null) {
                         SpotifyRepository.saveAlbum(accessToken, album.id) { success, errorMsg ->
-                            if (success) {
-                            } else {
-                            }
                         }
                     }
                 }
@@ -659,7 +652,6 @@ fun SearchScreen(
                     showSpotifyResults = showSpotifyResults,
                     isLoading = isLoading,
                     error = error,
-                    onVideoSelected = onVideoSelected,
                     onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                     onAlbumSelected = loadSpotifyAlbumTracks,
                     onPlaylistSelected = loadSpotifyPlaylistTracks,
@@ -672,7 +664,6 @@ fun SearchScreen(
                     onYouTubePlaylistSelected = { playlist ->
                         selectedYouTubePlaylist = playlist
                     },
-                    showQrScanner = showQrScanner,
                     onShowQrScannerChange = { showQrScanner = it }
                 )
                 if (showQrScanner) {
@@ -770,7 +761,6 @@ private fun SearchMainView(
     showSpotifyResults: Boolean,
     isLoading: Boolean,
     error: String?,
-    onVideoSelected: (String, String) -> Unit,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
@@ -781,7 +771,6 @@ private fun SearchMainView(
     youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
     showYouTubeAllResults: Boolean,
     onYouTubePlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
-    showQrScanner: Boolean,
     onShowQrScannerChange: (Boolean) -> Unit
 ) {
     Column(
@@ -856,14 +845,6 @@ private fun SearchMainView(
                 fontFamily = FontFamily.Monospace
             )
         )
-        if (showQrScanner) {
-            // Aquí irá el componente de escaneo QR
-            // QrScannerDialog(onDismiss = { showQrScanner = false }, onQrScanned = { qrContent ->
-            //     onSearchQueryChange(qrContent)
-            //     onSearchTriggered(qrContent, false)
-            //     showQrScanner = false
-            // })
-        }
 
         Spacer(Modifier.height(12.dp))
 
