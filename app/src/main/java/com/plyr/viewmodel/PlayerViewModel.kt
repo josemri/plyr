@@ -157,10 +157,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         // Ahora, al cambiar de pista, navega igual que el botón "siguiente"
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ){
-                    CoroutineScope(Dispatchers.Main).launch {
-                        navigateToNext()
-                    }
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+                    handleRepeatModeTransition()
                 }
             }
             override fun onPositionDiscontinuity(
@@ -583,6 +581,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun handleRepeatModeTransition() {
         val context = getApplication<Application>()
         val repeatMode = Config.getRepeatMode(context)
+
+        Log.d(TAG, "Modo de repetición: $repeatMode, contexto: $context")
 
         when (repeatMode) {
             Config.REPEAT_MODE_OFF -> {
