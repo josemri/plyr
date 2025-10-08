@@ -163,22 +163,6 @@ class MainActivity : ComponentActivity() {
     }
 
 
-    private fun handleVideoSelection(
-        videoId: String,
-        title: String,
-        playerViewModel: PlayerViewModel
-    ) {
-        playerViewModel.initializePlayer()
-        playerViewModel.loadAudio(videoId, title)
-        val playlist = playerViewModel.currentPlaylist.value
-        playerViewModel.currentTrackIndex.value ?: 0
-        if (playlist != null && playlist.isNotEmpty()) {
-            playlist.map { track ->
-                track.youtubeVideoId ?: track.spotifyTrackId
-            }
-        }
-    }
-
     private fun handleVideoSelectionFromSearch(
         videoId: String,
         title: String,

@@ -908,19 +908,6 @@ private fun SearchMainView(
                 coroutineScope = coroutineScope
             )
         }
-
-        // Mensaje cuando no hay resultados
-        if (!isLoading && searchQuery.isNotBlank() &&
-            !showSpotifyResults && !showYouTubeAllResults && results.isEmpty()) {
-            Text(
-                text = "> no results found",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF95A5A6)
-                ),
-                modifier = Modifier.padding(16.dp)
-            )
-        }
     }
 }
 
