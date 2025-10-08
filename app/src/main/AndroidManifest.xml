@@ -30,24 +30,17 @@
         android:theme="@style/Theme.Plyr"
         tools:targetApi="33">
         
-        <!-- Splash Screen Activity - Launcher -->
-        <activity
-            android:name=".SplashActivity"
-            android:exported="true"
-            android:theme="@style/Theme.Plyr.SplashScreen.Fallback">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        
         <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.Plyr"
             android:launchMode="singleTask">
-            
+            <!-- Intent filter para launcher -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
             <!-- Intent filter para callback de Spotify -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
