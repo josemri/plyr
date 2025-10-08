@@ -229,7 +229,7 @@ private fun AlbumItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Año de lanzamiento - Usar release_date en lugar de releaseDate
-                album.release_date?.take(4)?.let { year ->
+                album.releasedate?.take(4)?.let { year ->
                     Text(
                         text = " $year",
                         style = MaterialTheme.typography.bodySmall.copy(
@@ -240,7 +240,7 @@ private fun AlbumItem(
                 }
 
                 // Número de tracks - Usar total_tracks en lugar de totalTracks
-                album.total_tracks?.let { tracks ->
+                album.totaltracks?.let { tracks ->
                     Text(
                         text = " • $tracks tracks",
                         style = MaterialTheme.typography.bodySmall.copy(

@@ -12,8 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -817,9 +815,11 @@ private fun SearchMainView(
                         }
                     }
                     IconButton(onClick = { onShowQrScannerChange(true) }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert, // Cambia por un icono de QR si lo tienes
-                            contentDescription = "Escanear QR"
+                        Text(
+                            text = "qr",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace
+                            )
                         )
                     }
                 }
