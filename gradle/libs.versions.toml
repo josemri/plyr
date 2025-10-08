@@ -23,7 +23,7 @@ okhttp = "5.2.0"
 navigationComposeJvmstubs = "2.9.5"
 roomRuntime = "2.8.2"
 runtimeLivedata = "1.9.3"
-foundation = "1.8.3"
+foundation = "1.9.3"
 
 [libraries]
 androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraCore" }
