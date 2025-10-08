@@ -1,5 +1,6 @@
 package com.plyr.network
 
+import android.annotation.SuppressLint
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import okhttp3.*
@@ -9,8 +10,7 @@ import java.io.IOException
 import android.util.Base64
 import android.content.Context
 import com.plyr.utils.Config
-import com.plyr.utils.SpotifyTokenManager
-import okhttp3.RequestBody.Companion.toRequestBody
+import androidx.core.net.toUri
 
 object SpotifyRepository {
     
@@ -33,10 +33,11 @@ object SpotifyRepository {
     }
     
     // Iniciar flujo OAuth (abrir browser)
+    @SuppressLint("UseKtx")
     fun startOAuthFlow(context: Context): Boolean {
         val authUrl = getAuthorizationUrl(context)
         return if (authUrl != null) {
-            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(authUrl))
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, authUrl.toUri())
             context.startActivity(intent)
             true
         } else {
@@ -71,8 +72,8 @@ object SpotifyRepository {
             }
             
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
                     try {
                         val tokens = gson.fromJson(body, SpotifyTokens::class.java)
                         callback(tokens, null)
@@ -112,8 +113,8 @@ object SpotifyRepository {
             }
             
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
                     try {
                         val tokens = gson.fromJson(body, SpotifyTokens::class.java)
                         callback(tokens.accessToken, null)
@@ -126,18 +127,11 @@ object SpotifyRepository {
             }
         })
     }
-    
-    // Obtener playlists del usuario con renovación automática de tokens
-    suspend fun getUserPlaylistsWithAutoRefresh(context: Context, callback: (List<SpotifyPlaylist>?, String?) -> Unit) {
-        SpotifyTokenManager.withValidToken(context) { token ->
-            getUserPlaylists(token, callback)
-        }
-    }
 
     // Obtener playlists del usuario con paginación (versión original para compatibilidad)
     fun getUserPlaylists(accessToken: String, callback: (List<SpotifyPlaylist>?, String?) -> Unit) {
         val maxLimit = 50 // Máximo permitido por Spotify
-        var allPlaylists = mutableListOf<SpotifyPlaylist>()
+        val allPlaylists = mutableListOf<SpotifyPlaylist>()
         var pageCount = 0
         
         // Función recursiva para obtener todas las páginas
@@ -154,8 +148,8 @@ object SpotifyRepository {
                 }
                 
                 override fun onResponse(call: Call, response: Response) {
-                    val body = response.body?.string()
-                    if (response.isSuccessful && body != null) {
+                    val body = response.body.string()
+                    if (response.isSuccessful) {
                         try {
                             android.util.Log.d("SpotifyRepository", "User playlists response (offset=$offset): ${body.take(200)}...")
                             val playlistResponse = gson.fromJson(body, SpotifyPlaylistResponse::class.java)
@@ -210,7 +204,7 @@ object SpotifyRepository {
     // Obtener tracks de un álbum con paginación
     fun getAlbumTracks(accessToken: String, albumId: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
         val maxLimit = 50 // Máximo permitido por Spotify
-        var allTracks = mutableListOf<SpotifyTrack>()
+        val allTracks = mutableListOf<SpotifyTrack>()
         var pageCount = 0
         
         // Función recursiva para obtener todas las páginas
@@ -227,8 +221,8 @@ object SpotifyRepository {
                 }
                 
                 override fun onResponse(call: Call, response: Response) {
-                    val body = response.body?.string()
-                    if (response.isSuccessful && body != null) {
+                    val body = response.body.string()
+                    if (response.isSuccessful) {
                         try {
                             android.util.Log.d("SpotifyRepository", "Album tracks response (offset=$offset): ${body.take(200)}...")
                             val tracksResponse = gson.fromJson(body, SpotifyTracksSearchResultRaw::class.java)
@@ -278,7 +272,7 @@ object SpotifyRepository {
     // Obtener tracks de una playlist con paginación
     fun getPlaylistTracks(accessToken: String, playlistId: String, callback: (List<SpotifyPlaylistTrack>?, String?) -> Unit) {
         val maxLimit = 50 // Máximo permitido por Spotify
-        var allTracks = mutableListOf<SpotifyPlaylistTrack>()
+        val allTracks = mutableListOf<SpotifyPlaylistTrack>()
         var pageCount = 0
         
         // Función recursiva para obtener todas las páginas
@@ -295,8 +289,8 @@ object SpotifyRepository {
                 }
                 
                 override fun onResponse(call: Call, response: Response) {
-                    val body = response.body?.string()
-                    if (response.isSuccessful && body != null) {
+                    val body = response.body.string()
+                    if (response.isSuccessful) {
                         try {
                             android.util.Log.d("SpotifyRepository", "Playlist tracks response (offset=$offset): ${body.take(200)}...")
                             val tracksResponse = gson.fromJson(body, SpotifyPlaylistTracksResponseRaw::class.java)
@@ -346,7 +340,7 @@ object SpotifyRepository {
     // Obtener álbumes de un artista con paginación
     fun getArtistAlbums(accessToken: String, artistId: String, callback: (List<SpotifyAlbum>?, String?) -> Unit) {
         val maxLimit = 50 // Máximo permitido por Spotify
-        var allAlbums = mutableListOf<SpotifyAlbum>()
+        val allAlbums = mutableListOf<SpotifyAlbum>()
         var pageCount = 0
         
         // Función recursiva para obtener todas las páginas
@@ -363,8 +357,8 @@ object SpotifyRepository {
                 }
                 
                 override fun onResponse(call: Call, response: Response) {
-                    val body = response.body?.string()
-                    if (response.isSuccessful && body != null) {
+                    val body = response.body.string()
+                    if (response.isSuccessful) {
                         try {
                             android.util.Log.d("SpotifyRepository", "Artist albums response (offset=$offset): ${body.take(200)}...")
                             val albumsResponse = gson.fromJson(body, SpotifyAlbumsSearchResultRaw::class.java)
@@ -426,43 +420,12 @@ object SpotifyRepository {
             }
             
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
                     try {
                         android.util.Log.d("SpotifyRepository", "Search all response: $body")
                         val searchResponse = gson.fromJson(body, SpotifySearchAllResponse::class.java)
                         callback(searchResponse, null)
-                    } catch (e: Exception) {
-                        callback(null, "Error parsing search results: ${e.message}")
-                    }
-                } else {
-                    callback(null, "Error HTTP ${response.code}: $body")
-                }
-            }
-        })
-    }
-    
-    // Buscar canciones en Spotify (función mantenida para compatibilidad)
-    fun searchTracks(accessToken: String, query: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
-        val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
-        val request = Request.Builder()
-            .url("$API_BASE_URL/search?q=$encodedQuery&type=track&limit=20")
-            .addHeader("Authorization", "Bearer $accessToken")
-            .get()
-            .build()
-        
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback(null, "Error de red: ${e.message}")
-            }
-            
-            override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
-                    try {
-                        android.util.Log.d("SpotifyRepository", "Search response: $body")
-                        val searchResponse = gson.fromJson(body, SpotifySearchResponseRaw::class.java)
-                        callback(searchResponse.tracks.items.filterNotNull(), null)
                     } catch (e: Exception) {
                         callback(null, "Error parsing search results: ${e.message}")
                     }
@@ -491,7 +454,7 @@ object SpotifyRepository {
                 if (response.isSuccessful) {
                     callback(true, null)
                 } else {
-                    val errorBody = response.body?.string()
+                    val errorBody = response.body.string()
                     callback(false, "Error HTTP ${response.code}: $errorBody")
                 }
             }
@@ -519,7 +482,7 @@ object SpotifyRepository {
                 if (response.isSuccessful) {
                     callback(true, null)
                 } else {
-                    val errorBody = response.body?.string()
+                    val errorBody = response.body.string()
                     callback(false, "Error HTTP ${response.code}: $errorBody")
                 }
             }
@@ -553,35 +516,7 @@ object SpotifyRepository {
                 if (response.isSuccessful) {
                     callback(true, null)
                 } else {
-                    val errorBody = response.body?.string()
-                    callback(false, "Error HTTP ${response.code}: $errorBody")
-                }
-            }
-        })
-    }
-
-    // Añadir múltiples tracks a una playlist en Spotify
-    fun addTracksToPlaylist(accessToken: String, playlistId: String, trackUris: List<String>, callback: (Boolean, String?) -> Unit) {
-        val jsonBody = gson.toJson(mapOf("uris" to trackUris))
-        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
-
-        val request = Request.Builder()
-            .url("$API_BASE_URL/playlists/$playlistId/tracks")
-            .addHeader("Authorization", "Bearer $accessToken")
-            .addHeader("Content-Type", "application/json")
-            .post(requestBody)
-            .build()
-
-        client.newCall(request).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                callback(false, "Error de red: ${e.message}")
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                if (response.isSuccessful) {
-                    callback(true, null)
-                } else {
-                    val errorBody = response.body?.string()
+                    val errorBody = response.body.string()
                     callback(false, "Error HTTP ${response.code}: $errorBody")
                 }
             }
@@ -617,7 +552,7 @@ object SpotifyRepository {
                         if (response.isSuccessful) {
                             callback(true, null)
                         } else {
-                            val errorBody = response.body?.string()
+                            val errorBody = response.body.string()
                             callback(false, "Error HTTP ${response.code}: $errorBody")
                         }
                     }
@@ -642,8 +577,8 @@ object SpotifyRepository {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string()
-                if (response.isSuccessful && body != null) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
                     try {
                         val userProfile = gson.fromJson(body, SpotifyUserProfile::class.java)
                         callback(userProfile.id, null)
@@ -685,10 +620,7 @@ data class SpotifyPlaylist(
     val tracks: SpotifyPlaylistTracks?,
     val images: List<SpotifyImage>?
 ) {
-    fun getTrackCount(): String {
-        return tracks?.total?.let { "$it songs" } ?: "0 songs"
-    }
-    
+
     fun getImageUrl(): String {
         return images?.firstOrNull()?.url ?: ""
     }
@@ -705,14 +637,6 @@ data class SpotifyImage(
     val width: Int?
 )
 
-data class SpotifyTracksResponse(
-    val items: List<SpotifyTrackItem>
-)
-
-data class SpotifyTrackItem(
-    val track: SpotifyTrack?
-)
-
 data class SpotifyTrack(
     val id: String,
     val name: String,
@@ -726,23 +650,8 @@ data class SpotifyTrack(
     fun getDisplayName(): String {
         return "$name - ${getArtistNames()}"
     }
-    
-    fun getDurationText(): String {
-        return durationMs?.let {
-            val minutes = it / 60000
-            val seconds = (it % 60000) / 1000
-            "${minutes}:${seconds.toString().padStart(2, '0')}"
-        } ?: "0:00"
-    }
+
 }
-
-data class SpotifySearchResponse(
-    val tracks: SpotifyTracksSearchResult
-)
-
-data class SpotifySearchResponseRaw(
-    val tracks: SpotifyTracksSearchResultRaw
-)
 
 data class SpotifySearchAllResponse(
     val tracks: SpotifyTracksSearchResult,
@@ -788,17 +697,13 @@ data class SpotifyAlbum(
     val name: String,
     val artists: List<SpotifyArtist>,
     val images: List<SpotifyImage>?,
-    @SerializedName("release_date") val release_date: String? = null,
-    @SerializedName("total_tracks") val total_tracks: Int? = null
+    @SerializedName("release_date") val releasedate: String? = null,
+    @SerializedName("total_tracks") val totaltracks: Int? = null
 ) {
     fun getArtistNames(): String {
         return artists.joinToString(", ") { it.name }
     }
-    
-    fun getDisplayName(): String {
-        return "$name - ${getArtistNames()}"
-    }
-    
+
     fun getImageUrl(): String {
         return images?.firstOrNull()?.url ?: ""
     }
@@ -814,14 +719,7 @@ data class SpotifyArtistFull(
     fun getImageUrl(): String {
         return images?.firstOrNull()?.url ?: ""
     }
-    
-    fun getFollowersCount(): String {
-        return followers?.total?.let { "${it} seguidores" } ?: "0 seguidores"
-    }
-    
-    fun getGenresText(): String {
-        return genres?.joinToString(", ") ?: "Sin géneros"
-    }
+
 }
 
 data class SpotifyFollowers(
@@ -830,15 +728,6 @@ data class SpotifyFollowers(
 
 data class SpotifyArtist(
     val name: String
-)
-
-// Data classes para contenido interno
-data class SpotifyPlaylistTracksResponse(
-    val items: List<SpotifyPlaylistTrack>,
-    val total: Int? = null,
-    val limit: Int? = null,
-    val offset: Int? = null,
-    val next: String? = null
 )
 
 data class SpotifyPlaylistTracksResponseRaw(
@@ -868,29 +757,6 @@ data class SpotifyAlbumsSearchResultRaw(
     val limit: Int? = null,
     val offset: Int? = null,
     val next: String? = null
-)
-
-data class SpotifyArtistsSearchResultRaw(
-    val items: List<SpotifyArtistFull?>,
-    val total: Int? = null,
-    val limit: Int? = null,
-    val offset: Int? = null,
-    val next: String? = null
-)
-
-data class SpotifyPlaylistsSearchResultRaw(
-    val items: List<SpotifyPlaylist?>,
-    val total: Int? = null,
-    val limit: Int? = null,
-    val offset: Int? = null,
-    val next: String? = null
-)
-
-data class SpotifySearchAllResponseRaw(
-    val tracks: SpotifyTracksSearchResultRaw,
-    val albums: SpotifyAlbumsSearchResultRaw,
-    val artists: SpotifyArtistsSearchResultRaw,
-    val playlists: SpotifyPlaylistsSearchResultRaw
 )
 
 // Data class para perfil de usuario de Spotify

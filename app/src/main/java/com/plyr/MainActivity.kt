@@ -152,9 +152,6 @@ class MainActivity : ComponentActivity() {
     ) {
         AudioListScreen(
             context = this@MainActivity,
-            onVideoSelected = { videoId, title ->
-                handleVideoSelection(videoId, title, playerViewModel)
-            },
             onVideoSelectedFromSearch = { videoId, title, searchResults, selectedIndex ->
                 handleVideoSelectionFromSearch(videoId, title, searchResults, selectedIndex, playerViewModel)
             },

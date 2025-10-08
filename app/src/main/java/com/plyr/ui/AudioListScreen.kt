@@ -21,7 +21,6 @@ data class MenuOption(val screen: Screen, val title: String)
 @Composable
 fun AudioListScreen(
     context: Context,
-    onVideoSelected: (String, String) -> Unit,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onThemeChanged: (String) -> Unit = {},
     playerViewModel: PlayerViewModel? = null
