@@ -39,38 +39,3 @@ fun TrackEntity.toSpotifyTrack(): SpotifyTrack {
         }
     )
 }
-
-// === UTILIDADES DE TRACKS ===
-
-/**
- * Verifica si un track tiene YouTube ID asignado.
- * Útil para determinar si un track puede reproducirse.
- */
-fun TrackEntity.hasYoutubeId(): Boolean = youtubeVideoId != null
-
-// === INFORMACIÓN DE SINCRONIZACIÓN ===
-
-/**
- * Clase de datos para mostrar información de progreso de sincronización.
- * Proporciona estadísticas útiles sobre el estado de una playlist.
- */
-data class PlaylistSyncInfo(
-    val playlist: PlaylistEntity,
-    val totalTracks: Int,
-    val tracksWithYoutubeId: Int,
-    val syncProgress: Float
-) {
-    /**
-     * Obtiene un string descriptivo del estado de sincronización.
-     * 
-     * @return Estado legible para mostrar en UI
-     */
-    fun getSyncStatus(): String {
-        return when {
-            totalTracks == 0 -> "Sin tracks"
-            tracksWithYoutubeId == totalTracks -> "Completo"
-            tracksWithYoutubeId == 0 -> "Pendiente"
-            else -> "$tracksWithYoutubeId/$totalTracks"
-        }
-    }
-}

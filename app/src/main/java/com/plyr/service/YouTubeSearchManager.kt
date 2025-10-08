@@ -6,9 +6,9 @@ import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.network.SimpleDownloader
 import kotlinx.coroutines.*
-import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
+import androidx.core.net.toUri
 
 /**
  * Gestor de búsquedas de YouTube usando NewPipe Extractor
@@ -132,33 +132,7 @@ class YouTubeSearchManager(private val context: Context) {
             emptyList()
         }
     }
-    
-    /**
-     * Busca videos con información detallada
-     * 
-     * @param query Cadena de búsqueda
-     * @param maxResults Número máximo de resultados
-     * @return Lista de objetos con información detallada
-     */
-    suspend fun searchYouTubeVideosDetailed(
-        query: String, 
-        maxResults: Int = MAX_RESULTS_DEFAULT
-    ): List<YouTubeVideoInfo> = withContext(Dispatchers.IO) {
-        try {
-            initialize()
-            Log.d(TAG, "🔍 Búsqueda detallada: '$query'")
-            
-            val videoInfoList = performDetailedSearch(query, maxResults)
-            
-            Log.d(TAG, "🎯 Procesados ${videoInfoList.size} videos")
-            videoInfoList
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error en búsqueda detallada: ${e.message}", e)
-            emptyList()
-        }
-    }
-    
+
     // === CONVENIENCE METHODS ===
     
     /**
@@ -170,28 +144,7 @@ class YouTubeSearchManager(private val context: Context) {
     suspend fun searchSingleVideoId(query: String): String? {
         return searchYouTubeVideos(query, 1).firstOrNull()
     }
-    
-    /**
-     * Busca múltiples videos (método de conveniencia)
-     * 
-     * @param searchQuery Cadena de búsqueda  
-     * @param count Número de videos a buscar
-     * @return Lista de IDs de video
-     */
-    suspend fun searchMultipleVideos(searchQuery: String, count: Int): List<String> {
-        return searchYouTubeVideos(searchQuery, count)
-    }
-    
-    /**
-     * Busca el mejor resultado (método de conveniencia)
-     * 
-     * @param searchQuery Cadena de búsqueda
-     * @return El ID del mejor resultado o null
-     */
-    suspend fun findBestMatch(searchQuery: String): String? {
-        return searchSingleVideoId(searchQuery)
-    }
-    
+
     // === PRIVATE HELPER METHODS ===
     
     /**
@@ -285,24 +238,12 @@ class YouTubeSearchManager(private val context: Context) {
             val seconds = duration % 60
             
             return if (hours > 0) {
-                String.format("%d:%02d:%02d", hours, minutes, seconds)
+                "%d:%02d:%02d".format(hours, minutes, seconds)
             } else {
-                String.format("%d:%02d", minutes, seconds)
-            }
-        }
-        
-        /**
-         * Número de vistas formateado (ej: 1.2M, 15K)
-         */
-        fun getFormattedViewCount(): String {
-            return when {
-                viewCount >= 1_000_000 -> "${(viewCount / 1_000_000.0).format(1)}M"
-                viewCount >= 1_000 -> "${(viewCount / 1_000.0).format(1)}K"
-                else -> viewCount.toString()
+                "%d:%02d".format(minutes, seconds)
             }
         }
 
-        private fun Double.format(digits: Int) = "%.${digits}f".format(this).removeSuffix("0").removeSuffix(".")
     }
 
     /**
@@ -376,7 +317,7 @@ class YouTubeSearchManager(private val context: Context) {
 
             for (item in items) {
                 when (item) {
-                    is org.schabi.newpipe.extractor.stream.StreamInfoItem -> {
+                    is StreamInfoItem -> {
                         if (videos.size < maxVideos) {
                             val videoId = extractVideoIdFromUrl(item.url)
                             if (videoId != null && videoId.length == 11) {
@@ -400,7 +341,7 @@ class YouTubeSearchManager(private val context: Context) {
                                     title = item.name,
                                     uploader = item.uploaderName ?: "Desconocido",
                                     videoCount = item.streamCount.toInt(),
-                                    thumbnailUrl = getPlaylistThumbnailUrl(playlistId),
+                                    thumbnailUrl = getPlaylistThumbnailUrl(),
                                     description = null
                                 ))
                             }
@@ -446,7 +387,7 @@ class YouTubeSearchManager(private val context: Context) {
             val items = playlistExtractor.initialPage.items
 
             for (item in items.take(maxVideos)) {
-                if (item is org.schabi.newpipe.extractor.stream.StreamInfoItem) {
+                if (item is StreamInfoItem) {
                     val videoId = extractVideoIdFromUrl(item.url)
                     if (videoId != null && videoId.length == 11) {
                         videos.add(YouTubeVideoInfo(
@@ -489,7 +430,7 @@ class YouTubeSearchManager(private val context: Context) {
                 }
                 else -> {
                     // Fallback: usar el método anterior
-                    val uri = android.net.Uri.parse(url)
+                    val uri = url.toUri()
                     uri.getQueryParameter("v") ?: run {
                         val segments = uri.pathSegments
                         if (segments.isNotEmpty() && segments.last().length == 11) {
@@ -517,7 +458,7 @@ class YouTubeSearchManager(private val context: Context) {
                     url.substringAfter("list=").substringBefore("&")
                 }
                 url.contains("/playlist?") -> {
-                    val uri = android.net.Uri.parse(url)
+                    val uri = url.toUri()
                     uri.getQueryParameter("list")
                 }
                 else -> {
@@ -539,14 +480,7 @@ class YouTubeSearchManager(private val context: Context) {
         searchJob = null
         Log.d(TAG, "Búsqueda de YouTube IDs cancelada")
     }
-    
-    /**
-     * Verificar si hay una búsqueda en curso
-     */
-    fun isSearching(): Boolean {
-        return searchJob?.isActive == true
-    }
-    
+
     /**
      * Limpiar recursos
      */
@@ -563,7 +497,7 @@ class YouTubeSearchManager(private val context: Context) {
      * @param maxResults Número máximo de resultados
      * @return Lista de IDs de video
      */
-    private suspend fun performSearch(query: String, maxResults: Int): List<String> {
+    private fun performSearch(query: String, maxResults: Int): List<String> {
         return try {
             Log.d(TAG, "🔍 Ejecutando búsqueda NewPipe: '$query'")
             
@@ -591,51 +525,7 @@ class YouTubeSearchManager(private val context: Context) {
             emptyList()
         }
     }
-    
-    /**
-     * Realiza búsqueda detallada usando NewPipe Extractor
-     * 
-     * @param query Cadena de búsqueda
-     * @param maxResults Número máximo de resultados
-     * @return Lista de información detallada de videos
-     */
-    private suspend fun performDetailedSearch(query: String, maxResults: Int): List<YouTubeVideoInfo> {
-        return try {
-            Log.d(TAG, "🔍 Ejecutando búsqueda detallada NewPipe: '$query'")
-            
-            val service = ServiceList.YouTube
-            val searchExtractor = service.getSearchExtractor(query)
-            searchExtractor.fetchPage()
-            
-            val videoInfoList = mutableListOf<YouTubeVideoInfo>()
-            val items = searchExtractor.initialPage.items
-            
-            for (item in items.take(maxResults)) {
-                if (item is StreamInfoItem) {
-                    val videoId = extractVideoIdFromUrl(item.url)
-                    if (videoId != null && videoId.length == 11) {
-                        val videoInfo = YouTubeVideoInfo(
-                            videoId = videoId,
-                            title = item.name ?: "Sin título",
-                            uploader = item.uploaderName ?: "Desconocido",
-                            duration = item.duration,
-                            viewCount = item.viewCount,
-                            thumbnailUrl = "https://img.youtube.com/vi/$videoId/hqdefault.jpg"
-                        )
-                        videoInfoList.add(videoInfo)
-                    }
-                }
-            }
-            
-            Log.d(TAG, "✅ NewPipe procesó ${videoInfoList.size} videos detallados")
-            videoInfoList
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error en búsqueda detallada NewPipe: ${e.message}", e)
-            emptyList()
-        }
-    }
-    
+
     /**
      * Construye una query de búsqueda optimizada para un track.
      * Combina el nombre del track con los artistas de manera eficiente.
@@ -657,7 +547,7 @@ class YouTubeSearchManager(private val context: Context) {
     /**
      * Genera URL de thumbnail para una playlist de YouTube
      */
-    private fun getPlaylistThumbnailUrl(playlistId: String): String {
+    private fun getPlaylistThumbnailUrl(): String {
         return "https://img.youtube.com/vi/undefined/hqdefault.jpg" // Placeholder
     }
 }

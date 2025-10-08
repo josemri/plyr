@@ -78,7 +78,7 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                                     try {
                                         val cameraProvider = cameraProviderFuture.get()
                                         val preview = Preview.Builder().build().also {
-                                            it.setSurfaceProvider(previewView.surfaceProvider)
+                                            it.surfaceProvider = previewView.surfaceProvider
                                         }
                                         val imageAnalysis = ImageAnalysis.Builder()
                                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)

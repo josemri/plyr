@@ -62,7 +62,7 @@ object SpotifyTokenManager {
      */
     private fun isTokenExpired(context: Context): Boolean {
         val tokenTimestamp = Config.getSpotifyTokenTimestamp(context)
-        val expiresIn = Config.getSpotifyTokenExpiresIn(context)
+        val expiresIn = Config.getSpotifyTokenExpiresIn()
 
         if (tokenTimestamp == 0L || expiresIn == 0) {
             Log.d(TAG, "No hay información de expiración del token")
@@ -148,49 +148,4 @@ object SpotifyTokenManager {
         }
     }
 
-    /**
-     * Invalida el token actual, forzando una renovación en la próxima solicitud.
-     * Útil cuando sabemos que el token ha sido revocado o es inválido.
-     *
-     * @param context Contexto de la aplicación
-     */
-    fun invalidateCurrentToken(context: Context) {
-        Log.d(TAG, "Invalidando token actual")
-        Config.clearSpotifyAccessToken(context)
-    }
-
-    /**
-     * Verifica si hay credenciales de Spotify configuradas.
-     *
-     * @param context Contexto de la aplicación
-     * @return true si hay refresh token disponible
-     */
-    fun hasValidCredentials(context: Context): Boolean {
-        return Config.getSpotifyRefreshToken(context) != null
-    }
-
-    /**
-     * Ejecuta una operación con un token válido, manejando automáticamente la renovación.
-     *
-     * @param context Contexto de la aplicación
-     * @param operation Operación a ejecutar con el token
-     * @return Resultado de la operación o null si no se pudo obtener token válido
-     */
-    suspend fun <T> withValidToken(
-        context: Context,
-        operation: suspend (token: String) -> T?
-    ): T? {
-        val token = getValidAccessToken(context)
-        return if (token != null) {
-            try {
-                operation(token)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error ejecutando operación con token", e)
-                null
-            }
-        } else {
-            Log.e(TAG, "No se pudo obtener token válido para la operación")
-            null
-        }
-    }
 }

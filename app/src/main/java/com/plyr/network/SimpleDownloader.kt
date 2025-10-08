@@ -47,7 +47,7 @@ class SimpleDownloader : Downloader() {
                 } else {
                     connection.errorStream?.bufferedReader()?.readText() ?: ""
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 ""
             }
 

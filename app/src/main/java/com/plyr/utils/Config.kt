@@ -55,40 +55,12 @@ object Config {
     const val AUDIO_QUALITY_MEDIUM = "medium"
     const val AUDIO_QUALITY_BEST = "best"
 
-    /** Lista de todas las calidades de audio disponibles */
-    val AUDIO_QUALITY_OPTIONS = listOf(
-        AUDIO_QUALITY_WORST,
-        AUDIO_QUALITY_MEDIUM,
-        AUDIO_QUALITY_BEST
-    )
-
-    /** Descripciones amigables para cada calidad de audio */
-    val AUDIO_QUALITY_DESCRIPTIONS = mapOf(
-        AUDIO_QUALITY_WORST to "Baja (Menor uso de datos)",
-        AUDIO_QUALITY_MEDIUM to "Media (Equilibrio recomendado)",
-        AUDIO_QUALITY_BEST to "Alta (Mejor calidad)"
-    )
-
     // === CONSTANTES PÚBLICAS DE MODO DE REPETICIÓN ===
 
     /** Modos de repetición disponibles */
     const val REPEAT_MODE_OFF = "off"        // Sin repetición
     const val REPEAT_MODE_ONE = "one"        // Repetir una sola vez
     const val REPEAT_MODE_ALL = "all"        // Repetir indefinidamente
-
-    /** Lista de todos los modos de repetición disponibles */
-    val REPEAT_MODE_OPTIONS = listOf(
-        REPEAT_MODE_OFF,
-        REPEAT_MODE_ONE,
-        REPEAT_MODE_ALL
-    )
-
-    /** Símbolos para cada modo de repetición en estilo terminal */
-    val REPEAT_MODE_SYMBOLS = mapOf(
-        REPEAT_MODE_OFF to "0",   // Círculo vacío - sin repetición
-        REPEAT_MODE_ONE to "1",   // Círculo con 1 - repetir una vez
-        REPEAT_MODE_ALL to "*"    // Infinito - repetir indefinidamente
-    )
 
     // === MÉTODOS PRIVADOS ===
     
@@ -238,31 +210,7 @@ object Config {
             putString(KEY_SPOTIFY_CLIENT_SECRET, clientSecret.trim())
         }
     }
-    
-    /**
-     * Establece las credenciales de Spotify API del usuario.
-     * @param context Contexto de la aplicación
-     * @param clientId Client ID del usuario
-     * @param clientSecret Client Secret del usuario
-     */
-    fun setSpotifyCredentials(context: Context, clientId: String, clientSecret: String) {
-        getPrefs(context).edit {
-            putString(KEY_SPOTIFY_CLIENT_ID, clientId.trim())
-            putString(KEY_SPOTIFY_CLIENT_SECRET, clientSecret.trim())
-        }
-    }
-    
-    /**
-     * Limpia las credenciales de Spotify del usuario.
-     * @param context Contexto de la aplicación
-     */
-    fun clearSpotifyCredentials(context: Context) {
-        getPrefs(context).edit {
-            remove(KEY_SPOTIFY_CLIENT_ID)
-            remove(KEY_SPOTIFY_CLIENT_SECRET)
-        }
-    }
-    
+
     /**
      * Verifica si el usuario tiene credenciales de Spotify configuradas.
      * @param context Contexto de la aplicación
@@ -274,16 +222,7 @@ object Config {
         val clientSecret = prefs.getString(KEY_SPOTIFY_CLIENT_SECRET, null)
         return !clientId.isNullOrBlank() && !clientSecret.isNullOrBlank()
     }
-    
-    /**
-     * Verifica si Spotify está completamente configurado (credenciales + conexión).
-     * @param context Contexto de la aplicación
-     * @return true si está completamente configurado, false en caso contrario
-     */
-    fun isSpotifyFullyConfigured(context: Context): Boolean {
-        return hasSpotifyCredentials(context) && isSpotifyConnected(context)
-    }
-    
+
     // === GESTIÓN DE MOTOR DE BÚSQUEDA ===
     
     /**
@@ -328,15 +267,6 @@ object Config {
         return getPrefs(context).getString(KEY_AUDIO_QUALITY, DEFAULT_AUDIO_QUALITY) ?: DEFAULT_AUDIO_QUALITY
     }
 
-    /**
-     * Verifica si una calidad de audio es válida.
-     * @param quality Calidad de audio a verificar
-     * @return true si es válida, false en caso contrario
-     */
-    fun isValidAudioQuality(quality: String): Boolean {
-        return quality in AUDIO_QUALITY_OPTIONS
-    }
-
     // === GESTIÓN DE MODO DE REPETICIÓN ===
 
     /**
@@ -373,15 +303,6 @@ object Config {
         }
     }
 
-    /**
-     * Verifica si un modo de repetición es válido.
-     * @param repeatMode Modo de repetición a verificar
-     * @return true si es válido, false en caso contrario
-     */
-    fun isValidRepeatMode(repeatMode: String): Boolean {
-        return repeatMode in REPEAT_MODE_OPTIONS
-    }
-
     // === GESTIÓN DE TIMESTAMPS DE TOKENS ===
 
     /**
@@ -395,23 +316,11 @@ object Config {
 
     /**
      * Obtiene el tiempo de expiración en segundos del token actual.
-     * @param context Contexto de la aplicación
      * @return Tiempo de expiración en segundos (por defecto 3600 = 1 hora)
      */
-    fun getSpotifyTokenExpiresIn(context: Context): Int {
+    fun getSpotifyTokenExpiresIn(): Int {
         // Los tokens de Spotify duran 1 hora por defecto
         return 3600
     }
 
-    /**
-     * Elimina solo el token de acceso, manteniendo el refresh token.
-     * Útil para forzar renovación sin perder la capacidad de autenticación.
-     * @param context Contexto de la aplicación
-     */
-    fun clearSpotifyAccessToken(context: Context) {
-        getPrefs(context).edit {
-            remove(KEY_SPOTIFY_ACCESS_TOKEN)
-            remove(KEY_SPOTIFY_TOKEN_EXPIRY)
-        }
-    }
 }

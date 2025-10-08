@@ -4,18 +4,10 @@ import android.content.Context
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
 import com.plyr.network.SpotifyRepository
-import com.plyr.network.SpotifyPlaylist
-import com.plyr.network.SpotifyTrack
-import com.plyr.utils.Config
 import com.plyr.utils.SpotifyTokenManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.suspendCancellableCoroutine
 import android.util.Log
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /**
  * PlaylistLocalRepository - Repositorio para gestión local de playlists y tracks
@@ -296,7 +288,7 @@ class PlaylistLocalRepository(context: Context) {
      * @param localPlaylists Lista de playlists locales
      * @return true si necesita sincronización, false en caso contrario
      */
-    private suspend fun shouldSyncPlaylists(localPlaylists: List<PlaylistEntity>): Boolean {
+    private fun shouldSyncPlaylists(localPlaylists: List<PlaylistEntity>): Boolean {
         if (localPlaylists.isEmpty()) {
             Log.d(TAG, "No hay playlists locales, necesita sincronización")
             return true
@@ -371,17 +363,4 @@ class PlaylistLocalRepository(context: Context) {
         return@withContext false
     }
 
-    /**
-     * Limpia todos los datos locales de playlists y tracks.
-     * Útil para reset completo o troubleshooting.
-     */
-    suspend fun clearAllData() = withContext(Dispatchers.IO) {
-        try {
-            trackDao.deleteAllTracks()
-            playlistDao.deleteAllPlaylists()
-            Log.d(TAG, "Datos locales limpiados")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error limpiando datos locales", e)
-        }
-    }
 }
