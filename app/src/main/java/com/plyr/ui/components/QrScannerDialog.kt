@@ -17,9 +17,12 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -64,60 +67,68 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         Box(modifier = Modifier.padding(24.dp)) {
             Column {
-                Text("Escanea un código QR", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(16.dp))
+                //Text("Escanea un código QR", style = MaterialTheme.typography.titleMedium)
+                //Spacer(Modifier.height(16.dp))
                 if (!cameraPermissionGranted) {
                     // No mostrar nada, solo esperar a que el usuario responda la notificación
                 } else {
                     var previewView: PreviewView? = null
-                    AndroidView(
-                        factory = { ctx ->
-                            previewView = PreviewView(ctx)
-                            previewView!!.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 600)
-                            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-                            cameraProviderFuture.addListener({
-                                try {
-                                    val cameraProvider = cameraProviderFuture.get()
-                                    val preview = Preview.Builder().build().also {
-                                        it.setSurfaceProvider(previewView!!.surfaceProvider)
-                                    }
-                                    val imageAnalysis = ImageAnalysis.Builder()
-                                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                                        .build()
-                                    imageAnalysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
-                                        val result = scanQrFromImageProxy(imageProxy)
-                                        if (result != null) {
-                                            scannedText = result
-                                            onQrScanned(result)
-                                            onDismiss()
-                                            imageProxy.close()
-                                        } else {
-                                            imageProxy.close()
-                                        }
-                                    }
-                                    cameraProvider.unbindAll()
-                                    cameraProvider.bindToLifecycle(
-                                        lifecycleOwner,
-                                        CameraSelector.DEFAULT_BACK_CAMERA,
-                                        preview,
-                                        imageAnalysis
-                                    )
-                                } catch (e: Exception) {
-                                    cameraError = "Error iniciando la cámara: ${e.message}"
-                                }
-                            }, ContextCompat.getMainExecutor(ctx))
-                            previewView!!
-                        },
+                    Box(
                         modifier = Modifier
-                            .height(300.dp)
-                            .fillMaxWidth()
-                    )
+                            .size(300.dp)
+                            .aspectRatio(1f)
+                            .graphicsLayer {
+                                clip = true
+                                shape = RoundedCornerShape(24.dp)
+                            }
+                    ) {
+                        AndroidView(
+                            factory = { ctx ->
+                                previewView = PreviewView(ctx)
+                                previewView!!.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                                cameraProviderFuture.addListener({
+                                    try {
+                                        val cameraProvider = cameraProviderFuture.get()
+                                        val preview = Preview.Builder().build().also {
+                                            it.setSurfaceProvider(previewView!!.surfaceProvider)
+                                        }
+                                        val imageAnalysis = ImageAnalysis.Builder()
+                                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                            .build()
+                                        imageAnalysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
+                                            val result = scanQrFromImageProxy(imageProxy)
+                                            if (result != null) {
+                                                scannedText = result
+                                                onQrScanned(result)
+                                                onDismiss()
+                                                imageProxy.close()
+                                            } else {
+                                                imageProxy.close()
+                                            }
+                                        }
+                                        cameraProvider.unbindAll()
+                                        cameraProvider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            CameraSelector.DEFAULT_BACK_CAMERA,
+                                            preview,
+                                            imageAnalysis
+                                        )
+                                    } catch (e: Exception) {
+                                        cameraError = "Error iniciando la cámara: ${e.message}"
+                                    }
+                                }, ContextCompat.getMainExecutor(ctx))
+                                previewView!!
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
                 cameraError?.let {
                     Text(it, color = MaterialTheme.colorScheme.error)
                 }
-                Spacer(Modifier.height(16.dp))
-                Button(onClick = onDismiss) { Text("Cerrar") }
+                //Spacer(Modifier.height(16.dp))
+                //Button(onClick = onDismiss) { Text("Cerrar") }
             }
         }
     }
