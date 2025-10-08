@@ -229,7 +229,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 // Si la URL está precargada y corresponde al videoId solicitado, usarla
                 if (preloadedNextAudioUrl != null && preloadedNextVideoId == videoId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
-                    playAudioFromUrl(preloadedNextAudioUrl!!, title, null)
                     // Limpiar precarga tras usarla
                     preloadedNextAudioUrl = null
                     preloadedNextVideoId = null
@@ -238,7 +237,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     if (audioUrl != null && isValidAudioUrl(audioUrl)) {
                         playAudioFromUrl(audioUrl, title, null)
                     } else {
-                        handleAudioExtractionError(videoId, audioUrl)
+                        _isLoading.postValue(false)
+                        _error.postValue("No se pudo extraer la URL de audio para el video ID: $videoId")
                     }
                 }
                 // Precargar la siguiente canción si existe
@@ -336,15 +336,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 _isLoading.postValue(false)
                 _error.postValue("Error configurando ExoPlayer: ${e.message}")
             }
-        }
-    }
-
-    private fun handleAudioExtractionError(videoId: String, audioUrl: String?) {
-        _isLoading.postValue(false)
-        if (audioUrl == null) {
-            _error.postValue("No se pudo extraer la URL de audio para el video ID: $videoId")
-        } else {
-            _error.postValue("La URL obtenida no es válida para reproducción de audio")
         }
     }
 
@@ -446,29 +437,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun pausePlayer() {
-        mainHandler.post {
-            _exoPlayer?.pause()
-        }
+        _exoPlayer?.pause()
     }
 
     fun playPlayer() {
-        mainHandler.post {
-            _exoPlayer?.play()
-        }
-    }
-
-    fun resumeIfPaused() {
-        _exoPlayer?.let { player ->
-            if (!player.isPlaying) {
-                player.play()
-            }
-        }
-    }
-
-    fun seekTo(positionMs: Long) {
-        mainHandler.post {
-            _exoPlayer?.seekTo(positionMs)
-        }
+        _exoPlayer?.play()
     }
 
     private fun updateNavigationState() {

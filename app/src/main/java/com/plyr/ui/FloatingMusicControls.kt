@@ -12,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
@@ -28,7 +27,6 @@ import android.util.Log
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.utils.Config
-import com.plyr.ui.theme.PlyrTheme
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
@@ -477,7 +475,7 @@ private fun ProgressSection(
                             onDragEnd = {
                                 if (isDragging && duration > 0) {
                                     val newPosition = (duration * lastDragProgress).toLong()
-                                    playerViewModel.seekTo(newPosition)
+                                    playerViewModel.exoPlayer?.seekTo(newPosition)
                                     isDragging = false
                                 }
                             }
@@ -707,18 +705,9 @@ private fun RepeatButton(
 //        text = "ERR: ${error.take(40)}${if (error.length > 40) "..." else ""}",
 //        style = MaterialTheme.typography.bodyMedium.copy(
 //            fontFamily = FontFamily.Monospace,
-//            fontSize = 10.sp,
-//            color = MaterialTheme.colorScheme.error
-//        ),
-//        maxLines = 1,
-//        overflow = TextOverflow.Ellipsis,
-//        modifier = Modifier.padding(top = 4.dp)
-//    )
-//}
 
-/**
- * Indicador de cola que muestra cuántos tracks están pendientes.
- */
+
+
 @Composable
 private fun QueueIndicator(queueSize: Int) {
     Row(
@@ -737,113 +726,4 @@ private fun QueueIndicator(queueSize: Int) {
             )
         )
     }
-}
-
-// === PREVIEWS ===
-
-/**
- * Preview de los controles flotantes de música.
- * Muestra una simulación del componente con datos mock.
- */
-@Preview(showBackground = true, widthDp = 320, heightDp = 200)
-@Composable
-fun FloatingMusicControlsPreview() {
-    PlyrTheme {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            // Simulación de controles flotantes con datos mock
-            MockFloatingControls(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-            )
-        }
-    }
-}
-
-/**
- * Componente mock para el preview.
- */
-@Composable
-private fun MockFloatingControls(modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            // Estado y título mock
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "$ Now Playing: Sample Song Title",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "01:23/04:56",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
-                    )
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(4.dp))
-            
-            // Barra de progreso mock
-            LinearProgressIndicator(
-            progress = { 0.3f },
-            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                                .clip(RoundedCornerShape(2.dp)),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-            strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Controles mock
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MockPlaybackButton("<<", 16.sp)
-                MockPlaybackButton("||", 24.sp) // Pause state
-                MockPlaybackButton(">>", 16.sp)
-            }
-        }
-    }
-}
-
-/**
- * Botón mock para el preview.
- */
-@Composable
-private fun MockPlaybackButton(text: String, fontSize: androidx.compose.ui.unit.TextUnit) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyLarge.copy(
-            fontFamily = FontFamily.Monospace,
-            fontSize = fontSize
-        ),
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(6.dp)
-    )
 }

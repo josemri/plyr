@@ -114,7 +114,7 @@ fun QueueScreen(
                                         if (queueState.currentIndex != index) {
                                             playerViewModel.playQueueFromIndex(index)
                                         } else {
-                                            playerViewModel.resumeIfPaused()
+                                            playerViewModel.exoPlayer?.play()
                                         }
                                     }
                                     Log.d("QueueScreen", "Iniciando cola desde índice: $index")
