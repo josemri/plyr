@@ -146,7 +146,7 @@ fun QueueScreen(
                             // Botón para remover de la cola
                             TextButton(
                                 onClick = {
-                                    playerViewModel.removeFromQueue(index)
+                                    //playerViewModel.removeFromQueue(index)
                                     Log.d("QueueScreen", "Track removido de la cola en índice: $index")
                                 },
                                 modifier = Modifier.padding(start = 8.dp)

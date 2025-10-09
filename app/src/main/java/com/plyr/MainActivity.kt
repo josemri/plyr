@@ -35,6 +35,8 @@ import android.net.Uri
 import android.os.Build
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 /**
  * MainActivity - Entry point for Plyr app
@@ -185,7 +187,13 @@ class MainActivity : ComponentActivity() {
             )
         }
         playerViewModel.setCurrentPlaylist(searchPlaylist, selectedIndex)
-        playerViewModel.loadAudio(videoId, title)
+
+        // Cargar el track seleccionado
+        lifecycleScope.launch {
+            val selectedTrack = searchPlaylist[selectedIndex]
+            playerViewModel.loadAudioFromTrack(selectedTrack)
+        }
+
         searchPlaylist.mapNotNull { it.youtubeVideoId }
     }
 

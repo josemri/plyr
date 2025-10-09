@@ -123,9 +123,7 @@ fun FloatingMusicControls(
     val isLoading by playerViewModel.isLoading.observeAsState(false)
     val error by playerViewModel.error.observeAsState()
     
-    // Observar estados de navegación de playlist
-    val hasPrevious by playerViewModel.hasPrevious.observeAsState(false)
-    val hasNext by playerViewModel.hasNext.observeAsState(false)
+    // Observar estados de playlist
     val observedCurrentTrack by playerViewModel.currentTrack.observeAsState()
     val observedCurrentPlaylist by playerViewModel.currentPlaylist.observeAsState()
     val observedCurrentTrackIndex by playerViewModel.currentTrackIndex.observeAsState()
@@ -133,11 +131,6 @@ fun FloatingMusicControls(
     // Observar estados de cola
     val isQueueMode by playerViewModel.isQueueMode.observeAsState(false)
     val playbackQueue by playerViewModel.playbackQueue.observeAsState(mutableListOf())
-    
-    // Debug: Log de estados de navegación
-    LaunchedEffect(hasPrevious, hasNext, observedCurrentPlaylist?.size, observedCurrentTrackIndex, isQueueMode, playbackQueue.size) {
-        Log.d("FloatingControls", "Navigation states: hasPrevious=$hasPrevious, hasNext=$hasNext, playlistSize=${observedCurrentPlaylist?.size}, currentIndex=$observedCurrentTrackIndex, isQueue=$isQueueMode, queueSize=${playbackQueue.size}")
-    }
     
     // Estados locales del reproductor
     var isPlaying by remember { mutableStateOf(false) }

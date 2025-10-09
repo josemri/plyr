@@ -329,7 +329,7 @@ fun PlaylistsScreen(
                         randomJob = null
                         startJob = null
                         // Cancelar espera de canción y pausar el reproductor
-                        playerViewModel?.cancelWaitForSong()
+                        //playerViewModel?.cancelWaitForSong()
                         playerViewModel?.pausePlayer()
                     }
 
