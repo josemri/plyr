@@ -71,6 +71,12 @@ fun PlaylistsScreen(
     var isSyncing by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
 
+    // Estados para detectar cambios en modo edición (movidos aquí para ser accesibles globalmente)
+    var showExitEditDialog by remember { mutableStateOf(false) }
+    var hasUnsavedChanges by remember { mutableStateOf(false) }
+    var originalTitle by remember { mutableStateOf("") }
+    var originalDesc by remember { mutableStateOf("") }
+
     // Convertir entidades a SpotifyPlaylist para compatibilidad con UI existente
     val playlists = playlistsFromDB.map { it.toSpotifyPlaylist() }
 
@@ -80,6 +86,9 @@ fun PlaylistsScreen(
     var playlistTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
     var showCreatePlaylistScreen by remember { mutableStateOf(false) }
+
+    // Estado para manejar navegación pendiente cuando hay cambios sin guardar
+    var pendingPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
 
     // Tracks observados desde la base de datos
     val tracksFromDB by if (selectedPlaylistEntity != null) {
@@ -176,8 +185,16 @@ fun PlaylistsScreen(
     // Manejar botón de retroceso del sistema
     BackHandler {
         if (selectedPlaylist != null) {
-            selectedPlaylist = null
-            playlistTracks = emptyList()
+            // Si estamos en modo edición con cambios sin guardar, mostrar diálogo
+            if (isEditing && hasUnsavedChanges) {
+                showExitEditDialog = true
+            } else {
+                // Salir de la playlist y resetear modo edición
+                isEditing = false
+                hasUnsavedChanges = false
+                selectedPlaylist = null
+                playlistTracks = emptyList()
+            }
         } else {
             onBack()
         }
@@ -418,6 +435,10 @@ fun PlaylistsScreen(
                     }
 
                     Column {
+                        // Estados para los campos de texto (movidos aquí para ser accesibles desde el botón save)
+                        var newTitle by remember { mutableStateOf(selectedPlaylist?.name ?: "") }
+                        var newDesc by remember { mutableStateOf(selectedPlaylist?.description ?: "") }
+
                         // Botones de control
                         Row(
                             modifier = Modifier
@@ -425,176 +446,595 @@ fun PlaylistsScreen(
                                 .padding(bottom = 16.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            // Botón <start>
-                            Text(
-                                text = if (isStarting) "<stop>" else "<start>",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 16.sp,
-                                    color = if (isStarting) Color(0xFFFF6B6B) else Color(0xFF4ECDC4)
-                                ),
-                                modifier = Modifier
-                                    .clickable {
-                                        if (isStarting) {
-                                            stopAllPlayback()
-                                        } else {
-                                            startOrderedPlayback()
-                                        }
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    .padding(8.dp)
-                            )
+                            if (!isEditing) {
+                                // Botones visibles solo cuando NO está en modo edición
 
-                            // Botón <rand>
-                            Text(
-                                text = if (isRandomizing) "<stop>" else "<rand>",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 16.sp,
-                                    color = if (isRandomizing) Color(0xFFFF6B6B) else Color(0xFFFFD93D)
-                                ),
-                                modifier = Modifier
-                                    .clickable {
-                                        if (isRandomizing) {
-                                            stopAllPlayback()
-                                        } else {
-                                            startRandomizing()
-                                        }
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    .padding(8.dp)
-                            )
-
-                            // Botón <share>
-                            Text(
-                                text = "<share>",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 16.sp,
-                                    color = Color(0xFFFF6B9D)
-                                ),
-                                modifier = Modifier
-                                    .clickable {
-                                        showShareDialog = true
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    .padding(8.dp)
-                            )
-
-                            // Botón <edit>
-                            Text(
-                                text = if (isEditing) "<done>" else "<edit>",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 16.sp,
-                                    color = if (isEditing) Color(0xFF4ECDC4) else Color(0xFF95A5A6)
-                                ),
-                                modifier = Modifier
-                                    .clickable {
-                                        isEditing = !isEditing
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    .padding(8.dp)
-                            )
-                        }
-                        if (isEditing) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                // Botón para añadir canción
+                                // Botón <start>
                                 Text(
-                                    text = "<add song>",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                    text = if (isStarting) "<stop>" else "<start>",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF4ECDC4)
+                                        fontSize = 16.sp,
+                                        color = if (isStarting) Color(0xFFFF6B6B) else Color(0xFF4ECDC4)
                                     ),
                                     modifier = Modifier
-                                        .clickable { /* TODO: lógica para añadir canción */ }
+                                        .clickable {
+                                            if (isStarting) {
+                                                stopAllPlayback()
+                                            } else {
+                                                startOrderedPlayback()
+                                            }
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
                                         .padding(8.dp)
                                 )
-                                // Botón para eliminar canción
+
+                                // Botón <rand>
                                 Text(
-                                    text = "<remove song>",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                    text = if (isRandomizing) "<stop>" else "<rand>",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 14.sp,
+                                        fontSize = 16.sp,
+                                        color = if (isRandomizing) Color(0xFFFF6B6B) else Color(0xFFFFD93D)
+                                    ),
+                                    modifier = Modifier
+                                        .clickable {
+                                            if (isRandomizing) {
+                                                stopAllPlayback()
+                                            } else {
+                                                startRandomizing()
+                                            }
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                        .padding(8.dp)
+                                )
+
+                                // Botón <share>
+                                Text(
+                                    text = "<share>",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 16.sp,
+                                        color = Color(0xFFFF6B9D)
+                                    ),
+                                    modifier = Modifier
+                                        .clickable {
+                                            showShareDialog = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                        .padding(8.dp)
+                                )
+                            }
+
+                            // Botón <edit> o <save>
+                            Text(
+                                text = if (isEditing) "<save>" else "<edit>",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 16.sp,
+                                    color = if (isEditing) Color(0xFF7FB069) else Color(0xFF95A5A6)
+                                ),
+                                modifier = Modifier
+                                    .clickable {
+                                        if (isEditing) {
+                                            // Al hacer clic en save, verificar si hay cambios sin guardar
+                                            if (hasUnsavedChanges) {
+                                                // TODO: Aquí se implementaría el guardado real en Spotify
+                                                // Por ahora solo resetear el flag y salir del modo edición
+                                                originalTitle = newTitle
+                                                originalDesc = newDesc
+                                                hasUnsavedChanges = false
+                                            }
+                                            // Salir del modo edición
+                                            isEditing = false
+                                        } else {
+                                            // Al entrar al modo edición, guardar valores originales e inicializar campos
+                                            originalTitle = selectedPlaylist?.name ?: ""
+                                            originalDesc = selectedPlaylist?.description ?: ""
+                                            newTitle = originalTitle
+                                            newDesc = originalDesc
+                                            hasUnsavedChanges = false
+                                            isEditing = true
+                                        }
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    .padding(8.dp)
+                            )
+
+                            // Botón <delete> - solo visible en modo edición
+                            if (isEditing) {
+                                var showDeleteDialog by remember { mutableStateOf(false) }
+
+                                Text(
+                                    text = "<delete>",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 16.sp,
                                         color = Color(0xFFFF6B6B)
                                     ),
                                     modifier = Modifier
-                                        .clickable { /* TODO: lógica para eliminar canción */ }
+                                        .clickable {
+                                            showDeleteDialog = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
                                         .padding(8.dp)
                                 )
-                                // Cambiar título
-                                var newTitle by remember { mutableStateOf(selectedPlaylist?.name ?: "") }
-                                OutlinedTextField(
-                                    value = newTitle,
-                                    onValueChange = { newTitle = it },
-                                    label = { Text("Playlist Title") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Text(
-                                    text = "<save title>",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 14.sp,
-                                        color = Color(0xFF4ECDC4)
-                                    ),
-                                    modifier = Modifier
-                                        .clickable { /* TODO: lógica para guardar título */ }
-                                        .padding(8.dp)
-                                )
+
+                                // Diálogo de confirmación para eliminar playlist
+                                if (showDeleteDialog) {
+                                    AlertDialog(
+                                        onDismissRequest = { showDeleteDialog = false },
+                                        title = {
+                                            Text(
+                                                "Delete playlist",
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFF4ECDC4)
+                                                )
+                                            )
+                                        },
+                                        text = {
+                                            Text(
+                                                "Are you sure you want to delete '${selectedPlaylist?.name}'? This action cannot be undone.",
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontFamily = FontFamily.Monospace
+                                                )
+                                            )
+                                        },
+                                        confirmButton = {
+                                            TextButton(
+                                                onClick = {
+                                                    showDeleteDialog = false
+                                                    // Eliminar la playlist
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null && selectedPlaylist != null) {
+                                                        coroutineScope.launch {
+                                                            SpotifyRepository.unfollowPlaylist(
+                                                                accessToken,
+                                                                selectedPlaylist!!.id
+                                                            ) { success: Boolean, errorMsg: String? ->
+                                                                if (success) {
+                                                                    // Salir del modo edición y volver a la lista
+                                                                    isEditing = false
+                                                                    hasUnsavedChanges = false
+                                                                    selectedPlaylist = null
+                                                                    playlistTracks = emptyList()
+                                                                    // Recargar la lista de playlists
+                                                                    loadPlaylists()
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ) {
+                                                Text(
+                                                    "Delete",
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = Color(0xFFFF6B6B)
+                                                    )
+                                                )
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(
+                                                onClick = { showDeleteDialog = false }
+                                            ) {
+                                                Text(
+                                                    "Cancel",
+                                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = Color(0xFF4ECDC4)
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        if (isEditing) {
+                            // Estados para el buscador de canciones en edición
+                            var searchQuery by remember { mutableStateOf("") }
+                            var isSearching by remember { mutableStateOf(false) }
+                            var searchResults by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+                            var editError by remember { mutableStateOf<String?>(null) }
+
+                            // Detectar cambios en los campos
+                            LaunchedEffect(newTitle, newDesc) {
+                                hasUnsavedChanges = (newTitle != originalTitle || newDesc != originalDesc)
+                            }
+
+                            // Usar LazyColumn para permitir scroll
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                contentPadding = PaddingValues(vertical = 8.dp)
+                            ) {
+                                // Título de la sección
+                                item {
+                                    Text(
+                                        text = "> edit_playlist",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 16.sp,
+                                            color = Color(0xFF4ECDC4)
+                                        ),
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+
+                                // Cambiar nombre
+                                item {
+                                    OutlinedTextField(
+                                        value = newTitle,
+                                        onValueChange = { newTitle = it },
+                                        label = { Text("Playlist name") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                }
+
                                 // Cambiar descripción
-                                var newDesc by remember { mutableStateOf(selectedPlaylist?.description ?: "") }
-                                OutlinedTextField(
-                                    value = newDesc,
-                                    onValueChange = { newDesc = it },
-                                    label = { Text("Playlist Description") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
+                                item {
+                                    OutlinedTextField(
+                                        value = newDesc,
+                                        onValueChange = { newDesc = it },
+                                        label = { Text("Description") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                }
+
+                                // Sección de buscador de canciones
+                                item {
+                                    Text(
+                                        text = "> add_tracks",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 16.sp,
+                                            color = Color(0xFF4ECDC4)
+                                        ),
+                                        modifier = Modifier.padding(bottom = 8.dp)
+                                    )
+                                }
+
+                                // Campo de búsqueda
+                                item {
+                                    OutlinedTextField(
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        label = { Text("Search tracks") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        trailingIcon = {
+                                            if (searchQuery.isNotEmpty()) {
+                                                IconButton(onClick = { searchQuery = "" }) {
+                                                    Text(
+                                                        text = "x",
+                                                        style = MaterialTheme.typography.titleMedium.copy(
+                                                            fontFamily = FontFamily.Monospace
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                        keyboardActions = KeyboardActions(
+                                            onSearch = {
+                                                if (searchQuery.isNotBlank() && !isSearching) {
+                                                    isSearching = true
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null) {
+                                                        coroutineScope.launch {
+                                                            SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
+                                                                isSearching = false
+                                                                if (results != null) {
+                                                                    searchResults = results.tracks.items
+                                                                } else {
+                                                                    editError = errorMsg
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        ),
+                                        enabled = !isSearching
+                                    )
+                                }
+
+                                // Mostrar indicador de búsqueda
+                                if (isSearching) {
+                                    item {
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            text = "$ searching...",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFFFD93D)
+                                            )
+                                        )
+                                    }
+                                }
+
+                                // Resultados de búsqueda
+                                if (searchResults.isNotEmpty()) {
+                                    item {
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            text = "results:",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFE0E0E0)
+                                            )
+                                        )
+                                    }
+                                    items(searchResults.take(10).size) { index ->
+                                        val track = searchResults[index]
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    // Añadir canción a la playlist
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null && selectedPlaylist != null) {
+                                                        coroutineScope.launch {
+                                                            SpotifyRepository.addTrackToPlaylist(
+                                                                accessToken,
+                                                                selectedPlaylist!!.id,
+                                                                track.id
+                                                            ) { success, errorMsg ->
+                                                                if (success) {
+                                                                    searchResults = emptyList()
+                                                                    searchQuery = ""
+                                                                    // Recargar tracks
+                                                                    coroutineScope.launch {
+                                                                        localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
+                                                                    }
+                                                                } else {
+                                                                    editError = errorMsg
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                .padding(vertical = 4.dp, horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "+",
+                                                style = MaterialTheme.typography.bodyMedium.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFF4ECDC4)
+                                                ),
+                                                modifier = Modifier.padding(end = 8.dp)
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = track.name,
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = Color(0xFFE0E0E0)
+                                                    ),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = track.getArtistNames(),
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF95A5A6)
+                                                    ),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Mostrar error si hay
+                                editError?.let {
+                                    item {
+                                        Spacer(Modifier.height(8.dp))
+                                        Text("Error: $it", color = Color.Red, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+                                    }
+                                }
+
+                                item {
+                                    Spacer(Modifier.height(16.dp))
+                                }
+
+                                // Lista de canciones actuales con opción de eliminar
+                                if (playlistTracks.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            text = "current tracks [${playlistTracks.size}]:",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFF4ECDC4)
+                                            )
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                    }
+                                    items(playlistTracks.size) { index ->
+                                        val track = playlistTracks[index]
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp, horizontal = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "${index + 1}.",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFF95A5A6)
+                                                ),
+                                                modifier = Modifier.width(32.dp)
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = track.name,
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = Color(0xFFE0E0E0)
+                                                    ),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Text(
+                                                    text = track.getArtistNames(),
+                                                    style = MaterialTheme.typography.bodySmall.copy(
+                                                        fontFamily = FontFamily.Monospace,
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF95A5A6)
+                                                    ),
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                            Text(
+                                                text = "x",
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFFFF6B6B)
+                                                ),
+                                                modifier = Modifier
+                                                    .clickable {
+                                                        // Eliminar canción de la playlist
+                                                        val accessToken = Config.getSpotifyAccessToken(context)
+                                                        if (accessToken != null && selectedPlaylist != null) {
+                                                            coroutineScope.launch {
+                                                                // Necesitamos usar la API de Spotify para eliminar
+                                                                // Por ahora, usar la función removeTrackFromPlaylist si existe
+                                                                // O implementarla en SpotifyRepository
+                                                                SpotifyRepository.removeTrackFromPlaylist(
+                                                                    accessToken,
+                                                                    selectedPlaylist!!.id,
+                                                                    track.id
+                                                                ) { success, errorMsg ->
+                                                                    if (success) {
+                                                                        // Recargar tracks
+                                                                        coroutineScope.launch {
+                                                                            localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
+                                                                        }
+                                                                    } else {
+                                                                        editError = errorMsg
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    .padding(8.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Lista de tracks (solo visible cuando NO está en modo edición)
+                        if (!isEditing) {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Prepara trackEntities una sola vez
+                                val trackEntitiesList = tracksFromDB
+                                items(playlistTracks.size) { index ->
+                                    val track = playlistTracks[index]
+                                    val song = Song(
+                                        number = index + 1,
+                                        title = track.name,
+                                        artist = track.getArtistNames(),
+                                        spotifyId = track.id,
+                                        spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                                    )
+                                    SongListItem(
+                                        song = song,
+                                        trackEntities = trackEntitiesList,
+                                        index = index,
+                                        playerViewModel = playerViewModel,
+                                        coroutineScope = coroutineScope,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Diálogo de confirmación para salir sin guardar
+                    if (showExitEditDialog) {
+                        AlertDialog(
+                            onDismissRequest = {
+                                showExitEditDialog = false
+                                pendingPlaylist = null
+                            },
+                            title = {
                                 Text(
-                                    text = "<save desc>",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                    "Unsaved changes",
+                                    style = MaterialTheme.typography.titleMedium.copy(
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 14.sp,
                                         color = Color(0xFF4ECDC4)
-                                    ),
-                                    modifier = Modifier
-                                        .clickable { /* TODO: lógica para guardar descripción */ }
-                                        .padding(8.dp)
+                                    )
                                 )
+                            },
+                            text = {
+                                Text(
+                                    "You have unsaved changes. Are you sure you want to exit?",
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showExitEditDialog = false
+                                        isEditing = false
+                                        hasUnsavedChanges = false
+
+                                        // Si hay una playlist pendiente, cargarla
+                                        if (pendingPlaylist != null) {
+                                            selectedPlaylist = pendingPlaylist
+                                            loadPlaylistTracks(pendingPlaylist!!)
+                                            pendingPlaylist = null
+                                        } else {
+                                            // Si no hay playlist pendiente, salir de la vista actual
+                                            selectedPlaylist = null
+                                            playlistTracks = emptyList()
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        "Exit",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFFF6B6B)
+                                        )
+                                    )
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        showExitEditDialog = false
+                                        pendingPlaylist = null
+                                    }
+                                ) {
+                                    Text(
+                                        "Cancel",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFF4ECDC4)
+                                        )
+                                    )
+                                }
                             }
-                        }
-                        // Lista de tracks
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            // Prepara trackEntities una sola vez
-                            val trackEntitiesList = tracksFromDB
-                            items(playlistTracks.size) { index ->
-                                val track = playlistTracks[index]
-                                val song = Song(
-                                    number = index + 1,
-                                    title = track.name,
-                                    artist = track.getArtistNames(),
-                                    spotifyId = track.id,
-                                    spotifyUrl = "https://open.spotify.com/track/${track.id}"
-                                )
-                                SongListItem(
-                                    song = song,
-                                    trackEntities = trackEntitiesList,
-                                    index = index,
-                                    playerViewModel = playerViewModel,
-                                    coroutineScope = coroutineScope,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
+                        )
                     }
 
                     // Diálogo de compartir - debe estar dentro del mismo scope que showShareDialog
@@ -663,8 +1103,17 @@ fun PlaylistsScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            selectedPlaylist = playlist
-                                            loadPlaylistTracks(playlist)
+                                            // Verificar si hay cambios sin guardar antes de cambiar de playlist
+                                            if (isEditing && hasUnsavedChanges) {
+                                                pendingPlaylist = playlist
+                                                showExitEditDialog = true
+                                            } else {
+                                                // Resetear modo edición al cambiar de playlist
+                                                isEditing = false
+                                                hasUnsavedChanges = false
+                                                selectedPlaylist = playlist
+                                                loadPlaylistTracks(playlist)
+                                            }
                                         },
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {

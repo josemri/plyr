@@ -461,6 +461,30 @@ object SpotifyRepository {
         })
     }
 
+    // Dejar de seguir (eliminar) una playlist en Spotify
+    fun unfollowPlaylist(accessToken: String, playlistId: String, callback: (Boolean, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("https://api.spotify.com/v1/playlists/$playlistId/followers")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .delete()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
+    }
+
     // Añadir una canción a una playlist en Spotify
     fun addTrackToPlaylist(accessToken: String, playlistId: String, trackId: String, callback: (Boolean, String?) -> Unit) {
         val jsonBody = gson.toJson(mapOf("uris" to listOf("spotify:track:$trackId")))
@@ -478,6 +502,34 @@ object SpotifyRepository {
                 callback(false, "Error de red: ${e.message}")
             }
             
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
+    }
+
+    // Eliminar una canción de una playlist en Spotify
+    fun removeTrackFromPlaylist(accessToken: String, playlistId: String, trackId: String, callback: (Boolean, String?) -> Unit) {
+        val jsonBody = gson.toJson(mapOf("tracks" to listOf(mapOf("uri" to "spotify:track:$trackId"))))
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId/tracks")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .delete(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
             override fun onResponse(call: Call, response: Response) {
                 if (response.isSuccessful) {
                     callback(true, null)
