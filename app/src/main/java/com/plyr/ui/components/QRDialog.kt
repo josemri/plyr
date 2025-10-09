@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -74,43 +75,6 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Título
-                Text(
-                    text = "$ share",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 20.sp,
-                        color = Color(0xFF4ECDC4)
-                    )
-                )
-
-                // Info del item
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            color = Color.White
-                        ),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = item.artist,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            color = Color(0xFF888888)
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
                 // QR Code con la URL de Spotify
                 if (shareUrl != null) {
                     val qrBitmap = generateQrBitmap(shareUrl)
@@ -140,76 +104,34 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                             )
                         )
                     }
-
-                    // Mostrar la URL en texto pequeño
-                    Text(
-                        text = shareUrl,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 8.sp,
-                            color = Color(0xFF666666)
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
-
-                // Texto explicativo
-                Text(
-                    text = "Escanea o comparte la URL de Spotify",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        color = Color(0xFF666666)
-                    )
-                )
 
                 // Botones de acción
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     // Botón compartir con diálogo nativo
                     if (shareUrl != null) {
-                        Button(
-                            onClick = {
-                                val sendIntent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, shareUrl)
-                                    type = "text/plain"
-                                }
-                                val chooserIntent = Intent.createChooser(sendIntent, "Compartir via")
-                                chooserIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                context.startActivity(chooserIntent)
-                            },
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF4ECDC4)
-                            )
-                        ) {
-                            Text(
-                                text = "share",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = Color.Black
-                                )
-                            )
-                        }
-                    }
-
-                    // Botón cerrar
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFF666666)
-                        )
-                    ) {
                         Text(
-                            text = "close",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace
-                            )
+                            text = "<share>",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                color = Color(0xFFFF6B9D)
+                            ),
+                            modifier = Modifier
+                                .clickable {
+                                    val sendIntent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, shareUrl)
+                                        type = "text/plain"
+                                    }
+                                    val chooserIntent = Intent.createChooser(sendIntent, "Compartir via")
+                                    chooserIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                    context.startActivity(chooserIntent)
+                                }
+                                .padding(8.dp)
                         )
                     }
                 }
