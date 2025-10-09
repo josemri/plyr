@@ -1,6 +1,5 @@
 package com.plyr.ui
 
-import android.annotation.SuppressLint
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
