@@ -119,15 +119,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         updateQueueState()
-        _playbackQueue.observeForever {
-            updateNavigationState()
-        }
-        _currentPlaylist.observeForever {
-            updateNavigationState()
-        }
-        _currentTrackIndex.observeForever {
-            updateNavigationState()
-        }
         initializeAudioOutputDetection()
     }
 
@@ -443,29 +434,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _exoPlayer?.play()
     }
 
-    private fun updateNavigationState() {
-        val isQueue = _isQueueMode.value == true
-        val queue = _playbackQueue.value
-        val queueSize = queue?.size ?: 0
-        val playlist = _currentPlaylist.value
-        val currentIndex = _currentTrackIndex.value
-
-        /*
-        if (isQueue) {
-            _hasPrevious.postValue(false)
-            _hasNext.postValue(queueSize > 0)
-        } else if (playlist != null && currentIndex != null) {
-            val hasPrev = currentIndex > 0
-            val hasNext = currentIndex < playlist.size - 1
-            _hasPrevious.postValue(hasPrev)
-            _hasNext.postValue(hasNext)
-        } else {
-            _hasPrevious.postValue(false)
-            _hasNext.postValue(false)
-        }
-        */
-    }
-
     fun setCurrentPlaylist(playlist: List<TrackEntity>, startIndex: Int = 0) {
         _currentPlaylist.postValue(playlist)
         _currentTrackIndex.postValue(startIndex.coerceIn(0, playlist.size - 1))
@@ -474,19 +442,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _currentTrack.postValue(playlist[startIndex])
         }
 
-        updateNavigationState()
     }
 
     suspend fun playNextFromQueue(): Boolean {
         val queue = _playbackQueue.value
         if (queue.isNullOrEmpty()) {
             _isQueueMode.postValue(false)
-            updateNavigationState()
             return false
         }
         val nextTrack = queue.removeAt(0)
         _playbackQueue.postValue(queue)
-        updateNavigationState()
         val success = loadAudioFromTrack(nextTrack)
         if (success) {
             _currentTrack.postValue(nextTrack)
@@ -505,7 +470,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val nextTrack = playlist[nextIndex]
             _currentTrackIndex.postValue(nextIndex)
             _currentTrack.postValue(nextTrack)
-            updateNavigationState()
             val success = loadAudioFromTrack(nextTrack)
             return success
         }
@@ -520,7 +484,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val previousTrack = playlist[previousIndex]
             _currentTrackIndex.postValue(previousIndex)
             _currentTrack.postValue(previousTrack)
-            updateNavigationState()
             val success = loadAudioFromTrack(previousTrack)
             return success
         }
@@ -657,7 +620,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val firstTrack = playlist[0]
             _currentTrackIndex.postValue(0)
             _currentTrack.postValue(firstTrack)
-            updateNavigationState()
 
             // Pequeña pausa antes de reiniciar
             delay(1000)

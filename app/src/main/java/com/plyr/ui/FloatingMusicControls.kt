@@ -179,8 +179,6 @@ fun FloatingMusicControls(
             duration = duration,
             progress = progress,
             isPlaying = isPlaying,
-            hasPrevious = hasPrevious,
-            hasNext = hasNext,
             isQueueMode = isQueueMode,
             queueSize = playbackQueue.size,
             playerViewModel = playerViewModel
@@ -229,8 +227,6 @@ private fun FloatingControlsCard(
     duration: Long,
     progress: Float,
     isPlaying: Boolean,
-    hasPrevious: Boolean,
-    hasNext: Boolean,
     isQueueMode: Boolean,
     queueSize: Int,
     playerViewModel: PlayerViewModel
@@ -275,8 +271,6 @@ private fun FloatingControlsCard(
                 audioUrl = audioUrl,
                 isLoading = isLoading,
                 isPlaying = isPlaying,
-                hasPrevious = hasPrevious,
-                hasNext = hasNext,
                 playerViewModel = playerViewModel
             )
             
@@ -556,8 +550,6 @@ private fun PlaybackControlsRow(
     audioUrl: String?,
     isLoading: Boolean,
     isPlaying: Boolean,
-    hasPrevious: Boolean,
-    hasNext: Boolean,
     playerViewModel: PlayerViewModel
 ) {
     val coroutineScope = rememberCoroutineScope()
