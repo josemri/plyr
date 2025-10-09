@@ -137,7 +137,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (_exoPlayer == null) {
                 _exoPlayer = buildPlayer().also { setupPlayer(it) }
             }
-            monitorMemoryUsage()
         }
     }
 
@@ -342,9 +341,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _isLoading.postValue(true)
             _error.postValue(null)
             _currentTitle.postValue("${track.name} - ${track.artists}")
-            val youtubeId = obtainYouTubeId(track)
+            val youtubeId = track.youtubeVideoId ?: obtainYouTubeId(track)
+
             if (youtubeId != null) {
                 if (preloadedNextAudioUrl != null && preloadedNextVideoId == youtubeId && isValidAudioUrl(preloadedNextAudioUrl!!)) {
+                    //playAudioFromUrl(preloadedNextAudioUrl!!, track.name, track.artists)
                     preloadedNextAudioUrl = null
                     preloadedNextVideoId = null
                     precacheNextTrack()
@@ -449,6 +450,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val playlist = _currentPlaylist.value
         val currentIndex = _currentTrackIndex.value
 
+        /*
         if (isQueue) {
             _hasPrevious.postValue(false)
             _hasNext.postValue(queueSize > 0)
@@ -461,6 +463,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _hasPrevious.postValue(false)
             _hasNext.postValue(false)
         }
+        */
     }
 
     fun setCurrentPlaylist(playlist: List<TrackEntity>, startIndex: Int = 0) {
@@ -535,24 +538,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    private fun monitorMemoryUsage() {
-        try {
-            val runtime = Runtime.getRuntime()
-            val usedMemory = runtime.totalMemory() - runtime.freeMemory()
-            val maxMemory = runtime.maxMemory()
-            val memoryPercentage = (usedMemory * 100) / maxMemory
-
-            if (memoryPercentage > 80) {
-                Log.w(TAG, "⚠️ Uso de memoria alto, realizando limpieza preventiva")
-
-                System.gc()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "⚠️ Error monitoreando memoria", e)
-        }
-    }
-
-    data class QueueState(
+     data class QueueState(
         val queue: List<TrackEntity> = emptyList(),
         val currentIndex: Int = -1,
         val isActive: Boolean = false

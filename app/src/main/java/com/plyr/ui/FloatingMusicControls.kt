@@ -583,7 +583,7 @@ private fun PlaybackControlsRow(
             PlaybackButton(
                 text = "<<",
                 fontSize = 16.sp,
-                isEnabled = audioUrl != null && !isLoading && hasPrevious,
+                isEnabled = audioUrl != null && !isLoading,
                 onClick = {
                     coroutineScope.launch {
                         playerViewModel.navigateToPrevious()
@@ -613,10 +613,10 @@ private fun PlaybackControlsRow(
             PlaybackButton(
                 text = ">>",
                 fontSize = 16.sp,
-                isEnabled = audioUrl != null && !isLoading && hasNext,
+                isEnabled = audioUrl != null && !isLoading,
                 onClick = {
                     coroutineScope.launch {
-                        playerViewModel.handleRepeatModeTransition()
+                        playerViewModel.navigateToNext()
                     }
                 }
             )
