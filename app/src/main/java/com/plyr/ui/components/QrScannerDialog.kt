@@ -29,6 +29,7 @@ import com.google.zxing.MultiFormatReader
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.PlanarYUVLuminanceSource
 import java.util.concurrent.Executors
+import androidx.core.net.toUri
 
 data class QrScanResult(
     val source: String, // "spotify" or "youtube"
@@ -131,7 +132,7 @@ fun parseQrContent(qrText: String): QrScanResult? {
     return try {
         // Primero verificar si es una URL de Spotify directa
         if (qrText.startsWith("https://open.spotify.com/")) {
-            val uri = android.net.Uri.parse(qrText)
+            val uri = qrText.toUri()
             val pathSegments = uri.pathSegments
             if (pathSegments.size >= 2) {
                 val type = pathSegments[0] // "track", "playlist", "album", "artist"
@@ -143,7 +144,7 @@ fun parseQrContent(qrText: String): QrScanResult? {
         // Formato YouTube URL
         if (qrText.startsWith("https://www.youtube.com/watch?v=") || qrText.startsWith("https://youtu.be/")) {
             val videoId = if (qrText.contains("youtube.com")) {
-                android.net.Uri.parse(qrText).getQueryParameter("v")
+                qrText.toUri().getQueryParameter("v")
             } else {
                 qrText.substringAfterLast("/").split("?").firstOrNull()
             }
