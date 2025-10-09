@@ -214,7 +214,9 @@ private fun YouTubeVideosList(
                 song = Song(
                     number = index + 1,
                     title = video.title,
-                    artist = video.uploader
+                    artist = video.uploader,
+                    youtubeId = video.videoId,
+                    spotifyUrl = "https://www.youtube.com/watch?v=${video.videoId}"
                 ),
                 trackEntities = trackEntities,
                 index = index,

@@ -1,22 +1,20 @@
 package com.plyr.ui
 
-import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.plyr.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.*
@@ -29,7 +27,6 @@ fun QueueScreen(
     onBack: () -> Unit,
     playerViewModel: PlayerViewModel? = null
 ) {
-    LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
 
     // Handle back button
@@ -44,7 +41,7 @@ fun QueueScreen(
     ) {
         // Header
         Text(
-            text = "$ plyr_queue",
+            text = "$ playlist_queue",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 24.sp,
@@ -53,57 +50,41 @@ fun QueueScreen(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // Contenido de la cola
+        // Contenido de la playlist
         if (playerViewModel != null) {
-            val queueState by playerViewModel.queueState.collectAsStateWithLifecycle()
-            val currentQueue = queueState.queue
+            val currentPlaylist by playerViewModel.currentPlaylist.observeAsState()
+            val currentTrackIndex by playerViewModel.currentTrackIndex.observeAsState()
 
-            if (currentQueue.isNotEmpty()) {
-                // Header de la cola
+            if (currentPlaylist != null && currentPlaylist!!.isNotEmpty()) {
+                // Header de la playlist
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Current queue [${currentQueue.size}]",
+                        text = "Current playlist [${currentPlaylist!!.size}]",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 18.sp,
                             color = Color(0xFFFFD93D)
                         )
                     )
-
-                    // Botón para limpiar la cola
-                    TextButton(
-                        onClick = {
-                            playerViewModel.clearQueue()
-                            Log.d("QueueScreen", "Cola limpiada por el usuario")
-                        }
-                    ) {
-                        Text(
-                            text = "clear",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF95A5A6)
-                            )
-                        )
-                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
 
-                // Lista de tracks en la cola
+                // Lista de tracks en la playlist
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
                     items(
-                        count = currentQueue.size,
-                        key = { index -> currentQueue[index].id }
+                        count = currentPlaylist!!.size,
+                        key = { index -> currentPlaylist!![index].id }
                     ) { index ->
-                        val track = currentQueue[index]
-                        val isCurrentTrack = queueState.currentIndex == index
+                        val track = currentPlaylist!![index]
+                        val isCurrentTrack = currentTrackIndex == index
 
                         Row(
                             modifier = Modifier
@@ -111,13 +92,16 @@ fun QueueScreen(
                                 .padding(vertical = 4.dp, horizontal = 4.dp)
                                 .clickable {
                                     coroutineScope.launch {
-                                        if (queueState.currentIndex != index) {
-                                            playerViewModel.playQueueFromIndex(index)
+                                        if (currentTrackIndex != index) {
+                                            playerViewModel.setCurrentPlaylist(
+                                                currentPlaylist!!,
+                                                index
+                                            )
+                                            playerViewModel.loadAudioFromTrack(track)
                                         } else {
                                             playerViewModel.exoPlayer?.play()
                                         }
                                     }
-                                    Log.d("QueueScreen", "Iniciando cola desde índice: $index")
                                 },
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -133,32 +117,31 @@ fun QueueScreen(
                             )
 
                             // Nombre del track
-                            MarqueeText(
-                                text = track.name,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 14.sp,
-                                    color = if (isCurrentTrack) Color(0xFFE0E0E0) else Color(0xFFBDC3C7)
-                                ),
+                            Column(
                                 modifier = Modifier.weight(1f)
-                            )
-
-                            // Botón para remover de la cola
-                            TextButton(
-                                onClick = {
-                                    //playerViewModel.removeFromQueue(index)
-                                    Log.d("QueueScreen", "Track removido de la cola en índice: $index")
-                                },
-                                modifier = Modifier.padding(start = 8.dp)
                             ) {
-                                Text(
-                                    text = "×",
+                                MarqueeText(
+                                    text = track.name,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontFamily = FontFamily.Monospace,
-                                        fontSize = 16.sp,
-                                        color = Color(0xFF95A5A6)
-                                    )
+                                        fontSize = 14.sp,
+                                        color = if (isCurrentTrack) Color(0xFFE0E0E0) else Color(0xFFBDC3C7)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
                                 )
+
+                                if (track.artists.isNotEmpty()) {
+                                    Text(
+                                        text = track.artists,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF95A5A6)
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -171,7 +154,7 @@ fun QueueScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Queue is empty",
+                        text = "No playlist loaded",
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF95A5A6)
@@ -179,7 +162,7 @@ fun QueueScreen(
                     )
 
                     Text(
-                        text = "Add tracks from search to start playing",
+                        text = "Play a track to start a playlist",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF7F8C8D)

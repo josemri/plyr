@@ -597,6 +597,122 @@ object SpotifyRepository {
         val encodedCredentials = Base64.encodeToString(credentials.toByteArray(), Base64.NO_WRAP)
         return "Basic $encodedCredentials"
     }
+
+    // Obtener un track por ID
+    fun getTrack(accessToken: String, trackId: String, callback: (SpotifyTrack?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/tracks/$trackId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        val track = gson.fromJson(body, SpotifyTrack::class.java)
+                        callback(track, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing track: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Obtener una playlist por ID
+    fun getPlaylist(accessToken: String, playlistId: String, callback: (SpotifyPlaylist?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        val playlist = gson.fromJson(body, SpotifyPlaylist::class.java)
+                        callback(playlist, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing playlist: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Obtener un álbum por ID
+    fun getAlbum(accessToken: String, albumId: String, callback: (SpotifyAlbum?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/albums/$albumId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        val album = gson.fromJson(body, SpotifyAlbum::class.java)
+                        callback(album, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing album: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Obtener un artista por ID
+    fun getArtist(accessToken: String, artistId: String, callback: (SpotifyArtistFull?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/artists/$artistId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        val artist = gson.fromJson(body, SpotifyArtistFull::class.java)
+                        callback(artist, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing artist: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
 }
 
 
@@ -766,4 +882,3 @@ data class SpotifyUserProfile(
     val email: String?,
     val images: List<SpotifyImage>?
 )
-

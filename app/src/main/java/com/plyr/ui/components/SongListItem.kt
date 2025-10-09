@@ -29,7 +29,10 @@ import com.plyr.ui.theme.PlyrTextStyles
 data class Song(
     val number: Int,
     val title: String,
-    val artist: String
+    val artist: String,
+    val spotifyId: String? = null,
+    val youtubeId: String? = null,
+    val spotifyUrl: String? = null
 )
 
 @Composable
@@ -44,7 +47,7 @@ fun SongListItem(
 ) {
     val haptic = LocalHapticFeedback.current
     var showPopup by remember { mutableStateOf(false) }
-    var showQrDialog by remember { mutableStateOf(false) }
+    var showShareDialog by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier
@@ -122,11 +125,10 @@ fun SongListItem(
                     val options = listOf(
                         "add to queue",
                         "add to playlist",
-                        "copy link",
+                        "share",
                         "fetch info",
                         "download",
-                        "delete",
-                        "generar QR"
+                        "delete"
                     )
                     options.forEach { option ->
                         Text(
@@ -137,8 +139,8 @@ fun SongListItem(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    if (option == "generar QR") {
-                                        showQrDialog = true
+                                    if (option == "share") {
+                                        showShareDialog = true
                                         showPopup = false
                                     } else {
                                         Log.d("SongListItemPopup", option)
@@ -152,7 +154,18 @@ fun SongListItem(
             }
         }
     }
-    if (showQrDialog) {
-        QRDialog(song = song, onDismiss = { showQrDialog = false })
+
+    if (showShareDialog) {
+        ShareDialog(
+            item = ShareableItem(
+                spotifyId = song.spotifyId,
+                spotifyUrl = song.spotifyUrl,
+                youtubeId = song.youtubeId,
+                title = song.title,
+                artist = song.artist,
+                type = ShareType.TRACK
+            ),
+            onDismiss = { showShareDialog = false }
+        )
     }
 }

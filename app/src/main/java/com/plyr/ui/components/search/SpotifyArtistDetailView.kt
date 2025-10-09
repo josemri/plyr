@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.plyr.network.SpotifyArtistFull
 import com.plyr.network.SpotifyAlbum
+import com.plyr.ui.components.ShareDialog
+import com.plyr.ui.components.ShareableItem
+import com.plyr.ui.components.ShareType
 
 /**
  * Vista detallada de un artista de Spotify
@@ -31,6 +34,8 @@ fun SpotifyArtistDetailView(
     error: String?,
     onAlbumClick: (SpotifyAlbum) -> Unit
 ) {
+    var showShareDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -101,6 +106,26 @@ fun SpotifyArtistDetailView(
             }
         }
 
+        // Botón de share para el artista
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "<share>",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                    color = Color(0xFFFF6B9D)
+                ),
+                modifier = Modifier
+                    .clickable { showShareDialog = true }
+                    .padding(8.dp)
+            )
+        }
+
         // Lista de álbumes
         when {
             isLoading -> {
@@ -165,6 +190,20 @@ fun SpotifyArtistDetailView(
                 }
             }
         }
+    }
+
+    if (showShareDialog) {
+        ShareDialog(
+            item = ShareableItem(
+                spotifyId = artist.id,
+                spotifyUrl = "https://open.spotify.com/artist/${artist.id}",
+                youtubeId = null,
+                title = artist.name,
+                artist = "Artist",
+                type = ShareType.ARTIST
+            ),
+            onDismiss = { showShareDialog = false }
+        )
     }
 }
 
@@ -253,4 +292,3 @@ private fun AlbumItem(
         }
     }
 }
-

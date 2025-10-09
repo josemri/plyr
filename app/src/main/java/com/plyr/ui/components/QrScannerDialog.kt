@@ -30,8 +30,14 @@ import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.PlanarYUVLuminanceSource
 import java.util.concurrent.Executors
 
+data class QrScanResult(
+    val source: String, // "spotify" or "youtube"
+    val type: String,   // "track", "playlist", "album", "artist"
+    val id: String
+)
+
 @Composable
-fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
+fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (QrScanResult?) -> Unit) {
     val context = LocalContext.current
     var cameraPermissionGranted by remember { mutableStateOf(false) }
     var permissionRequested by remember { mutableStateOf(false) }
@@ -84,8 +90,9 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                             .build()
                                         imageAnalysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
-                                            val result = scanQrFromImageProxy(imageProxy)
-                                            if (result != null) {
+                                            val qrText = scanQrFromImageProxy(imageProxy)
+                                            if (qrText != null) {
+                                                val result = parseQrContent(qrText)
                                                 onQrScanned(result)
                                                 onDismiss()
                                                 imageProxy.close()
@@ -117,6 +124,46 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (String) -> Unit) {
                 //Button(onClick = onDismiss) { Text("Cerrar") }
             }
         }
+    }
+}
+
+fun parseQrContent(qrText: String): QrScanResult? {
+    return try {
+        // Primero verificar si es una URL de Spotify directa
+        if (qrText.startsWith("https://open.spotify.com/")) {
+            val uri = android.net.Uri.parse(qrText)
+            val pathSegments = uri.pathSegments
+            if (pathSegments.size >= 2) {
+                val type = pathSegments[0] // "track", "playlist", "album", "artist"
+                val id = pathSegments[1].split("?").firstOrNull() ?: pathSegments[1] // Remover parámetros de query si existen
+                return QrScanResult("spotify", type, id)
+            }
+        }
+
+        // Formato YouTube URL
+        if (qrText.startsWith("https://www.youtube.com/watch?v=") || qrText.startsWith("https://youtu.be/")) {
+            val videoId = if (qrText.contains("youtube.com")) {
+                android.net.Uri.parse(qrText).getQueryParameter("v")
+            } else {
+                qrText.substringAfterLast("/").split("?").firstOrNull()
+            }
+            return videoId?.let { QrScanResult("youtube", "track", it) }
+        }
+
+        // Formato legacy: "plyr_spotify:track:1234567890" o "plyr_youtube:track:abcdefgh"
+        if (qrText.startsWith("plyr_spotify:") || qrText.startsWith("plyr_youtube:")) {
+            val parts = qrText.split(":")
+            if (parts.size >= 3) {
+                val source = parts[0].removePrefix("plyr_")
+                val type = parts[1]
+                val id = parts[2]
+                return QrScanResult(source, type, id)
+            }
+        }
+
+        null
+    } catch (_: Exception) {
+        null
     }
 }
 

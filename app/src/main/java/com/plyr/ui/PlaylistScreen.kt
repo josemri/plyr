@@ -35,6 +35,9 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
+import com.plyr.ui.components.ShareDialog
+import com.plyr.ui.components.ShareableItem
+import com.plyr.ui.components.ShareType
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
@@ -319,6 +322,7 @@ fun PlaylistsScreen(
                     var isStarting by remember { mutableStateOf(false) }
                     var randomJob by remember { mutableStateOf<Job?>(null) }
                     var startJob by remember { mutableStateOf<Job?>(null) }
+                    var showShareDialog by remember { mutableStateOf(false) }
 
                     // Función para parar todas las reproducciones
                     fun stopAllPlayback() {
@@ -455,6 +459,23 @@ fun PlaylistsScreen(
                                     }
                                     .padding(8.dp)
                             )
+
+                            // Botón <share>
+                            Text(
+                                text = "<share>",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 16.sp,
+                                    color = Color(0xFFFF6B9D)
+                                ),
+                                modifier = Modifier
+                                    .clickable {
+                                        showShareDialog = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                    .padding(8.dp)
+                            )
+
                             // Botón <edit>
                             Text(
                                 text = if (isEditing) "<done>" else "<edit>",
@@ -555,7 +576,9 @@ fun PlaylistsScreen(
                                 val song = Song(
                                     number = index + 1,
                                     title = track.name,
-                                    artist = track.getArtistNames()
+                                    artist = track.getArtistNames(),
+                                    spotifyId = track.id,
+                                    spotifyUrl = "https://open.spotify.com/track/${track.id}"
                                 )
                                 SongListItem(
                                     song = song,
@@ -567,6 +590,21 @@ fun PlaylistsScreen(
                                 )
                             }
                         }
+                    }
+
+                    // Diálogo de compartir - debe estar dentro del mismo scope que showShareDialog
+                    if (showShareDialog) {
+                        ShareDialog(
+                            item = ShareableItem(
+                                spotifyId = selectedPlaylist!!.id,
+                                spotifyUrl = "https://open.spotify.com/playlist/${selectedPlaylist!!.id}",
+                                youtubeId = null,
+                                title = selectedPlaylist!!.name,
+                                artist = "Playlist", //selectedPlaylist!!.owner?.display_name ?: "Playlist",
+                                type = ShareType.PLAYLIST
+                            ),
+                            onDismiss = { showShareDialog = false }
+                        )
                     }
                 }
             }
@@ -805,6 +843,8 @@ fun SpotifyPlaylistDetailView(
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope
 ) {
+    var showShareDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -852,6 +892,12 @@ fun SpotifyPlaylistDetailView(
                 text = "<save>",
                 color = Color(0xFF7FB069),
                 onClick = onSave,
+                enabled = true
+            )
+            ActionButton(
+                text = "<share>",
+                color = Color(0xFFFF6B9D),
+                onClick = { showShareDialog = true },
                 enabled = true
             )
         }
@@ -921,6 +967,20 @@ fun SpotifyPlaylistDetailView(
                 }
             }
         }
+    }
+
+    if (showShareDialog) {
+        ShareDialog(
+            item = ShareableItem(
+                spotifyId = playlist.id,
+                spotifyUrl = "https://open.spotify.com/playlist/${playlist.id}",
+                youtubeId = null,
+                title = playlist.name,
+                artist = "Playlist", //playlist.owner?.display_name ?: "Playlist",
+                type = ShareType.PLAYLIST
+            ),
+            onDismiss = { showShareDialog = false }
+        )
     }
 }
 

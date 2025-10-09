@@ -32,6 +32,9 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
+import com.plyr.ui.components.ShareDialog
+import com.plyr.ui.components.ShareableItem
+import com.plyr.ui.components.ShareType
 import com.plyr.ui.components.search.SpotifyArtistDetailView
 import com.plyr.ui.components.search.YouTubePlaylistDetailView
 import com.plyr.ui.components.search.YouTubeSearchResults
@@ -308,33 +311,6 @@ fun SearchScreen(
         }
     }
 
-    {
-        isLoadingPlaylists = true
-        userPlaylists = emptyList()
-
-        coroutineScope.launch {
-            try {
-                val accessToken = Config.getSpotifyAccessToken(context)
-                if (accessToken != null) {
-                    SpotifyRepository.getUserPlaylists(accessToken) { playlists, errorMsg ->
-                        isLoadingPlaylists = false
-                        if (playlists != null) {
-                            userPlaylists = playlists
-                        } else {
-                            error = "Error cargando playlists del usuario: $errorMsg"
-                        }
-                    }
-                } else {
-                    isLoadingPlaylists = false
-                    error = "Token de Spotify no disponible"
-                }
-            } catch (e: Exception) {
-                isLoadingPlaylists = false
-                error = "Error cargando playlists del usuario: ${e.message}"
-            }
-        }
-    }
-
     // Handle back button
     BackHandler {
         when {
@@ -449,6 +425,8 @@ fun SearchScreen(
             }
             selectedSpotifyAlbum != null -> {
                 val album = selectedSpotifyAlbum!!
+                var showShareDialog by remember { mutableStateOf(false) }
+
                 Column(
                     modifier = Modifier.fillMaxSize().padding(16.dp)
                 ) {
@@ -551,15 +529,14 @@ fun SearchScreen(
                             }.padding(8.dp)
                         )
                         Text(
-                            text = "<back>",
+                            text = "<share>",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 16.sp,
-                                color = Color(0xFF95A5A6)
+                                color = Color(0xFFFF6B9D)
                             ),
                             modifier = Modifier.clickable {
-                                selectedSpotifyAlbum = null
-                                selectedItemTracks = emptyList()
+                                showShareDialog = true
                             }.padding(8.dp)
                         )
                     }
@@ -612,7 +589,9 @@ fun SearchScreen(
                                 val song = Song(
                                     number = index + 1,
                                     title = track.name,
-                                    artist = track.getArtistNames()
+                                    artist = track.getArtistNames(),
+                                    spotifyId = track.id,
+                                    spotifyUrl = "https://open.spotify.com/track/${track.id}"
                                 )
                                 SongListItem(
                                     song = song,
@@ -625,6 +604,20 @@ fun SearchScreen(
                             }
                         }
                     }
+                }
+
+                if (showShareDialog) {
+                    ShareDialog(
+                        item = ShareableItem(
+                            spotifyId = album.id,
+                            spotifyUrl = "https://open.spotify.com/album/${album.id}",
+                            youtubeId = null,
+                            title = album.name,
+                            artist = album.getArtistNames(),
+                            type = ShareType.ALBUM
+                        ),
+                        onDismiss = { showShareDialog = false }
+                    )
                 }
             }
             selectedSpotifyArtist != null -> {
@@ -667,10 +660,82 @@ fun SearchScreen(
                 if (showQrScanner) {
                     QrScannerDialog(
                         onDismiss = { showQrScanner = false },
-                        onQrScanned = { qrContent ->
-                            searchQuery = qrContent
-                            performSearch(qrContent, false)
+                        onQrScanned = { qrResult ->
                             showQrScanner = false
+                            if (qrResult != null) {
+                                // Procesar el resultado del QR escaneado
+                                coroutineScope.launch {
+                                    try {
+                                        when (qrResult.source) {
+                                            "spotify" -> {
+                                                if (Config.isSpotifyConnected(context)) {
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null) {
+                                                        isLoading = true
+                                                        when (qrResult.type) {
+                                                            "track" -> {
+                                                                SpotifyRepository.getTrack(accessToken, qrResult.id) { track, errorMsg ->
+                                                                    isLoading = false
+                                                                    if (track != null) {
+                                                                        // Buscar este track específico
+                                                                        searchQuery = "${track.name} ${track.getArtistNames()}"
+                                                                        performSearch(searchQuery, false)
+                                                                    } else {
+                                                                        error = "Error obteniendo track: $errorMsg"
+                                                                    }
+                                                                }
+                                                            }
+                                                            "playlist" -> {
+                                                                SpotifyRepository.getPlaylist(accessToken, qrResult.id) { playlist, errorMsg ->
+                                                                    isLoading = false
+                                                                    if (playlist != null) {
+                                                                        loadSpotifyPlaylistTracks(playlist)
+                                                                    } else {
+                                                                        error = "Error obteniendo playlist: $errorMsg"
+                                                                    }
+                                                                }
+                                                            }
+                                                            "album" -> {
+                                                                SpotifyRepository.getAlbum(accessToken, qrResult.id) { album, errorMsg ->
+                                                                    isLoading = false
+                                                                    if (album != null) {
+                                                                        loadSpotifyAlbumTracks(album)
+                                                                    } else {
+                                                                        error = "Error obteniendo álbum: $errorMsg"
+                                                                    }
+                                                                }
+                                                            }
+                                                            "artist" -> {
+                                                                SpotifyRepository.getArtist(accessToken, qrResult.id) { artist, errorMsg ->
+                                                                    isLoading = false
+                                                                    if (artist != null) {
+                                                                        loadArtistAlbums(artist)
+                                                                    } else {
+                                                                        error = "Error obteniendo artista: $errorMsg"
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    } else {
+                                                        error = "Token de Spotify no disponible"
+                                                    }
+                                                } else {
+                                                    error = "Spotify no está conectado"
+                                                }
+                                            }
+                                            "youtube" -> {
+                                                // Buscar directamente el video ID en YouTube
+                                                val videoUrl = "https://www.youtube.com/watch?v=${qrResult.id}"
+                                                searchQuery = videoUrl
+                                                performSearch(videoUrl, false)
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        error = "Error procesando QR: ${e.message}"
+                                        isLoading = false
+                                    }
+                                }
+                            }
                         }
                     )
                 }
@@ -1195,7 +1260,9 @@ fun CollapsibleYouTubeSearchResultsView(
                     val song = Song(
                         number = index + 1,
                         title = item.title,
-                        artist = item.channel
+                        artist = item.channel,
+                        youtubeId = item.videoId,
+                        spotifyUrl = "https://www.youtube.com/watch?v=${item.videoId}"
                     )
                     SongListItem(
                         song = song,

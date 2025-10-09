@@ -4,7 +4,6 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
-import android.util.Log
 import android.app.Notification
 import android.app.PendingIntent
 import androidx.annotation.OptIn
@@ -16,64 +15,35 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.plyr.MainActivity
-import com.plyr.viewmodel.PlayerViewModel
 import androidx.media3.common.Player
 
-
 class MusicService : Service() {
-    private var CHANNEL_ID = "playback_channel"
+    private val CHANNEL_ID = "plyr_playback"
     private val NOTIFICATION_ID = 1
-    lateinit var mediaSession: MediaSession
-    var playerViewModel: PlayerViewModel? = null
-    companion object {
-        private const val TAG = "MusicService"
-    }
+    private var mediaSession: MediaSession? = null
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "MusicService creado")
-        // Crear canal de notificación
         NotificationManagerCompat.from(this).createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_LOW)
-                .setName("plyr")
+                .setName("Reproducción")
                 .build()
         )
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        intent?.getStringExtra("AUDIO_URL")
-        return START_NOT_STICKY
+    inner class MusicBinder : Binder() {
+        fun getService() = this@MusicService
     }
 
-    inner class MusicBinder : Binder() {
-        fun getService(): MusicService = this@MusicService
-    }
-    private val binder = MusicBinder()
-    override fun onBind(intent: Intent): IBinder = binder
+    override fun onBind(intent: Intent): IBinder = MusicBinder()
 
     @OptIn(UnstableApi::class)
-    private fun createNotification(player: ExoPlayer): Notification {
-        val mediaItem = player.currentMediaItem
-        Log.d(TAG, "Creando notificación para: ${player.currentMediaItem}")
-        val title = mediaItem?.mediaMetadata?.title ?: "Unknown Title"
-        val artist = mediaItem?.mediaMetadata?.artist ?: "Unknown Artist"
+    fun setupMediaSession(player: ExoPlayer) {
+        if (mediaSession != null) {
+            updateNotification(player)
+            return
+        }
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(title)
-            .setContentText(artist)
-            .setStyle(MediaStyleNotificationHelper.MediaStyle(mediaSession))
-            .setOngoing(true)
-            .build()
-    }
-
-    override fun onDestroy() {
-        Log.d(TAG, "MusicService destruido")
-        mediaSession.release()
-        super.onDestroy()
-    }
-
-    fun startMediaSession(player: ExoPlayer){
         mediaSession = MediaSession.Builder(this, player)
             .setSessionActivity(
                 PendingIntent.getActivity(
@@ -84,20 +54,36 @@ class MusicService : Service() {
             )
             .build()
 
-        // Listener para actualizar la notificación al cambiar de canción
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
                 updateNotification(player)
             }
         })
 
-        // Iniciar servicio en primer plano
         startForeground(NOTIFICATION_ID, createNotification(player))
     }
 
-    fun updateNotification(player: ExoPlayer) {
-        if (::mediaSession.isInitialized) {
-            startForeground(NOTIFICATION_ID, createNotification(player))
-        }
+    @OptIn(UnstableApi::class)
+    private fun createNotification(player: ExoPlayer): Notification {
+        val item = player.currentMediaItem
+        val title = item?.mediaMetadata?.title?.toString() ?: "Plyr"
+        val artist = item?.mediaMetadata?.artist?.toString() ?: "Reproduciendo"
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(title)
+            .setContentText(artist)
+            .setStyle(MediaStyleNotificationHelper.MediaStyle(mediaSession!!))
+            .setOngoing(true)
+            .build()
+    }
+
+    private fun updateNotification(player: ExoPlayer) {
+        mediaSession?.let { startForeground(NOTIFICATION_ID, createNotification(player)) }
+    }
+
+    override fun onDestroy() {
+        mediaSession?.release()
+        super.onDestroy()
     }
 }

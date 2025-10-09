@@ -19,6 +19,9 @@ import com.plyr.ui.components.PlyrInfoText
 import com.plyr.ui.components.PlyrLoadingIndicator
 import com.plyr.ui.components.PlyrMediumSpacer
 import com.plyr.ui.components.PlyrSmallSpacer
+import com.plyr.ui.components.ShareDialog
+import com.plyr.ui.components.ShareableItem
+import com.plyr.ui.components.ShareType
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
@@ -36,6 +39,7 @@ fun YouTubePlaylistDetailView(
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
+    var showShareDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -129,6 +133,14 @@ fun YouTubePlaylistDetailView(
                 ),
                 modifier = Modifier.clickable { /* futuro guardado */ }
             )
+            Text(
+                text = "<share>",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFFF6B9D)
+                ),
+                modifier = Modifier.clickable { showShareDialog = true }
+            )
         }
         PlyrMediumSpacer()
 
@@ -148,7 +160,9 @@ fun YouTubePlaylistDetailView(
                         val song = Song(
                             number = idx + 1,
                             title = v.title,
-                            artist = v.uploader
+                            artist = v.uploader,
+                            youtubeId = v.videoId,
+                            spotifyUrl = "https://www.youtube.com/watch?v=${v.videoId}"
                         )
                         val isSelected = playerViewModel?.currentTrack?.value?.id == trackEntities.getOrNull(idx)?.id
                         SongListItem(
@@ -163,5 +177,19 @@ fun YouTubePlaylistDetailView(
                 }
             }
         }
+    }
+
+    if (showShareDialog) {
+        ShareDialog(
+            item = ShareableItem(
+                spotifyId = null,
+                spotifyUrl = null,
+                youtubeId = playlist.playlistId,
+                title = playlist.title,
+                artist = "YouTube Playlist",
+                type = ShareType.PLAYLIST
+            ),
+            onDismiss = { showShareDialog = false }
+        )
     }
 }
