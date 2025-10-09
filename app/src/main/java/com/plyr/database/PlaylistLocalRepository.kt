@@ -161,6 +161,30 @@ class PlaylistLocalRepository(context: Context) {
 
                     // Usar runBlocking dentro del callback para operaciones suspend
                     kotlinx.coroutines.runBlocking {
+                        // Obtener IDs de playlists de Spotify
+                        val spotifyPlaylistIds = playlists.map { it.id }.toSet()
+
+                        // Obtener todas las playlists locales
+                        val localPlaylists = playlistDao.getAllPlaylistsSync()
+
+                        // Encontrar playlists que están en local pero no en Spotify
+                        val playlistsToDelete = localPlaylists.filter { localPlaylist ->
+                            localPlaylist.spotifyId !in spotifyPlaylistIds
+                        }
+
+                        // Eliminar playlists que ya no existen en Spotify
+                        if (playlistsToDelete.isNotEmpty()) {
+                            Log.d(TAG, "Eliminando ${playlistsToDelete.size} playlists que ya no existen en Spotify")
+                            playlistsToDelete.forEach { playlist ->
+                                Log.d(TAG, "Eliminando playlist local: ${playlist.name} (${playlist.spotifyId})")
+                                // Primero eliminar los tracks de esta playlist
+                                trackDao.deleteTracksByPlaylist(playlist.spotifyId)
+                                // Luego eliminar la playlist
+                                playlistDao.deletePlaylistById(playlist.spotifyId)
+                            }
+                        }
+
+                        // Insertar o actualizar playlists de Spotify
                         playlistDao.insertPlaylists(playlistEntities)
                         Log.d(
                             TAG,

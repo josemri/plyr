@@ -524,7 +524,7 @@ object SpotifyRepository {
     }
 
     // Crear una nueva playlist en Spotify
-    fun createPlaylist(accessToken: String, name: String, description: String, isPublic: Boolean, callback: (Boolean, String?) -> Unit) {
+    fun createPlaylist(accessToken: String, name: String, description: String, isPublic: Boolean, trackIds: List<String> = emptyList(), callback: (Boolean, String?) -> Unit) {
         // Primero necesitamos obtener el ID del usuario
         getUserProfile(accessToken) { userId, error ->
             if (userId != null) {
@@ -549,11 +549,28 @@ object SpotifyRepository {
                     }
 
                     override fun onResponse(call: Call, response: Response) {
+                        val body = response.body.string()
                         if (response.isSuccessful) {
-                            callback(true, null)
+                            // Si hay canciones para añadir, las añadimos ahora
+                            if (trackIds.isNotEmpty()) {
+                                try {
+                                    val createdPlaylist = gson.fromJson(body, SpotifyPlaylist::class.java)
+                                    // Añadir las canciones a la playlist recién creada
+                                    addTracksToPlaylist(accessToken, createdPlaylist.id, trackIds) { success, errorMsg ->
+                                        if (success) {
+                                            callback(true, null)
+                                        } else {
+                                            callback(false, "Playlist creada pero error añadiendo canciones: $errorMsg")
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    callback(false, "Error procesando playlist creada: ${e.message}")
+                                }
+                            } else {
+                                callback(true, null)
+                            }
                         } else {
-                            val errorBody = response.body.string()
-                            callback(false, "Error HTTP ${response.code}: $errorBody")
+                            callback(false, "Error HTTP ${response.code}: $body")
                         }
                     }
                 })
@@ -561,6 +578,35 @@ object SpotifyRepository {
                 callback(false, error ?: "Error obteniendo perfil de usuario")
             }
         }
+    }
+
+    // Añadir múltiples canciones a una playlist
+    fun addTracksToPlaylist(accessToken: String, playlistId: String, trackIds: List<String>, callback: (Boolean, String?) -> Unit) {
+        val uris = trackIds.map { "spotify:track:$it" }
+        val jsonBody = gson.toJson(mapOf("uris" to uris))
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId/tracks")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
     }
 
     // Obtener el perfil del usuario (necesario para crear playlists)

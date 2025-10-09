@@ -8,7 +8,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -19,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -707,14 +712,25 @@ fun CreateSpotifyPlaylistScreen(
     var isPublic by remember { mutableStateOf(true) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    // Estados para el buscador de canciones
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(false) }
+    var searchResults by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+    var selectedTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     BackHandler {
         onBack()
     }
+
     Column(
         Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Text(
             text = "$ create_playlist",
@@ -792,6 +808,192 @@ fun CreateSpotifyPlaylistScreen(
                 )
             }
         }
+
+        // Sección de buscador de canciones
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = "> add_tracks",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 16.sp,
+                color = Color(0xFF4ECDC4)
+            ),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        // Campo de búsqueda
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Search tracks") },
+            modifier = Modifier.fillMaxWidth(),
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Text(
+                            text = "x",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace
+                            )
+                        )
+                    }
+                }
+            },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(
+                onSearch = {
+                    if (searchQuery.isNotBlank() && !isSearching) {
+                        isSearching = true
+                        val accessToken = Config.getSpotifyAccessToken(context)
+                        if (accessToken != null) {
+                            coroutineScope.launch {
+                                SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
+                                    isSearching = false
+                                    if (results != null) {
+                                        searchResults = results.tracks.items
+                                    } else {
+                                        error = errorMsg
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            ),
+            enabled = !isSearching
+        )
+
+        // Mostrar indicador de búsqueda
+        if (isSearching) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "$ searching...",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFFFD93D)
+                )
+            )
+        }
+
+        // Resultados de búsqueda
+        if (searchResults.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "results:",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFE0E0E0)
+                )
+            )
+            searchResults.take(10).forEach { track ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (!selectedTracks.contains(track)) {
+                                selectedTracks = selectedTracks + track
+                                searchResults = emptyList()
+                                searchQuery = ""
+                            }
+                        }
+                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "+",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF4ECDC4)
+                        ),
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = track.name,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFE0E0E0)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = track.getArtistNames(),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFF95A5A6)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+
+        // Lista de canciones seleccionadas
+        if (selectedTracks.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "selected [${selectedTracks.size}]:",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF4ECDC4)
+                )
+            )
+            selectedTracks.forEachIndexed { index, track ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${index + 1}.",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF95A5A6)
+                        ),
+                        modifier = Modifier.width(32.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = track.name,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFFE0E0E0)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = track.getArtistNames(),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFF95A5A6)
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = "x",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFFFF6B6B)
+                        ),
+                        modifier = Modifier
+                            .clickable {
+                                selectedTracks = selectedTracks.filterIndexed { i, _ -> i != index }
+                            }
+                            .padding(8.dp)
+                    )
+                }
+            }
+        }
+
         Spacer(Modifier.height(16.dp))
         Text(
             text = if (isLoading) "<creating...>" else "<create>",
@@ -802,16 +1004,18 @@ fun CreateSpotifyPlaylistScreen(
             ),
             modifier = Modifier
                 .clickable(enabled = !isLoading && playlistName.isNotBlank()) {
-                    // Acción de crear playlist
+                    // Acción de crear playlist con las canciones seleccionadas
                     isLoading = true
                     error = null
                     val accessToken = Config.getSpotifyAccessToken(context)
                     if (accessToken != null) {
+                        val trackIds = selectedTracks.map { it.id }
                         SpotifyRepository.createPlaylist(
                             accessToken,
                             playlistName,
                             playlistDesc,
-                            isPublic
+                            isPublic,
+                            trackIds
                         ) { success, errMsg ->
                             isLoading = false
                             if (success) onPlaylistCreated() else error = errMsg ?: "Unknown error"
