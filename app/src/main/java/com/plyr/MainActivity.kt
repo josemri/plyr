@@ -31,7 +31,6 @@ import com.plyr.ui.theme.PlyrTheme
 import com.plyr.network.SpotifyRepository
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyAuthEvent
-import com.plyr.model.AudioItem
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.launch
 

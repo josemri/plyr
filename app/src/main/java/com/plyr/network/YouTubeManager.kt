@@ -35,7 +35,7 @@ object YouTubeManager {
                 .firstOrNull()?.url
                 ?.substringAfterLast("=")
                 ?.substringBefore("&")
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -52,7 +52,7 @@ object YouTubeManager {
             extractor.fetchPage()
 
             extractor.audioStreams.firstOrNull()?.content
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
