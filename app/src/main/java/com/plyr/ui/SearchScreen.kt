@@ -164,7 +164,46 @@ fun SearchScreen(
                                                 isLoading = false
                                                 error = "Error searching Spotify: $searchError"
                                             } else if (searchResults != null) {
-                                                spotifyResults = searchResults
+
+
+                                                // Filtrar playlists nulas antes de procesar
+                                                val validPlaylists = searchResults.playlists.items.filterNotNull()
+                                                val nullPlaylistsCount = searchResults.playlists.items.size - validPlaylists.size
+
+
+                                                // Serializar y mostrar toda la respuesta en JSON
+                                                try {
+                                                    val gson = com.google.gson.Gson()
+                                                    val fullJson = gson.toJson(searchResults)
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("SearchScreen", "Error serializando respuesta a JSON", e)
+                                                }
+
+                                                // Mostrar detalles específicos de cada playlist VÁLIDA
+                                                validPlaylists.forEachIndexed { index, playlist ->
+                                                    // JSON individual de cada playlist
+                                                    try {
+                                                        val gson = com.google.gson.Gson()
+                                                        val playlistJson = gson.toJson(playlist)
+                                                    } catch (e: Exception) {
+                                                        android.util.Log.e("SearchScreen", "Error serializando playlist #$index", e)
+                                                    }
+                                                }
+                                                // Crear un nuevo objeto de resultados con las playlists filtradas
+                                                val filteredResults = SpotifySearchAllResponse(
+                                                    tracks = searchResults.tracks,
+                                                    albums = searchResults.albums,
+                                                    artists = searchResults.artists,
+                                                    playlists = SpotifyPlaylistsSearchResult(
+                                                        items = validPlaylists,
+                                                        total = searchResults.playlists.total,
+                                                        limit = searchResults.playlists.limit,
+                                                        offset = searchResults.playlists.offset,
+                                                        next = searchResults.playlists.next
+                                                    )
+                                                )
+
+                                                spotifyResults = filteredResults
 
                                                 // Para esta implementación, como searchAllWithPagination ya obtiene todos los resultados,
                                                 // no hay paginación manual adicional necesaria
