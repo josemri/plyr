@@ -840,7 +840,7 @@ data class SpotifyArtistsSearchResult(
 )
 
 data class SpotifyPlaylistsSearchResult(
-    val items: List<SpotifyPlaylist>,
+    val items: List<SpotifyPlaylist?>,
     val total: Int? = null,
     val limit: Int? = null,
     val offset: Int? = null,

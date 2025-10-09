@@ -170,25 +170,6 @@ fun SearchScreen(
                                                 val validPlaylists = searchResults.playlists.items
                                                 searchResults.playlists.items.size - validPlaylists.size
 
-
-                                                // Serializar y mostrar toda la respuesta en JSON
-                                                try {
-                                                    val gson = com.google.gson.Gson()
-                                                    gson.toJson(searchResults)
-                                                } catch (e: Exception) {
-                                                    android.util.Log.e("SearchScreen", "Error serializando respuesta a JSON", e)
-                                                }
-
-                                                // Mostrar detalles específicos de cada playlist VÁLIDA
-                                                validPlaylists.forEachIndexed { index, playlist ->
-                                                    // JSON individual de cada playlist
-                                                    try {
-                                                        val gson = com.google.gson.Gson()
-                                                        gson.toJson(playlist)
-                                                    } catch (e: Exception) {
-                                                        android.util.Log.e("SearchScreen", "Error serializando playlist #$index", e)
-                                                    }
-                                                }
                                                 // Crear un nuevo objeto de resultados con las playlists filtradas
                                                 val filteredResults = SpotifySearchAllResponse(
                                                     tracks = searchResults.tracks,
@@ -1160,13 +1141,13 @@ fun CollapsibleSpotifySearchResultsView(
             )
 
             if (playlistsExpanded) {
+                val nonNullPlaylists = results.playlists.items.filterNotNull()
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp)
                 ) {
-                    items(results.playlists.items.size) { index ->
-                        val playlist = results.playlists.items[index]
+                    items(nonNullPlaylists) { playlist ->
                         Column(
                             modifier = Modifier
                                 .width(120.dp)
