@@ -42,6 +42,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentTrack = MutableLiveData<TrackEntity?>()
     val currentTrack: LiveData<TrackEntity?> = _currentTrack
 
+    // Queue management
+    private val _queueTracks = MutableLiveData<List<TrackEntity>>(emptyList())
+    val queueTracks: LiveData<List<TrackEntity>> = _queueTracks
+
     var onMediaSessionUpdate: ((ExoPlayer) -> Unit)? = null
 
     private var loadingJobsActive = false
@@ -203,6 +207,46 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             Config.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ALL
             else -> Player.REPEAT_MODE_OFF
         }
+    }
+
+    // Queue functionality
+    fun addToQueue(track: TrackEntity) {
+        // Añadir a la lista interna de queue
+        val updatedQueue = _queueTracks.value?.toMutableList() ?: mutableListOf()
+        updatedQueue.add(track)
+        _queueTracks.postValue(updatedQueue)
+
+        // Añadir también a la playlist actual para que se muestre en QueueScreen
+        val currentPlaylist = _currentPlaylist.value?.toMutableList() ?: mutableListOf()
+        currentPlaylist.add(track)
+        _currentPlaylist.postValue(currentPlaylist)
+
+        // Cargar el audio del track en el reproductor de forma asíncrona
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val videoId = track.youtubeVideoId ?: YouTubeManager.searchVideoId("${track.name} ${track.artists}")
+                val audioUrl = videoId?.let { YouTubeManager.getAudioUrl(it) }
+
+                if (audioUrl != null) {
+                    withContext(Dispatchers.Main) {
+                        _exoPlayer?.addMediaItem(createMediaItem(track, audioUrl))
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("PlayerViewModel", "Error loading track to queue: ${e.message}")
+            }
+        }
+    }
+
+    fun playNextInQueue() {
+        val nextTrack = _queueTracks.value?.firstOrNull() ?: return
+        removeFromQueue(nextTrack)
+    }
+
+    private fun removeFromQueue(track: TrackEntity) {
+        val updatedQueue = _queueTracks.value?.toMutableList() ?: return
+        updatedQueue.remove(track)
+        _queueTracks.postValue(updatedQueue)
     }
 
     override fun onCleared() {

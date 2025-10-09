@@ -627,6 +627,36 @@ object SpotifyRepository {
         })
     }
 
+    // Obtener información detallada de un track (incluye información del álbum)
+    fun getTrackInfo(accessToken: String, trackId: String, callback: (SpotifyTrack?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/tracks/$trackId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        android.util.Log.d("SpotifyRepository", "Track info response: $body")
+                        val track = gson.fromJson(body, SpotifyTrack::class.java)
+                        callback(track, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing track info: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
     // Obtener una playlist por ID
     fun getPlaylist(accessToken: String, playlistId: String, callback: (SpotifyPlaylist?, String?) -> Unit) {
         val request = Request.Builder()
@@ -757,7 +787,8 @@ data class SpotifyTrack(
     val id: String,
     val name: String,
     val artists: List<SpotifyArtist>,
-    @SerializedName("duration_ms") val durationMs: Int? = null
+    @SerializedName("duration_ms") val durationMs: Int? = null,
+    val album: SpotifyAlbumSimple? = null
 ) {
     fun getArtistNames(): String {
         return artists.joinToString(", ") { it.name }
@@ -768,6 +799,14 @@ data class SpotifyTrack(
     }
 
 }
+
+// Simplified album info for track details
+data class SpotifyAlbumSimple(
+    val id: String,
+    val name: String,
+    @SerializedName("release_date") val releaseDate: String? = null,
+    val images: List<SpotifyImage>? = null
+)
 
 data class SpotifySearchAllResponse(
     val tracks: SpotifyTracksSearchResult,
