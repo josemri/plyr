@@ -1049,7 +1049,9 @@ fun CollapsibleSpotifySearchResultsView(
                         val song = Song(
                             number = index + 1,
                             title = track.name,
-                            artist = track.getArtistNames()
+                            artist = track.getArtistNames(),
+                            spotifyId = track.id,
+                            spotifyUrl = "https://open.spotify.com/track/${track.id}"
                         )
                         SongListItem(
                             song = song,
