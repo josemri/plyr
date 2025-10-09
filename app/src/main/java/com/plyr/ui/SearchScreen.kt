@@ -1,5 +1,6 @@
 package com.plyr.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
@@ -167,14 +168,14 @@ fun SearchScreen(
 
 
                                                 // Filtrar playlists nulas antes de procesar
-                                                val validPlaylists = searchResults.playlists.items.filterNotNull()
-                                                val nullPlaylistsCount = searchResults.playlists.items.size - validPlaylists.size
+                                                val validPlaylists = searchResults.playlists.items
+                                                searchResults.playlists.items.size - validPlaylists.size
 
 
                                                 // Serializar y mostrar toda la respuesta en JSON
                                                 try {
                                                     val gson = com.google.gson.Gson()
-                                                    val fullJson = gson.toJson(searchResults)
+                                                    gson.toJson(searchResults)
                                                 } catch (e: Exception) {
                                                     android.util.Log.e("SearchScreen", "Error serializando respuesta a JSON", e)
                                                 }
@@ -184,7 +185,7 @@ fun SearchScreen(
                                                     // JSON individual de cada playlist
                                                     try {
                                                         val gson = com.google.gson.Gson()
-                                                        val playlistJson = gson.toJson(playlist)
+                                                        gson.toJson(playlist)
                                                     } catch (e: Exception) {
                                                         android.util.Log.e("SearchScreen", "Error serializando playlist #$index", e)
                                                     }

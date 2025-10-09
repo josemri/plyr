@@ -21,7 +21,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.network.SpotifyRepository
@@ -129,7 +128,7 @@ fun SongListItem(
 
     if (showPopup) {
         // Cargar información de la canción cuando se abre el popup
-        LaunchedEffect(showPopup) {
+        LaunchedEffect(true) {
             if (showPopup && song.spotifyId != null) {
                 isLoadingTrackInfo = true
                 fetchInfoError = null
@@ -262,7 +261,7 @@ fun SongListItem(
                                         Text(
                                             text = "Duration: ${trackInfo?.durationMs?.let { ms -> 
                                                 val minutes = ms / 60000
-                                                val seconds = String.format("%02d", (ms % 60000) / 1000)
+                                                val seconds = "%02d".format((ms % 60000) / 1000)
                                                 "$minutes:$seconds"
                                             } ?: "N/A"}",
                                             style = MaterialTheme.typography.bodySmall.copy(

@@ -44,7 +44,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     // Queue management
     private val _queueTracks = MutableLiveData<List<TrackEntity>>(emptyList())
-    val queueTracks: LiveData<List<TrackEntity>> = _queueTracks
 
     var onMediaSessionUpdate: ((ExoPlayer) -> Unit)? = null
 
@@ -236,17 +235,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 android.util.Log.e("PlayerViewModel", "Error loading track to queue: ${e.message}")
             }
         }
-    }
-
-    fun playNextInQueue() {
-        val nextTrack = _queueTracks.value?.firstOrNull() ?: return
-        removeFromQueue(nextTrack)
-    }
-
-    private fun removeFromQueue(track: TrackEntity) {
-        val updatedQueue = _queueTracks.value?.toMutableList() ?: return
-        updatedQueue.remove(track)
-        _queueTracks.postValue(updatedQueue)
     }
 
     override fun onCleared() {
