@@ -71,6 +71,11 @@ fun PlaylistsScreen(
     var isSyncing by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
 
+    // Estado para Liked Songs
+    var likedSongs by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+    var isLoadingLikedSongs by remember { mutableStateOf(false) }
+    var likedSongsCount by remember { mutableStateOf(0) }
+
     // Estados para detectar cambios en modo edición (movidos aquí para ser accesibles globalmente)
     var showExitEditDialog by remember { mutableStateOf(false) }
     var hasUnsavedChanges by remember { mutableStateOf(false) }
@@ -151,6 +156,36 @@ fun PlaylistsScreen(
         }
     }
 
+    // Función para cargar las Liked Songs del usuario
+    val loadLikedSongs: () -> Unit = {
+        isLoadingLikedSongs = true
+
+        coroutineScope.launch {
+            try {
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    // Obtener las Liked Songs usando la API de Spotify
+                    SpotifyRepository.getUserSavedTracks(accessToken) { tracks, errorMsg ->
+                        isLoadingLikedSongs = false
+                        if (tracks != null) {
+                            likedSongs = tracks
+                            likedSongsCount = tracks.size
+                            Log.d("PlaylistsScreen", "✓ Liked Songs actualizadas: ${tracks.size} canciones")
+                        } else {
+                            Log.e("PlaylistsScreen", "Error loading liked songs: $errorMsg")
+                        }
+                    }
+                } else {
+                    isLoadingLikedSongs = false
+                }
+            } catch (e: Exception) {
+                isLoadingLikedSongs = false
+                Log.e("PlaylistsScreen", "Exception loading liked songs: ${e.message}")
+            }
+        }
+    }
+
+
     // Función para forzar sincronización completa
     val forceSyncAll = {
         if (!isSpotifyConnected) {
@@ -160,6 +195,7 @@ fun PlaylistsScreen(
             coroutineScope.launch {
                 try {
                     localRepository.forceSyncAll()
+                    loadLikedSongs()
                     isSyncing = false
                 } catch (_: Exception) {
                     isSyncing = false
@@ -168,10 +204,11 @@ fun PlaylistsScreen(
         }
     }
 
-    // Cargar playlists al iniciar si está conectado
+    // Cargar playlists y Liked Songs al iniciar si está conectado
     LaunchedEffect(isSpotifyConnected) {
         if (isSpotifyConnected) {
             loadPlaylists()
+            loadLikedSongs()
         }
     }
 
@@ -959,7 +996,11 @@ fun PlaylistsScreen(
                                         index = index,
                                         playerViewModel = playerViewModel,
                                         coroutineScope = coroutineScope,
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onLikedStatusChanged = {
+                                            // Recargar las Liked Songs cuando se modifica el estado
+                                            loadLikedSongs()
+                                        }
                                     )
                                 }
                             }
@@ -1095,6 +1136,93 @@ fun PlaylistsScreen(
                             verticalArrangement = Arrangement.spacedBy(16.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                            // Primer item: Liked Songs
+                            if (likedSongsCount > 0) {
+                                item {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                // Mostrar las Liked Songs como una playlist especial
+                                                selectedPlaylist = SpotifyPlaylist(
+                                                    id = "liked_songs",
+                                                    name = "Liked Songs",
+                                                    description = "Your favorite tracks on Spotify",
+                                                    tracks = com.plyr.network.SpotifyPlaylistTracks(null, likedSongsCount),
+                                                    images = null
+                                                )
+                                                playlistTracks = likedSongs
+                                                isLoadingTracks = false
+                                                selectedPlaylistEntity = null
+                                            },
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        // Icono de corazón para Liked Songs (en lugar de portada)
+                                        Box(
+                                            modifier = Modifier
+                                                .size(150.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    selectedPlaylist = SpotifyPlaylist(
+                                                        id = "liked_songs",
+                                                        name = "Liked Songs",
+                                                        description = "Your favorite tracks on Spotify",
+                                                        tracks = com.plyr.network.SpotifyPlaylistTracks(null, likedSongsCount),
+                                                        images = null
+                                                    )
+                                                    playlistTracks = likedSongs
+                                                    isLoadingTracks = false
+                                                    selectedPlaylistEntity = null
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            // Fondo degradado
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(RoundedCornerShape(8.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                androidx.compose.foundation.Canvas(
+                                                    modifier = Modifier.fillMaxSize()
+                                                ) {
+                                                    drawRect(
+                                                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                            colors = listOf(
+                                                                Color(0xFF4ECDC4),
+                                                                Color(0xFF7FB069)
+                                                            )
+                                                        )
+                                                    )
+                                                }
+                                                // Emoji de corazón
+                                                Text(
+                                                    text = "♥",
+                                                    style = MaterialTheme.typography.displayLarge.copy(
+                                                        fontSize = 64.sp,
+                                                        color = Color.White
+                                                    )
+                                                )
+                                            }
+                                        }
+
+                                        // Nombre de la playlist
+                                        Text(
+                                            text = "Liked Songs",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFFE0E0E0)
+                                            ),
+                                            modifier = Modifier.padding(top = 8.dp),
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Resto de las playlists
                             items(playlists.size) { index ->
                                 val playlist = playlists[index]
                                 val playlistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
@@ -1617,7 +1745,11 @@ fun SpotifyPlaylistDetailView(
                         index = index,
                         playerViewModel = playerViewModel,
                         coroutineScope = coroutineScope,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        onLikedStatusChanged = {
+                            // Recargar las Liked Songs cuando se modifica el estado
+                            // (necesitamos acceso al contexto y coroutineScope)
+                        }
                     )
                 }
             }

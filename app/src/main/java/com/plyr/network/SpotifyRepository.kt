@@ -841,6 +841,161 @@ object SpotifyRepository {
             }
         })
     }
+
+    // Obtener canciones favoritas del usuario (Liked Songs) con paginación
+    fun getUserSavedTracks(accessToken: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
+        val maxLimit = 50 // Máximo permitido por Spotify
+        val allTracks = mutableListOf<SpotifyTrack>()
+        var pageCount = 0
+
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(offset: Int = 0) {
+            val request = Request.Builder()
+                .url("$API_BASE_URL/me/tracks?limit=$maxLimit&offset=$offset")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body.string()
+                    if (response.isSuccessful) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "User saved tracks response (offset=$offset): ${body.take(200)}...")
+                            val savedTracksResponse = gson.fromJson(body, SpotifySavedTracksResponse::class.java)
+
+                            // Extraer los tracks de los items y filtrar nulls
+                            val tracks = savedTracksResponse.items.mapNotNull { it.track }
+                            allTracks.addAll(tracks)
+                            pageCount++
+
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount loaded: ${tracks.size} saved tracks, total accumulated: ${allTracks.size}")
+
+                            // Enviar resultados actualizados después de cada página
+                            callback(allTracks.toList(), null)
+
+                            // Verificar si hay más páginas que cargar
+                            val hasMoreTracks = savedTracksResponse.items.size == maxLimit
+                            val nextOffset = offset + maxLimit
+                            val wouldExceedLimit = nextOffset >= 1000
+
+                            // Si hay más contenido y no excedemos el límite, continuar paginando
+                            if (hasMoreTracks && !wouldExceedLimit) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next saved tracks page: offset=$nextOffset")
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextOffset)
+                                }, 200)
+                            } else {
+                                if (wouldExceedLimit) {
+                                    android.util.Log.d("SpotifyRepository", "Saved tracks pagination stopped: reached API limit (offset would be $nextOffset >= 1000)")
+                                } else {
+                                    android.util.Log.d("SpotifyRepository", "Saved tracks pagination completed: no more results available")
+                                }
+                                android.util.Log.d("SpotifyRepository", "Final saved tracks count: ${allTracks.size}")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing saved tracks: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+
+        // Iniciar la paginación
+        fetchPage(0)
+    }
+
+    // Añadir una canción a Liked Songs (favoritos del usuario)
+    fun saveTrack(accessToken: String, trackId: String, callback: (Boolean, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/me/tracks?ids=$trackId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .put("{}".toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    android.util.Log.d("SpotifyRepository", "✓ Track añadido a Liked Songs: $trackId")
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body.string()
+                    android.util.Log.e("SpotifyRepository", "Error añadiendo a Liked Songs: ${response.code} - $errorBody")
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
+    }
+
+    // Quitar una canción de Liked Songs (favoritos del usuario)
+    fun removeTrack(accessToken: String, trackId: String, callback: (Boolean, String?) -> Unit) {
+        val jsonBody = gson.toJson(mapOf("ids" to listOf(trackId)))
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/me/tracks")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .delete(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    android.util.Log.d("SpotifyRepository", "✓ Track eliminado de Liked Songs: $trackId")
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body.string()
+                    android.util.Log.e("SpotifyRepository", "Error eliminando de Liked Songs: ${response.code} - $errorBody")
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
+    }
+
+    // Verificar si una canción está en Liked Songs
+    fun checkSavedTrack(accessToken: String, trackId: String, callback: (Boolean?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/me/tracks/contains?ids=$trackId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        val result = gson.fromJson(body, Array<Boolean>::class.java)
+                        callback(result.firstOrNull() ?: false, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing response: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
 }
 
 
@@ -1018,4 +1173,16 @@ data class SpotifyUserProfile(
     @SerializedName("display_name") val displayName: String?,
     val email: String?,
     val images: List<SpotifyImage>?
+)
+
+data class SpotifySavedTracksResponse(
+    val items: List<SpotifySavedTrackItem>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
+)
+
+data class SpotifySavedTrackItem(
+    val track: SpotifyTrack?
 )

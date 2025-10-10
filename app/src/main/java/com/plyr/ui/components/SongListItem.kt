@@ -26,6 +26,7 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyTrack
+import com.plyr.ui.PlaylistsScreen
 import com.plyr.utils.Config
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -50,20 +51,23 @@ fun SongListItem(
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
-    isSelected: Boolean = false
+    isSelected: Boolean = false,
+    onLikedStatusChanged: (() -> Unit)? = null
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     var showPopup by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
     var showPlaylistDialog by remember { mutableStateOf(false) }
-    var userPlaylists by remember { mutableStateOf<List<SpotifyPlaylist>>(emptyList()) }
+    var userPlaylists by remember { mutableStateOf<List<com.plyr.network.SpotifyPlaylist>>(emptyList()) }
     var isLoadingPlaylists by remember { mutableStateOf(false) }
     var addToPlaylistError by remember { mutableStateOf<String?>(null) }
     var addToPlaylistSuccess by remember { mutableStateOf(false) }
     var isLoadingTrackInfo by remember { mutableStateOf(false) }
-    var fetchedTrackInfo by remember { mutableStateOf<SpotifyTrack?>(null) }
+    var fetchedTrackInfo by remember { mutableStateOf<com.plyr.network.SpotifyTrack?>(null) }
     var fetchInfoError by remember { mutableStateOf<String?>(null) }
+    var isLiked by remember { mutableStateOf<Boolean?>(null) }
+    var isCheckingLiked by remember { mutableStateOf(false) }
 
     Row(
         modifier = modifier
@@ -131,9 +135,11 @@ fun SongListItem(
         LaunchedEffect(true) {
             if (showPopup && song.spotifyId != null) {
                 isLoadingTrackInfo = true
+                isCheckingLiked = true
                 fetchInfoError = null
                 val accessToken = Config.getSpotifyAccessToken(context)
                 if (accessToken != null) {
+                    // Obtener info del track
                     SpotifyRepository.getTrackInfo(accessToken, song.spotifyId) { trackInfo, error ->
                         isLoadingTrackInfo = false
                         if (trackInfo != null) {
@@ -142,8 +148,17 @@ fun SongListItem(
                             fetchInfoError = error ?: "Error fetching track info"
                         }
                     }
+
+                    // Verificar si está en Liked Songs
+                    SpotifyRepository.checkSavedTrack(accessToken, song.spotifyId) { liked, error ->
+                        isCheckingLiked = false
+                        if (error == null) {
+                            isLiked = liked
+                        }
+                    }
                 } else {
                     isLoadingTrackInfo = false
+                    isCheckingLiked = false
                     fetchInfoError = "Token de Spotify no disponible"
                 }
             }
@@ -370,6 +385,52 @@ fun SongListItem(
                                 .clickable {
                                     showShareDialog = true
                                     showPopup = false
+                                }
+                                .padding(vertical = 4.dp)
+                        )
+
+                        // Like / Unlike
+                        Text(
+                            text = if (isLiked == true) "remove from liked songs" else "add to liked songs",
+                            color = Color(0xFF3FFFEF),
+                            fontWeight = FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    // Acción de agregar/quitar de Liked Songs
+                                    showPopup = false
+                                    isLiked?.let { currentlyLiked ->
+                                        val accessToken = Config.getSpotifyAccessToken(context)
+                                        if (accessToken != null && song.spotifyId != null) {
+                                            isLoadingTrackInfo = true
+                                            if (currentlyLiked) {
+                                                // Quitar de Liked Songs
+                                                SpotifyRepository.removeTrack(accessToken, song.spotifyId) { success, error ->
+                                                    isLoadingTrackInfo = false
+                                                    if (success) {
+                                                        isLiked = false
+                                                        Log.d("SongListItem", "✓ Canción quitada de Liked Songs")
+                                                        onLikedStatusChanged?.invoke()
+                                                    } else {
+                                                        Log.e("SongListItem", "Error quitando canción de Liked Songs: $error")
+                                                    }
+                                                }
+                                            } else {
+                                                // Añadir a Liked Songs
+                                                SpotifyRepository.saveTrack(accessToken, song.spotifyId) { success, error ->
+                                                    isLoadingTrackInfo = false
+                                                    if (success) {
+                                                        isLiked = true
+                                                        Log.d("SongListItem", "✓ Canción añadida a Liked Songs")
+                                                        onLikedStatusChanged?.invoke()
+                                                    } else {
+                                                        Log.e("SongListItem", "Error añadiendo canción a Liked Songs: $error")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                                 .padding(vertical = 4.dp)
                         )
