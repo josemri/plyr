@@ -996,6 +996,75 @@ object SpotifyRepository {
             }
         })
     }
+
+    // Obtener álbumes guardados del usuario (con paginación)
+    fun getUserSavedAlbums(accessToken: String, callback: (List<SpotifyAlbum>?, String?) -> Unit) {
+        val maxLimit = 50 // Máximo permitido por Spotify
+        val allAlbums = mutableListOf<SpotifyAlbum>()
+        var pageCount = 0
+
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(offset: Int = 0) {
+            val request = Request.Builder()
+                .url("$API_BASE_URL/me/albums?limit=$maxLimit&offset=$offset")
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body.string()
+                    if (response.isSuccessful) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "User saved albums response (offset=$offset): ${body.take(200)}...")
+                            val savedAlbumsResponse = gson.fromJson(body, SpotifySavedAlbumsResponse::class.java)
+
+                            // Extraer los álbumes de los items y filtrar nulls
+                            val albums = savedAlbumsResponse.items.mapNotNull { it.album }
+                            allAlbums.addAll(albums)
+                            pageCount++
+
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount loaded: ${albums.size} saved albums, total accumulated: ${allAlbums.size}")
+
+                            // Enviar resultados actualizados después de cada página
+                            callback(allAlbums.toList(), null)
+
+                            // Verificar si hay más páginas que cargar
+                            val hasMoreAlbums = savedAlbumsResponse.items.size == maxLimit
+                            val nextOffset = offset + maxLimit
+                            val wouldExceedLimit = nextOffset >= 1000
+
+                            // Si hay más contenido y no excedemos el límite, continuar paginando
+                            if (hasMoreAlbums && !wouldExceedLimit) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next saved albums page: offset=$nextOffset")
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextOffset)
+                                }, 200)
+                            } else {
+                                if (wouldExceedLimit) {
+                                    android.util.Log.d("SpotifyRepository", "Saved albums pagination stopped: reached API limit (offset would be $nextOffset >= 1000)")
+                                } else {
+                                    android.util.Log.d("SpotifyRepository", "Saved albums pagination completed: no more results available")
+                                }
+                                android.util.Log.d("SpotifyRepository", "Final saved albums count: ${allAlbums.size}")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing saved albums: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+
+        // Iniciar la paginación
+        fetchPage(0)
+    }
 }
 
 
@@ -1186,3 +1255,17 @@ data class SpotifySavedTracksResponse(
 data class SpotifySavedTrackItem(
     val track: SpotifyTrack?
 )
+
+data class SpotifySavedAlbumsResponse(
+    val items: List<SpotifySavedAlbumItem>,
+    val total: Int? = null,
+    val limit: Int? = null,
+    val offset: Int? = null,
+    val next: String? = null
+)
+
+data class SpotifySavedAlbumItem(
+    val album: SpotifyAlbum?,
+    @SerializedName("added_at") val addedAt: String?
+)
+

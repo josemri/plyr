@@ -35,6 +35,7 @@ import com.plyr.database.*
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyTrack
+import com.plyr.network.SpotifyAlbum
 import com.plyr.utils.Config
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
@@ -75,6 +76,11 @@ fun PlaylistsScreen(
     var likedSongs by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
     var isLoadingLikedSongs by remember { mutableStateOf(false) }
     var likedSongsCount by remember { mutableStateOf(0) }
+
+    // Estado para álbumes guardados
+    var savedAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
+    var isLoadingSavedAlbums by remember { mutableStateOf(false) }
+    var savedAlbumsCount by remember { mutableStateOf(0) }
 
     // Estados para detectar cambios en modo edición (movidos aquí para ser accesibles globalmente)
     var showExitEditDialog by remember { mutableStateOf(false) }
@@ -186,6 +192,35 @@ fun PlaylistsScreen(
     }
 
 
+    // Función para cargar los álbumes guardados del usuario
+    val loadSavedAlbums: () -> Unit = {
+        isLoadingSavedAlbums = true
+
+        coroutineScope.launch {
+            try {
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    // Obtener los álbumes guardados usando la API de Spotify
+                    SpotifyRepository.getUserSavedAlbums(accessToken) { albums, errorMsg ->
+                        isLoadingSavedAlbums = false
+                        if (albums != null) {
+                            savedAlbums = albums
+                            savedAlbumsCount = albums.size
+                            Log.d("PlaylistsScreen", "✓ Saved Albums actualizados: ${albums.size} álbumes")
+                        } else {
+                            Log.e("PlaylistsScreen", "Error loading saved albums: $errorMsg")
+                        }
+                    }
+                } else {
+                    isLoadingSavedAlbums = false
+                }
+            } catch (e: Exception) {
+                isLoadingSavedAlbums = false
+                Log.e("PlaylistsScreen", "Exception loading saved albums: ${e.message}")
+            }
+        }
+    }
+
     // Función para forzar sincronización completa
     val forceSyncAll = {
         if (!isSpotifyConnected) {
@@ -196,6 +231,7 @@ fun PlaylistsScreen(
                 try {
                     localRepository.forceSyncAll()
                     loadLikedSongs()
+                    loadSavedAlbums()
                     isSyncing = false
                 } catch (_: Exception) {
                     isSyncing = false
@@ -209,6 +245,7 @@ fun PlaylistsScreen(
         if (isSpotifyConnected) {
             loadPlaylists()
             loadLikedSongs()
+            loadSavedAlbums()
         }
     }
 
@@ -1257,7 +1294,7 @@ fun PlaylistsScreen(
                                         fallback = null
                                     )
 
-                                    // Nombre de la playlist (opcional, se puede quitar si solo quieres las portadas)
+                                    // Nombre de la playlist
                                     Text(
                                         text = playlist.name,
                                         style = MaterialTheme.typography.bodySmall.copy(
@@ -1266,6 +1303,80 @@ fun PlaylistsScreen(
                                         ),
                                         modifier = Modifier.padding(top = 8.dp),
                                         maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+
+                            // Álbumes guardados
+                            items(savedAlbums.size) { index ->
+                                val album = savedAlbums[index]
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            // Cargar los tracks del álbum
+                                            isLoadingTracks = true
+                                            val accessToken = Config.getSpotifyAccessToken(context)
+                                            if (accessToken != null) {
+                                                SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, errorMsg ->
+                                                    isLoadingTracks = false
+                                                    if (tracks != null) {
+                                                        // Crear una playlist temporal para mostrar el álbum
+                                                        selectedPlaylist = SpotifyPlaylist(
+                                                            id = album.id,
+                                                            name = album.name,
+                                                            description = "Album by ${album.getArtistNames()}",
+                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, album.totaltracks ?: tracks.size),
+                                                            images = album.images
+                                                        )
+                                                        playlistTracks = tracks
+                                                        selectedPlaylistEntity = null
+                                                    } else {
+                                                        Log.e("PlaylistScreen", "Error loading album tracks: $errorMsg")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    // Portada del álbum
+                                    AsyncImage(
+                                        model = album.getImageUrl(),
+                                        contentDescription = "Portada de ${album.name}",
+                                        modifier = Modifier
+                                            .size(150.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        placeholder = null,
+                                        error = null,
+                                        fallback = null
+                                    )
+
+                                    // Nombre del álbum
+                                    Text(
+                                        text = album.name,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFE0E0E0)
+                                        ),
+                                        modifier = Modifier.padding(top = 8.dp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+
+                                    // Artista del álbum
+                                    Text(
+                                        text = album.getArtistNames(),
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontSize = 10.sp,
+                                            color = Color(0xFF95A5A6)
+                                        ),
+                                        modifier = Modifier.padding(top = 2.dp),
+                                        maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
