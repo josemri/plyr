@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +37,7 @@ import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyTrack
 import com.plyr.network.SpotifyAlbum
+import com.plyr.network.SpotifyArtistFull
 import com.plyr.utils.Config
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
@@ -82,6 +84,11 @@ fun PlaylistsScreen(
     var isLoadingSavedAlbums by remember { mutableStateOf(false) }
     var savedAlbumsCount by remember { mutableStateOf(0) }
 
+    // Estado para artistas seguidos
+    var followedArtists by remember { mutableStateOf<List<SpotifyArtistFull>>(emptyList()) }
+    var isLoadingFollowedArtists by remember { mutableStateOf(false) }
+    var followedArtistsCount by remember { mutableStateOf(0) }
+
     // Estados para detectar cambios en modo edición (movidos aquí para ser accesibles globalmente)
     var showExitEditDialog by remember { mutableStateOf(false) }
     var hasUnsavedChanges by remember { mutableStateOf(false) }
@@ -97,6 +104,11 @@ fun PlaylistsScreen(
     var playlistTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
     var showCreatePlaylistScreen by remember { mutableStateOf(false) }
+
+    // Estado para los álbumes del artista seleccionado
+    var selectedArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) }
+    var artistAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
+    var isLoadingArtistAlbums by remember { mutableStateOf(false) }
 
     // Estado para manejar navegación pendiente cuando hay cambios sin guardar
     var pendingPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
@@ -221,6 +233,35 @@ fun PlaylistsScreen(
         }
     }
 
+    // Función para cargar los artistas seguidos del usuario
+    val loadFollowedArtists: () -> Unit = {
+        isLoadingFollowedArtists = true
+
+        coroutineScope.launch {
+            try {
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    // Obtener los artistas seguidos usando la API de Spotify
+                    SpotifyRepository.getUserFollowedArtists(accessToken) { artists, errorMsg ->
+                        isLoadingFollowedArtists = false
+                        if (artists != null) {
+                            followedArtists = artists
+                            followedArtistsCount = artists.size
+                            Log.d("PlaylistsScreen", "✓ Followed Artists actualizados: ${artists.size} artistas")
+                        } else {
+                            Log.e("PlaylistsScreen", "Error loading followed artists: $errorMsg")
+                        }
+                    }
+                } else {
+                    isLoadingFollowedArtists = false
+                }
+            } catch (e: Exception) {
+                isLoadingFollowedArtists = false
+                Log.e("PlaylistsScreen", "Exception loading followed artists: ${e.message}")
+            }
+        }
+    }
+
     // Función para forzar sincronización completa
     val forceSyncAll = {
         if (!isSpotifyConnected) {
@@ -232,6 +273,7 @@ fun PlaylistsScreen(
                     localRepository.forceSyncAll()
                     loadLikedSongs()
                     loadSavedAlbums()
+                    loadFollowedArtists()
                     isSyncing = false
                 } catch (_: Exception) {
                     isSyncing = false
@@ -246,6 +288,7 @@ fun PlaylistsScreen(
             loadPlaylists()
             loadLikedSongs()
             loadSavedAlbums()
+            loadFollowedArtists()
         }
     }
 
@@ -1040,6 +1083,83 @@ fun PlaylistsScreen(
                                         }
                                     )
                                 }
+
+                                // Sección de álbumes del artista (solo si hay un artista seleccionado)
+                                if (selectedArtist != null && artistAlbums.isNotEmpty()) {
+                                    item {
+                                        Spacer(Modifier.height(24.dp))
+                                        Text(
+                                            text = "> albums",
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = Color(0xFF4ECDC4)
+                                            ),
+                                            modifier = Modifier.padding(bottom = 12.dp)
+                                        )
+
+                                        LazyRow(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            items(artistAlbums.size) { index ->
+                                                val album = artistAlbums[index]
+                                                Column(
+                                                    modifier = Modifier
+                                                        .width(120.dp)
+                                                        .clickable {
+                                                            // Cargar los tracks del álbum
+                                                            isLoadingTracks = true
+                                                            val accessToken = Config.getSpotifyAccessToken(context)
+                                                            if (accessToken != null) {
+                                                                SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, errorMsg ->
+                                                                    isLoadingTracks = false
+                                                                    if (tracks != null) {
+                                                                        // Crear una playlist temporal para mostrar el álbum
+                                                                        selectedPlaylist = SpotifyPlaylist(
+                                                                            id = album.id,
+                                                                            name = album.name,
+                                                                            description = "Album by ${album.getArtistNames()}",
+                                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, album.totaltracks ?: tracks.size),
+                                                                            images = album.images
+                                                                        )
+                                                                        playlistTracks = tracks
+                                                                        selectedPlaylistEntity = null
+                                                                        // Limpiar el artista seleccionado y sus álbumes
+                                                                        selectedArtist = null
+                                                                        artistAlbums = emptyList()
+                                                                    } else {
+                                                                        Log.e("PlaylistScreen", "Error loading album tracks: $errorMsg")
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    AsyncImage(
+                                                        model = album.getImageUrl(),
+                                                        contentDescription = "Album cover",
+                                                        modifier = Modifier
+                                                            .size(120.dp)
+                                                            .clip(RoundedCornerShape(8.dp))
+                                                    )
+
+                                                    Text(
+                                                        text = album.name,
+                                                        style = MaterialTheme.typography.bodySmall.copy(
+                                                            fontFamily = FontFamily.Monospace,
+                                                            color = Color(0xFFE0E0E0)
+                                                        ),
+                                                        modifier = Modifier.padding(top = 4.dp),
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1376,6 +1496,80 @@ fun PlaylistsScreen(
                                             color = Color(0xFF95A5A6)
                                         ),
                                         modifier = Modifier.padding(top = 2.dp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+
+                            // Artistas seguidos
+                            items(followedArtists.size) { index ->
+                                val artist = followedArtists[index]
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            // Cargar los tracks y álbumes del artista
+                                            isLoadingTracks = true
+                                            isLoadingArtistAlbums = true
+                                            selectedArtist = artist
+                                            val accessToken = Config.getSpotifyAccessToken(context)
+                                            if (accessToken != null) {
+                                                // Cargar top tracks
+                                                SpotifyRepository.getArtistTopTracks(accessToken, artist.id) { tracks, errorMsg ->
+                                                    isLoadingTracks = false
+                                                    if (tracks != null) {
+                                                        // Crear una playlist temporal para mostrar los tracks del artista
+                                                        selectedPlaylist = SpotifyPlaylist(
+                                                            id = artist.id,
+                                                            name = artist.name,
+                                                            description = "Top tracks by ${artist.name}",
+                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, tracks.size),
+                                                            images = artist.images
+                                                        )
+                                                        playlistTracks = tracks
+                                                        selectedPlaylistEntity = null
+                                                    } else {
+                                                        Log.e("PlaylistScreen", "Error loading artist tracks: $errorMsg")
+                                                    }
+                                                }
+
+                                                // Cargar álbumes del artista
+                                                SpotifyRepository.getArtistAlbums(accessToken, artist.id) { albums, errorMsg ->
+                                                    isLoadingArtistAlbums = false
+                                                    if (albums != null) {
+                                                        artistAlbums = albums
+                                                        Log.d("PlaylistScreen", "Loaded ${albums.size} albums for ${artist.name}")
+                                                    } else {
+                                                        Log.e("PlaylistScreen", "Error loading artist albums: $errorMsg")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    // Portada del artista (usar imagen del artista)
+                                    AsyncImage(
+                                        model = artist.getImageUrl(),
+                                        contentDescription = "Artista ${artist.name}",
+                                        modifier = Modifier
+                                            .size(150.dp)
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        placeholder = null,
+                                        error = null,
+                                        fallback = null
+                                    )
+
+                                    // Nombre del artista
+                                    Text(
+                                        text = artist.name,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = Color(0xFFE0E0E0)
+                                        ),
+                                        modifier = Modifier.padding(top = 8.dp),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center

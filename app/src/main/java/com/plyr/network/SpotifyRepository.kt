@@ -842,6 +842,36 @@ object SpotifyRepository {
         })
     }
 
+    // Obtener los top tracks de un artista
+    fun getArtistTopTracks(accessToken: String, artistId: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/artists/$artistId/top-tracks?market=US")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        android.util.Log.d("SpotifyRepository", "Artist top tracks response: ${body.take(200)}...")
+                        val topTracksResponse = gson.fromJson(body, SpotifyArtistTopTracksResponse::class.java)
+                        callback(topTracksResponse.tracks, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing artist top tracks: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
     // Obtener canciones favoritas del usuario (Liked Songs) con paginación
     fun getUserSavedTracks(accessToken: String, callback: (List<SpotifyTrack>?, String?) -> Unit) {
         val maxLimit = 50 // Máximo permitido por Spotify
@@ -1065,6 +1095,76 @@ object SpotifyRepository {
         // Iniciar la paginación
         fetchPage(0)
     }
+
+    // Obtener artistas seguidos del usuario (con paginación)
+    fun getUserFollowedArtists(accessToken: String, callback: (List<SpotifyArtistFull>?, String?) -> Unit) {
+        val maxLimit = 50 // Máximo permitido por Spotify
+        val allArtists = mutableListOf<SpotifyArtistFull>()
+        var pageCount = 0
+
+        // Función recursiva para obtener todas las páginas
+        fun fetchPage(after: String? = null) {
+            val url = if (after != null) {
+                "$API_BASE_URL/me/following?type=artist&limit=$maxLimit&after=$after"
+            } else {
+                "$API_BASE_URL/me/following?type=artist&limit=$maxLimit"
+            }
+
+            val request = Request.Builder()
+                .url(url)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .get()
+                .build()
+
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    callback(null, "Error de red: ${e.message}")
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body.string()
+                    if (response.isSuccessful) {
+                        try {
+                            android.util.Log.d("SpotifyRepository", "User followed artists response (after=$after): ${body.take(200)}...")
+                            val followedArtistsResponse = gson.fromJson(body, SpotifyFollowedArtistsResponse::class.java)
+
+                            // Extraer los artistas
+                            val artists = followedArtistsResponse.artists.items
+                            allArtists.addAll(artists)
+                            pageCount++
+
+                            android.util.Log.d("SpotifyRepository", "Page $pageCount loaded: ${artists.size} followed artists, total accumulated: ${allArtists.size}")
+
+                            // Enviar resultados actualizados después de cada página
+                            callback(allArtists.toList(), null)
+
+                            // Verificar si hay más páginas que cargar
+                            val nextCursor = followedArtistsResponse.artists.cursors?.after
+                            val hasMoreArtists = nextCursor != null && artists.size == maxLimit
+
+                            // Si hay más contenido, continuar paginando
+                            if (hasMoreArtists) {
+                                android.util.Log.d("SpotifyRepository", "Fetching next followed artists page: after=$nextCursor")
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                    fetchPage(nextCursor)
+                                }, 200)
+                            } else {
+                                android.util.Log.d("SpotifyRepository", "Followed artists pagination completed: no more results available")
+                                android.util.Log.d("SpotifyRepository", "Final followed artists count: ${allArtists.size}")
+                            }
+                        } catch (e: Exception) {
+                            callback(null, "Error parsing followed artists: ${e.message}")
+                        }
+                    } else {
+                        callback(null, "Error HTTP ${response.code}: $body")
+                    }
+                }
+            })
+        }
+
+        // Iniciar la paginación
+        fetchPage(null)
+    }
 }
 
 
@@ -1269,3 +1369,23 @@ data class SpotifySavedAlbumItem(
     @SerializedName("added_at") val addedAt: String?
 )
 
+data class SpotifyFollowedArtistsResponse(
+    val artists: SpotifyArtistsPage
+)
+
+data class SpotifyArtistsPage(
+    val items: List<SpotifyArtistFull>,
+    val total: Int,
+    val limit: Int,
+    val offset: Int,
+    val cursors: SpotifyCursors
+)
+
+data class SpotifyCursors(
+    val before: String?,
+    val after: String?
+)
+
+data class SpotifyArtistTopTracksResponse(
+    val tracks: List<SpotifyTrack>
+)
