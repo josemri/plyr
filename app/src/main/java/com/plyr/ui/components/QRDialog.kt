@@ -2,7 +2,6 @@ package com.plyr.ui.components
 
 import android.content.Intent
 import android.graphics.Bitmap
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -46,19 +45,6 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
         item.youtubeId != null -> "https://www.youtube.com/watch?v=${item.youtubeId}"
         else -> null
     }
-
-    // Debug: Log de la URL generada
-    Log.d("ShareDialog", "===========================================")
-    Log.d("ShareDialog", "Generando QR con los siguientes datos:")
-    Log.d("ShareDialog", "  Title: ${item.title}")
-    Log.d("ShareDialog", "  Artist: ${item.artist}")
-    Log.d("ShareDialog", "  Type: ${item.type}")
-    Log.d("ShareDialog", "  Spotify ID: ${item.spotifyId}")
-    Log.d("ShareDialog", "  Spotify URL (prop): ${item.spotifyUrl}")
-    Log.d("ShareDialog", "  YouTube ID: ${item.youtubeId}")
-    Log.d("ShareDialog", "  URL FINAL GENERADA: $shareUrl")
-    Log.d("ShareDialog", "===========================================")
-
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier

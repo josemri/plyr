@@ -458,47 +458,6 @@ fun SongListItem(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Título
-                    /*
-                    Text(
-                        text = "$ add to playlist",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4ECDC4)
-                        )
-                    )
-
-                    // Info de la canción
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = song.title,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.White
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = song.artist,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFF888888)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-
-                    HorizontalDivider(
-                        Modifier,
-                        DividerDefaults.Thickness,
-                        color = Color(0xFF333333)
-                    )
-
-                     */
-
                     // Contenido del diálogo
                     Box(
                         modifier = Modifier
@@ -661,27 +620,6 @@ fun SongListItem(
                             }
                         }
                     }
-
-                    /*
-                    // Botón cerrar
-                    if (!isLoadingPlaylists) {
-                        TextButton(
-                            onClick = {
-                                showPlaylistDialog = false
-                                addToPlaylistSuccess = false
-                                addToPlaylistError = null
-                            }
-                        ) {
-                            Text(
-                                text = "close",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    color = Color(0xFF888888)
-                                )
-                            )
-                        }
-                    }
-
-                     */
                 }
             }
         }

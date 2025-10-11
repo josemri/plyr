@@ -52,6 +52,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 
+//botones de accion
+import com.plyr.ui.components.*
+
+
 
 @OptIn(DelicateCoroutinesApi::class)
 @Composable
@@ -131,19 +135,11 @@ fun PlaylistsScreen(
 
     // Función para cargar playlists con sincronización automática
     val loadPlaylists = {
-        if (!isSpotifyConnected) {
-        } else {
+        if (isSpotifyConnected) {
             isLoading = true
-
-            // Usar corrutina para operaciones asíncronas
             coroutineScope.launch {
-                try {
-                    localRepository.getPlaylistsWithAutoSync()
-                    isLoading = false
-                    // Las playlists se actualizan automáticamente a través del LiveData
-                } catch (_: Exception) {
-                    isLoading = false
-                }
+                localRepository.getPlaylistsWithAutoSync()
+                isLoading = false
             }
         }
     }
@@ -159,21 +155,13 @@ fun PlaylistsScreen(
         } else {
             // Usar corrutina para operaciones asíncronas
             coroutineScope.launch {
-                try {
-                    localRepository.getTracksWithAutoSync(playlist.id)
-                    isLoadingTracks = false
-                    // Los tracks se actualizan automáticamente a través del LiveData
-
-                    // NOTA: Ya no se necesita búsqueda masiva de YouTube IDs
-                    // Los IDs se obtienen automáticamente cuando el usuario hace click en cada canción
-                    Log.d("PlaylistScreen", "✅ Tracks cargados para playlist: ${playlist.name}. IDs de YouTube se obtendrán bajo demanda.")
-                } catch (_: Exception) {
-                    isLoadingTracks = false
-                }
+                localRepository.getTracksWithAutoSync(playlist.id)
+                isLoadingTracks = false
             }
         }
     }
 
+    //LIKED SONGS
     // Función para cargar las Liked Songs del usuario
     val loadLikedSongs: () -> Unit = {
         isLoadingLikedSongs = true
@@ -202,8 +190,10 @@ fun PlaylistsScreen(
             }
         }
     }
+    //LIKED SONGS
 
 
+    //ALBUMS
     // Función para cargar los álbumes guardados del usuario
     val loadSavedAlbums: () -> Unit = {
         isLoadingSavedAlbums = true
@@ -232,7 +222,9 @@ fun PlaylistsScreen(
             }
         }
     }
+    //ALBUMS
 
+    //ARTISTS
     // Función para cargar los artistas seguidos del usuario
     val loadFollowedArtists: () -> Unit = {
         isLoadingFollowedArtists = true
@@ -261,6 +253,7 @@ fun PlaylistsScreen(
             }
         }
     }
+    //ARTISTS
 
     // Función para forzar sincronización completa
     val forceSyncAll = {
@@ -282,7 +275,7 @@ fun PlaylistsScreen(
         }
     }
 
-    // Cargar playlists y Liked Songs al iniciar si está conectado
+    // Cargar si está conectado
     LaunchedEffect(isSpotifyConnected) {
         if (isSpotifyConnected) {
             loadPlaylists()
@@ -299,7 +292,7 @@ fun PlaylistsScreen(
         }
     }
 
-    // Manejar botón de retroceso del sistema
+    // Manejar botón de retroceso del sistema (modificar para que al salir de album de artista vuelva a artista no a lista principal)
     BackHandler {
         if (selectedPlaylist != null) {
             // Si estamos en modo edición con cambios sin guardar, mostrar diálogo
@@ -322,6 +315,7 @@ fun PlaylistsScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        //si se pulsa boton de <new> mostrar CreatePlaylistScreen
         if (showCreatePlaylistScreen) {
             CreateSpotifyPlaylistScreen(
                 onBack = { showCreatePlaylistScreen = false },
@@ -330,7 +324,7 @@ fun PlaylistsScreen(
             return@Column
         }
         // Header
-        Text(
+        Text( //TITULO PRINCIPAL (modificar para que use themes)
             text = if (selectedPlaylist == null) "$ plyr_lists" else "$ ${selectedPlaylist!!.name}",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontFamily = FontFamily.Monospace,
@@ -398,9 +392,9 @@ fun PlaylistsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        when {
+        when { // Estado no conectado
             !isSpotifyConnected -> {
-                // Estado no conectado
+
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -1585,7 +1579,7 @@ fun PlaylistsScreen(
 }
 
 @Composable
-fun CreateSpotifyPlaylistScreen(
+fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta mandando bien, añadir posibilidad de meter portada
     onBack: () -> Unit,
     onPlaylistCreated: () -> Unit
 ) {
@@ -1614,15 +1608,7 @@ fun CreateSpotifyPlaylistScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text(
-            text = "$ create_playlist",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 20.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        Titulo("create_playlist")
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = playlistName,
@@ -1638,71 +1624,12 @@ fun CreateSpotifyPlaylistScreen(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            // Opción Public
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clickable { isPublic = true }
-                    .padding(8.dp)
-            ) {
-                Text(
-                    text = "public",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = if (isPublic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                    )
-                )
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(8.dp)
-            ) {
-                Text(
-                    text = "/",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                )
-            }
-            // Opción Private
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clickable { isPublic = false }
-                    .padding(8.dp)
-            ) {
-                Text(
-                    text = "private",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = if (!isPublic) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                    )
-                )
-            }
-        }
-
-        // Sección de buscador de canciones
-        Spacer(Modifier.height(16.dp))
-        Text(
-            text = "> add_tracks",
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 8.dp)
+        BinaryToggle(
+            option1 = "public",
+            option2 = "private",
+            initialValue = isPublic,
+            onChange = { isPublic = it }
         )
-
         // Campo de búsqueda
         OutlinedTextField(
             value = searchQuery,
@@ -1759,14 +1686,6 @@ fun CreateSpotifyPlaylistScreen(
 
         // Resultados de búsqueda
         if (searchResults.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "results:",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFE0E0E0)
-                )
-            )
             searchResults.take(10).forEach { track ->
                 Row(
                     modifier = Modifier
@@ -1778,7 +1697,7 @@ fun CreateSpotifyPlaylistScreen(
                                 searchQuery = ""
                             }
                         }
-                        .padding(vertical = 4.dp, horizontal = 8.dp),
+                        .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -1921,6 +1840,7 @@ fun CreateSpotifyPlaylistScreen(
 fun SpotifyPlaylistDetailView(
     playlist: SpotifyPlaylist,
     tracks: List<SpotifyTrack>,
+    trackEntities: List<TrackEntity>? = null,
     isLoading: Boolean,
     error: String?,
     onStart: () -> Unit,
@@ -1934,59 +1854,17 @@ fun SpotifyPlaylistDetailView(
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Header con botón de retroceso
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "$ ${playlist.name}",
-                style = MaterialTheme.typography.headlineMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 20.sp,
-                    color = Color(0xFF4ECDC4)
-                ),
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+        Titulo(playlist.name)
 
         // Botones de acción
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-
-            ActionButton(
-                text = "<start>",
-                color = Color(0xFF4ECDC4),
-                onClick = onStart,
-                enabled = tracks.isNotEmpty()
+        ActionButtonsGroup(
+            buttons = listOf(
+                ActionButtonData("<start>", Color(0xFF4ECDC4), onStart, tracks.isNotEmpty()),
+                ActionButtonData("<rand>", Color(0xFFFFD93D), onRandom, tracks.isNotEmpty()),
+                ActionButtonData("<save>", Color(0xFF7FB069), onSave, true),
+                ActionButtonData("<share>", Color(0xFFFF6B9D), { showShareDialog = true }, true)
             )
-            ActionButton(
-                text = "<rand>",
-                color = Color(0xFFFFD93D),
-                onClick = onRandom,
-                enabled = tracks.isNotEmpty()
-            )
-            ActionButton(
-                text = "<save>",
-                color = Color(0xFF7FB069),
-                onClick = onSave,
-                enabled = true
-            )
-            ActionButton(
-                text = "<share>",
-                color = Color(0xFFFF6B9D),
-                onClick = { showShareDialog = true },
-                enabled = true
-            )
-        }
+        )
 
         // Estados de carga y error
         if (isLoading) {
@@ -2015,49 +1893,15 @@ fun SpotifyPlaylistDetailView(
             )
         }
 
-        // Lista de tracks
+        //listado canciones
         if (tracks.isNotEmpty()) {
-            // Crear trackEntities una sola vez fuera del LazyColumn
-            val trackEntities = tracks.mapIndexed { trackIndex, spotifyTrack ->
-                TrackEntity(
-                    id = "spotify_${spotifyTrack.id}",
-                    playlistId = playlist.id,
-                    spotifyTrackId = spotifyTrack.id,
-                    name = spotifyTrack.name,
-                    artists = spotifyTrack.getArtistNames(),
-                    youtubeVideoId = null,
-                    audioUrl = null,
-                    position = trackIndex,
-                    lastSyncTime = System.currentTimeMillis()
-                )
-            }
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                items(tracks.size) { index ->
-                    val track = tracks[index]
-                    val song = Song(
-                        number = index + 1,
-                        title = track.name,
-                        artist = track.getArtistNames(),
-                        spotifyId = track.id,
-                        spotifyUrl = "https://open.spotify.com/track/${track.id}"
-                    )
-                    SongListItem(
-                        song = song,
-                        trackEntities = trackEntities,
-                        index = index,
-                        playerViewModel = playerViewModel,
-                        coroutineScope = coroutineScope,
-                        modifier = Modifier.fillMaxWidth(),
-                        onLikedStatusChanged = {
-                            // Recargar las Liked Songs cuando se modifica el estado
-                            // (necesitamos acceso al contexto y coroutineScope)
-                        }
-                    )
-                }
-            }
+            SongList(
+                playlist = playlist,
+                tracks = tracks,
+                trackEntities = trackEntities,
+                playerViewModel = playerViewModel,
+                coroutineScope = coroutineScope
+            )
         }
     }
 
@@ -2068,7 +1912,7 @@ fun SpotifyPlaylistDetailView(
                 spotifyUrl = "https://open.spotify.com/playlist/${playlist.id}",
                 youtubeId = null,
                 title = playlist.name,
-                artist = "Playlist", //playlist.owner?.display_name ?: "Playlist",
+                artist = "Playlist",
                 type = ShareType.PLAYLIST
             ),
             onDismiss = { showShareDialog = false }
@@ -2076,22 +1920,3 @@ fun SpotifyPlaylistDetailView(
     }
 }
 
-@Composable
-private fun ActionButton(
-    text: String,
-    color: Color,
-    onClick: () -> Unit,
-    enabled: Boolean = true
-) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodyMedium.copy(
-            fontFamily = FontFamily.Monospace,
-            fontSize = 16.sp,
-            color = if (enabled) color else Color(0xFF95A5A6)
-        ),
-        modifier = Modifier
-            .clickable(enabled = enabled) { onClick() }
-            .padding(8.dp)
-    )
-}
