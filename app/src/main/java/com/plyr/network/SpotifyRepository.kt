@@ -1165,6 +1165,99 @@ object SpotifyRepository {
         // Iniciar la paginación
         fetchPage(null)
     }
+
+    // Seguir a un artista
+    fun followArtist(accessToken: String, artistId: String, callback: (Boolean, String?) -> Unit) {
+        val url = "$API_BASE_URL/me/following?type=artist&ids=$artistId"
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .put("".toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    android.util.Log.d("SpotifyRepository", "Artist followed successfully: $artistId")
+                    callback(true, null)
+                } else {
+                    android.util.Log.e("SpotifyRepository", "Error following artist: HTTP ${response.code}: $body")
+                    callback(false, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Dejar de seguir a un artista
+    fun unfollowArtist(accessToken: String, artistId: String, callback: (Boolean, String?) -> Unit) {
+        val url = "$API_BASE_URL/me/following?type=artist&ids=$artistId"
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .delete()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    android.util.Log.d("SpotifyRepository", "Artist unfollowed successfully: $artistId")
+                    callback(true, null)
+                } else {
+                    android.util.Log.e("SpotifyRepository", "Error unfollowing artist: HTTP ${response.code}: $body")
+                    callback(false, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Verificar si el usuario sigue a un artista
+    fun checkIfFollowingArtist(accessToken: String, artistId: String, callback: (Boolean?, String?) -> Unit) {
+        val url = "$API_BASE_URL/me/following/contains?type=artist&ids=$artistId"
+
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        // La API devuelve un array con un solo boolean
+                        val result = gson.fromJson(body, Array<Boolean>::class.java)
+                        val isFollowing = result.firstOrNull() ?: false
+                        android.util.Log.d("SpotifyRepository", "Check if following artist $artistId: $isFollowing")
+                        callback(isFollowing, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing response: ${e.message}")
+                    }
+                } else {
+                    android.util.Log.e("SpotifyRepository", "Error checking if following artist: HTTP ${response.code}: $body")
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
 }
 
 

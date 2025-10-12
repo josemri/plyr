@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -18,9 +19,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.plyr.network.SpotifyArtistFull
 import com.plyr.network.SpotifyAlbum
+import com.plyr.network.SpotifyRepository
 import com.plyr.ui.components.ShareDialog
 import com.plyr.ui.components.ShareableItem
 import com.plyr.ui.components.ShareType
+import com.plyr.utils.Config
+import kotlinx.coroutines.launch
 
 /**
  * Vista detallada de un artista de Spotify
@@ -35,6 +39,29 @@ fun SpotifyArtistDetailView(
     onAlbumClick: (SpotifyAlbum) -> Unit
 ) {
     var showShareDialog by remember { mutableStateOf(false) }
+    var isFollowing by remember { mutableStateOf<Boolean?>(null) }
+    var isCheckingFollow by remember { mutableStateOf(true) }
+    var isFollowActionLoading by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Verificar si ya se sigue al artista
+    LaunchedEffect(artist.id) {
+        val accessToken = Config.getSpotifyAccessToken(context)
+        if (accessToken != null) {
+            SpotifyRepository.checkIfFollowingArtist(accessToken, artist.id) { following, errorMsg ->
+                isCheckingFollow = false
+                if (following != null) {
+                    isFollowing = following
+                } else {
+                    android.util.Log.e("SpotifyArtistDetailView", "Error checking follow status: $errorMsg")
+                }
+            }
+        } else {
+            isCheckingFollow = false
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -53,14 +80,14 @@ fun SpotifyArtistDetailView(
                     contentDescription = "Imagen de ${artist.name}",
                     modifier = Modifier
                         .size(120.dp)
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(60.dp))
                 )
             } ?: run {
                 // Placeholder si no hay imagen
                 Box(
                     modifier = Modifier
                         .size(120.dp)
-                        .clip(RoundedCornerShape(12.dp)),
+                        .clip(RoundedCornerShape(60.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -106,13 +133,14 @@ fun SpotifyArtistDetailView(
             }
         }
 
-        // Botón de share para el artista
+        // Botones de acción para el artista
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Botón de share
             Text(
                 text = "<share>",
                 style = MaterialTheme.typography.bodyLarge.copy(
@@ -124,6 +152,73 @@ fun SpotifyArtistDetailView(
                     .clickable { showShareDialog = true }
                     .padding(8.dp)
             )
+
+            // Botón de follow/unfollow
+            if (isCheckingFollow) {
+                Text(
+                    text = "<...>",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                        color = Color(0xFF95A5A6)
+                    ),
+                    modifier = Modifier.padding(8.dp)
+                )
+            } else {
+                val followText = when {
+                    isFollowActionLoading -> "<loading...>"
+                    isFollowing == true -> "<unfollow>"
+                    else -> "<follow>"
+                }
+                val followColor = when {
+                    isFollowActionLoading -> Color(0xFFFFD93D)
+                    isFollowing == true -> Color(0xFFFF6B6B)
+                    else -> Color(0xFF7FB069)
+                }
+
+                Text(
+                    text = followText,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                        color = followColor
+                    ),
+                    modifier = Modifier
+                        .clickable(enabled = !isFollowActionLoading) {
+                            isFollowActionLoading = true
+                            val accessToken = Config.getSpotifyAccessToken(context)
+                            if (accessToken != null) {
+                                if (isFollowing == true) {
+                                    // Dejar de seguir
+                                    SpotifyRepository.unfollowArtist(accessToken, artist.id) { success, errorMsg ->
+                                        isFollowActionLoading = false
+                                        if (success) {
+                                            isFollowing = false
+                                            android.util.Log.d("SpotifyArtistDetailView", "Artist unfollowed: ${artist.name}")
+                                        } else {
+                                            android.util.Log.e("SpotifyArtistDetailView", "Error unfollowing artist: $errorMsg")
+                                        }
+                                    }
+                                } else {
+                                    // Seguir
+                                    SpotifyRepository.followArtist(accessToken, artist.id) { success, errorMsg ->
+                                        isFollowActionLoading = false
+                                        if (success) {
+                                            isFollowing = true
+                                            android.util.Log.d("SpotifyArtistDetailView", "Artist followed: ${artist.name}")
+                                        } else {
+                                            android.util.Log.e("SpotifyArtistDetailView", "Error following artist: $errorMsg")
+                                        }
+                                    }
+                                }
+                            } else {
+                                isFollowActionLoading = false
+                                android.util.Log.e("SpotifyArtistDetailView", "No access token available")
+                            }
+                        }
+                        .padding(8.dp)
+                )
+            }
         }
 
         // Lista de álbumes

@@ -78,10 +78,16 @@ fun PlaylistsScreen(
     var isSyncing by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
 
-    // Estado para Liked Songs
-    var likedSongs by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
-    var isLoadingLikedSongs by remember { mutableStateOf(false) }
+    // Estado para Liked Songs - ahora desde DB
+    val likedSongsPlaylist by localRepository.getTracksByPlaylistLiveData("liked_songs")
+        .asFlow()
+        .collectAsStateWithLifecycle(initialValue = emptyList())
     var likedSongsCount by remember { mutableStateOf(0) }
+
+    // Actualizar contador de Liked Songs
+    LaunchedEffect(likedSongsPlaylist) {
+        likedSongsCount = likedSongsPlaylist.size
+    }
 
     // Estado para álbumes guardados
     var savedAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
@@ -100,7 +106,10 @@ fun PlaylistsScreen(
     var originalDesc by remember { mutableStateOf("") }
 
     // Convertir entidades a SpotifyPlaylist para compatibilidad con UI existente
-    val playlists = playlistsFromDB.map { it.toSpotifyPlaylist() }
+    // Filtrar liked_songs y álbumes para que no aparezcan duplicados (se muestran como items especiales)
+    val playlists = playlistsFromDB
+        .filter { it.spotifyId != "liked_songs" && !it.spotifyId.startsWith("album_") }
+        .map { it.toSpotifyPlaylist() }
 
     // Estado para mostrar tracks de una playlist
     var selectedPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
@@ -162,31 +171,15 @@ fun PlaylistsScreen(
     }
 
     //LIKED SONGS
-    // Función para cargar las Liked Songs del usuario
+    // Función para cargar las Liked Songs del usuario - ahora sincroniza con la base de datos
     val loadLikedSongs: () -> Unit = {
-        isLoadingLikedSongs = true
-
         coroutineScope.launch {
             try {
-                val accessToken = Config.getSpotifyAccessToken(context)
-                if (accessToken != null) {
-                    // Obtener las Liked Songs usando la API de Spotify
-                    SpotifyRepository.getUserSavedTracks(accessToken) { tracks, errorMsg ->
-                        isLoadingLikedSongs = false
-                        if (tracks != null) {
-                            likedSongs = tracks
-                            likedSongsCount = tracks.size
-                            Log.d("PlaylistsScreen", "✓ Liked Songs actualizadas: ${tracks.size} canciones")
-                        } else {
-                            Log.e("PlaylistsScreen", "Error loading liked songs: $errorMsg")
-                        }
-                    }
-                } else {
-                    isLoadingLikedSongs = false
-                }
+                // Sincronizar Liked Songs con la base de datos local
+                localRepository.getLikedSongsWithAutoSync()
+                Log.d("PlaylistsScreen", "✓ Liked Songs sincronizadas desde DB")
             } catch (e: Exception) {
-                isLoadingLikedSongs = false
-                Log.e("PlaylistsScreen", "Exception loading liked songs: ${e.message}")
+                Log.e("PlaylistsScreen", "Exception syncing liked songs: ${e.message}")
             }
         }
     }
@@ -304,6 +297,9 @@ fun PlaylistsScreen(
                 hasUnsavedChanges = false
                 selectedPlaylist = null
                 playlistTracks = emptyList()
+                // Limpiar artista y sus álbumes al salir
+                selectedArtist = null
+                artistAlbums = emptyList()
             }
         } else {
             onBack()
@@ -959,7 +955,7 @@ fun PlaylistsScreen(
                                     Spacer(Modifier.height(16.dp))
                                 }
 
-                                // Lista de canciones actuales con opción de eliminar
+                                // Lista de canciones actuales with remove option
                                 if (playlistTracks.isNotEmpty()) {
                                     item {
                                         Text(
@@ -1054,8 +1050,26 @@ fun PlaylistsScreen(
                                 contentPadding = PaddingValues(bottom = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Prepara trackEntities una sola vez
-                                val trackEntitiesList = tracksFromDB
+                                // Prepara trackEntities - si no hay en DB, crear temporales
+                                val trackEntitiesList = if (tracksFromDB.isNotEmpty()) {
+                                    tracksFromDB
+                                } else {
+                                    // Crear TrackEntities temporales para álbumes u otras fuentes sin BD
+                                    playlistTracks.mapIndexed { trackIndex, track ->
+                                        TrackEntity(
+                                            id = "temp_${selectedPlaylist?.id}_${track.id}",
+                                            playlistId = selectedPlaylist?.id ?: "unknown",
+                                            spotifyTrackId = track.id,
+                                            name = track.name,
+                                            artists = track.getArtistNames(),
+                                            youtubeVideoId = null,
+                                            audioUrl = null,
+                                            position = trackIndex,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                    }
+                                }
+
                                 items(playlistTracks.size) { index ->
                                     val track = playlistTracks[index]
                                     val song = Song(
@@ -1295,7 +1309,7 @@ fun PlaylistsScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                // Mostrar las Liked Songs como una playlist especial
+                                                // Mostrar las Liked Songs como una playlist especial desde DB
                                                 selectedPlaylist = SpotifyPlaylist(
                                                     id = "liked_songs",
                                                     name = "Liked Songs",
@@ -1303,9 +1317,15 @@ fun PlaylistsScreen(
                                                     tracks = com.plyr.network.SpotifyPlaylistTracks(null, likedSongsCount),
                                                     images = null
                                                 )
-                                                playlistTracks = likedSongs
-                                                isLoadingTracks = false
-                                                selectedPlaylistEntity = null
+                                                // Buscar la playlist entity de Liked Songs
+                                                selectedPlaylistEntity = playlistsFromDB.find { it.spotifyId == "liked_songs" }
+                                                isLoadingTracks = true
+
+                                                // Cargar tracks desde la base de datos
+                                                coroutineScope.launch {
+                                                    localRepository.getTracksWithAutoSync("liked_songs")
+                                                    isLoadingTracks = false
+                                                }
                                             },
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                     ) {
@@ -1313,19 +1333,7 @@ fun PlaylistsScreen(
                                         Box(
                                             modifier = Modifier
                                                 .size(150.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable {
-                                                    selectedPlaylist = SpotifyPlaylist(
-                                                        id = "liked_songs",
-                                                        name = "Liked Songs",
-                                                        description = "Your favorite tracks on Spotify",
-                                                        tracks = com.plyr.network.SpotifyPlaylistTracks(null, likedSongsCount),
-                                                        images = null
-                                                    )
-                                                    playlistTracks = likedSongs
-                                                    isLoadingTracks = false
-                                                    selectedPlaylistEntity = null
-                                                },
+                                                .clip(RoundedCornerShape(8.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             // Fondo degradado
@@ -1426,26 +1434,26 @@ fun PlaylistsScreen(
 
                             // Álbumes guardados
                             items(savedAlbums.size) { index ->
-                                val album = savedAlbums[index]
+                                val albumEntity = savedAlbums[index]
 
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            // Cargar los tracks del álbum
+                                            // Cargar los tracks del álbum desde Spotify API
                                             isLoadingTracks = true
                                             val accessToken = Config.getSpotifyAccessToken(context)
                                             if (accessToken != null) {
-                                                SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, errorMsg ->
+                                                SpotifyRepository.getAlbumTracks(accessToken, albumEntity.id) { tracks, errorMsg ->
                                                     isLoadingTracks = false
                                                     if (tracks != null) {
                                                         // Crear una playlist temporal para mostrar el álbum
                                                         selectedPlaylist = SpotifyPlaylist(
-                                                            id = album.id,
-                                                            name = album.name,
-                                                            description = "Album by ${album.getArtistNames()}",
-                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, album.totaltracks ?: tracks.size),
-                                                            images = album.images
+                                                            id = albumEntity.id,
+                                                            name = albumEntity.name,
+                                                            description = "Album by ${albumEntity.getArtistNames()}",
+                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, albumEntity.totaltracks ?: tracks.size),
+                                                            images = albumEntity.images
                                                         )
                                                         playlistTracks = tracks
                                                         selectedPlaylistEntity = null
@@ -1453,14 +1461,16 @@ fun PlaylistsScreen(
                                                         Log.e("PlaylistScreen", "Error loading album tracks: $errorMsg")
                                                     }
                                                 }
+                                            } else {
+                                                isLoadingTracks = false
                                             }
                                         },
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     // Portada del álbum
                                     AsyncImage(
-                                        model = album.getImageUrl(),
-                                        contentDescription = "Portada de ${album.name}",
+                                        model = albumEntity.getImageUrl(),
+                                        contentDescription = "Portada de ${albumEntity.name}",
                                         modifier = Modifier
                                             .size(150.dp)
                                             .clip(RoundedCornerShape(8.dp)),
@@ -1471,7 +1481,7 @@ fun PlaylistsScreen(
 
                                     // Nombre del álbum
                                     Text(
-                                        text = album.name,
+                                        text = albumEntity.name,
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
                                             color = Color(0xFFE0E0E0)
@@ -1484,7 +1494,7 @@ fun PlaylistsScreen(
 
                                     // Artista del álbum
                                     Text(
-                                        text = album.getArtistNames(),
+                                        text = albumEntity.getArtistNames(),
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 10.sp,
@@ -1551,7 +1561,7 @@ fun PlaylistsScreen(
                                         contentDescription = "Artista ${artist.name}",
                                         modifier = Modifier
                                             .size(150.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
+                                            .clip(RoundedCornerShape(75.dp)),
                                         placeholder = null,
                                         error = null,
                                         fallback = null
@@ -1580,7 +1590,7 @@ fun PlaylistsScreen(
 }
 
 @Composable
-fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta mandando bien, añadir posibilidad de meter portada
+fun CreateSpotifyPlaylistScreen(
     onBack: () -> Unit,
     onPlaylistCreated: () -> Unit,
     playerViewModel: PlayerViewModel? = null
@@ -1674,7 +1684,7 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
             enabled = !isSearching
         )
 
-        // Mostrar indicador de búsqueda (FALTA CENTRAR)
+        // Mostrar indicador de búsqueda
         if (isSearching) {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -1702,8 +1712,7 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
                 )
             }
 
-            searchResults.take(10).forEachIndexed {index, track ->
-
+            searchResults.take(10).forEachIndexed { index, track ->
                 SongListItem(
                     song = Song(
                         number = index + 1,
@@ -1714,7 +1723,7 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
                     ),
                     trackEntities = trackEntities,
                     index = index,
-                    playerViewModel =  playerViewModel,
+                    playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope,
                     isSelected = selectedTracks.contains(track),
                     customButtonIcon = "+",
@@ -1740,7 +1749,7 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
                     color = Color(0xFF4ECDC4)
                 )
             )
-            val tracksEntiries = selectedTracks.mapIndexed { trackIndex, track ->
+            val tracksEntities = selectedTracks.mapIndexed { trackIndex, track ->
                 TrackEntity(
                     id = "spotify_search_${track.id}_$trackIndex",
                     playlistId = "spotify_search_${System.currentTimeMillis()}",
@@ -1763,7 +1772,7 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
                         youtubeId = track.id,
                         spotifyUrl = "https://open.spotify.com/track/${track.id}"
                     ),
-                    trackEntities = tracksEntiries,
+                    trackEntities = tracksEntities,
                     index = index,
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope,
@@ -1816,7 +1825,6 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
         }
     }
 }
-
 
 @Composable
 fun SpotifyPlaylistDetailView(
@@ -1901,4 +1909,3 @@ fun SpotifyPlaylistDetailView(
         )
     }
 }
-
