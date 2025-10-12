@@ -138,7 +138,8 @@ fun SpotifyArtistDetailView(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             // Botón de share
             Text(
@@ -159,64 +160,52 @@ fun SpotifyArtistDetailView(
                     text = "<...>",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
                         color = Color(0xFF95A5A6)
                     ),
-                    modifier = Modifier.padding(8.dp)
+                    modifier = Modifier.padding(4.dp)
                 )
             } else {
-                val followText = when {
-                    isFollowActionLoading -> "<loading...>"
-                    isFollowing == true -> "<unfollow>"
-                    else -> "<follow>"
-                }
-                val followColor = when {
-                    isFollowActionLoading -> Color(0xFFFFD93D)
-                    isFollowing == true -> Color(0xFFFF6B6B)
-                    else -> Color(0xFF7FB069)
-                }
-
                 Text(
-                    text = followText,
+                    text = if (isFollowing == true) "<unfollow>" else "<follow>",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
-                        color = followColor
+                        fontSize = 14.sp,
+                        color = if (isFollowing == true) Color(0xFFFF6B6B) else Color(0xFF6BCF7F)
                     ),
-                    modifier = Modifier
-                        .clickable(enabled = !isFollowActionLoading) {
-                            isFollowActionLoading = true
+                    modifier = Modifier.clickable {
+                        coroutineScope.launch {
                             val accessToken = Config.getSpotifyAccessToken(context)
                             if (accessToken != null) {
+                                isFollowActionLoading = true
                                 if (isFollowing == true) {
-                                    // Dejar de seguir
                                     SpotifyRepository.unfollowArtist(accessToken, artist.id) { success, errorMsg ->
                                         isFollowActionLoading = false
                                         if (success) {
                                             isFollowing = false
-                                            android.util.Log.d("SpotifyArtistDetailView", "Artist unfollowed: ${artist.name}")
-                                        } else {
-                                            android.util.Log.e("SpotifyArtistDetailView", "Error unfollowing artist: $errorMsg")
                                         }
                                     }
                                 } else {
-                                    // Seguir
                                     SpotifyRepository.followArtist(accessToken, artist.id) { success, errorMsg ->
                                         isFollowActionLoading = false
                                         if (success) {
                                             isFollowing = true
-                                            android.util.Log.d("SpotifyArtistDetailView", "Artist followed: ${artist.name}")
-                                        } else {
-                                            android.util.Log.e("SpotifyArtistDetailView", "Error following artist: $errorMsg")
                                         }
                                     }
                                 }
-                            } else {
-                                isFollowActionLoading = false
-                                android.util.Log.e("SpotifyArtistDetailView", "No access token available")
                             }
                         }
-                        .padding(8.dp)
+                    }.padding(4.dp)
+                )
+            }
+            if (isFollowActionLoading) {
+                Text(
+                    text = "...",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF95A5A6)
+                    ),
+                    modifier = Modifier.padding(start = 8.dp)
                 )
             }
         }
