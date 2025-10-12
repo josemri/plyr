@@ -575,6 +575,63 @@ object SpotifyRepository {
         })
     }
 
+    // Verificar si un álbum está guardado en la biblioteca del usuario
+    fun checkIfAlbumSaved(accessToken: String, albumId: String, callback: (Boolean?, String?) -> Unit) {
+        val request = Request.Builder()
+            .url("$API_BASE_URL/me/albums/contains?ids=$albumId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body.string()
+                if (response.isSuccessful) {
+                    try {
+                        val isSaved = gson.fromJson(body, Array<Boolean>::class.java)
+                        callback(isSaved.firstOrNull() ?: false, null)
+                    } catch (e: Exception) {
+                        callback(null, "Error parsing response: ${e.message}")
+                    }
+                } else {
+                    callback(null, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
+    // Eliminar un álbum de la biblioteca del usuario
+    fun removeAlbum(accessToken: String, albumId: String, callback: (Boolean, String?) -> Unit) {
+        val jsonBody = gson.toJson(mapOf("ids" to listOf(albumId)))
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/me/albums")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .delete(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                if (response.isSuccessful) {
+                    callback(true, null)
+                } else {
+                    val errorBody = response.body.string()
+                    callback(false, "Error HTTP ${response.code}: $errorBody")
+                }
+            }
+        })
+    }
+
     // Crear una nueva playlist en Spotify
     fun createPlaylist(accessToken: String, name: String, description: String, isPublic: Boolean, trackIds: List<String> = emptyList(), callback: (Boolean, String?) -> Unit) {
         // Primero necesitamos obtener el ID del usuario

@@ -446,6 +446,25 @@ fun SearchScreen(
             selectedSpotifyAlbum != null -> {
                 val album = selectedSpotifyAlbum!!
                 var showShareDialog by remember { mutableStateOf(false) }
+                var saveStatus by remember { mutableStateOf<String?>(null) }
+                var isAlbumSaved by remember { mutableStateOf<Boolean?>(null) }
+                var isCheckingStatus by remember { mutableStateOf(false) }
+
+                // Verificar si el álbum está guardado al cargar la vista
+                LaunchedEffect(album.id) {
+                    isCheckingStatus = true
+                    val accessToken = Config.getSpotifyAccessToken(context)
+                    if (accessToken != null) {
+                        SpotifyRepository.checkIfAlbumSaved(accessToken, album.id) { isSaved, errorMsg ->
+                            isCheckingStatus = false
+                            if (isSaved != null) {
+                                isAlbumSaved = isSaved
+                            }
+                        }
+                    } else {
+                        isCheckingStatus = false
+                    }
+                }
 
                 Column(
                     modifier = Modifier.fillMaxSize().padding(16.dp)
@@ -475,13 +494,14 @@ fun SearchScreen(
                     // Action buttons
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "<start>",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 color = Color(0xFF4ECDC4)
                             ),
                             modifier = Modifier.clickable {
@@ -510,13 +530,13 @@ fun SearchScreen(
                                         }
                                     }
                                 }
-                            }.padding(8.dp)
+                            }.padding(4.dp)
                         )
                         Text(
                             text = "<rand>",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 color = Color(0xFFFFD93D)
                             ),
                             modifier = Modifier.clickable {
@@ -546,18 +566,96 @@ fun SearchScreen(
                                         }
                                     }
                                 }
-                            }.padding(8.dp)
+                            }.padding(4.dp)
                         )
+                        // Botón dinámico save/unsave
+                        if (isCheckingStatus) {
+                            Text(
+                                text = "<...>",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF95A5A6)
+                                ),
+                                modifier = Modifier.padding(4.dp)
+                            )
+                        } else {
+                            Text(
+                                text = if (isAlbumSaved == true) "<unsave>" else "<save>",
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 14.sp,
+                                    color = if (isAlbumSaved == true) Color(0xFFFF6B6B) else Color(0xFF6BCF7F)
+                                ),
+                                modifier = Modifier.clickable {
+                                    coroutineScope.launch {
+                                        try {
+                                            val accessToken = Config.getSpotifyAccessToken(context)
+                                            if (accessToken != null) {
+                                                if (isAlbumSaved == true) {
+                                                    // Eliminar álbum
+                                                    saveStatus = "removing..."
+                                                    SpotifyRepository.removeAlbum(accessToken, album.id) { success, errorMsg ->
+                                                        saveStatus = if (success) {
+                                                            isAlbumSaved = false
+                                                            "removed!"
+                                                        } else {
+                                                            "error: $errorMsg"
+                                                        }
+                                                        // Clear status after 2 seconds
+                                                        coroutineScope.launch {
+                                                            kotlinx.coroutines.delay(2000)
+                                                            saveStatus = null
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Guardar álbum
+                                                    saveStatus = "saving..."
+                                                    SpotifyRepository.saveAlbum(accessToken, album.id) { success, errorMsg ->
+                                                        saveStatus = if (success) {
+                                                            isAlbumSaved = true
+                                                            "saved!"
+                                                        } else {
+                                                            "error: $errorMsg"
+                                                        }
+                                                        // Clear status after 2 seconds
+                                                        coroutineScope.launch {
+                                                            kotlinx.coroutines.delay(2000)
+                                                            saveStatus = null
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                saveStatus = "error: no token"
+                                            }
+                                        } catch (e: Exception) {
+                                            saveStatus = "error: ${e.message}"
+                                        }
+                                    }
+                                }.padding(4.dp)
+                            )
+                        }
                         Text(
                             text = "<share>",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 16.sp,
+                                fontSize = 14.sp,
                                 color = Color(0xFFFF6B9D)
                             ),
                             modifier = Modifier.clickable {
                                 showShareDialog = true
-                            }.padding(8.dp)
+                            }.padding(4.dp)
+                        )
+                    }
+                    // Save status message
+                    saveStatus?.let { status ->
+                        Text(
+                            text = "$ $status",
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = if (status.startsWith("error")) Color(0xFFFF6B6B) else Color(0xFF6BCF7F)
+                            ),
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                     // Loading and error states
