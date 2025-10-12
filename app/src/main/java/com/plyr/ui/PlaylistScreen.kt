@@ -319,7 +319,8 @@ fun PlaylistsScreen(
         if (showCreatePlaylistScreen) {
             CreateSpotifyPlaylistScreen(
                 onBack = { showCreatePlaylistScreen = false },
-                onPlaylistCreated = { showCreatePlaylistScreen = false; loadPlaylists() }
+                onPlaylistCreated = { showCreatePlaylistScreen = false; loadPlaylists() },
+                playerViewModel = playerViewModel
             )
             return@Column
         }
@@ -1581,7 +1582,8 @@ fun PlaylistsScreen(
 @Composable
 fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta mandando bien, añadir posibilidad de meter portada
     onBack: () -> Unit,
-    onPlaylistCreated: () -> Unit
+    onPlaylistCreated: () -> Unit,
+    playerViewModel: PlayerViewModel? = null
 ) {
     var playlistName by remember { mutableStateOf("") }
     var playlistDesc by remember { mutableStateOf("") }
@@ -1672,7 +1674,7 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
             enabled = !isSearching
         )
 
-        // Mostrar indicador de búsqueda
+        // Mostrar indicador de búsqueda (FALTA CENTRAR)
         if (isSearching) {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -1686,50 +1688,45 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
 
         // Resultados de búsqueda
         if (searchResults.isNotEmpty()) {
-            searchResults.take(10).forEach { track ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            if (!selectedTracks.contains(track)) {
-                                selectedTracks = selectedTracks + track
-                                searchResults = emptyList()
-                                searchQuery = ""
-                            }
+            val trackEntities = searchResults.take(10).mapIndexed { trackIndex, track ->
+                TrackEntity(
+                    id = "spotify_search_${track.id}_$trackIndex",
+                    playlistId = "spotify_search_${System.currentTimeMillis()}",
+                    spotifyTrackId = track.id,
+                    name = track.name,
+                    artists = track.getArtistNames(),
+                    youtubeVideoId = null,
+                    audioUrl = null,
+                    position = trackIndex,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            }
+
+            searchResults.take(10).forEachIndexed {index, track ->
+
+                SongListItem(
+                    song = Song(
+                        number = index + 1,
+                        title = track.name,
+                        artist = track.getArtistNames(),
+                        youtubeId = track.id,
+                        spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                    ),
+                    trackEntities = trackEntities,
+                    index = index,
+                    playerViewModel =  playerViewModel,
+                    coroutineScope = coroutineScope,
+                    isSelected = selectedTracks.contains(track),
+                    customButtonIcon = "+",
+                    customButtonAction = {
+                        if (!selectedTracks.contains(track)) {
+                            selectedTracks = selectedTracks + track
+                            searchResults = emptyList()
+                            searchQuery = ""
                         }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "+",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF4ECDC4)
-                        ),
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = track.name,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFE0E0E0)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = track.getArtistNames(),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                                color = Color(0xFF95A5A6)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 
@@ -1743,55 +1740,40 @@ fun CreateSpotifyPlaylistScreen( //solucionar lo de public/private no se esta ma
                     color = Color(0xFF4ECDC4)
                 )
             )
+            val tracksEntiries = selectedTracks.mapIndexed { trackIndex, track ->
+                TrackEntity(
+                    id = "spotify_search_${track.id}_$trackIndex",
+                    playlistId = "spotify_search_${System.currentTimeMillis()}",
+                    spotifyTrackId = track.id,
+                    name = track.name,
+                    artists = track.getArtistNames(),
+                    youtubeVideoId = null,
+                    audioUrl = null,
+                    position = trackIndex,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            }
+
             selectedTracks.forEachIndexed { index, track ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp, horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${index + 1}.",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
-                        ),
-                        modifier = Modifier.width(32.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = track.name,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFE0E0E0)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = track.getArtistNames(),
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 11.sp,
-                                color = Color(0xFF95A5A6)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Text(
-                        text = "x",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFFF6B6B)
-                        ),
-                        modifier = Modifier
-                            .clickable {
-                                selectedTracks = selectedTracks.filterIndexed { i, _ -> i != index }
-                            }
-                            .padding(8.dp)
-                    )
-                }
+                SongListItem(
+                    song = Song(
+                        number = index + 1,
+                        title = track.name,
+                        artist = track.getArtistNames(),
+                        youtubeId = track.id,
+                        spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                    ),
+                    trackEntities = tracksEntiries,
+                    index = index,
+                    playerViewModel = playerViewModel,
+                    coroutineScope = coroutineScope,
+                    isSelected = true,
+                    customButtonIcon = "x",
+                    customButtonAction = {
+                        selectedTracks = selectedTracks.filterIndexed { i, _ -> i != index }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
 

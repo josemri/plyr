@@ -52,7 +52,9 @@ fun SongListItem(
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
-    onLikedStatusChanged: (() -> Unit)? = null
+    onLikedStatusChanged: (() -> Unit)? = null,
+    customButtonIcon: String? = null, // Nueva: Icono personalizado para el botón (ej: "+")
+    customButtonAction: (() -> Unit)? = null // Nueva: Acción personalizada para el botón
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -120,17 +122,24 @@ fun SongListItem(
                 modifier = Modifier.padding(top = 0.dp)
             )
         }
+        // Botón personalizable
         IconButton(onClick = {
-            showPopup = true
+            if (customButtonAction != null) {
+                customButtonAction()
+            } else {
+                showPopup = true
+            }
         }, modifier = Modifier.size(32.dp)) {
             Text(
-                text = "*", style = PlyrTextStyles.menuOption(),
+                text = customButtonIcon ?: "*",
+                style = PlyrTextStyles.menuOption(),
                 color = Color(0xFF3FFFEF)
             )
         }
     }
 
-    if (showPopup) {
+    // Solo mostrar popup si no hay acción personalizada
+    if (showPopup && customButtonAction == null) {
         // Cargar información de la canción cuando se abre el popup
         LaunchedEffect(true) {
             if (showPopup && song.spotifyId != null) {
