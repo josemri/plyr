@@ -3,6 +3,11 @@ package com.plyr.utils
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 /**
  * Config - Objeto singleton para gestión de configuración de la aplicación
@@ -117,20 +122,52 @@ object Config {
     
     /**
      * Obtiene el token de acceso de Spotify si es válido.
-     * Verifica automáticamente si el token ha expirado.
-     * 
+     * Si el token ha expirado pero existe un refresh token válido,
+     * automáticamente renueva el token y devuelve el nuevo.
+     *
      * @param context Contexto de la aplicación
-     * @return Token de acceso válido o null si expiró o no existe
+     * @return Token de acceso válido o null si no se pudo obtener/renovar
      */
     fun getSpotifyAccessToken(context: Context): String? {
-        val token = getPrefs(context).getString(KEY_SPOTIFY_ACCESS_TOKEN, null)
-        val expiryTime = getPrefs(context).getLong(KEY_SPOTIFY_TOKEN_EXPIRY, 0)
-        
+        val prefs = getPrefs(context)
+        val token = prefs.getString(KEY_SPOTIFY_ACCESS_TOKEN, null)
+        val expiryTime = prefs.getLong(KEY_SPOTIFY_TOKEN_EXPIRY, 0)
+
         // Verificar que el token no haya expirado
-        return if (token != null && System.currentTimeMillis() < expiryTime) {
-            token
-        } else {
-            null
+        if (token != null && System.currentTimeMillis() < expiryTime) {
+            return token
+        }
+
+        // Token expirado o no existe, intentar renovar con el refresh token
+        val refreshToken = prefs.getString(KEY_SPOTIFY_REFRESH_TOKEN, null)
+        if (refreshToken == null) {
+            android.util.Log.d("Config", "No hay refresh token disponible para renovar")
+            return null
+        }
+
+        android.util.Log.d("Config", "Token expirado, renovando automáticamente...")
+
+        // Renovar el token de forma síncrona
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                suspendCoroutine<String?> { continuation ->
+                    com.plyr.network.SpotifyRepository.refreshAccessToken(context, refreshToken) { newAccessToken, error ->
+                        if (error != null) {
+                            android.util.Log.e("Config", "Error renovando token: $error")
+                            continuation.resume(null)
+                        } else if (newAccessToken != null) {
+                            // Guardar el nuevo token
+                            val expiresIn = 3600 // Spotify tokens duran 1 hora
+                            setSpotifyTokens(context, newAccessToken, refreshToken, expiresIn)
+                            android.util.Log.d("Config", "Token renovado exitosamente")
+                            continuation.resume(newAccessToken)
+                        } else {
+                            android.util.Log.e("Config", "Respuesta inesperada al renovar token")
+                            continuation.resume(null)
+                        }
+                    }
+                }
+            }
         }
     }
     
