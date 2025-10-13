@@ -325,6 +325,7 @@ fun PlaylistsScreen(
                 isEditing = false
                 hasUnsavedChanges = false
                 selectedPlaylist = null
+                selectedPlaylistEntity = null
                 playlistTracks = emptyList()
                 // Limpiar artista y sus álbumes al salir completamente
                 selectedArtist = null
