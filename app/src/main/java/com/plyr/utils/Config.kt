@@ -33,6 +33,7 @@ object Config {
     private const val KEY_SEARCH_ENGINE = "search_engine"
     private const val KEY_AUDIO_QUALITY = "audio_quality"
     private const val KEY_REPEAT_MODE = "repeat_mode"
+    private const val KEY_LANGUAGE = "language"
     private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
     private const val KEY_SPOTIFY_REFRESH_TOKEN = "spotify_refresh_token"
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
@@ -44,6 +45,7 @@ object Config {
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
     private const val DEFAULT_AUDIO_QUALITY = "medium"
     private const val DEFAULT_REPEAT_MODE = "off"
+    private const val DEFAULT_LANGUAGE = "español"
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
 
@@ -66,6 +68,13 @@ object Config {
     const val REPEAT_MODE_OFF = "off"        // Sin repetición
     const val REPEAT_MODE_ONE = "one"        // Repetir una sola vez
     const val REPEAT_MODE_ALL = "all"        // Repetir indefinidamente
+
+    // === CONSTANTES PÚBLICAS DE IDIOMAS ===
+
+    /** Idiomas disponibles */
+    const val LANGUAGE_SPANISH = "español"
+    const val LANGUAGE_ENGLISH = "english"
+    const val LANGUAGE_CATALAN = "català"
 
     // === MÉTODOS PRIVADOS ===
     
@@ -332,6 +341,28 @@ object Config {
             REPEAT_MODE_ALL -> REPEAT_MODE_OFF
             else -> REPEAT_MODE_OFF
         }
+    }
+
+    // === GESTIÓN DE IDIOMA ===
+
+    /**
+     * Establece el idioma de la aplicación.
+     * @param context Contexto de la aplicación
+     * @param language Idioma a establecer ("español", "english", "català")
+     */
+    fun setLanguage(context: Context, language: String) {
+        getPrefs(context).edit {
+            putString(KEY_LANGUAGE, language)
+        }
+    }
+
+    /**
+     * Obtiene el idioma actual de la aplicación.
+     * @param context Contexto de la aplicación
+     * @return Idioma actual (por defecto "español")
+     */
+    fun getLanguage(context: Context): String {
+        return getPrefs(context).getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
     }
 
     // === GESTIÓN DE TIMESTAMPS DE TOKENS ===

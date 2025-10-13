@@ -14,12 +14,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.plyr.ui.components.*
 import com.plyr.ui.theme.*
+import com.plyr.utils.Config
+import com.plyr.utils.Translations
 
 @Composable
 fun HomeScreen(
@@ -28,6 +33,20 @@ fun HomeScreen(
 ) {
     var backPressedTime by remember { mutableLongStateOf(0L) }
     var showExitMessage by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    // Obtener idioma actual para forzar recomposición
+    var currentLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(100)
+            val newLanguage = Config.getLanguage(context)
+            if (newLanguage != currentLanguage) {
+                currentLanguage = newLanguage
+            }
+        }
+    }
 
     // List of ASCII arts (add your own manually)
     val asciiArts = listOf(
@@ -139,73 +158,110 @@ fun HomeScreen(
 
     PlyrScreenContainer {
         val verticalScrollState = rememberScrollState()
-        Box(modifier = Modifier.verticalScroll(verticalScrollState)) {
-            // Center all content (ASCII art, title, buttons) vertically and horizontally
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(verticalScrollState),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // ASCII art and title
+                val horizontalScrollState = rememberScrollState()
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .fillMaxHeight(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                        .horizontalScroll(horizontalScrollState),
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    // ASCII art and title
-                    val horizontalScrollState = rememberScrollState()
-                    Row(
+                    Text(
+                        text = selectedAscii,
+                        fontFamily = FontFamily.Monospace,
+                        style = PlyrTextStyles.commandTitle().copy(
+                            fontSize = 12.sp,
+                            lineHeight = 13.sp
+                        ),
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(horizontalScrollState),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = selectedAscii,
-                            fontFamily = FontFamily.Monospace,
-                            style = PlyrTextStyles.commandTitle().copy(
-                                fontSize = 12.sp,
-                                lineHeight = 13.sp
-                            ),
-                            modifier = Modifier
-                                .align(Alignment.CenterVertically)
-                                .padding(bottom = 8.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(32.dp))
-                    // Centered menu options
-                    val options = listOf(
-                        MenuOption(Screen.SEARCH, "search"),
-                        MenuOption(Screen.PLAYLISTS, "playlists"),
-                        MenuOption(Screen.QUEUE, "queue"),
-                        MenuOption(Screen.LOCAL, "local"),
-                        MenuOption(Screen.CONFIG, "settings")
+                            .align(Alignment.CenterVertically)
+                            .padding(bottom = 8.dp)
                     )
-                    // Restore previous layout: buttons below ASCII, left-aligned but centered vertically
-                    Spacer(modifier = Modifier.height(50.dp))
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth(0.8f), // keep buttons visually centered horizontally
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.Start // left-align buttons
-                    ) {
-                        options.forEach { option ->
-                            PlyrMenuOption(
-                                text = option.title,
-                                onClick = { onNavigateToScreen(option.screen) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 16.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                Spacer(modifier = Modifier.height(50.dp))
+
+                // Crear botones usando ActionButtonData con formato < texto >
+                val buttons = listOf(
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_search")} >",
+                        color = Color(0xFFE74C3C),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.SEARCH)
                         }
-                    }
-                    if (showExitMessage) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        PlyrErrorText(
-                            text = "Press back again to exit",
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                    }
+                    ),
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_playlists")} >",
+                        color = Color(0xFF3498DB),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.PLAYLISTS)
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_queue")} >",
+                        color = Color(0xFF2ECC71),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.QUEUE)
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_local")} >",
+                        color = Color(0xFFF39C12),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.LOCAL)
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_settings")} >",
+                        color = Color(0xFF9B59B6),
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.CONFIG)
+                        }
+                    )
+                )
+
+                // Usar ActionButtonsGroup en modo vertical y centrado
+                ActionButtonsGroup(
+                    buttons = buttons,
+                    isHorizontal = false,
+                    spacing = 12.dp,
+                    modifier = Modifier
+                        .wrapContentWidth()
+                        .padding(bottom = 16.dp)
+                )
+
+                if (showExitMessage) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    PlyrErrorText(
+                        text = Translations.get(context, "exit_message"),
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
                 }
             }
         }
     }
 }
+
+data class HomeMenuOption(
+    val screen: Screen,
+    val title: String,
+    val color: Color = Color.White
+)

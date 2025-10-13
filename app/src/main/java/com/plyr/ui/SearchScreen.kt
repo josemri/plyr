@@ -27,6 +27,7 @@ import coil.compose.AsyncImage
 import com.plyr.model.AudioItem
 import com.plyr.network.*
 import com.plyr.utils.Config
+import com.plyr.utils.Translations
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
@@ -41,6 +42,7 @@ import com.plyr.ui.components.search.YouTubeSearchResults
 import com.plyr.ui.components.QrScannerDialog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 
 @Composable
 fun SearchScreen(
@@ -53,6 +55,19 @@ fun SearchScreen(
     var results by remember { mutableStateOf<List<AudioItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    // Detección de cambio de idioma para actualizar la UI
+    var currentLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(100)
+            val newLanguage = Config.getLanguage(context)
+            if (newLanguage != currentLanguage) {
+                currentLanguage = newLanguage
+            }
+        }
+    }
 
     // Estados para resultados de Spotify
     var spotifyResults by remember { mutableStateOf<SpotifySearchAllResponse?>(null) }
@@ -162,7 +177,7 @@ fun SearchScreen(
                                         android.os.Handler(android.os.Looper.getMainLooper()).post {
                                             if (searchError != null) {
                                                 isLoading = false
-                                                error = "Error searching Spotify: $searchError"
+                                                error = "${Translations.get(context, "search_error")}: $searchError"
                                             } else if (searchResults != null) {
 
 
@@ -195,17 +210,17 @@ fun SearchScreen(
                                     }
                                 } else {
                                     isLoading = false
-                                    error = "Token de Spotify no disponible"
+                                    error = Translations.get(context, "search_token_not_available")
                                 }
                             } else {
                                 isLoading = false
-                                error = "Spotify no está conectado"
+                                error = Translations.get(context, "search_spotify_not_connected")
                             }
                         }
 
                         else -> {
                             isLoading = false
-                            error = "Motor de búsqueda no reconocido: $finalSearchEngine"
+                            error = "${Translations.get(context, "search_engine_not_recognized")}: $finalSearchEngine"
                         }
                     }
 
@@ -498,7 +513,7 @@ fun SearchScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "<start>",
+                            text = "<${Translations.get(context, "search_start")}>",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp,
@@ -533,7 +548,7 @@ fun SearchScreen(
                             }.padding(4.dp)
                         )
                         Text(
-                            text = "<rand>",
+                            text = "<${Translations.get(context, "search_random")}>",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp,
@@ -581,7 +596,7 @@ fun SearchScreen(
                             )
                         } else {
                             Text(
-                                text = if (isAlbumSaved == true) "<unsave>" else "<save>",
+                                text = if (isAlbumSaved == true) "<${Translations.get(context, "search_unsave")}>" else "<${Translations.get(context, "search_save")}>",
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 14.sp,
@@ -594,13 +609,13 @@ fun SearchScreen(
                                             if (accessToken != null) {
                                                 if (isAlbumSaved == true) {
                                                     // Eliminar álbum
-                                                    saveStatus = "removing..."
+                                                    saveStatus = Translations.get(context, "search_removing")
                                                     SpotifyRepository.removeAlbum(accessToken, album.id) { success, errorMsg ->
                                                         saveStatus = if (success) {
                                                             isAlbumSaved = false
-                                                            "removed!"
+                                                            Translations.get(context, "search_removed")
                                                         } else {
-                                                            "error: $errorMsg"
+                                                            "${Translations.get(context, "search_error")}: $errorMsg"
                                                         }
                                                         // Clear status after 2 seconds
                                                         coroutineScope.launch {
@@ -610,13 +625,13 @@ fun SearchScreen(
                                                     }
                                                 } else {
                                                     // Guardar álbum
-                                                    saveStatus = "saving..."
+                                                    saveStatus = Translations.get(context, "search_saving_status")
                                                     SpotifyRepository.saveAlbum(accessToken, album.id) { success, errorMsg ->
                                                         saveStatus = if (success) {
                                                             isAlbumSaved = true
-                                                            "saved!"
+                                                            Translations.get(context, "search_saved")
                                                         } else {
-                                                            "error: $errorMsg"
+                                                            "${Translations.get(context, "search_error")}: $errorMsg"
                                                         }
                                                         // Clear status after 2 seconds
                                                         coroutineScope.launch {
@@ -626,17 +641,17 @@ fun SearchScreen(
                                                     }
                                                 }
                                             } else {
-                                                saveStatus = "error: no token"
+                                                saveStatus = Translations.get(context, "search_error_no_token")
                                             }
                                         } catch (e: Exception) {
-                                            saveStatus = "error: ${e.message}"
+                                            saveStatus = "${Translations.get(context, "search_error")}: ${e.message}"
                                         }
                                     }
                                 }.padding(4.dp)
                             )
                         }
                         Text(
-                            text = "<share>",
+                            text = "<${Translations.get(context, "search_share")}>",
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp,
@@ -754,6 +769,7 @@ fun SearchScreen(
             else -> {
                 // Vista normal de búsqueda
                 SearchMainView(
+                    context = context,
                     searchQuery = searchQuery,
                     onSearchQueryChange = { searchQuery = it },
                     results = results,
@@ -799,7 +815,7 @@ fun SearchScreen(
                                                                         searchQuery = "${track.name} ${track.getArtistNames()}"
                                                                         performSearch(searchQuery, false)
                                                                     } else {
-                                                                        error = "Error obteniendo track: $errorMsg"
+                                                                        error = "${Translations.get(context, "search_error_getting_track")}: $errorMsg"
                                                                     }
                                                                 }
                                                             }
@@ -809,7 +825,7 @@ fun SearchScreen(
                                                                     if (playlist != null) {
                                                                         loadSpotifyPlaylistTracks(playlist)
                                                                     } else {
-                                                                        error = "Error obteniendo playlist: $errorMsg"
+                                                                        error = "${Translations.get(context, "search_error_getting_playlist")}: $errorMsg"
                                                                     }
                                                                 }
                                                             }
@@ -819,7 +835,7 @@ fun SearchScreen(
                                                                     if (album != null) {
                                                                         loadSpotifyAlbumTracks(album)
                                                                     } else {
-                                                                        error = "Error obteniendo álbum: $errorMsg"
+                                                                        error = "${Translations.get(context, "search_error_getting_album")}: $errorMsg"
                                                                     }
                                                                 }
                                                             }
@@ -829,16 +845,16 @@ fun SearchScreen(
                                                                     if (artist != null) {
                                                                         loadArtistAlbums(artist)
                                                                     } else {
-                                                                        error = "Error obteniendo artista: $errorMsg"
+                                                                        error = "${Translations.get(context, "search_error_getting_artist")}: $errorMsg"
                                                                     }
                                                                 }
                                                             }
                                                         }
                                                     } else {
-                                                        error = "Token de Spotify no disponible"
+                                                        error = Translations.get(context, "search_token_not_available")
                                                     }
                                                 } else {
-                                                    error = "Spotify no está conectado"
+                                                    error = Translations.get(context, "search_spotify_not_connected")
                                                 }
                                             }
                                             "youtube" -> {
@@ -849,7 +865,7 @@ fun SearchScreen(
                                             }
                                         }
                                     } catch (e: Exception) {
-                                        error = "Error procesando QR: ${e.message}"
+                                        error = "${Translations.get(context, "search_error_processing_qr")}: ${e.message}"
                                         isLoading = false
                                     }
                                 }
@@ -864,7 +880,7 @@ fun SearchScreen(
         if (showPlaylistSelectionDialog && selectedTrackToAdd != null) {
             AlertDialog(
                 onDismissRequest = { showPlaylistSelectionDialog = false },
-                title = { Text("Seleccionar playlist") },
+                title = { Text(Translations.get(context, "search_select_playlist")) },
                 text = {
                     Column {
                         if (isLoadingPlaylists) {
@@ -895,11 +911,11 @@ fun SearchScreen(
                                                                 showPlaylistSelectionDialog = false
                                                             } else {
                                                                 // Mostrar error
-                                                                error = "Error añadiendo canción a la playlist: $errorMsg"
+                                                                error = "${Translations.get(context, "search_adding_to_playlist")}: $errorMsg"
                                                             }
                                                         }
                                                     } else {
-                                                        error = "Token de Spotify no disponible"
+                                                        error = Translations.get(context, "search_token_not_available")
                                                     }
                                                 }
                                             },
@@ -922,7 +938,7 @@ fun SearchScreen(
                             showPlaylistSelectionDialog = false
                         }
                     ) {
-                        Text("Cancelar")
+                        Text(Translations.get(context, "search_cancel"))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(0.9f)
@@ -935,6 +951,7 @@ fun SearchScreen(
 
 @Composable
 private fun SearchMainView(
+    context: Context,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     results: List<AudioItem>,
@@ -961,7 +978,7 @@ private fun SearchMainView(
     ) {
         // Header
         Text(
-            text = "$ plyr_search",
+            text = Translations.get(context, "search_title"),
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 24.sp,
@@ -976,7 +993,7 @@ private fun SearchMainView(
             onValueChange = onSearchQueryChange,
             label = {
                 Text(
-                    "> search_audio",
+                    Translations.get(context, "search_placeholder"),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace
                     )
@@ -999,7 +1016,7 @@ private fun SearchMainView(
                     }
                     IconButton(onClick = { onShowQrScannerChange(true) }) {
                         Text(
-                            text = "qr",
+                            text = Translations.get(context, "search_scan_qr"),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontFamily = FontFamily.Monospace
                             )
@@ -1038,7 +1055,7 @@ private fun SearchMainView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "$ loading...",
+                    "$ ${Translations.get(context, "search_loading")}",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFFFFD93D)
@@ -1061,6 +1078,7 @@ private fun SearchMainView(
         // === MENÚS DESPLEGABLES DE SPOTIFY ===
         if (showSpotifyResults && spotifyResults != null) {
             CollapsibleSpotifySearchResultsView(
+                context = context,
                 results = spotifyResults,
                 onAlbumSelected = onAlbumSelected,
                 onPlaylistSelected = onPlaylistSelected,
@@ -1085,6 +1103,7 @@ private fun SearchMainView(
         // === RESULTADOS DE YOUTUBE LEGACY ===
         if (results.isNotEmpty() && !showYouTubeAllResults) {
             CollapsibleYouTubeSearchResultsView(
+                context = context,
                 results = results,
                 onLoadMore = { onSearchTriggered(searchQuery, true) },
                 playerViewModel = playerViewModel,
@@ -1096,6 +1115,7 @@ private fun SearchMainView(
 
 @Composable
 fun CollapsibleSpotifySearchResultsView(
+    context: Context,
     results: SpotifySearchAllResponse,
     onAlbumSelected: (SpotifyAlbum) -> Unit,
     onPlaylistSelected: (SpotifyPlaylist) -> Unit,
@@ -1335,6 +1355,7 @@ fun CollapsibleSpotifySearchResultsView(
 
 @Composable
 fun CollapsibleYouTubeSearchResultsView(
+    context: Context,
     results: List<AudioItem>,
     onLoadMore: () -> Unit,
     playerViewModel: PlayerViewModel?,

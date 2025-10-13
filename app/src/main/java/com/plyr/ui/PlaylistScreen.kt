@@ -351,16 +351,7 @@ fun PlaylistsScreen(
             )
             return@Column
         }
-        // Header
-        Text( //TITULO PRINCIPAL (modificar para que use themes)
-            text = if (selectedPlaylist == null) "$ plyr_lists" else "$ ${selectedPlaylist!!.name}",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 24.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        Titulo(if (selectedPlaylist == null) "$ plyr_lists" else "$ ${selectedPlaylist!!.name}")
 
         // Botón de sincronización manual (solo visible si está conectado y no es una playlist individual)
         if (isSpotifyConnected && selectedPlaylist == null) {
