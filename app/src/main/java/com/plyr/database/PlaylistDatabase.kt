@@ -16,8 +16,8 @@ import android.content.Context
  * Implementa patrón Singleton thread-safe para garantizar una sola instancia.
  */
 @Database(
-    entities = [PlaylistEntity::class, TrackEntity::class],
-    version = 2,
+    entities = [PlaylistEntity::class, TrackEntity::class, DownloadedTrackEntity::class],
+    version = 3,
     exportSchema = false
 )
 abstract class PlaylistDatabase : RoomDatabase() {
@@ -31,7 +31,12 @@ abstract class PlaylistDatabase : RoomDatabase() {
      * Acceso al DAO de tracks.
      */
     abstract fun trackDao(): TrackDao
-    
+
+    /**
+     * Acceso al DAO de tracks descargados.
+     */
+    abstract fun downloadedTrackDao(): DownloadedTrackDao
+
     companion object {
         /** Instancia volátil para thread-safety */
         @Volatile

@@ -28,8 +28,12 @@ import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyTrack
 import com.plyr.ui.PlaylistsScreen
 import com.plyr.utils.Config
+import com.plyr.utils.DownloadManager
+import com.plyr.database.PlaylistDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import com.plyr.ui.theme.PlyrSpacing
 import com.plyr.ui.theme.PlyrTextStyles
 
@@ -79,12 +83,20 @@ fun SongListItem(
                     if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
                         viewModel.setCurrentPlaylist(trackEntities, index)
                         val selectedTrackEntity = trackEntities[index]
+
+                        Log.d("SongListItem", "═══════════════════════════════════")
+                        Log.d("SongListItem", "🎵 REPRODUCIR TRACK")
+                        Log.d("SongListItem", "═══════════════════════════════════")
+                        Log.d("SongListItem", "Track: ${selectedTrackEntity.name}")
+                        Log.d("SongListItem", "AudioUrl: ${selectedTrackEntity.audioUrl}")
+                        Log.d("SongListItem", "Es archivo local: ${selectedTrackEntity.audioUrl?.startsWith("/") == true}")
+
                         coroutineScope.launch {
                             try {
                                 viewModel.loadAudioFromTrack(selectedTrackEntity)
-                                Log.d("SongListItem", "🎵 Reproduciendo track ${index + 1}/${trackEntities.size}: ${selectedTrackEntity.name}")
+                                Log.d("SongListItem", "✓ loadAudioFromTrack llamado exitosamente")
                             } catch (e: Exception) {
-                                Log.e("SongListItem", "Error al reproducir track", e)
+                                Log.e("SongListItem", "✗ Error al reproducir track", e)
                             }
                         }
                     }
@@ -439,6 +451,83 @@ fun SongListItem(
                                                 }
                                             }
                                         }
+                                    }
+                                }
+                                .padding(vertical = 4.dp)
+                        )
+
+                        // Download
+                        Text(
+                            text = "download",
+                            color = Color(0xFF3FFFEF),
+                            fontWeight = FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showPopup = false
+                                    if (song.spotifyId != null) {
+                                        coroutineScope.launch {
+                                            // Verificar si ya está descargada
+                                            val database = PlaylistDatabase.getDatabase(context)
+                                            val alreadyDownloaded = database.downloadedTrackDao()
+                                                .isTrackDownloaded(song.spotifyId) > 0
+
+                                            if (alreadyDownloaded) {
+                                                Log.d("SongListItem", "Track already downloaded")
+                                            } else {
+                                                Log.d("SongListItem", "Starting download: ${song.title}")
+                                                Log.d("SongListItem", "Song data - Title: '${song.title}', Artist: '${song.artist}', SpotifyId: '${song.spotifyId}', YoutubeId: '${song.youtubeId}'")
+
+                                                // Primero intentar obtener el youtubeId del TrackEntity actual
+                                                val trackEntity = if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
+                                                    trackEntities[index]
+                                                } else null
+
+                                                val initialYoutubeId = trackEntity?.youtubeVideoId ?: song.youtubeId
+                                                Log.d("SongListItem", "TrackEntity youtubeVideoId: ${trackEntity?.youtubeVideoId}")
+
+                                                // Si aún no tenemos youtubeId, buscarlo en YouTube
+                                                val finalYoutubeId = if (initialYoutubeId == null) {
+                                                    withContext(Dispatchers.IO) {
+                                                        val searchQuery = "${song.title} ${song.artist}"
+                                                        Log.d("SongListItem", "YouTube ID not available, searching with query: '$searchQuery'")
+                                                        val foundId = com.plyr.network.YouTubeManager.searchVideoId(searchQuery)
+                                                        Log.d("SongListItem", "YouTube search result: ${if (foundId != null) "Found ID: $foundId" else "NOT FOUND"}")
+                                                        foundId
+                                                    }
+                                                } else {
+                                                    Log.d("SongListItem", "Using existing YouTube ID: $initialYoutubeId")
+                                                    initialYoutubeId
+                                                }
+
+                                                if (finalYoutubeId != null) {
+                                                    Log.d("SongListItem", "YouTube ID confirmed: $finalYoutubeId")
+                                                    Log.d("SongListItem", "Attempting to get audio URL for video: $finalYoutubeId")
+                                                    DownloadManager.downloadTrack(
+                                                        context = context,
+                                                        spotifyTrackId = song.spotifyId,
+                                                        youtubeVideoId = finalYoutubeId,
+                                                        trackName = song.title,
+                                                        artists = song.artist,
+                                                        onProgress = { progress ->
+                                                            Log.d("SongListItem", "Download progress: $progress%")
+                                                        },
+                                                        onComplete = { success, error ->
+                                                            if (success) {
+                                                                Log.d("SongListItem", "✓ Download completed: ${song.title}")
+                                                            } else {
+                                                                Log.e("SongListItem", "✗ Download failed: $error")
+                                                            }
+                                                        }
+                                                    )
+                                                } else {
+                                                    Log.e("SongListItem", "Cannot download: YouTube video not found for query: '${song.title} ${song.artist}'")
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Log.e("SongListItem", "Cannot download: missing Spotify ID")
                                     }
                                 }
                                 .padding(vertical = 4.dp)

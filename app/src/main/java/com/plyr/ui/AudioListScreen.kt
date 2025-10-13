@@ -12,7 +12,8 @@ enum class Screen {
     SEARCH,
     QUEUE,
     CONFIG,
-    PLAYLISTS
+    PLAYLISTS,
+    LOCAL
 }
 
 @Stable
@@ -50,6 +51,10 @@ fun AudioListScreen(
         )
         Screen.PLAYLISTS -> PlaylistsScreen(
             context = context,
+            onBack = { currentScreen = Screen.HOME },
+            playerViewModel = playerViewModel
+        )
+        Screen.LOCAL -> LocalScreen(
             onBack = { currentScreen = Screen.HOME },
             playerViewModel = playerViewModel
         )

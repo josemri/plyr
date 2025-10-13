@@ -94,20 +94,55 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     suspend fun loadAudioFromTrack(track: TrackEntity): Boolean = withContext(Dispatchers.Main) {
         try {
+            android.util.Log.d("PlayerViewModel", "═══════════════════════════════════")
+            android.util.Log.d("PlayerViewModel", "🎵 LOAD AUDIO FROM TRACK")
+            android.util.Log.d("PlayerViewModel", "═══════════════════════════════════")
+            android.util.Log.d("PlayerViewModel", "Track name: ${track.name}")
+            android.util.Log.d("PlayerViewModel", "Track audioUrl: ${track.audioUrl}")
+            android.util.Log.d("PlayerViewModel", "Track youtubeVideoId: ${track.youtubeVideoId}")
+
             _isLoading.postValue(true)
             _error.postValue(null)
             _currentTitle.postValue("${track.name} - ${track.artists}")
 
             val audioUrl = withContext(Dispatchers.IO) {
+                // Verificar si audioUrl es una ruta de archivo local
+                if (track.audioUrl != null && (track.audioUrl.startsWith("/") || track.audioUrl.startsWith("file://"))) {
+                    android.util.Log.d("PlayerViewModel", "🔍 Detectado archivo local")
+                    android.util.Log.d("PlayerViewModel", "   Ruta: ${track.audioUrl}")
+
+                    val localFile = java.io.File(track.audioUrl.removePrefix("file://"))
+                    android.util.Log.d("PlayerViewModel", "   Archivo: ${localFile.absolutePath}")
+                    android.util.Log.d("PlayerViewModel", "   Existe: ${localFile.exists()}")
+
+                    if (localFile.exists()) {
+                        android.util.Log.d("PlayerViewModel", "   Tamaño: ${localFile.length()} bytes")
+                        android.util.Log.d("PlayerViewModel", "   Legible: ${localFile.canRead()}")
+                        android.util.Log.d("PlayerViewModel", "✓ Archivo local válido - usando para reproducción")
+                        return@withContext track.audioUrl
+                    } else {
+                        android.util.Log.e("PlayerViewModel", "✗ Archivo local NO existe: ${localFile.absolutePath}")
+                    }
+                }
+
+                // Si no es archivo local, obtener de YouTube
+                android.util.Log.d("PlayerViewModel", "🌐 Obteniendo audio de YouTube...")
                 val videoId = track.youtubeVideoId ?: YouTubeManager.searchVideoId("${track.name} ${track.artists}")
-                videoId?.let { YouTubeManager.getAudioUrl(it) }
+                videoId?.let {
+                    android.util.Log.d("PlayerViewModel", "   YouTube ID: $it")
+                    YouTubeManager.getAudioUrl(it)
+                }
             }
 
             if (audioUrl == null) {
+                android.util.Log.e("PlayerViewModel", "✗ No se pudo obtener audioUrl")
                 _isLoading.postValue(false)
                 _error.postValue("No se pudo obtener audio")
                 return@withContext false
             }
+
+            android.util.Log.d("PlayerViewModel", "✓ AudioUrl obtenida: $audioUrl")
+            android.util.Log.d("PlayerViewModel", "🎮 Inicializando reproductor...")
 
             initializePlayer()
             _exoPlayer?.let { player ->
@@ -117,6 +152,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 _isLoading.postValue(false)
                 onMediaSessionUpdate?.invoke(player)
 
+                android.util.Log.d("PlayerViewModel", "✓ Reproducción iniciada")
+                android.util.Log.d("PlayerViewModel", "═══════════════════════════════════")
+
                 // Iniciar carga concurrente de las siguientes canciones
                 startLoadingRemainingTracks()
                 true
@@ -124,6 +162,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         } catch (e: Exception) {
             _isLoading.postValue(false)
             _error.postValue("Error: ${e.message}")
+            android.util.Log.e("PlayerViewModel", "✗ Error reproduciendo track", e)
+            android.util.Log.d("PlayerViewModel", "═══════════════════════════════════")
             false
         }
     }

@@ -175,6 +175,7 @@ fun HomeScreen(
                         MenuOption(Screen.SEARCH, "search"),
                         MenuOption(Screen.PLAYLISTS, "playlists"),
                         MenuOption(Screen.QUEUE, "queue"),
+                        MenuOption(Screen.LOCAL, "local"),
                         MenuOption(Screen.CONFIG, "settings")
                     )
                     // Restore previous layout: buttons below ASCII, left-aligned but centered vertically
