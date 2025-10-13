@@ -104,6 +104,8 @@ fun PlaylistsScreen(
     var hasUnsavedChanges by remember { mutableStateOf(false) }
     var originalTitle by remember { mutableStateOf("") }
     var originalDesc by remember { mutableStateOf("") }
+    var newTitle by remember { mutableStateOf("") }
+    var newDesc by remember { mutableStateOf("") }
 
     // Convertir entidades a SpotifyPlaylist para compatibilidad con UI existente
     // Filtrar liked_songs y álbumes para que no aparezcan duplicados (se muestran como items especiales)
@@ -543,10 +545,6 @@ fun PlaylistsScreen(
                     }
 
                     Column {
-                        // Estados para los campos de texto (movidos aquí para ser accesibles desde el botón save)
-                        var newTitle by remember { mutableStateOf(selectedPlaylist?.name ?: "") }
-                        var newDesc by remember { mutableStateOf(selectedPlaylist?.description ?: "") }
-
                         // Botones de control
                         Row(
                             modifier = Modifier
@@ -627,14 +625,46 @@ fun PlaylistsScreen(
                                         if (isEditing) {
                                             // Al hacer clic en save, verificar si hay cambios sin guardar
                                             if (hasUnsavedChanges) {
-                                                // TODO: Aquí se implementaría el guardado real en Spotify
-                                                // Por ahora solo resetear el flag y salir del modo edición
-                                                originalTitle = newTitle
-                                                originalDesc = newDesc
-                                                hasUnsavedChanges = false
+                                                // Guardar cambios en Spotify
+                                                val accessToken = Config.getSpotifyAccessToken(context)
+                                                if (accessToken != null && selectedPlaylist != null) {
+                                                    // Mostrar indicador de carga
+                                                    isLoadingTracks = true
+
+                                                    SpotifyRepository.updatePlaylistDetails(
+                                                        accessToken = accessToken,
+                                                        playlistId = selectedPlaylist!!.id,
+                                                        name = if (newTitle != originalTitle) newTitle else null,
+                                                        description = if (newDesc != originalDesc) newDesc else null
+                                                    ) { success, errorMsg ->
+                                                        if (success) {
+                                                            // Sincronizar playlists después de EDITAR
+                                                            coroutineScope.launch {
+                                                                localRepository.syncPlaylistsFromSpotify()
+                                                                // Esperar a que termine la sincronización
+                                                                kotlinx.coroutines.delay(500)
+                                                                isLoadingTracks = false
+                                                                // Salir del modo edición y volver al listado
+                                                                isEditing = false
+                                                                hasUnsavedChanges = false
+                                                                selectedPlaylist = null
+                                                                playlistTracks = emptyList()
+                                                            }
+                                                        } else {
+                                                            isLoadingTracks = false
+                                                            // Mostrar error
+                                                            Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Si no hay token, solo resetear el flag y salir
+                                                    hasUnsavedChanges = false
+                                                    isEditing = false
+                                                }
+                                            } else {
+                                                // Si no hay cambios, solo salir del modo edición
+                                                isEditing = false
                                             }
-                                            // Salir del modo edición
-                                            isEditing = false
                                         } else {
                                             // Al entrar al modo edición, guardar valores originales e inicializar campos
                                             originalTitle = selectedPlaylist?.name ?: ""
@@ -870,7 +900,7 @@ fun PlaylistsScreen(
                                     }
                                 }
 
-                                // Resultados de búsqueda
+                                // Resultados de búsqueda usando SongListItem
                                 if (searchResults.isNotEmpty()) {
                                     item {
                                         Spacer(Modifier.height(8.dp))
@@ -882,68 +912,63 @@ fun PlaylistsScreen(
                                             )
                                         )
                                     }
+
+                                    // Crear trackEntities para los resultados de búsqueda
+                                    val searchTrackEntities = searchResults.take(10).mapIndexed { trackIndex, track ->
+                                        TrackEntity(
+                                            id = "edit_search_${track.id}_$trackIndex",
+                                            playlistId = "edit_search_${System.currentTimeMillis()}",
+                                            spotifyTrackId = track.id,
+                                            name = track.name,
+                                            artists = track.getArtistNames(),
+                                            youtubeVideoId = null,
+                                            audioUrl = null,
+                                            position = trackIndex,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+                                    }
+
                                     items(searchResults.take(10).size) { index ->
                                         val track = searchResults[index]
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    // Añadir canción a la playlist
-                                                    val accessToken = Config.getSpotifyAccessToken(context)
-                                                    if (accessToken != null && selectedPlaylist != null) {
-                                                        coroutineScope.launch {
-                                                            SpotifyRepository.addTrackToPlaylist(
-                                                                accessToken,
-                                                                selectedPlaylist!!.id,
-                                                                track.id
-                                                            ) { success, errorMsg ->
-                                                                if (success) {
-                                                                    searchResults = emptyList()
-                                                                    searchQuery = ""
-                                                                    // Recargar tracks
-                                                                    coroutineScope.launch {
-                                                                        localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
-                                                                    }
-                                                                } else {
-                                                                    editError = errorMsg
+                                        SongListItem(
+                                            song = Song(
+                                                number = index + 1,
+                                                title = track.name,
+                                                artist = track.getArtistNames(),
+                                                spotifyId = track.id,
+                                                spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                                            ),
+                                            trackEntities = searchTrackEntities,
+                                            index = index,
+                                            playerViewModel = playerViewModel,
+                                            coroutineScope = coroutineScope,
+                                            customButtonIcon = "+",
+                                            customButtonAction = {
+                                                // Añadir canción a la playlist
+                                                val accessToken = Config.getSpotifyAccessToken(context)
+                                                if (accessToken != null && selectedPlaylist != null) {
+                                                    coroutineScope.launch {
+                                                        SpotifyRepository.addTrackToPlaylist(
+                                                            accessToken,
+                                                            selectedPlaylist!!.id,
+                                                            track.id
+                                                        ) { success, errorMsg ->
+                                                            if (success) {
+                                                                searchResults = emptyList()
+                                                                searchQuery = ""
+                                                                // Recargar tracks
+                                                                coroutineScope.launch {
+                                                                    localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
                                                                 }
+                                                            } else {
+                                                                editError = errorMsg
                                                             }
                                                         }
                                                     }
                                                 }
-                                                .padding(vertical = 4.dp, horizontal = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "+",
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = Color(0xFF4ECDC4)
-                                                ),
-                                                modifier = Modifier.padding(end = 8.dp)
-                                            )
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = track.name,
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontFamily = FontFamily.Monospace,
-                                                        color = Color(0xFFE0E0E0)
-                                                    ),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                Text(
-                                                    text = track.getArtistNames(),
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontFamily = FontFamily.Monospace,
-                                                        fontSize = 11.sp,
-                                                        color = Color(0xFF95A5A6)
-                                                    ),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                        }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
                                     }
                                 }
 
@@ -959,7 +984,7 @@ fun PlaylistsScreen(
                                     Spacer(Modifier.height(16.dp))
                                 }
 
-                                // Lista de canciones actuales with remove option
+                                // Lista de canciones actuales usando SongListItem
                                 if (playlistTracks.isNotEmpty()) {
                                     item {
                                         Text(
@@ -971,78 +996,50 @@ fun PlaylistsScreen(
                                         )
                                         Spacer(Modifier.height(8.dp))
                                     }
+
                                     items(playlistTracks.size) { index ->
                                         val track = playlistTracks[index]
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp, horizontal = 8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "${index + 1}.",
-                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = Color(0xFF95A5A6)
-                                                ),
-                                                modifier = Modifier.width(32.dp)
-                                            )
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = track.name,
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontFamily = FontFamily.Monospace,
-                                                        color = Color(0xFFE0E0E0)
-                                                    ),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                Text(
-                                                    text = track.getArtistNames(),
-                                                    style = MaterialTheme.typography.bodySmall.copy(
-                                                        fontFamily = FontFamily.Monospace,
-                                                        fontSize = 11.sp,
-                                                        color = Color(0xFF95A5A6)
-                                                    ),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                            }
-                                            Text(
-                                                text = "x",
-                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = Color(0xFFFF6B6B)
-                                                ),
-                                                modifier = Modifier
-                                                    .clickable {
-                                                        // Eliminar canción de la playlist
-                                                        val accessToken = Config.getSpotifyAccessToken(context)
-                                                        if (accessToken != null && selectedPlaylist != null) {
-                                                            coroutineScope.launch {
-                                                                // Necesitamos usar la API de Spotify para eliminar
-                                                                // Por ahora, usar la función removeTrackFromPlaylist si existe
-                                                                // O implementarla en SpotifyRepository
-                                                                SpotifyRepository.removeTrackFromPlaylist(
-                                                                    accessToken,
-                                                                    selectedPlaylist!!.id,
-                                                                    track.id
-                                                                ) { success, errorMsg ->
-                                                                    if (success) {
-                                                                        // Recargar tracks
-                                                                        coroutineScope.launch {
-                                                                            localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
-                                                                        }
-                                                                    } else {
-                                                                        editError = errorMsg
-                                                                    }
+                                        SongListItem(
+                                            song = Song(
+                                                number = index + 1,
+                                                title = track.name,
+                                                artist = track.getArtistNames(),
+                                                spotifyId = track.id,
+                                                spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                                            ),
+                                            trackEntities = tracksFromDB,
+                                            index = index,
+                                            playerViewModel = playerViewModel,
+                                            coroutineScope = coroutineScope,
+                                            customButtonIcon = "x",
+                                            customButtonAction = {
+                                                // Eliminar canción de la playlist
+                                                val accessToken = Config.getSpotifyAccessToken(context)
+                                                if (accessToken != null && selectedPlaylist != null) {
+                                                    coroutineScope.launch {
+                                                        SpotifyRepository.removeTrackFromPlaylist(
+                                                            accessToken,
+                                                            selectedPlaylist!!.id,
+                                                            track.id
+                                                        ) { success, errorMsg ->
+                                                            if (success) {
+                                                                // Recargar tracks
+                                                                coroutineScope.launch {
+                                                                    localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
                                                                 }
+                                                            } else {
+                                                                editError = errorMsg
                                                             }
                                                         }
                                                     }
-                                                    .padding(8.dp)
-                                            )
-                                        }
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            onLikedStatusChanged = {
+                                                // Recargar las Liked Songs cuando se modifica el estado
+                                                loadLikedSongs()
+                                            }
+                                        )
                                     }
                                 }
                             }

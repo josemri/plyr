@@ -718,6 +718,49 @@ object SpotifyRepository {
         })
     }
 
+    // Actualizar los detalles de una playlist (nombre, descripción, visibilidad)
+    fun updatePlaylistDetails(accessToken: String, playlistId: String, name: String? = null, description: String? = null, isPublic: Boolean? = null, callback: (Boolean, String?) -> Unit) {
+        val playlistData = mutableMapOf<String, Any>()
+        name?.let { playlistData["name"] = it }
+        description?.let { playlistData["description"] = it }
+        isPublic?.let { playlistData["public"] = it }
+
+        if (playlistData.isEmpty()) {
+            callback(false, "No hay datos para actualizar")
+            return
+        }
+
+        val jsonBody = gson.toJson(playlistData)
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
+
+        android.util.Log.d("SpotifyRepository", "Actualizando playlist $playlistId con: $jsonBody")
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .put(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                android.util.Log.e("SpotifyRepository", "Error de red al actualizar playlist: ${e.message}")
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    android.util.Log.d("SpotifyRepository", "✓ Playlist actualizada exitosamente")
+                    callback(true, null)
+                } else {
+                    android.util.Log.e("SpotifyRepository", "Error HTTP ${response.code} al actualizar playlist: $body")
+                    callback(false, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+
     // Obtener el perfil del usuario (necesario para crear playlists)
     private fun getUserProfile(accessToken: String, callback: (String?, String?) -> Unit) {
         val request = Request.Builder()
