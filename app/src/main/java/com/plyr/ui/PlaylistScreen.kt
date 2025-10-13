@@ -702,6 +702,10 @@ fun PlaylistsScreen(
                                                                 selectedPlaylist!!.id
                                                             ) { success: Boolean, errorMsg: String? ->
                                                                 if (success) {
+                                                                    // Sincronizar playlists después de eliminar
+                                                                    coroutineScope.launch {
+                                                                        localRepository.syncPlaylistsFromSpotify()
+                                                                    }
                                                                     // Salir del modo edición y volver a la lista
                                                                     isEditing = false
                                                                     hasUnsavedChanges = false
@@ -1134,7 +1138,7 @@ fun PlaylistsScreen(
                                                                         )
                                                                         playlistTracks = tracks
                                                                         selectedPlaylistEntity = null
-                                                                        // Limpiar el artista seleccionado y sus álbumes
+                                                                        // Limpiar artista y sus álbumes al salir
                                                                         selectedArtist = null
                                                                         artistAlbums = emptyList()
                                                                     } else {
@@ -1609,6 +1613,7 @@ fun CreateSpotifyPlaylistScreen(
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val localRepository = remember { PlaylistLocalRepository(context) }
 
     BackHandler {
         onBack()
@@ -1810,7 +1815,15 @@ fun CreateSpotifyPlaylistScreen(
                             trackIds
                         ) { success, errMsg ->
                             isLoading = false
-                            if (success) onPlaylistCreated() else error = errMsg ?: "Unknown error"
+                            if (success) {
+                                // Sincronizar playlists después de crear
+                                coroutineScope.launch {
+                                    localRepository.syncPlaylistsFromSpotify()
+                                }
+                                onPlaylistCreated()
+                            } else {
+                                error = errMsg ?: "Unknown error"
+                            }
                         }
                     } else {
                         isLoading = false
