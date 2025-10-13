@@ -124,6 +124,7 @@ fun PlaylistsScreen(
     var selectedArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) }
     var artistAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
     var isLoadingArtistAlbums by remember { mutableStateOf(false) }
+    var isViewingAlbumFromArtist by remember { mutableStateOf(false) }
 
     // Estado para manejar navegación pendiente cuando hay cambios sin guardar
     var pendingPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
@@ -287,11 +288,37 @@ fun PlaylistsScreen(
         }
     }
 
-    // Manejar botón de retroceso del sistema (modificar para que al salir de album de artista vuelva a artista no a lista principal)
+    // Manejar botón de retroceso del sistema
     BackHandler {
         if (selectedPlaylist != null) {
-            // Si estamos en modo edición con cambios sin guardar, mostrar diálogo
-            if (isEditing && hasUnsavedChanges) {
+            // Si estamos viendo un álbum que viene de un artista, volver al artista
+            if (isViewingAlbumFromArtist && selectedArtist != null) {
+                // Volver a la vista del artista
+                isViewingAlbumFromArtist = false
+                isLoadingTracks = true
+                val accessToken = Config.getSpotifyAccessToken(context)
+                if (accessToken != null) {
+                    // Cargar top tracks del artista
+                    SpotifyRepository.getArtistTopTracks(accessToken, selectedArtist!!.id) { tracks, errorMsg ->
+                        isLoadingTracks = false
+                        if (tracks != null) {
+                            // Restaurar la playlist temporal del artista
+                            selectedPlaylist = SpotifyPlaylist(
+                                id = selectedArtist!!.id,
+                                name = selectedArtist!!.name,
+                                description = "Top tracks by ${selectedArtist!!.name}",
+                                tracks = com.plyr.network.SpotifyPlaylistTracks(null, tracks.size),
+                                images = selectedArtist!!.images
+                            )
+                            playlistTracks = tracks
+                            selectedPlaylistEntity = null
+                        } else {
+                            Log.e("PlaylistScreen", "Error loading artist tracks: $errorMsg")
+                        }
+                    }
+                }
+            } else if (isEditing && hasUnsavedChanges) {
+                // Si estamos en modo edición con cambios sin guardar, mostrar diálogo
                 showExitEditDialog = true
             } else {
                 // Salir de la playlist y resetear modo edición
@@ -299,9 +326,10 @@ fun PlaylistsScreen(
                 hasUnsavedChanges = false
                 selectedPlaylist = null
                 playlistTracks = emptyList()
-                // Limpiar artista y sus álbumes al salir
+                // Limpiar artista y sus álbumes al salir completamente
                 selectedArtist = null
                 artistAlbums = emptyList()
+                isViewingAlbumFromArtist = false
             }
         } else {
             onBack()
@@ -1119,6 +1147,7 @@ fun PlaylistsScreen(
                                                         .width(120.dp)
                                                         .clickable {
                                                             // Cargar los tracks del álbum
+                                                            isViewingAlbumFromArtist = true
                                                             isLoadingTracks = true
                                                             val accessToken = Config.getSpotifyAccessToken(context)
                                                             if (accessToken != null) {
@@ -1135,9 +1164,7 @@ fun PlaylistsScreen(
                                                                         )
                                                                         playlistTracks = tracks
                                                                         selectedPlaylistEntity = null
-                                                                        // Limpiar artista y sus álbumes al salir
-                                                                        selectedArtist = null
-                                                                        artistAlbums = emptyList()
+                                                                        // NO limpiar artista ni álbumes aquí para poder volver
                                                                     } else {
                                                                         Log.e("PlaylistScreen", "Error loading album tracks: $errorMsg")
                                                                     }
