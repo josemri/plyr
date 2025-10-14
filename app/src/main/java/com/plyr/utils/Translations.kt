@@ -73,7 +73,7 @@ object Translations {
             "exit_message" to "Presiona de nuevo para salir",
 
             // Search Screen
-            "search_title" to "$ search",
+            "search_title" to "$ plyr_search",
             "search_placeholder" to "buscar música...",
             "search_loading" to "cargando...",
             "search_no_results" to "no se encontraron resultados",
@@ -97,7 +97,7 @@ object Translations {
             "search_error_saving" to "error al guardar",
             "search_followers" to "seguidores",
             "search_monthly_listeners" to "oyentes mensuales",
-            "search_scan_qr" to "escanear qr",
+            "search_scan_qr" to "qr",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Seleccionar playlist",
@@ -189,7 +189,7 @@ object Translations {
             "exit_message" to "Press back again to exit",
 
             // Search Screen
-            "search_title" to "$ search",
+            "search_title" to "$ plyr_search",
             "search_placeholder" to "search music...",
             "search_loading" to "loading...",
             "search_no_results" to "no results found",
@@ -213,7 +213,7 @@ object Translations {
             "search_error_saving" to "error saving",
             "search_followers" to "followers",
             "search_monthly_listeners" to "monthly listeners",
-            "search_scan_qr" to "scan qr",
+            "search_scan_qr" to "qr",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Select playlist",
@@ -305,7 +305,7 @@ object Translations {
             "exit_message" to "Prem de nou per sortir",
 
             // Search Screen
-            "search_title" to "$ cercar",
+            "search_title" to "$ plyr_cercar",
             "search_placeholder" to "cercar música...",
             "search_loading" to "carregant...",
             "search_no_results" to "no s'han trobat resultats",
@@ -329,7 +329,7 @@ object Translations {
             "search_error_saving" to "error al desar",
             "search_followers" to "seguidors",
             "search_monthly_listeners" to "oients mensuals",
-            "search_scan_qr" to "escanejar qr",
+            "search_scan_qr" to "qr",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Seleccionar playlist",
