@@ -34,7 +34,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.Plyr"
+            android:theme="@style/Theme.Plyr.SplashScreen"
             android:launchMode="singleTask">
             <!-- Intent filter para launcher -->
             <intent-filter>
