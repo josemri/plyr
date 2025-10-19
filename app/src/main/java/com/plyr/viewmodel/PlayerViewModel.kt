@@ -82,7 +82,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                     override fun onPlayerError(error: PlaybackException) {
                         _isLoading.postValue(false)
-                        _error.postValue("Error: ${error.message}")
+                        val prefix = com.plyr.utils.Translations.get(getApplication(), "error_prefix")
+                        val msg = error.message ?: ""
+                        _error.postValue(prefix + msg)
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -137,7 +139,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (audioUrl == null) {
                 android.util.Log.e("PlayerViewModel", "✗ No se pudo obtener audioUrl")
                 _isLoading.postValue(false)
-                _error.postValue("No se pudo obtener audio")
+                _error.postValue(com.plyr.utils.Translations.get(getApplication(), "error_obtaining_audio"))
                 return@withContext false
             }
 
@@ -161,7 +163,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } ?: false
         } catch (e: Exception) {
             _isLoading.postValue(false)
-            _error.postValue("Error: ${e.message}")
+            val prefix = com.plyr.utils.Translations.get(getApplication(), "error_prefix")
+            _error.postValue(prefix + (e.message ?: ""))
             android.util.Log.e("PlayerViewModel", "✗ Error reproduciendo track", e)
             android.util.Log.d("PlayerViewModel", "═══════════════════════════════════")
             false

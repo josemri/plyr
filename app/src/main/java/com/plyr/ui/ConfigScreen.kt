@@ -312,7 +312,7 @@ fun ConfigScreen(
             }
 
             // Configuración de API de Spotify
-            SpotifyApiConfigSection(context = context, languageKey = selectedLanguage)
+            SpotifyApiConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(30.dp))
         }
@@ -321,7 +321,7 @@ fun ConfigScreen(
 
 
 @Composable
-fun SpotifyApiConfigSection(context: Context, languageKey: String) {
+fun SpotifyApiConfigSection(context: Context) {
     var isExpanded by remember { mutableStateOf(false) }
     var clientId by remember { mutableStateOf(Config.getSpotifyClientId(context) ?: "") }
     var clientSecret by remember { mutableStateOf(Config.getSpotifyClientSecret(context) ?: "") }

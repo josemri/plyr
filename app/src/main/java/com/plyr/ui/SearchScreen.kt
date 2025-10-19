@@ -43,6 +43,7 @@ import com.plyr.ui.components.QrScannerDialog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import com.plyr.ui.components.Titulo
 
 @Composable
 fun SearchScreen(
@@ -134,7 +135,7 @@ fun SearchScreen(
 
                     if (finalQuery.isEmpty()) {
                         isLoading = false
-                        error = "Query vacía después de procesar prefijo"
+                        error = Translations.get(context, "search_query_empty_after_prefix")
                         return@launch
                     }
 
@@ -226,7 +227,7 @@ fun SearchScreen(
 
                 } catch (e: Exception) {
                     isLoading = false
-                    error = "Error en búsqueda: ${e.message}"
+                    error = "${Translations.get(context, "search_error")}: ${e.message}"
                 }
             }
         }
@@ -273,12 +274,12 @@ fun SearchScreen(
                             val tracks = playlistTracks.mapNotNull { it.track }
                             selectedItemTracks = tracks
                         } else {
-                            error = "Error cargando tracks de la playlist: $errorMsg"
+                            error = "${Translations.get(context, "search_error_loading_tracks")}: $errorMsg"
                         }
                     }
                 } else {
                     isLoadingTracks = false
-                    error = "Token de Spotify no disponible"
+                    error = Translations.get(context, "search_token_not_available")
                 }
             } catch (e: Exception) {
                 isLoadingTracks = false
@@ -308,7 +309,7 @@ fun SearchScreen(
                     }
                 } else {
                     isLoadingTracks = false
-                    error = "Token de Spotify no disponible"
+                    error = Translations.get(context, "search_token_not_available")
                 }
             } catch (e: Exception) {
                 isLoadingTracks = false
@@ -337,7 +338,7 @@ fun SearchScreen(
                     }
                 } else {
                     isLoadingArtistAlbums = false
-                    error = "Token de Spotify no disponible"
+                    error = Translations.get(context, "search_token_not_available")
                 }
             } catch (e: Exception) {
                 isLoadingArtistAlbums = false
@@ -491,7 +492,7 @@ fun SearchScreen(
                     ) {
                         AsyncImage(
                             model = album.getImageUrl(),
-                            contentDescription = "Album cover",
+                            contentDescription = Translations.get(context, "album_cover"),
                             modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp))
                         )
                         Spacer(modifier = Modifier.width(16.dp))
@@ -680,7 +681,7 @@ fun SearchScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Text(
-                                text = "$ loading tracks...",
+                                text = Translations.get(context, "search_loading_tracks"),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = FontFamily.Monospace,
                                     color = Color(0xFFFFD93D)
@@ -690,7 +691,7 @@ fun SearchScreen(
                     }
                     error?.let {
                         Text(
-                            "ERR: $it",
+                            "${Translations.get(context, "search_error")}: $it",
                             color = Color(0xFFFF6B6B),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace
@@ -977,15 +978,7 @@ private fun SearchMainView(
             .verticalScroll(rememberScrollState())
     ) {
         // Header
-        Text(
-            text = Translations.get(context, "search_title"),
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 24.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        Titulo(Translations.get(context, "search_title"))
 
         // Search field with clear button and enter action
         OutlinedTextField(
@@ -1067,7 +1060,7 @@ private fun SearchMainView(
         error?.let {
             Spacer(Modifier.height(8.dp))
             Text(
-                "ERR: $it",
+                "${Translations.get(context, "search_error")}: $it",
                 color = Color(0xFFFF6B6B),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace
@@ -1128,6 +1121,12 @@ fun CollapsibleSpotifySearchResultsView(
     var playlistsExpanded by remember { mutableStateOf(false) }
     var artistsExpanded by remember { mutableStateOf(false) }
 
+    // Labels localizados
+    val tracksLabel = Translations.get(context, "search_tracks")
+    val albumsLabel = Translations.get(context, "search_albums")
+    val playlistsLabel = Translations.get(context, "search_playlists")
+    val artistsLabel = Translations.get(context, "search_artists")
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1135,7 +1134,7 @@ fun CollapsibleSpotifySearchResultsView(
         // Tracks section
         if (results.tracks.items.isNotEmpty()) {
             Text(
-                text = if (tracksExpanded) "v tracks" else "> tracks",
+                text = if (tracksExpanded) "v $tracksLabel" else "> $tracksLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4ECDC4)
@@ -1187,7 +1186,7 @@ fun CollapsibleSpotifySearchResultsView(
         // Albums section
         if (results.albums.items.isNotEmpty()) {
             Text(
-                text = if (albumsExpanded) "v albums" else "> albums",
+                text = if (albumsExpanded) "v $albumsLabel" else "> $albumsLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4ECDC4)
@@ -1213,7 +1212,7 @@ fun CollapsibleSpotifySearchResultsView(
                         ) {
                             AsyncImage(
                                 model = album.getImageUrl(),
-                                contentDescription = "Album cover",
+                                contentDescription = Translations.get(context, "album_cover"),
                                 modifier = Modifier
                                     .size(120.dp)
                                     .clip(RoundedCornerShape(8.dp))
@@ -1250,7 +1249,7 @@ fun CollapsibleSpotifySearchResultsView(
         // Playlists section
         if (results.playlists.items.isNotEmpty()) {
             Text(
-                text = if (playlistsExpanded) "v playlists" else "> playlists",
+                text = if (playlistsExpanded) "v $playlistsLabel" else "> $playlistsLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4ECDC4)
@@ -1276,7 +1275,7 @@ fun CollapsibleSpotifySearchResultsView(
                         ) {
                             AsyncImage(
                                 model = playlist.getImageUrl(),
-                                contentDescription = "Playlist cover",
+                                contentDescription = Translations.get(context, "playlist_cover"),
                                 modifier = Modifier
                                     .size(120.dp)
                                     .clip(RoundedCornerShape(8.dp))
@@ -1302,7 +1301,7 @@ fun CollapsibleSpotifySearchResultsView(
         // Artists section
         if (results.artists.items.isNotEmpty()) {
             Text(
-                text = if (artistsExpanded) "v artists" else "> artists",
+                text = if (artistsExpanded) "v $artistsLabel" else "> $artistsLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4ECDC4)
@@ -1328,7 +1327,7 @@ fun CollapsibleSpotifySearchResultsView(
                         ) {
                             AsyncImage(
                                 model = artist.getImageUrl(),
-                                contentDescription = "Artist image",
+                                contentDescription = Translations.get(context, "artist_image"),
                                 modifier = Modifier
                                     .size(100.dp)
                                     .clip(RoundedCornerShape(50.dp))
@@ -1363,13 +1362,17 @@ fun CollapsibleYouTubeSearchResultsView(
 ) {
     var videosExpanded by remember { mutableStateOf(true) }
 
+    // Labels localizados
+    val youtubeLabel = Translations.get(context, "search_youtube_results")
+    val loadMoreLabel = Translations.get(context, "search_load_more")
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Videos section header
         Text(
-            text = if (videosExpanded) "v youtube results [${results.size}]" else "> youtube results [${results.size}]",
+            text = if (videosExpanded) "v $youtubeLabel [${results.size}]" else "> $youtubeLabel [${results.size}]",
             style = MaterialTheme.typography.titleMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 color = Color(0xFF4ECDC4)
@@ -1418,7 +1421,7 @@ fun CollapsibleYouTubeSearchResultsView(
                 // Load more button if there are more results
                 if (results.size >= 10) {
                     Text(
-                        text = "> load more",
+                        text = "> $loadMoreLabel",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF4ECDC4)

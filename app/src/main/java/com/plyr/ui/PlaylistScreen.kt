@@ -800,7 +800,7 @@ fun PlaylistsScreen(
                                     OutlinedTextField(
                                         value = newTitle,
                                         onValueChange = { newTitle = it },
-                                        label = { Text("Playlist name") },
+                                        label = { Text(Translations.get(context, "playlist_name")) },
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     Spacer(Modifier.height(8.dp))
@@ -811,7 +811,7 @@ fun PlaylistsScreen(
                                     OutlinedTextField(
                                         value = newDesc,
                                         onValueChange = { newDesc = it },
-                                        label = { Text("Description") },
+                                        label = { Text(Translations.get(context, "description")) },
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     Spacer(Modifier.height(16.dp))
@@ -835,7 +835,7 @@ fun PlaylistsScreen(
                                     OutlinedTextField(
                                         value = searchQuery,
                                         onValueChange = { searchQuery = it },
-                                        label = { Text("Search tracks") },
+                                        label = { Text(Translations.get(context, "search_tracks_label")) },
                                         modifier = Modifier.fillMaxWidth(),
                                         trailingIcon = {
                                             if (searchQuery.isNotEmpty()) {
@@ -964,7 +964,7 @@ fun PlaylistsScreen(
                                 editError?.let {
                                     item {
                                         Spacer(Modifier.height(8.dp))
-                                        Text("Error: $it", color = Color.Red, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+                                        Text("${Translations.get(context, "error_prefix")}$it", color = Color.Red, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
                                     }
                                 }
 
@@ -1598,14 +1598,14 @@ fun CreateSpotifyPlaylistScreen(
         OutlinedTextField(
             value = playlistName,
             onValueChange = { playlistName = it },
-            label = { Text("Playlist name") },
+            label = { Text(Translations.get(context, "playlist_name")) },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = playlistDesc,
             onValueChange = { playlistDesc = it },
-            label = { Text("Description (optional)") },
+            label = { Text(Translations.get(context, "description_optional")) },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
@@ -1619,7 +1619,7 @@ fun CreateSpotifyPlaylistScreen(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            label = { Text("Search tracks") },
+            label = { Text(Translations.get(context, "search_tracks_label")) },
             modifier = Modifier.fillMaxWidth(),
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -1802,7 +1802,7 @@ fun CreateSpotifyPlaylistScreen(
         )
         error?.let {
             Spacer(Modifier.height(8.dp))
-            Text("Error: $it", color = Color.Red)
+            Text("${Translations.get(context, "error_prefix")}$it", color = Color.Red)
         }
     }
 }

@@ -73,7 +73,7 @@ object Translations {
             "exit_message" to "Presiona de nuevo para salir",
 
             // Search Screen
-            "search_title" to "buscar",
+            "search_title" to "plyr_buscar",
             "search_placeholder" to "buscar música...",
             "search_loading" to "cargando...",
             "search_no_results" to "no se encontraron resultados",
@@ -98,6 +98,12 @@ object Translations {
             "search_followers" to "seguidores",
             "search_monthly_listeners" to "oyentes mensuales",
             "search_scan_qr" to "qr",
+            "playlist_cover" to "Portada de la playlist",
+            "artist_image" to "Imagen del artista",
+            "search_query_empty_after_prefix" to "Querry vacía después del prefijo",
+            "album_cover" to "Portada del album",
+            "search_youtube_results" to "resultados de youtube",
+            "search_load_more" to "cargar más",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Seleccionar playlist",
@@ -125,29 +131,62 @@ object Translations {
             "repeat" to "repetir",
             "shuffle" to "mezclar",
 
-			// Local Screen
-			"plyr_local" to "plyr_local",
-			"unknown error" to "error desconocido",
-			"No tracks downloaded" to "Ninguna canción descargada",
-			"delete track" to "eliminar canción",
-			"Song {{track_name}} will be removed permanently" to "La canción {{track_name}} será eliminada permanentemente",
-			"delete" to "eliminar",
-			"cancel" to "cancelar",
+            // Playlist / Form labels
+            "playlist_name" to "Nombre de la playlist",
+            "description" to "Descripción",
+            "description_optional" to "Descripción (opcional)",
+            "search_tracks_label" to "Buscar canciones",
+            "create_playlist" to "Crear playlist",
+            "playlist_name_placeholder" to "Nombre de la playlist",
 
-			// Queue Screen
-			"plyr_queue" to "plyr_cola",
-			"No tracks loaded" to "Ninguna lista cargada",
-			"Play a track to start a playlist" to "Reproduce una canción para iniciar una lista",
-		    "player_not_available" to "reproductor_no_disponible",
+            // Local Screen
+            "plyr_local" to "plyr_local",
+            "unknown error" to "error desconocido",
+            "No tracks downloaded" to "Ninguna canción descargada",
+            "delete track" to "eliminar canción",
+            "Song {{track_name}} will be removed permanently" to "La canción {{track_name}} será eliminada permanentemente",
+            "delete" to "eliminar",
+            "cancel" to "cancelar",
 
-			//Playlists Screen
-			"plyr_lists" to "plyr_listas",
-			"<syncing...>" to "<sincronizando...>",
-			"<sync>" to "<sincronizar>",
-			"<new>" to "<crear>",
-			"Spotify not connected" to "Spotify no conectado",
-			"Loading tracks..." to "Cargando canciones...",
-		    
+            // Queue Screen
+            "plyr_queue" to "plyr_cola",
+            "No tracks loaded" to "Ninguna lista cargada",
+            "Play a track to start a playlist" to "Reproduce una canción para iniciar una lista",
+            "player_not_available" to "reproductor_no_disponible",
+
+            //Playlists Screen
+            "plyr_lists" to "plyr_listas",
+            "<syncing...>" to "<sincronizando...>",
+            "<sync>" to "<sincronizar>",
+            "<new>" to "<crear>",
+            "Spotify not connected" to "Spotify no conectado",
+            "Loading tracks..." to "Cargando canciones...",
+
+            // ADDITIONAL KEYS (SPANISH)
+            "connected_successfully" to "conectado correctamente",
+            "token_exchange_failed" to "intercambio de token fallido",
+            "cancelled_by_user" to "cancelado por el usuario",
+            "error_obtaining_audio" to "No se pudo obtener audio",
+            "error_prefix" to "Error: ",
+
+            // Playlist actions and dialogs
+            "btn_start" to "<start>",
+            "btn_stop" to "<stop>",
+            "btn_rand" to "<rand>",
+            "btn_share" to "<share>",
+            "btn_save" to "<save>",
+            "btn_edit" to "<edit>",
+            "btn_delete" to "<delete>",
+            "creating" to "<creating...>",
+            "create" to "<create>",
+            "delete_playlist_title" to "Eliminar playlist",
+            "delete_playlist_confirm" to "¿Seguro que quieres eliminar '%s'? Esta acción no se puede deshacer.",
+            "unsaved_changes_title" to "Cambios sin guardar",
+            "unsaved_changes_text" to "Tienes cambios sin guardar. ¿Seguro que quieres salir?",
+            "exit_label" to "Salir",
+            "cancel_label" to "Cancelar",
+            "delete_label" to "Eliminar",
+
         ),
 
         // ENGLISH
@@ -238,6 +277,12 @@ object Translations {
             "search_followers" to "followers",
             "search_monthly_listeners" to "monthly listeners",
             "search_scan_qr" to "qr",
+            "playlist_cover" to "Playlist cover",
+            "artist_image" to "Artist image",
+            "search_query_empty_after_prefix" to "Query empty after prefix",
+            "album_cover" to "Album cover",
+            "search_youtube_results" to "youtube results",
+            "search_load_more" to "load more",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Select playlist",
@@ -263,7 +308,33 @@ object Translations {
             "next" to "next",
             "previous" to "previous",
             "repeat" to "repeat",
-            "shuffle" to "shuffle"
+            "shuffle" to "shuffle",
+
+            // ADDITIONAL KEYS (ENGLISH)
+            "connected_successfully" to "Connected successfully",
+            "token_exchange_failed" to "Token exchange failed",
+            "cancelled_by_user" to "Cancelled by user",
+            "error_obtaining_audio" to "Could not obtain audio",
+            "error_prefix" to "Error: ",
+
+            // Playlist actions and dialogs
+            "btn_start" to "<start>",
+            "btn_stop" to "<stop>",
+            "btn_rand" to "<rand>",
+            "btn_share" to "<share>",
+            "btn_save" to "<save>",
+            "btn_edit" to "<edit>",
+            "btn_delete" to "<delete>",
+            "creating" to "<creating...>",
+            "create" to "<create>",
+            "delete_playlist_title" to "Delete playlist",
+            "delete_playlist_confirm" to "Are you sure you want to delete '%s'? This action cannot be undone.",
+            "unsaved_changes_title" to "Unsaved changes",
+            "unsaved_changes_text" to "You have unsaved changes. Are you sure you want to exit?",
+            "exit_label" to "Exit",
+            "cancel_label" to "Cancel",
+            "delete_label" to "Delete",
+
         ),
 
         // CATALÀ
@@ -354,6 +425,12 @@ object Translations {
             "search_followers" to "seguidors",
             "search_monthly_listeners" to "oients mensuals",
             "search_scan_qr" to "qr",
+            "playlist_cover" to "Portada de la playlist",
+            "artist_image" to "Imatge de l'artista",
+            "search_query_empty_after_prefix" to "Querry buida després del prefix",
+            "album_cover" to "Portada del album",
+            "search_youtube_results" to "resultats de youtube",
+            "search_load_more" to "carregar més",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Seleccionar playlist",
@@ -381,28 +458,29 @@ object Translations {
             "repeat" to "repetir",
             "shuffle" to "aleatori",
 
-		    // Local Screen
-			"plyr_local" to "plyr_local",
-			"unknown error" to "error desconegut",
-			"No tracks downloaded" to "Ninguna cançó descarregada",
-			"delete track" to "eliminar cançó",
-			"Song {{track_name}} will be removed permanently" to "La canció {{track_name}} serà eliminada permanentment",
-			"delete" to "eliminar",
-			"cancel" to "cancelar",
+            // ADDITIONAL KEYS (CATALAN)
+            "connected_successfully" to "connectat correctament",
+            "token_exchange_failed" to "intercanvi de token fallit",
+            "cancelled_by_user" to "cancel·lat per l'usuari",
+            "error_obtaining_audio" to "No s'ha pogut obtenir l'àudio",
+            "error_prefix" to "Error: ",
 
-			// Queue Screen
-			"plyr_queue" to "plyr_cua",
-			"No tracks loaded" to "Ninguna llista carregada",
-			"Play a track to start a playlist" to "Reprodueix una cançó per iniciar una llista",
-		    "player_not_available" to "reproductor_no_disponible",
-
-			//Playlists Screen
-			"plyr_lists" to "plyr_llistes",
-			"<syncing...>" to "<sincronitzant...>",
-			"<sync>" to "<sincronitzar>",
-			"<new>" to "<crear>",
-		    "Spotify not connected" to "Spotify no connectat",
-			"Loading tracks..." to "Carregant cançons..."
+            "btn_start" to "<start>",
+            "btn_stop" to "<stop>",
+            "btn_rand" to "<rand>",
+            "btn_share" to "<share>",
+            "btn_save" to "<save>",
+            "btn_edit" to "<edit>",
+            "btn_delete" to "<delete>",
+            "creating" to "<creating...>",
+            "create" to "<create>",
+            "delete_playlist_title" to "Eliminar playlist",
+            "delete_playlist_confirm" to "Segur que vols eliminar '%s'? Aquesta acció no es pot desfer.",
+            "unsaved_changes_title" to "Canvis sense desar",
+            "unsaved_changes_text" to "Tens canvis sense desar. Segur que vols sortir?",
+            "exit_label" to "Sortir",
+            "cancel_label" to "Cancel·la",
+            "delete_label" to "Eliminar",
 
         )
     )
