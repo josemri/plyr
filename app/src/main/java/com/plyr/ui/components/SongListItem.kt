@@ -29,6 +29,7 @@ import com.plyr.network.SpotifyTrack
 import com.plyr.ui.PlaylistsScreen
 import com.plyr.utils.Config
 import com.plyr.utils.DownloadManager
+import com.plyr.utils.Translations
 import com.plyr.database.PlaylistDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -218,7 +219,7 @@ fun SongListItem(
                                     CircularProgressIndicator(color = Color(0xFF4ECDC4))
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "loading...",
+                                        text = Translations.get(context, "loading"),
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             color = Color(0xFF888888)
                                         )
@@ -339,7 +340,7 @@ fun SongListItem(
                     ) {
                         // Add to Playlist
                         Text(
-                            text = "add to playlist",
+                            text = Translations.get(context, "add_to_playlist"),
                             color = Color(0xFF3FFFEF),
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
@@ -376,7 +377,7 @@ fun SongListItem(
 
                         // Add to Queue
                         Text(
-                            text = "add to queue",
+                            text = Translations.get(context, "add_to_queue"),
                             color = Color(0xFF3FFFEF),
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
@@ -397,7 +398,7 @@ fun SongListItem(
 
                         // Share
                         Text(
-                            text = "share",
+                            text = Translations.get(context, "share"),
                             color = Color(0xFF3FFFEF),
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
@@ -412,7 +413,7 @@ fun SongListItem(
 
                         // Like / Unlike
                         Text(
-                            text = if (isLiked == true) "remove from liked songs" else "add to liked songs",
+                            text = if (isLiked == true) Translations.get(context, "remove_from_liked_songs") else Translations.get(context, "add_to_liked_songs"),
                             color = Color(0xFF3FFFEF),
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
@@ -458,7 +459,7 @@ fun SongListItem(
 
                         // Download
                         Text(
-                            text = "download",
+                            text = Translations.get(context, "download"),
                             color = Color(0xFF3FFFEF),
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
@@ -573,7 +574,7 @@ fun SongListItem(
                                     CircularProgressIndicator(color = Color(0xFF4ECDC4))
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "loading playlists...",
+                                        text = Translations.get(context, "loading_playlists"),
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             color = Color(0xFF888888)
                                         )
@@ -595,7 +596,7 @@ fun SongListItem(
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
-                                        text = "Track added successfully!",
+                                        text = Translations.get(context, "track_added_successfully"),
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             color = Color.White
                                         )
@@ -633,7 +634,7 @@ fun SongListItem(
                                     verticalArrangement = Arrangement.Center
                                 ) {
                                     Text(
-                                        text = "No playlists found",
+                                        text = Translations.get(context, "no_playlists_found"),
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             color = Color(0xFF888888)
                                         )

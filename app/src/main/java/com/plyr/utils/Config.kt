@@ -75,6 +75,8 @@ object Config {
     const val LANGUAGE_SPANISH = "español"
     const val LANGUAGE_ENGLISH = "english"
     const val LANGUAGE_CATALAN = "català"
+    // Ajuste: usar la misma clave que en Translations ("日本語") para que coincida la búsqueda
+    const val LANGUAGE_JAPANESE = "日本語"
 
     // === MÉTODOS PRIVADOS ===
     
@@ -362,7 +364,15 @@ object Config {
      * @return Idioma actual (por defecto "español")
      */
     fun getLanguage(context: Context): String {
-        return getPrefs(context).getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+        val prefs = getPrefs(context)
+        val stored = prefs.getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+        // Migrar valor legacy "japanese" (ASCII) a la clave usada en Translations ("日本語")
+        if (stored == "japanese") {
+            // Actualizar la preferencia para futuras lecturas
+            setLanguage(context, LANGUAGE_JAPANESE)
+            return LANGUAGE_JAPANESE
+        }
+        return stored
     }
 
     // === GESTIÓN DE TIMESTAMPS DE TOKENS ===

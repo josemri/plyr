@@ -24,6 +24,7 @@ import com.plyr.network.SpotifyRepository
 import androidx.compose.ui.graphics.Color
 import com.plyr.ui.components.BinaryToggle
 import com.plyr.ui.components.TernaryToggle
+import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
 
 
@@ -167,14 +168,18 @@ fun ConfigScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            TernaryToggle(
-                option1 = Translations.get(context, "lang_spanish"),
-                option2 = Translations.get(context, "lang_english"),
-                option3 = Translations.get(context, "lang_catalan"),
-                initialValue = when (selectedLanguage) {
+            MultiToggle(
+                options = listOf(
+                    Translations.get(context, "lang_spanish"),
+                    Translations.get(context, "lang_english"),
+                    Translations.get(context, "lang_catalan"),
+                    Translations.get(context, "lang_japanese")
+                ),
+                initialIndex = when (selectedLanguage) {
                     Config.LANGUAGE_SPANISH -> 0
                     Config.LANGUAGE_ENGLISH -> 1
                     Config.LANGUAGE_CATALAN -> 2
+                    Config.LANGUAGE_JAPANESE -> 3
                     else -> 0
                 },
                 onChange = { selectedIndex ->
@@ -182,12 +187,14 @@ fun ConfigScreen(
                         0 -> Config.LANGUAGE_SPANISH
                         1 -> Config.LANGUAGE_ENGLISH
                         2 -> Config.LANGUAGE_CATALAN
+                        3 -> Config.LANGUAGE_JAPANESE
                         else -> Config.LANGUAGE_SPANISH
                     }
-					Config.setLanguage(context, selectedLanguage)
+                    Config.setLanguage(context, selectedLanguage)
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
+
 
             Spacer(modifier = Modifier.height(30.dp))
 
