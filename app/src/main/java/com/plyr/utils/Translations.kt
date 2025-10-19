@@ -13,53 +13,53 @@ object Translations {
         // ESPAÑOL
         "español" to mapOf(
             // Config Screen
-            "config_title" to "$ plyr_config",
-            "theme" to "> theme",
-            "theme_dark" to "dark",
-            "theme_light" to "light",
-            "search_engine" to "> search_engine",
+            "config_title" to "plyr_ajustes",
+            "theme" to "> tema",
+            "theme_dark" to "oscuro",
+            "theme_light" to "claro",
+            "search_engine" to "> motor_de_búsqueda",
             "search_spotify" to "spotify",
             "search_youtube" to "youtube",
-            "audio_quality" to "> audio_quality",
-            "quality_low" to "low",
-            "quality_med" to "med",
-            "quality_high" to "high",
-            "language" to "> language",
+            "audio_quality" to "> calidad_de_audio",
+            "quality_low" to "baja",
+            "quality_med" to "media",
+            "quality_high" to "alta",
+            "language" to "> idioma",
             "lang_spanish" to "español",
             "lang_english" to "english",
             "lang_catalan" to "català",
-            "info" to "> info",
-            "info_text" to "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
-            "sptfy_status" to "> sptfy_status",
-            "client" to "    ● client:",
+            "info" to "> información",
+            "info_text" to "    ● ¡no piratees música!\n    ● cambia el motor con yt: / sp:",
+            "sptfy_status" to "> estado_sptfy",
+            "client" to "    ● cliente:",
             "api" to "    ● api:",
-            "connected" to "connected",
-            "disconnected" to "disconnected",
-            "configured" to "configured",
-            "not_configured" to "not_configured",
-            "credentials_required" to "credentials required",
-            "configure_credentials_first" to "configure credentials first",
-            "opening_browser" to "opening_browser...",
-            "check_browser" to "check_browser",
-            "error_starting_oauth" to "error_starting_oauth",
-            "client_id" to "      client_id:",
-            "client_secret" to "      client_secret:",
-            "enter_client_id" to "enter your spotify client id",
-            "enter_client_secret" to "enter your spotify client secret",
-            "how_to_get_credentials" to "      > how to get spotify api credentials:",
-            "instruction_1" to "1. go to https://developer.spotify.com/dashboard",
-            "instruction_2" to "2. log in with your spotify account",
-            "instruction_3" to "3. click 'create app'",
-            "instruction_4" to "4. fill app name (e.g., 'plyr mobile')",
-            "instruction_5" to "5. set redirect uri: 'plyr://spotify/callback'",
-            "instruction_6" to "6. select 'mobile' and 'web api'",
-            "instruction_7" to "7. click 'save'",
-            "instruction_8" to "8. copy client id and client secret",
-            "instruction_9" to "9. paste them in the fields above",
-            "note_local_storage" to "      note: these credentials are stored locally",
+            "connected" to "conectado",
+            "disconnected" to "desconectado",
+            "configured" to "configurado",
+            "not_configured" to "no configurado",
+            "credentials_required" to "se requieren credenciales",
+            "configure_credentials_first" to "configura las credenciales primero",
+            "opening_browser" to "abriendo navegador...",
+            "check_browser" to "revisa el navegador",
+            "error_starting_oauth" to "error al iniciar oauth",
+            "client_id" to "      id del client:",
+            "client_secret" to "      secreto del client:",
+            "enter_client_id" to "introduce tu id del cliente de spotify",
+            "enter_client_secret" to "introduce tu secreto del cliente de spotify ",
+            "how_to_get_credentials" to "      > cómo obtener credenciales de la api de spotify:",
+            "instruction_1" to "1. ve a https://developer.spotify.com/dashboard",
+            "instruction_2" to "2. inicia sesión con tu cuenta de spotify",
+            "instruction_3" to "3. selecciona 'crear aplicación'",
+            "instruction_4" to "4. rellena el nombre (por ejemplo, 'plyr mobile')",
+            "instruction_5" to "5. establece el redirect uri: 'plyr://spotify/callback'",
+            "instruction_6" to "6. selecciona 'mobile' y 'web  pi'",
+            "instruction_7" to "7. haz clic en 'guardar'",
+            "instruction_8" to "8. copia el client_id y el client_secret",
+            "instruction_9" to "9. pegalos en los campos de arriba",
+            "note_local_storage" to "      nota: estas credenciales se guardan localmente",
 
             // Main Screen
-            "plyr_title" to "$ plyr",
+            "plyr_title" to "$ plyr", //QUITAR EL TITLE GENERAL
             "search_hint" to "search...",
             "no_results" to "no results found",
             "loading" to "loading...",
@@ -73,7 +73,7 @@ object Translations {
             "exit_message" to "Presiona de nuevo para salir",
 
             // Search Screen
-            "search_title" to "$ plyr_search",
+            "search_title" to "buscar",
             "search_placeholder" to "buscar música...",
             "search_loading" to "cargando...",
             "search_no_results" to "no se encontraron resultados",
@@ -120,16 +120,40 @@ object Translations {
             "now_playing" to "now playing",
             "play" to "play",
             "pause" to "pause",
-            "next" to "next",
-            "previous" to "previous",
-            "repeat" to "repeat",
-            "shuffle" to "shuffle"
+            "next" to "siguiente",
+            "previous" to "anterior",
+            "repeat" to "repetir",
+            "shuffle" to "mezclar",
+
+			// Local Screen
+			"plyr_local" to "plyr_local",
+			"unknown error" to "error desconocido",
+			"No tracks downloaded" to "Ninguna canción descargada",
+			"delete track" to "eliminar canción",
+			"Song {{track_name}} will be removed permanently" to "La canción {{track_name}} será eliminada permanentemente",
+			"delete" to "eliminar",
+			"cancel" to "cancelar",
+
+			// Queue Screen
+			"plyr_queue" to "plyr_cola",
+			"No tracks loaded" to "Ninguna lista cargada",
+			"Play a track to start a playlist" to "Reproduce una canción para iniciar una lista",
+		    "player_not_available" to "reproductor_no_disponible",
+
+			//Playlists Screen
+			"plyr_lists" to "plyr_listas",
+			"<syncing...>" to "<sincronizando...>",
+			"<sync>" to "<sincronizar>",
+			"<new>" to "<crear>",
+			"Spotify not connected" to "Spotify no conectado",
+			"Loading tracks..." to "Cargando canciones...",
+		    
         ),
 
         // ENGLISH
         "english" to mapOf(
             // Config Screen
-            "config_title" to "$ plyr_config",
+            "config_title" to "plyr_config",
             "theme" to "> theme",
             "theme_dark" to "dark",
             "theme_light" to "light",
@@ -189,7 +213,7 @@ object Translations {
             "exit_message" to "Press back again to exit",
 
             // Search Screen
-            "search_title" to "$ plyr_search",
+            "search_title" to "plyr_search",
             "search_placeholder" to "search music...",
             "search_loading" to "loading...",
             "search_no_results" to "no results found",
@@ -245,7 +269,7 @@ object Translations {
         // CATALÀ
         "català" to mapOf(
             // Config Screen
-            "config_title" to "$ plyr_config",
+            "config_title" to "plyr_configuració",
             "theme" to "> tema",
             "theme_dark" to "fosc",
             "theme_light" to "clar",
@@ -305,7 +329,7 @@ object Translations {
             "exit_message" to "Prem de nou per sortir",
 
             // Search Screen
-            "search_title" to "$ plyr_cercar",
+            "search_title" to "plyr_cercar",
             "search_placeholder" to "cercar música...",
             "search_loading" to "carregant...",
             "search_no_results" to "no s'han trobat resultats",
@@ -355,7 +379,31 @@ object Translations {
             "next" to "següent",
             "previous" to "anterior",
             "repeat" to "repetir",
-            "shuffle" to "aleatori"
+            "shuffle" to "aleatori",
+
+		    // Local Screen
+			"plyr_local" to "plyr_local",
+			"unknown error" to "error desconegut",
+			"No tracks downloaded" to "Ninguna cançó descarregada",
+			"delete track" to "eliminar cançó",
+			"Song {{track_name}} will be removed permanently" to "La canció {{track_name}} serà eliminada permanentment",
+			"delete" to "eliminar",
+			"cancel" to "cancelar",
+
+			// Queue Screen
+			"plyr_queue" to "plyr_cua",
+			"No tracks loaded" to "Ninguna llista carregada",
+			"Play a track to start a playlist" to "Reprodueix una cançó per iniciar una llista",
+		    "player_not_available" to "reproductor_no_disponible",
+
+			//Playlists Screen
+			"plyr_lists" to "plyr_llistes",
+			"<syncing...>" to "<sincronitzant...>",
+			"<sync>" to "<sincronitzar>",
+			"<new>" to "<crear>",
+		    "Spotify not connected" to "Spotify no connectat",
+			"Loading tracks..." to "Carregant cançons..."
+
         )
     )
 

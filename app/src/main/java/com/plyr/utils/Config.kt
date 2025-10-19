@@ -43,9 +43,9 @@ object Config {
     // Valores por defecto
     private const val DEFAULT_THEME = "dark"
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
-    private const val DEFAULT_AUDIO_QUALITY = "medium"
+    private const val DEFAULT_AUDIO_QUALITY = "high"
     private const val DEFAULT_REPEAT_MODE = "off"
-    private const val DEFAULT_LANGUAGE = "español"
+    private const val DEFAULT_LANGUAGE = "english"
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
 

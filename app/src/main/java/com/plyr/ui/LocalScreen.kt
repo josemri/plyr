@@ -22,6 +22,7 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.DownloadManager
 import kotlinx.coroutines.launch
 import android.util.Log
+import com.plyr.utils.Translations
 
 @Composable
 fun LocalScreen(
@@ -65,15 +66,8 @@ fun LocalScreen(
             .padding(16.dp)
     ) {
         // Header
-        Text(
-            text = "$ local",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 24.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        
+		Titulo(Translations.get(context, "plyr_local"))
 
         when {
             isLoading -> {
@@ -90,7 +84,7 @@ fun LocalScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = error ?: "Unknown error",
+                        text = error ?: Translations.get(context, "unknown_error"),
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = Color(0xFFFF6B6B)
                         )
@@ -102,25 +96,16 @@ fun LocalScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "no downloaded tracks yet",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFF888888)
+				    Text(
+                        text = Translations.get(context, "No tracks downloaded"),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF95A5A6)
                         )
                     )
                 }
             }
             else -> {
-                // Info de cantidad
-                Text(
-                    text = "${downloadedTracks.size} track${if (downloadedTracks.size != 1) "s" else ""}",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = Color(0xFFFFD93D)
-                    ),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
                 // Lista de tracks
                 LazyColumn(
                     state = listState,
@@ -156,7 +141,7 @@ fun LocalScreen(
                             index = index,
                             playerViewModel = playerViewModel,
                             coroutineScope = coroutineScope,
-                            customButtonIcon = "✗",
+                            customButtonIcon = "x",
                             customButtonAction = {
                                 trackToDelete = track
                                 showDeleteDialog = true
@@ -171,9 +156,9 @@ fun LocalScreen(
     // Diálogo de confirmación de eliminación
     if (showDeleteDialog && trackToDelete != null) {
         PlyrConfirmDialog(
-            title = "delete track?",
-            message = "this will permanently delete '${trackToDelete?.name}' from your device",
-            confirmText = "delete",
+            title = Translations.get(context, "delete track"),
+            message = Translations.get(context, "Song {{track_name}} will be removed permanently").replace("{{track_name}}", trackToDelete?.name ?: ""),
+            confirmText = Translations.get(context, "delete"),
             cancelText = "cancel",
             onConfirm = {
                 coroutineScope.launch {

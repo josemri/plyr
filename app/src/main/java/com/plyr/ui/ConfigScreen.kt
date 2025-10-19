@@ -26,6 +26,7 @@ import com.plyr.ui.components.BinaryToggle
 import com.plyr.ui.components.TernaryToggle
 import com.plyr.ui.components.Titulo
 
+
 @Composable
 fun ConfigScreen(
     context: Context,
@@ -183,6 +184,7 @@ fun ConfigScreen(
                         2 -> Config.LANGUAGE_CATALAN
                         else -> Config.LANGUAGE_SPANISH
                     }
+					Config.setLanguage(context, selectedLanguage)
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )

@@ -26,7 +26,7 @@ fun Titulo(titulo: String) {
             text = "$ ${titulo}",
             style = MaterialTheme.typography.headlineMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 20.sp,
+                fontSize = 24.sp,
                 color = Color(0xFF4ECDC4)
             ),
             modifier = Modifier.weight(1f),

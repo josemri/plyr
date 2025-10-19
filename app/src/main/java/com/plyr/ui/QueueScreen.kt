@@ -21,6 +21,9 @@ import androidx.compose.animation.core.*
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clipToBounds
+import com.plyr.utils.Translations
+import com.plyr.ui.components.Titulo
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun QueueScreen(
@@ -28,6 +31,7 @@ fun QueueScreen(
     playerViewModel: PlayerViewModel? = null
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // Handle back button
     BackHandler {
@@ -40,15 +44,7 @@ fun QueueScreen(
             .padding(16.dp)
     ) {
         // Header
-        Text(
-            text = "$ playlist_queue",
-            style = MaterialTheme.typography.headlineMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 24.sp,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+		Titulo(Translations.get(context, "plyr_queue"))
 
         // Contenido de la playlist
         if (playerViewModel != null) {
@@ -57,24 +53,6 @@ fun QueueScreen(
 
             if (currentPlaylist != null && currentPlaylist!!.isNotEmpty()) {
                 // Header de la playlist
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Current playlist [${currentPlaylist!!.size}]",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 18.sp,
-                            color = Color(0xFFFFD93D)
-                        )
-                    )
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                // Lista de tracks en la playlist
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = 16.dp)
@@ -148,38 +126,28 @@ fun QueueScreen(
                 }
             } else {
                 // Estado vacío
-                Column(
+            Box(
                     modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "No playlist loaded",
+				    Text(
+                        text = Translations.get(context, "No tracks loaded"),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = Color(0xFF95A5A6)
                         )
                     )
-
-                    Text(
-                        text = "Play a track to start a playlist",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF7F8C8D)
-                        ),
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
                 }
-            }
+		    }
         } else {
             // PlayerViewModel no disponible
-            Column(
+		    Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Player not available",
+                    text = Translations.get(context, "Player not available"),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         color = Color(0xFF95A5A6)

@@ -51,11 +51,8 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
-
-//botones de accion
+import com.plyr.utils.Translations
 import com.plyr.ui.components.*
-
-
 
 @OptIn(DelicateCoroutinesApi::class)
 @Composable
@@ -351,94 +348,42 @@ fun PlaylistsScreen(
             )
             return@Column
         }
-        Titulo(if (selectedPlaylist == null) "$ plyr_lists" else "$ ${selectedPlaylist!!.name}")
+        Titulo(if (selectedPlaylist == null) Translations.get(context, "plyr_lists") else "${selectedPlaylist!!.name}")
 
         // Botón de sincronización manual (solo visible si está conectado y no es una playlist individual)
         if (isSpotifyConnected && selectedPlaylist == null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Botón de sincronización
-                Text(
-                    text = if (isSyncing) "<syncing...>" else "<sync>",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = if (isSyncing) Color(0xFFFFD93D) else Color(0xFF4ECDC4)
-                    ),
-                    modifier = Modifier
-                        .clickable(enabled = !isSyncing) {
-                            forceSyncAll()
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }
-                        .padding(8.dp)
-                )
-                // New button
-                Text(
-                    text = "<new>",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = Color(0xFF4ECDC4)
-                    ),
-                    modifier = Modifier
-                        .clickable(enabled = !isSyncing) {
-                            // Set state to show create playlist screen
-                            showCreatePlaylistScreen = true
-                        }
-                        .padding(8.dp)
-                )
-
-                // Indicador de estado
-                Text(
-                    text = when {
-                        isSyncing -> "Sincronizando..."
-                        playlists.isNotEmpty() -> "${playlists.size} playlists"
-                        else -> "Sin datos locales"
-                    },
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = Color(0xFF95A5A6)
-                    ),
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                )
-            }
+            ActionButtonsGroup(listOf(
+		    ActionButtonData(
+		        text = Translations.get(context, if (isSyncing) "<syncing...>" else "<sync>"),
+				color = if (isSyncing) Color(0xFFFFD93D) else Color(0xFF4ECDC4),
+		        onClick = {
+		            forceSyncAll()
+		            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+		        },
+		        enabled = !isSyncing
+		    ),
+		    ActionButtonData(
+		        text = Translations.get(context, "<new>"),
+		        color = Color(0xFF4ECDC4),
+		        onClick = { showCreatePlaylistScreen = true },
+		        enabled = !isSyncing
+				    )
+				)
+		    )
         }
-
+			
         Spacer(modifier = Modifier.height(16.dp))
 
         when { // Estado no conectado
             !isSpotifyConnected -> {
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
+				Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "● ",
-                        style = MaterialTheme.typography.bodyMedium.copy(
+				    Text(
+                        text = Translations.get(context, "Spotify not connected"),
+                        style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFFF6B6B)
-                        )
-                    )
-                    Text(
-                        text = "$ spotify_not_connected",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            color = Color(0xFF95A5A6)
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Conecta tu cuenta en Config primero",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
                             color = Color(0xFF95A5A6)
                         )
                     )
@@ -448,26 +393,18 @@ fun PlaylistsScreen(
             selectedPlaylist != null -> {
                 // Vista de tracks de playlist
                 if (isLoadingTracks) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "● ",
-                            style = MaterialTheme.typography.bodyMedium.copy(
+				        Text(
+                            text = Translations.get(context, "Loading tracks..."),
+                            style = MaterialTheme.typography.titleMedium.copy(
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFFFD93D)
-                            )
-                        )
-                        Text(
-                            text = "$ loading_tracks...",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 14.sp,
                                 color = Color(0xFF95A5A6)
                             )
                         )
-                    }
+                    }   
                 } else {
                     // Estados para los botones de control
                     var isRandomizing by remember { mutableStateOf(false) }
@@ -476,7 +413,7 @@ fun PlaylistsScreen(
                     var startJob by remember { mutableStateOf<Job?>(null) }
                     var showShareDialog by remember { mutableStateOf(false) }
 
-                    // Función para parar todas las reproducciones
+					// Función para parar todas las reproducciones
                     fun stopAllPlayback() {
                         isRandomizing = false
                         isStarting = false
@@ -563,6 +500,37 @@ fun PlaylistsScreen(
                             startJob?.cancel()
                         }
                     }
+					/*
+                    // Función para parar todas las reproducciones
+					fun stopAllPlayback() {
+						    isRandomizing = false
+						    isStarting = false
+						    randomJob?.cancel()
+						    startJob?.cancel()
+						    randomJob = null
+						    startJob = null
+						    playerViewModel?.pausePlayer()
+						    playerViewModel?.setShuffleMode(false)
+					}
+				    
+				    fun startRandomizing() {
+						    stopAllPlayback()
+						    isRandomizing = true
+						    playerViewModel?.playPlaylist(tracksFromDB, shuffle = true)
+						}
+
+				    fun startOrderedPlayback() {
+						stopAllPlayback()
+						playerViewModel?.playPlaylist(tracksFromDB, shuffle = false)
+					}
+
+                    // Limpiar jobs al salir
+                    DisposableEffect(selectedPlaylist) {
+                        onDispose {
+                            randomJob?.cancel()
+                            startJob?.cancel()
+                        }
+                    }*/
 
                     Column {
                         // Botones de control
@@ -1282,23 +1250,8 @@ fun PlaylistsScreen(
             }
 
             else -> {
-                // Vista principal de playlists
-                if (isLoading || isSyncing) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = if (isSyncing) "$ syncing_from_spotify..." else "$ loading_playlists...",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFFFD93D)
-                            )
-                        )
-                    }
-                } else {
                     // Estado cuando no está cargando ni sincronizando
-                    if (playlists.isEmpty()) {
+                    if (playlists.isEmpty() && (!isLoading || !isSyncing)) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1603,7 +1556,6 @@ fun PlaylistsScreen(
                             }
                         }
                     }
-                }
             }
         }
     }
@@ -1641,7 +1593,7 @@ fun CreateSpotifyPlaylistScreen(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Titulo("create_playlist")
+        Titulo(Translations.get(context, "create_playlist"))
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(
             value = playlistName,
