@@ -59,6 +59,11 @@ object Translations {
             "instruction_9" to "9. pegalos en los campos de arriba",
             "note_local_storage" to "      nota: estas credenciales se guardan localmente",
 
+            // Swipe Actions Configuration
+            "swipe_actions" to "> acciones_de_deslizamiento",
+            "swipe_left" to "deslizar izquierda",
+            "swipe_right" to "deslizar derecha",
+
             // Main Screen
             "plyr_title" to "$ plyr", //QUITAR EL TITLE GENERAL
             "search_hint" to "search...",
@@ -195,6 +200,14 @@ object Translations {
             "add_to_liked_songs" to "añadir a favoritos",
             "remove_from_liked_songs" to "quitar de favoritos",
             "download" to "descargar",
+
+            // Swipe Actions - Short versions for config screen
+            "swipe_action_queue" to "cola",
+            "swipe_action_liked" to "fav",
+            "swipe_action_playlist" to "lista",
+            "swipe_action_share" to "share",
+            "swipe_action_download" to "down",
+
             "error_fetching_track_info" to "Error obteniendo info del track",
             "spotify_token_unavailable" to "Token de Spotify no disponible",
             "error_generic" to "Error",
@@ -258,6 +271,11 @@ object Translations {
             "instruction_8" to "8. copy client id and client secret",
             "instruction_9" to "9. paste them in the fields above",
             "note_local_storage" to "      note: these credentials are stored locally",
+
+            // Swipe Actions Configuration
+            "swipe_actions" to "> swipe_actions",
+            "swipe_left" to "swipe left",
+            "swipe_right" to "swipe right",
 
             // Main Screen
             "plyr_title" to "$ plyr",
@@ -364,6 +382,14 @@ object Translations {
             "add_to_liked_songs" to "add to liked songs",
             "remove_from_liked_songs" to "remove from liked songs",
             "download" to "download",
+
+            // Swipe Actions - Short versions for config screen
+            "swipe_action_queue" to "queue",
+            "swipe_action_liked" to "fav",
+            "swipe_action_playlist" to "list",
+            "swipe_action_share" to "share",
+            "swipe_action_download" to "down",
+
             "error_fetching_track_info" to "Error fetching track info",
             "spotify_token_unavailable" to "Spotify token unavailable",
             "error_generic" to "Error",
@@ -427,6 +453,11 @@ object Translations {
             "instruction_8" to "8. copia client id i client secret",
             "instruction_9" to "9. enganxa'ls als camps de dalt",
             "note_local_storage" to "      nota: aquestes credencials es guarden localment",
+
+            // Swipe Actions Configuration
+            "swipe_actions" to "> swipe_actions",
+            "swipe_left" to "swipe left",
+            "swipe_right" to "swipe right",
 
             // Main Screen
             "plyr_title" to "$ plyr",
@@ -544,6 +575,13 @@ object Translations {
             "loading_playlists" to "carregant playlists...",
             "track_added_successfully" to "Cançó afegida correctament!",
             "no_playlists_found" to "No s'han trobat playlists",
+
+            // Swipe Actions - Short versions for config screen
+            "swipe_action_queue" to "queue",
+            "swipe_action_liked" to "fav",
+            "swipe_action_playlist" to "list",
+            "swipe_action_share" to "share",
+            "swipe_action_download" to "down",
 
         ),
         // JAPANESE
@@ -721,6 +759,14 @@ object Translations {
             "add_to_liked_songs" to "お気に入りに追加",
             "remove_from_liked_songs" to "お気に入りから削除",
             "download" to "ダウンロード",
+
+            // Swipe Actions - Short versions for config screen
+            "swipe_action_queue" to "queue",
+            "swipe_action_liked" to "fav",
+            "swipe_action_playlist" to "list",
+            "swipe_action_share" to "share",
+            "swipe_action_download" to "down",
+
             "error_fetching_track_info" to "トラック情報の取得エラー",
             "spotify_token_unavailable" to "Spotify トークンが利用できません",
             "error_generic" to "エラー",

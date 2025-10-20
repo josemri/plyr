@@ -39,13 +39,17 @@ object Config {
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
     private const val KEY_SPOTIFY_CLIENT_ID = "spotify_client_id"
     private const val KEY_SPOTIFY_CLIENT_SECRET = "spotify_client_secret"
-    
+    private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
+    private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
+
     // Valores por defecto
     private const val DEFAULT_THEME = "dark"
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
     private const val DEFAULT_AUDIO_QUALITY = "high"
     private const val DEFAULT_REPEAT_MODE = "off"
     private const val DEFAULT_LANGUAGE = "english"
+    private const val DEFAULT_SWIPE_LEFT_ACTION = "add_to_queue"
+    private const val DEFAULT_SWIPE_RIGHT_ACTION = "add_to_liked_songs"
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
 
@@ -77,6 +81,15 @@ object Config {
     const val LANGUAGE_CATALAN = "català"
     // Ajuste: usar la misma clave que en Translations ("日本語") para que coincida la búsqueda
     const val LANGUAGE_JAPANESE = "日本語"
+
+    // === CONSTANTES PÚBLICAS DE ACCIONES DE SWIPE ===
+
+    /** Acciones de swipe disponibles */
+    const val SWIPE_ACTION_ADD_TO_QUEUE = "add_to_queue"
+    const val SWIPE_ACTION_ADD_TO_LIKED = "add_to_liked_songs"
+    const val SWIPE_ACTION_ADD_TO_PLAYLIST = "add_to_playlist"
+    const val SWIPE_ACTION_SHARE = "share"
+    const val SWIPE_ACTION_DOWNLOAD = "download"
 
     // === MÉTODOS PRIVADOS ===
     
@@ -393,6 +406,48 @@ object Config {
     fun getSpotifyTokenExpiresIn(): Int {
         // Los tokens de Spotify duran 1 hora por defecto
         return 3600
+    }
+
+    // === GESTIÓN DE ACCIONES DE SWIPE ===
+
+    /**
+     * Establece la acción para el swipe izquierdo.
+     * @param context Contexto de la aplicación
+     * @param action Acción a establecer
+     */
+    fun setSwipeLeftAction(context: Context, action: String) {
+        getPrefs(context).edit {
+            putString(KEY_SWIPE_LEFT_ACTION, action)
+        }
+    }
+
+    /**
+     * Obtiene la acción configurada para el swipe izquierdo.
+     * @param context Contexto de la aplicación
+     * @return Acción actual (por defecto "add_to_queue")
+     */
+    fun getSwipeLeftAction(context: Context): String {
+        return getPrefs(context).getString(KEY_SWIPE_LEFT_ACTION, DEFAULT_SWIPE_LEFT_ACTION) ?: DEFAULT_SWIPE_LEFT_ACTION
+    }
+
+    /**
+     * Establece la acción para el swipe derecho.
+     * @param context Contexto de la aplicación
+     * @param action Acción a establecer
+     */
+    fun setSwipeRightAction(context: Context, action: String) {
+        getPrefs(context).edit {
+            putString(KEY_SWIPE_RIGHT_ACTION, action)
+        }
+    }
+
+    /**
+     * Obtiene la acción configurada para el swipe derecho.
+     * @param context Contexto de la aplicación
+     * @return Acción actual (por defecto "add_to_liked_songs")
+     */
+    fun getSwipeRightAction(context: Context): String {
+        return getPrefs(context).getString(KEY_SWIPE_RIGHT_ACTION, DEFAULT_SWIPE_RIGHT_ACTION) ?: DEFAULT_SWIPE_RIGHT_ACTION
     }
 
 }

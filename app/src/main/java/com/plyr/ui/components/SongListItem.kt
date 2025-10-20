@@ -21,6 +21,14 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.network.SpotifyRepository
@@ -47,6 +55,18 @@ data class Song(
     val youtubeId: String? = null,
     val spotifyUrl: String? = null
 )
+
+// Helper function para obtener icono y color según la acción
+private fun getSwipeIconAndColor(action: String): Pair<String, Color> {
+    return when (action) {
+        Config.SWIPE_ACTION_ADD_TO_QUEUE -> "+" to Color(0xFF3FFFEF)
+        Config.SWIPE_ACTION_ADD_TO_LIKED -> "♥" to Color(0xFFFF6B9D)
+        Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> "≡" to Color(0xFFFFB84D)
+        Config.SWIPE_ACTION_SHARE -> "⤴" to Color(0xFF9B59B6)
+        Config.SWIPE_ACTION_DOWNLOAD -> "↓" to Color(0xFF2ECC71)
+        else -> "?" to Color(0xFF95A5A6)
+    }
+}
 
 @Composable
 fun SongListItem(
@@ -76,78 +96,209 @@ fun SongListItem(
     var isLiked by remember { mutableStateOf<Boolean?>(null) }
     var isCheckingLiked by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = modifier
-            .clickable {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                playerViewModel?.let { viewModel ->
-                    if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
-                        viewModel.setCurrentPlaylist(trackEntities, index)
-                        val selectedTrackEntity = trackEntities[index]
+    // Obtener las acciones configuradas y sus iconos/colores
+    val swipeRightAction = Config.getSwipeRightAction(context)
+    val swipeLeftAction = Config.getSwipeLeftAction(context)
+    val (rightIcon, rightColor) = getSwipeIconAndColor(swipeRightAction)
+    val (leftIcon, leftColor) = getSwipeIconAndColor(swipeLeftAction)
 
-                        Log.d("SongListItem", "═══════════════════════════════════")
-                        Log.d("SongListItem", "🎵 REPRODUCIR TRACK")
-                        Log.d("SongListItem", "═══════════════════════════════════")
-                        Log.d("SongListItem", "Track: ${selectedTrackEntity.name}")
-                        Log.d("SongListItem", "AudioUrl: ${selectedTrackEntity.audioUrl}")
-                        Log.d("SongListItem", "Es archivo local: ${selectedTrackEntity.audioUrl?.startsWith("/") == true}")
+    // Swipe gesture state
+    val offsetX = remember { Animatable(0f) }
+    val density = LocalDensity.current
+    val swipeThreshold = with(density) { 30.dp.toPx() } // Umbral muy bajo, solo para detectar intención
 
-                        coroutineScope.launch {
-                            try {
-                                viewModel.loadAudioFromTrack(selectedTrackEntity)
-                                Log.d("SongListItem", "✓ loadAudioFromTrack llamado exitosamente")
-                            } catch (e: Exception) {
-                                Log.e("SongListItem", "✗ Error al reproducir track", e)
-                            }
-                        }
-                    }
-                }
-            }
-            .fillMaxWidth()
-            .height(32.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Track number
-        Text(
-            text = song.number.toString(),
-            style = PlyrTextStyles.trackArtist(),
-            modifier = Modifier.padding(end = PlyrSpacing.small)
-        )
-        // Song title and artist
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = song.title,
-                style = if (isSelected)
-                    PlyrTextStyles.selectableOption(true)
-                else
-                    PlyrTextStyles.trackTitle(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = song.artist,
-                style = PlyrTextStyles.trackArtist(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 0.dp)
+    // Reset swipe position
+    fun resetSwipe() {
+        coroutineScope.launch {
+            offsetX.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(durationMillis = 300)
             )
         }
-        // Botón personalizable
-        IconButton(onClick = {
-            if (customButtonAction != null) {
-                customButtonAction()
-            } else {
-                showPopup = true
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(32.dp)
+    ) {
+        // Background actions - Right swipe (like/favorite)
+        if (offsetX.value > 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(with(density) { offsetX.value.toDp() })
+                    .background(Color.Transparent),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = rightIcon,
+                    color = rightColor,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(start = 16.dp)
+                )
             }
-        }, modifier = Modifier.size(32.dp)) {
+        }
+
+        // Background actions - Left swipe (add to queue)
+        if (offsetX.value < 0) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(with(density) { (-offsetX.value).toDp() })
+                    .align(Alignment.CenterEnd)
+                    .background(Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = leftIcon,
+                    color = leftColor,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // Main content (draggable)
+        Row(
+            modifier = Modifier
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            Log.d("SongListItem", "onDragEnd - offsetX.value = ${offsetX.value}, swipeThreshold = $swipeThreshold")
+                            coroutineScope.launch {
+                                when {
+                                    offsetX.value > swipeThreshold -> {
+                                        // Complete right swipe - Execute configured action
+                                        val action = Config.getSwipeRightAction(context)
+                                        Log.d("SongListItem", "🎵 RIGHT SWIPE DETECTED - Action: $action")
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        executeSwipeAction(
+                                            action = action,
+                                            song = song,
+                                            context = context,
+                                            playerViewModel = playerViewModel,
+                                            trackEntities = trackEntities,
+                                            index = index,
+                                            coroutineScope = coroutineScope,
+                                            onLikedStatusChanged = onLikedStatusChanged,
+                                            onShowPlaylistDialog = { showPlaylistDialog = true },
+                                            onShowShareDialog = { showShareDialog = true }
+                                        )
+                                        resetSwipe()
+                                    }
+                                    offsetX.value < -swipeThreshold -> {
+                                        // Complete left swipe - Execute configured action
+                                        val action = Config.getSwipeLeftAction(context)
+                                        Log.d("SongListItem", "🎵 LEFT SWIPE DETECTED - Action: $action")
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        executeSwipeAction(
+                                            action = action,
+                                            song = song,
+                                            context = context,
+                                            playerViewModel = playerViewModel,
+                                            trackEntities = trackEntities,
+                                            index = index,
+                                            coroutineScope = coroutineScope,
+                                            onLikedStatusChanged = onLikedStatusChanged,
+                                            onShowPlaylistDialog = { showPlaylistDialog = true },
+                                            onShowShareDialog = { showShareDialog = true }
+                                        )
+                                        resetSwipe()
+                                    }
+                                    else -> {
+                                        // Return to center
+                                        Log.d("SongListItem", "Swipe not enough, returning to center")
+                                        resetSwipe()
+                                    }
+                                }
+                            }
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            coroutineScope.launch {
+                                val newValue = (offsetX.value + dragAmount).coerceIn(-200f, 150f)
+                                offsetX.snapTo(newValue)
+                            }
+                        }
+                    )
+                }
+                .clickable {
+                    if (offsetX.value.absoluteValue < 10f) {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        playerViewModel?.let { viewModel ->
+                            if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
+                                viewModel.setCurrentPlaylist(trackEntities, index)
+                                val selectedTrackEntity = trackEntities[index]
+
+                                Log.d("SongListItem", "═══════════════════════════════════")
+                                Log.d("SongListItem", "🎵 REPRODUCIR TRACK")
+                                Log.d("SongListItem", "═══════════════════════════════════")
+                                Log.d("SongListItem", "Track: ${selectedTrackEntity.name}")
+                                Log.d("SongListItem", "AudioUrl: ${selectedTrackEntity.audioUrl}")
+                                Log.d("SongListItem", "Es archivo local: ${selectedTrackEntity.audioUrl?.startsWith("/") == true}")
+
+                                coroutineScope.launch {
+                                    try {
+                                        viewModel.loadAudioFromTrack(selectedTrackEntity)
+                                        Log.d("SongListItem", "✓ loadAudioFromTrack llamado exitosamente")
+                                    } catch (e: Exception) {
+                                        Log.e("SongListItem", "✗ Error al reproducir track", e)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        resetSwipe()
+                    }
+                }
+                .fillMaxWidth()
+                .height(32.dp)
+                .background(Color.Transparent),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Track number
             Text(
-                text = customButtonIcon ?: "*",
-                style = PlyrTextStyles.menuOption(),
-                color = Color(0xFF3FFFEF)
+                text = song.number.toString(),
+                style = PlyrTextStyles.trackArtist(),
+                modifier = Modifier.padding(end = PlyrSpacing.small, start = 8.dp)
             )
+            // Song title and artist
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = song.title,
+                    style = if (isSelected)
+                        PlyrTextStyles.selectableOption(true)
+                    else
+                        PlyrTextStyles.trackTitle(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = song.artist,
+                    style = PlyrTextStyles.trackArtist(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 0.dp)
+                )
+            }
+            // Botón personalizable
+            IconButton(onClick = {
+                if (customButtonAction != null) {
+                    customButtonAction()
+                } else {
+                    showPopup = true
+                }
+            }, modifier = Modifier.size(32.dp)) {
+                Text(
+                    text = customButtonIcon ?: "*",
+                    style = PlyrTextStyles.menuOption(),
+                    color = Color(0xFF3FFFEF)
+                )
+            }
         }
     }
 
@@ -736,5 +887,122 @@ fun SongListItem(
             ),
             onDismiss = { showShareDialog = false }
         )
+    }
+}
+
+fun executeSwipeAction(
+    action: String,
+    song: Song,
+    context: android.content.Context,
+    playerViewModel: PlayerViewModel?,
+    trackEntities: List<TrackEntity>,
+    index: Int,
+    coroutineScope: CoroutineScope,
+    onLikedStatusChanged: (() -> Unit)?,
+    onShowPlaylistDialog: () -> Unit,
+    onShowShareDialog: () -> Unit
+) {
+    when (action) {
+        Config.SWIPE_ACTION_ADD_TO_LIKED -> {
+            // Añadir a favoritos
+            val accessToken = Config.getSpotifyAccessToken(context)
+            if (accessToken != null && song.spotifyId != null) {
+                Log.d("SongListItem", "Calling saveTrack with spotifyId: ${song.spotifyId}")
+                SpotifyRepository.saveTrack(accessToken, song.spotifyId) { success, error ->
+                    if (success) {
+                        onLikedStatusChanged?.invoke()
+                        Log.d("SongListItem", "✓ Canción añadida a favoritos")
+                    } else {
+                        Log.e("SongListItem", "✗ Error añadiendo a favoritos: $error")
+                    }
+                }
+            } else {
+                Log.e("SongListItem", "✗ No se puede añadir a favoritos: accessToken=${accessToken != null}, spotifyId=${song.spotifyId}")
+            }
+        }
+        Config.SWIPE_ACTION_ADD_TO_QUEUE -> {
+            // Añadir a cola
+            playerViewModel?.let { viewModel ->
+                if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
+                    val trackToAdd = trackEntities[index]
+                    viewModel.addToQueue(trackToAdd)
+                    Log.d("SongListItem", "✓ Track added to queue: ${trackToAdd.name}")
+                } else {
+                    Log.e("SongListItem", "✗ Invalid index or empty trackEntities")
+                }
+            } ?: Log.e("SongListItem", "✗ PlayerViewModel is null")
+        }
+        Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> {
+            // Añadir a playlist
+            if (song.spotifyId != null && Config.isSpotifyConnected(context)) {
+                onShowPlaylistDialog()
+            } else {
+                Log.d("SongListItem", "No se puede añadir a playlist: sin Spotify ID o no conectado")
+            }
+        }
+        Config.SWIPE_ACTION_SHARE -> {
+            // Compartir
+            onShowShareDialog()
+        }
+        Config.SWIPE_ACTION_DOWNLOAD -> {
+            // Descargar
+            if (song.spotifyId != null) {
+                coroutineScope.launch {
+                    val database = PlaylistDatabase.getDatabase(context)
+                    val alreadyDownloaded = database.downloadedTrackDao()
+                        .isTrackDownloaded(song.spotifyId) > 0
+
+                    if (alreadyDownloaded) {
+                        Log.d("SongListItem", "Track already downloaded")
+                    } else {
+                        Log.d("SongListItem", "Starting download: ${song.title}")
+
+                        val trackEntity = if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
+                            trackEntities[index]
+                        } else null
+
+                        val initialYoutubeId = trackEntity?.youtubeVideoId ?: song.youtubeId
+
+                        val finalYoutubeId = if (initialYoutubeId == null) {
+                            withContext(Dispatchers.IO) {
+                                val searchQuery = "${song.title} ${song.artist}"
+                                Log.d("SongListItem", "YouTube ID not available, searching with query: '$searchQuery'")
+                                com.plyr.network.YouTubeManager.searchVideoId(searchQuery)
+                            }
+                        } else {
+                            initialYoutubeId
+                        }
+
+                        if (finalYoutubeId != null) {
+                            Log.d("SongListItem", "Starting download for YouTube ID: $finalYoutubeId")
+                            DownloadManager.downloadTrack(
+                                context = context,
+                                spotifyTrackId = song.spotifyId,
+                                youtubeVideoId = finalYoutubeId,
+                                trackName = song.title,
+                                artists = song.artist,
+                                onProgress = { progress ->
+                                    Log.d("SongListItem", "Download progress: $progress%")
+                                },
+                                onComplete = { success, error ->
+                                    if (success) {
+                                        Log.d("SongListItem", "✓ Download completed: ${song.title}")
+                                    } else {
+                                        Log.e("SongListItem", "✗ Download failed: $error")
+                                    }
+                                }
+                            )
+                        } else {
+                            Log.e("SongListItem", "Cannot download: YouTube video not found")
+                        }
+                    }
+                }
+            } else {
+                Log.e("SongListItem", "Cannot download: missing Spotify ID")
+            }
+        }
+        else -> {
+            Log.w("SongListItem", "Acción desconocida para swipe: $action")
+        }
     }
 }
