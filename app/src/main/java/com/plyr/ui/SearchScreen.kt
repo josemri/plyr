@@ -3,6 +3,7 @@ package com.plyr.ui
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -29,6 +30,8 @@ import com.plyr.network.*
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import com.plyr.database.TrackEntity
+import com.plyr.database.SearchHistoryEntity
+import com.plyr.database.PlaylistDatabase
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.Song
@@ -44,6 +47,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import com.plyr.ui.components.Titulo
+import com.plyr.ui.components.ActionButton
+import com.plyr.ui.components.ActionButtonData
 
 @Composable
 fun SearchScreen(
@@ -103,6 +108,10 @@ fun SearchScreen(
     // Definir el estado en el composable principal
     var showQrScanner by remember { mutableStateOf(false) }
 
+    // Database for search history
+    val database = remember { PlaylistDatabase.getDatabase(context) }
+    val searchHistoryDao = database.searchHistoryDao()
+
     // Search function with pagination support
     val performSearch: (String, Boolean) -> Unit = { searchQuery, isLoadMore ->
         if (searchQuery.isNotBlank() && (!isLoading || isLoadMore)) {
@@ -137,6 +146,28 @@ fun SearchScreen(
                         isLoading = false
                         error = Translations.get(context, "search_query_empty_after_prefix")
                         return@launch
+                    }
+
+                    // Guardar búsqueda en el historial (solo si no es paginación y no es duplicada)
+                    if (!isLoadMore) {
+                        try {
+                            // Obtener la última búsqueda para verificar duplicados
+                            val lastSearch = searchHistoryDao.getLastSearch()
+
+                            // Solo insertar si no es igual a la última búsqueda
+                            if (lastSearch == null ||
+                                lastSearch.query != finalQuery ||
+                                lastSearch.searchEngine != finalSearchEngine) {
+                                searchHistoryDao.insertSearch(
+                                    SearchHistoryEntity(
+                                        query = finalQuery,
+                                        searchEngine = finalSearchEngine
+                                    )
+                                )
+                            }
+                        } catch (e: Exception) {
+                            // Silently fail if history insert fails
+                        }
                     }
 
                     when (finalSearchEngine) {
@@ -972,6 +1003,11 @@ private fun SearchMainView(
     onYouTubePlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
     onShowQrScannerChange: (Boolean) -> Unit
 ) {
+    // Database for search history
+    val database = remember { PlaylistDatabase.getDatabase(context) }
+    val searchHistoryDao = database.searchHistoryDao()
+    val searchHistory by searchHistoryDao.getAllSearches().collectAsState(initial = emptyList())
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1040,6 +1076,106 @@ private fun SearchMainView(
         )
 
         Spacer(Modifier.height(12.dp))
+
+        // === HISTORIAL DE BÚSQUEDAS ===
+        if (searchHistory.isNotEmpty() && results.isEmpty() && !showSpotifyResults && !showYouTubeAllResults && !isLoading) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    ActionButton(
+                        data = ActionButtonData(
+                            text = "<limpiar>",
+                            color = Color(0xFFFF6B6B),
+                            onClick = {
+                                coroutineScope.launch {
+                                    searchHistoryDao.clearHistory()
+                                }
+                            }
+                        )
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(1.dp)
+                ) {
+                    searchHistory.take(10).forEach { historyItem ->
+                        val color = when (historyItem.searchEngine) {
+                            "youtube" -> Color(0xFFFF6B6B) // Rojo para YouTube
+                            "spotify" -> Color(0xFF6BCF7F) // Verde para Spotify
+                            else -> Color(0xFF95A5A6)
+                        }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(32.dp)
+                                .clickable {
+                                    onSearchQueryChange(historyItem.query)
+                                    onSearchTriggered(historyItem.query, false)
+                                }
+                                .background(Color.Transparent),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = historyItem.query,
+                                style = MaterialTheme.typography.bodyLarge.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = color
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 8.dp, end = 4.dp)
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        searchHistoryDao.deleteSearch(historyItem.id)
+                                    }
+                                },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Text(
+                                    text = "x",
+                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFF95A5A6)
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Texto explicativo de colores
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = Translations.get(context, "colored by used engine"),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFF95A5A6)
+                        )
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+        }
 
         if (isLoading) {
             Row(

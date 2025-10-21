@@ -110,6 +110,7 @@ object Translations {
             "album_cover" to "Portada del album",
             "search_youtube_results" to "resultados de youtube",
             "search_load_more" to "cargar más",
+            "colored by used engine" to "coloreado según el motor usado",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Seleccionar playlist",
@@ -323,6 +324,7 @@ object Translations {
             "album_cover" to "Album cover",
             "search_youtube_results" to "youtube results",
             "search_load_more" to "load more",
+            "colored by used engine" to "colored by used engine",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Select playlist",
@@ -505,6 +507,7 @@ object Translations {
             "album_cover" to "Portada del album",
             "search_youtube_results" to "resultats de youtube",
             "search_load_more" to "carregar més",
+            "colored by used engine" to "colorejat segons el motor utilitzat",
 
             // Search Screen - Additional translations
             "search_select_playlist" to "Seleccionar playlist",
@@ -679,6 +682,7 @@ object Translations {
             "album_cover" to "アルバムカバー",
             "search_youtube_results" to "YouTube の結果",
             "search_load_more" to "もっと読み込む",
+            "colored by used engine" to "検索エンジン別の色",
 
             // Search Screen - Additional
             "search_select_playlist" to "プレイリストを選択",
