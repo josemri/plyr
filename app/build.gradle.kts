@@ -39,6 +39,18 @@ android {
     buildFeatures {
         compose = true
     }
+
+    android.applicationVariants.all {
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                when (buildType.name) {
+                    "release" -> "plyr.apk"
+                    "debug" -> "plyr-debug.apk"
+                    else -> "plyr-${buildType.name}.apk"
+                }
+            true
+        }
+    }
 }
 
 dependencies {
