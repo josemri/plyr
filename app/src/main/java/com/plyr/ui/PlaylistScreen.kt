@@ -500,38 +500,6 @@ fun PlaylistsScreen(
                             startJob?.cancel()
                         }
                     }
-					/*
-                    // Función para parar todas las reproducciones
-					fun stopAllPlayback() {
-						    isRandomizing = false
-						    isStarting = false
-						    randomJob?.cancel()
-						    startJob?.cancel()
-						    randomJob = null
-						    startJob = null
-						    playerViewModel?.pausePlayer()
-						    playerViewModel?.setShuffleMode(false)
-					}
-				    
-				    fun startRandomizing() {
-						    stopAllPlayback()
-						    isRandomizing = true
-						    playerViewModel?.playPlaylist(tracksFromDB, shuffle = true)
-						}
-
-				    fun startOrderedPlayback() {
-						stopAllPlayback()
-						playerViewModel?.playPlaylist(tracksFromDB, shuffle = false)
-					}
-
-                    // Limpiar jobs al salir
-                    DisposableEffect(selectedPlaylist) {
-                        onDispose {
-                            randomJob?.cancel()
-                            startJob?.cancel()
-                        }
-                    }*/
-
                     Column {
                         // Botones de control
                         Row(
