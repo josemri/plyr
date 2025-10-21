@@ -22,6 +22,18 @@ interface DownloadedTrackDao {
     suspend fun getAllDownloadedTracksSync(): List<DownloadedTrackEntity>
 
     /**
+     * Busca un track descargado por su ID de YouTube.
+     */
+    @Query("SELECT * FROM downloaded_tracks WHERE youtubeVideoId = :youtubeVideoId")
+    suspend fun getDownloadedTrackByYoutubeId(youtubeVideoId: String): DownloadedTrackEntity?
+
+    /**
+     * Verifica si un track ya está descargado usando YouTube ID.
+     */
+    @Query("SELECT COUNT(*) FROM downloaded_tracks WHERE youtubeVideoId = :youtubeVideoId")
+    suspend fun isTrackDownloadedByYoutubeId(youtubeVideoId: String): Int
+
+    /**
      * Busca un track descargado por su ID de Spotify.
      */
     @Query("SELECT * FROM downloaded_tracks WHERE spotifyTrackId = :spotifyTrackId")
@@ -57,4 +69,3 @@ interface DownloadedTrackDao {
     @Query("DELETE FROM downloaded_tracks")
     suspend fun deleteAllDownloadedTracks()
 }
-

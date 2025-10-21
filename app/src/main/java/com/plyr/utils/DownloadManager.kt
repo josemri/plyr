@@ -32,7 +32,7 @@ object DownloadManager {
      */
     suspend fun downloadTrack(
         context: Context,
-        spotifyTrackId: String,
+        spotifyTrackId: String?,
         youtubeVideoId: String,
         trackName: String,
         artists: String,
@@ -43,9 +43,9 @@ object DownloadManager {
             try {
                 Log.d(TAG, "Iniciando descarga: $trackName - $artists")
 
-                // Verificar si ya está descargada
+                // Verificar si ya está descargada usando YouTube ID
                 val database = PlaylistDatabase.getDatabase(context)
-                val existingTrack = database.downloadedTrackDao().getDownloadedTrackBySpotifyId(spotifyTrackId)
+                val existingTrack = database.downloadedTrackDao().getDownloadedTrackByYoutubeId(youtubeVideoId)
                 if (existingTrack != null) {
                     Log.d(TAG, "Track ya descargado previamente")
                     withContext(Dispatchers.Main) {
@@ -165,8 +165,8 @@ object DownloadManager {
 
                         // Guardar en base de datos
                         val downloadedTrack = DownloadedTrackEntity(
-                            id = "${spotifyTrackId}_${System.currentTimeMillis()}",
-                            spotifyTrackId = spotifyTrackId,
+                            id = "${youtubeVideoId}_${System.currentTimeMillis()}",
+                            spotifyTrackId = spotifyTrackId ?: "",
                             name = trackName,
                             artists = artists,
                             youtubeVideoId = youtubeVideoId,
