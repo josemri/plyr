@@ -27,7 +27,7 @@ fun MultiToggle(
 ) {
     if (options.isEmpty()) return
 
-    var selectedIndex by remember { mutableStateOf(initialIndex.coerceIn(0, options.size - 1)) }
+    var selectedIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, options.size - 1)) }
 
     Row(
         modifier = modifier

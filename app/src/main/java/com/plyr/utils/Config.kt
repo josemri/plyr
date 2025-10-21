@@ -171,7 +171,7 @@ object Config {
         // Renovar el token de forma síncrona
         return runBlocking {
             withContext(Dispatchers.IO) {
-                suspendCoroutine<String?> { continuation ->
+                suspendCoroutine { continuation ->
                     com.plyr.network.SpotifyRepository.refreshAccessToken(context, refreshToken) { newAccessToken, error ->
                         if (error != null) {
                             continuation.resume(null)

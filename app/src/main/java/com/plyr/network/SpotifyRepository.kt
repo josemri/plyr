@@ -749,7 +749,7 @@ object SpotifyRepository {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string() ?: ""
+                val body = response.body.string()
                 if (response.isSuccessful) {
                     android.util.Log.d("SpotifyRepository", "✓ Playlist actualizada exitosamente")
                     callback(true, null)
@@ -1239,7 +1239,7 @@ object SpotifyRepository {
                             callback(allArtists.toList(), null)
 
                             // Verificar si hay más páginas que cargar
-                            val nextCursor = followedArtistsResponse.artists.cursors?.after
+                            val nextCursor = followedArtistsResponse.artists.cursors.after
                             val hasMoreArtists = nextCursor != null && artists.size == maxLimit
 
                             // Si hay más contenido, continuar paginando
@@ -1395,7 +1395,7 @@ object SpotifyRepository {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val body = response.body?.string() ?: ""
+                val body = response.body.string()
                 if (response.isSuccessful) {
                     android.util.Log.d("SpotifyRepository", "✓ Playlist reordenada exitosamente")
                     callback(true, null)

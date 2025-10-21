@@ -807,15 +807,4 @@ object Translations {
     fun get(language: String, key: String): String {
         return translations[language]?.get(key) ?: key
     }
-
-    /**
-     * Verifica si existe una traducción para una clave específica
-     * @param context Contexto de la aplicación
-     * @param key Clave de la traducción
-     * @return true si existe, false en caso contrario
-     */
-    fun exists(context: Context, key: String): Boolean {
-        val language = Config.getLanguage(context)
-        return translations[language]?.containsKey(key) ?: false
-    }
 }

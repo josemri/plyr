@@ -165,7 +165,7 @@ fun SearchScreen(
                                     )
                                 )
                             }
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             // Silently fail if history insert fails
                         }
                     }
@@ -651,7 +651,7 @@ fun SearchScreen(
                                                         }
                                                         // Clear status after 2 seconds
                                                         coroutineScope.launch {
-                                                            kotlinx.coroutines.delay(2000)
+                                                            delay(2000)
                                                             saveStatus = null
                                                         }
                                                     }
@@ -667,7 +667,7 @@ fun SearchScreen(
                                                         }
                                                         // Clear status after 2 seconds
                                                         coroutineScope.launch {
-                                                            kotlinx.coroutines.delay(2000)
+                                                            delay(2000)
                                                             saveStatus = null
                                                         }
                                                     }
@@ -1117,8 +1117,14 @@ private fun SearchMainView(
                                 .fillMaxWidth()
                                 .height(32.dp)
                                 .clickable {
-                                    onSearchQueryChange(historyItem.query)
-                                    onSearchTriggered(historyItem.query, false)
+                                    // Agregar prefijo según el motor de búsqueda original
+                                    val queryWithPrefix = when (historyItem.searchEngine) {
+                                        "youtube" -> "yt:${historyItem.query}"
+                                        "spotify" -> "sp:${historyItem.query}"
+                                        else -> historyItem.query
+                                    }
+                                    onSearchQueryChange(queryWithPrefix)
+                                    onSearchTriggered(queryWithPrefix, false)
                                 }
                                 .background(Color.Transparent),
                             horizontalArrangement = Arrangement.SpaceBetween,

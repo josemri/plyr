@@ -122,7 +122,6 @@ object DownloadManager {
                         Log.d(TAG, "Tamaño del archivo: $fileLength bytes")
 
                         // Descargar archivo
-                        var downloadSuccess = false
                         connection.inputStream.use { input ->
                             FileOutputStream(outputFile).use { output ->
                                 val buffer = ByteArray(BUFFER_SIZE)
@@ -144,13 +143,12 @@ object DownloadManager {
                                         }
                                     }
                                 }
-                                downloadSuccess = true
                             }
                         }
 
                         connection.disconnect()
 
-                        if (!downloadSuccess || !outputFile.exists() || outputFile.length() == 0L) {
+                        if (!outputFile.exists() || outputFile.length() == 0L) {
                             lastError = "Download incomplete"
                             Log.e(TAG, "Descarga incompleta")
                             outputFile.delete()
@@ -239,16 +237,5 @@ object DownloadManager {
                 false
             }
         }
-    }
-
-    /**
-     * Obtiene el directorio de descargas.
-     */
-    fun getDownloadsDirectory(context: Context): File {
-        val dir = File(context.getExternalFilesDir(null), DOWNLOADS_FOLDER)
-        if (!dir.exists()) {
-            dir.mkdirs()
-        }
-        return dir
     }
 }

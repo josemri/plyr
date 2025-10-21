@@ -32,9 +32,6 @@ import kotlin.math.roundToInt
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.network.SpotifyRepository
-import com.plyr.network.SpotifyPlaylist
-import com.plyr.network.SpotifyTrack
-import com.plyr.ui.PlaylistsScreen
 import com.plyr.utils.Config
 import com.plyr.utils.DownloadManager
 import com.plyr.utils.Translations
@@ -94,7 +91,6 @@ fun SongListItem(
     var fetchedTrackInfo by remember { mutableStateOf<com.plyr.network.SpotifyTrack?>(null) }
     var fetchInfoError by remember { mutableStateOf<String?>(null) }
     var isLiked by remember { mutableStateOf<Boolean?>(null) }
-    var isCheckingLiked by remember { mutableStateOf(false) }
 
     // Obtener las acciones configuradas y sus iconos/colores
     val swipeRightAction = Config.getSwipeRightAction(context)
@@ -308,7 +304,6 @@ fun SongListItem(
         LaunchedEffect(true) {
             if (showPopup && song.spotifyId != null) {
                 isLoadingTrackInfo = true
-                isCheckingLiked = true
                 fetchInfoError = null
                 val accessToken = Config.getSpotifyAccessToken(context)
                 if (accessToken != null) {
@@ -324,14 +319,12 @@ fun SongListItem(
 
                     // Verificar si está en Liked Songs
                     SpotifyRepository.checkSavedTrack(accessToken, song.spotifyId) { liked, error ->
-                        isCheckingLiked = false
                         if (error == null) {
                             isLiked = liked
                         }
                     }
                 } else {
                     isLoadingTrackInfo = false
-                    isCheckingLiked = false
                     fetchInfoError = "Token de Spotify no disponible"
                 }
             }
@@ -946,15 +939,12 @@ fun executeSwipeAction(
                 val initialYoutubeId = trackEntity?.youtubeVideoId ?: song.youtubeId
 
                 // Si no tenemos youtubeId, buscarlo
-                val finalYoutubeId = if (initialYoutubeId == null) {
-                    withContext(Dispatchers.IO) {
+                val finalYoutubeId = initialYoutubeId
+                    ?: withContext(Dispatchers.IO) {
                         val searchQuery = "${song.title} ${song.artist}"
                         Log.d("SongListItem", "YouTube ID not available, searching with query: '$searchQuery'")
                         com.plyr.network.YouTubeManager.searchVideoId(searchQuery)
                     }
-                } else {
-                    initialYoutubeId
-                }
 
                 if (finalYoutubeId != null) {
                     // Verificar si ya está descargada usando YouTube ID
