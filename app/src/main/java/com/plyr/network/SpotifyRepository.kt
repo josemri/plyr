@@ -1358,8 +1358,55 @@ object SpotifyRepository {
             }
         })
     }
-}
 
+    // Reordenar una canción en una playlist
+    fun reorderPlaylistTracks(
+        accessToken: String,
+        playlistId: String,
+        rangeStart: Int,
+        insertBefore: Int,
+        rangeLength: Int = 1,
+        callback: (Boolean, String?) -> Unit
+    ) {
+        val requestData = mutableMapOf<String, Any>(
+            "range_start" to rangeStart,
+            "insert_before" to insertBefore
+        )
+        if (rangeLength > 1) {
+            requestData["range_length"] = rangeLength
+        }
+
+        val jsonBody = gson.toJson(requestData)
+        val requestBody = jsonBody.toRequestBody("application/json".toMediaType())
+
+        android.util.Log.d("SpotifyRepository", "Reordering playlist $playlistId: $jsonBody")
+
+        val request = Request.Builder()
+            .url("$API_BASE_URL/playlists/$playlistId/tracks")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .addHeader("Content-Type", "application/json")
+            .put(requestBody)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                android.util.Log.e("SpotifyRepository", "Error de red al reordenar: ${e.message}")
+                callback(false, "Error de red: ${e.message}")
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string() ?: ""
+                if (response.isSuccessful) {
+                    android.util.Log.d("SpotifyRepository", "✓ Playlist reordenada exitosamente")
+                    callback(true, null)
+                } else {
+                    android.util.Log.e("SpotifyRepository", "Error HTTP ${response.code} al reordenar: $body")
+                    callback(false, "Error HTTP ${response.code}: $body")
+                }
+            }
+        })
+    }
+}
 
 // Data classes para Spotify API
 data class SpotifyTokens(
