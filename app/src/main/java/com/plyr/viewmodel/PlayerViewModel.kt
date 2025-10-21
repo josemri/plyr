@@ -48,6 +48,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     var onMediaSessionUpdate: ((ExoPlayer) -> Unit)? = null
 
     private var loadingJobsActive = false
+    private var loadingJob: kotlinx.coroutines.Job? = null
 
     fun initializePlayer() {
         if (_exoPlayer == null) {
@@ -160,7 +161,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val playlist = _currentPlaylist.value ?: return
         val currentIndex = _currentTrackIndex.value ?: return
 
-        viewModelScope.launch(Dispatchers.IO) {
+        loadingJob = viewModelScope.launch(Dispatchers.IO) {
             for (i in currentIndex + 1 until playlist.size) {
                 val track = playlist[i]
                 try {
@@ -247,6 +248,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) {
             }
         }
+    }
+
+    /**
+     * Limpia completamente el estado del reproductor:
+     * - Cancela todas las cargas de canciones en progreso
+     * - Para la reproducción actual
+     * - Limpia la cola de reproducción
+     * - Resetea el estado del reproductor
+     */
+    fun clearPlayerState() {
+        // Cancelar trabajos de precarga
+        loadingJob?.cancel()
+        loadingJob = null
+        loadingJobsActive = false
+
+        // Parar y limpiar el reproductor
+        _exoPlayer?.let { player ->
+            player.stop()
+            player.clearMediaItems()
+        }
+
+        // Limpiar estado
+        _isLoading.postValue(false)
+        _error.postValue(null)
     }
 
     override fun onCleared() {

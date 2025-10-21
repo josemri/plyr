@@ -427,69 +427,68 @@ fun PlaylistsScreen(
                     }
 
 
-                    // Función para randomización simplificada - solo reproduce un track aleatorio
+                    // Función para randomización simplificada - mezcla toda la playlist
                     fun startRandomizing() {
                         stopAllPlayback()
                         isRandomizing = true
 
                         if (playlistTracks.isNotEmpty() && playerViewModel != null) {
-                            randomJob = GlobalScope.launch {
-                                val randomTrack = playlistTracks.random()
-                                val trackEntity = tracksFromDB.find { it.spotifyTrackId == randomTrack.id }
+                            randomJob = coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                                // Limpiar estado previo del reproductor
+                                playerViewModel.clearPlayerState()
 
-                                println("� RANDOM: ${randomTrack.getDisplayName()}")
+                                // Mezclar toda la lista de tracks
+                                val shuffledTracks = tracksFromDB.shuffled()
+                                val firstTrack = shuffledTracks.first()
 
-                                if (trackEntity != null) {
-                                    // Reproducir la canción usando PlayerViewModel
-                                    playerViewModel.initializePlayer()
+                                println("🔀 RANDOM: ${firstTrack.name}")
 
-                                    // Establecer la playlist completa con el track aleatorio seleccionado
-                                    val currentTrackIndex = tracksFromDB.indexOf(trackEntity)
-                                    if (currentTrackIndex >= 0) {
-                                        playerViewModel.setCurrentPlaylist(tracksFromDB, currentTrackIndex)
-                                    }
+                                // Reproducir la canción usando PlayerViewModel
+                                playerViewModel.initializePlayer()
 
-                                    // Cargar y reproducir - PlayerViewModel manejará la navegación automática
-                                    playerViewModel.loadAudioFromTrack(trackEntity)
-                                } else {
-                                    println("⚠️ TrackEntity no encontrado para: ${randomTrack.getDisplayName()}")
-                                }
+                                // Establecer la playlist mezclada completa desde el inicio (índice 0)
+                                playerViewModel.setCurrentPlaylist(shuffledTracks, 0)
+
+                                // Cargar y reproducir - PlayerViewModel manejará la navegación automática
+                                playerViewModel.loadAudioFromTrack(firstTrack)
 
                                 isRandomizing = false
                             }
                         }
                     }
 
-                    // Función para reproducción ordenada simplificada - solo inicia desde el primer track
+                    // Función para reproducción ordenada simplificada - replica exactamente el comportamiento de hacer clic en la primera canción
                     fun startOrderedPlayback() {
                         stopAllPlayback()
                         isStarting = true
 
-                        if (playlistTracks.isNotEmpty() && playerViewModel != null) {
-                            startJob = GlobalScope.launch {
-                                val firstTrack = playlistTracks.first()
-                                val trackEntity = tracksFromDB.find { it.spotifyTrackId == firstTrack.id }
+                        if (playlistTracks.isNotEmpty() && playerViewModel != null && tracksFromDB.isNotEmpty()) {
+                            startJob = coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                                // Limpiar estado previo del reproductor
+                                playerViewModel.clearPlayerState()
 
-                                println("🎵 START [${selectedPlaylist!!.name}]: ${firstTrack.getDisplayName()}")
+                                // Replicar exactamente la lógica de SongListItem cuando haces clic en una canción
+                                playerViewModel.setCurrentPlaylist(tracksFromDB, 0)
+                                val selectedTrackEntity = tracksFromDB[0]
 
-                                if (trackEntity != null) {
-                                    // Reproducir la canción usando PlayerViewModel
-                                    playerViewModel.initializePlayer()
+                                Log.d("PlaylistScreen", "═══════════════════════════════════")
+                                Log.d("PlaylistScreen", "🎵 REPRODUCIR TRACK (START)")
+                                Log.d("PlaylistScreen", "═══════════════════════════════════")
+                                Log.d("PlaylistScreen", "Track: ${selectedTrackEntity.name}")
+                                Log.d("PlaylistScreen", "AudioUrl: ${selectedTrackEntity.audioUrl}")
+                                Log.d("PlaylistScreen", "Es archivo local: ${selectedTrackEntity.audioUrl?.startsWith("/") == true}")
 
-                                    // Establecer la playlist completa desde el inicio (índice 0)
-                                    val trackEntityIndex = tracksFromDB.indexOf(trackEntity)
-                                    if (trackEntityIndex >= 0) {
-                                        playerViewModel.setCurrentPlaylist(tracksFromDB, trackEntityIndex)
-                                    }
-
-                                    // Cargar y reproducir - PlayerViewModel manejará la navegación automática
-                                    playerViewModel.loadAudioFromTrack(trackEntity)
-                                } else {
-                                    println("⚠️ TrackEntity no encontrado para: ${firstTrack.getDisplayName()}")
+                                try {
+                                    playerViewModel.loadAudioFromTrack(selectedTrackEntity)
+                                    Log.d("PlaylistScreen", "✓ loadAudioFromTrack llamado exitosamente")
+                                } catch (e: Exception) {
+                                    Log.e("PlaylistScreen", "✗ Error al reproducir track", e)
                                 }
 
                                 isStarting = false
                             }
+                        } else {
+                            isStarting = false
                         }
                     }
 

@@ -224,6 +224,9 @@ fun SongListItem(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         playerViewModel?.let { viewModel ->
                             if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
+                                // Limpiar estado previo del reproductor
+                                viewModel.clearPlayerState()
+
                                 viewModel.setCurrentPlaylist(trackEntities, index)
                                 val selectedTrackEntity = trackEntities[index]
 
