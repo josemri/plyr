@@ -36,11 +36,22 @@ plyr/
 
 ```xml
 <uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+<uses-permission android:name="android.permission.WAKE_LOCK" />
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<uses-permission android:name="android.permission.CAMERA" />
 ```
 
-##  License
+## Roadmap
+
+- [ ] **Smart Recommendations** - Playlist recommendations based on your music taste
+- [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
+- [ ] **Now Playing Indicator** - Highlight current track with color change in playlists
+- [ ] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
+- [ ] **Fix dark Mode** - Some screens have white background or not enough contrast
+
+## License
 
 none yet
 
