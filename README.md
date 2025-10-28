@@ -1,5 +1,3 @@
-# _plyr
-
 <div align="center">
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" alt="Plyr" width="200"/>
 </div>
@@ -31,6 +29,7 @@ plyr/
 │   ├── service/       # Background services
 │   └── utils/         # Utilities
 ├── gradle/            # Dependencies
+├── run.sh
 └── README.md
 ```
 
@@ -53,10 +52,8 @@ plyr/
 - [ ] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
 - [ ] **Fix dark Mode** - Some screens have white background or not enough contrast
 
-## License
-
-none yet
-
 ---
 
-**Made with ♫ by me**
+<div align="center">
+  <b>Made with ♫ by josemri</b>
+</div>
