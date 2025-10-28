@@ -1,5 +1,7 @@
 # _plyr
 
+![Plyr](Untitled.png)
+
 Android music plyr built with Kotlin and Jetpack Compose. Stream music from YouTube, organize playlists, and control playback.
 
 ## Build
