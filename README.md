@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" alt="Plyr" width="200"/>
+  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" alt="Plyr" width="192"/>
 </div>
 
 Android music plyr built with Kotlin and Jetpack Compose. Stream music from YouTube, organize playlists, and control playback.
