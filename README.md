@@ -52,7 +52,15 @@ plyr/
 - [ ] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
 - [ ] **Fix dark Mode** - Some screens have white background or not enough contrast
 
----
+
+## License
+
+[![GNU GPLv3 Image](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.en.html)
+
+_plyr is Free Software: You can use, study, share, and improve it at will. Specifically you can redistribute and/or modify it under the terms of the [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.en.html) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This project uses [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor), originally created by [Team NewPipe](https://github.com/TeamNewPipe), licensed under GPL-3.0.
+----
 
 <div align="center">
   <b>Made with ♫ by josemri</b>
