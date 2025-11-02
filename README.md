@@ -10,7 +10,7 @@ Made a small shell script to simplify the build process:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/plyr.git
+git clone https://github.com/josemri/plyr.git
 cd plyr
 
 # Run the build script
