@@ -108,4 +108,7 @@ dependencies {
 
     // Coil for image loading
     implementation(libs.coil.compose)
+
+    //shazam-fpcalc
+    implementation(libs.fpcalc.android)
 }

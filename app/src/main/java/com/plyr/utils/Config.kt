@@ -39,6 +39,7 @@ object Config {
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
     private const val KEY_SPOTIFY_CLIENT_ID = "spotify_client_id"
     private const val KEY_SPOTIFY_CLIENT_SECRET = "spotify_client_secret"
+    private const val KEY_ACOUSTID_API_KEY = "acoustid_api_key"
     private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
 
@@ -448,6 +449,38 @@ object Config {
      */
     fun getSwipeRightAction(context: Context): String {
         return getPrefs(context).getString(KEY_SWIPE_RIGHT_ACTION, DEFAULT_SWIPE_RIGHT_ACTION) ?: DEFAULT_SWIPE_RIGHT_ACTION
+    }
+
+    // === GESTIÓN DE ACOUSTID API KEY ===
+
+    /**
+     * Obtiene la API Key de AcoustID configurada por el usuario.
+     * @param context Contexto de la aplicación
+     * @return API Key de AcoustID o null si no está configurada
+     */
+    fun getAcoustidApiKey(context: Context): String? {
+        return getPrefs(context).getString(KEY_ACOUSTID_API_KEY, null)
+    }
+
+    /**
+     * Establece la API Key de AcoustID del usuario.
+     * @param context Contexto de la aplicación
+     * @param apiKey API Key de AcoustID
+     */
+    fun setAcoustidApiKey(context: Context, apiKey: String) {
+        getPrefs(context).edit {
+            putString(KEY_ACOUSTID_API_KEY, apiKey.trim())
+        }
+    }
+
+    /**
+     * Verifica si el usuario tiene una API Key de AcoustID configurada.
+     * @param context Contexto de la aplicación
+     * @return true si tiene la API Key configurada, false en caso contrario
+     */
+    fun hasAcoustidApiKey(context: Context): Boolean {
+        val apiKey = getPrefs(context).getString(KEY_ACOUSTID_API_KEY, null)
+        return !apiKey.isNullOrBlank()
     }
 
 }

@@ -32,6 +32,7 @@ object Translations {
             "info" to "> información",
             "info_text" to "    ● ¡no piratees música!\n    ● cambia el motor con yt: / sp:",
             "sptfy_status" to "> estado_sptfy",
+            "acoustid_status" to "> estado_acoustid",
             "client" to "    ● cliente:",
             "api" to "    ● api:",
             "connected" to "conectado",
@@ -58,6 +59,11 @@ object Translations {
             "instruction_8" to "8. copia el client_id y el client_secret",
             "instruction_9" to "9. pegalos en los campos de arriba",
             "note_local_storage" to "      nota: estas credenciales se guardan localmente",
+
+            // AcoustID Configuration
+            "acoustid_api_key" to "    ● acoustid_api_key:",
+            "enter_acoustid_api_key" to "introduce tu api key de acoustid",
+            "acoustid_info" to "      AcoustID es un servicio gratuito para identificar música.\n      Cómo obtener tu API Key:\n      1. Ve a https://acoustid.org/new-application\n      2. Crea una cuenta o inicia sesión\n      3. Crea una nueva aplicación (nombre: 'plyr')\n      4. Copia tu API Key y pégala arriba\n      5. Esta key te permite identificar canciones desde la app",
 
             // Swipe Actions Configuration
             "swipe_actions" to "> acciones_de_deslizamiento",
@@ -246,6 +252,7 @@ object Translations {
             "info" to "> info",
             "info_text" to "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
             "sptfy_status" to "> sptfy_status",
+            "acoustid_status" to "> acoustid_status",
             "client" to "    ● client:",
             "api" to "    ● api:",
             "connected" to "connected",
@@ -272,6 +279,11 @@ object Translations {
             "instruction_8" to "8. copy client id and client secret",
             "instruction_9" to "9. paste them in the fields above",
             "note_local_storage" to "      note: these credentials are stored locally",
+
+            // AcoustID Configuration
+            "acoustid_api_key" to "    ● acoustid_api_key:",
+            "enter_acoustid_api_key" to "enter your acoustid api key",
+            "acoustid_info" to "      AcoustID is a free service for music identification.\n      How to get your API Key:\n      1. Go to https://acoustid.org/new-application\n      2. Create an account or log in\n      3. Create a new application (name: 'plyr')\n      4. Copy your API Key and paste it above\n      5. This key allows you to identify songs from the app",
 
             // Swipe Actions Configuration
             "swipe_actions" to "> swipe_actions",
@@ -429,6 +441,7 @@ object Translations {
             "info" to "> info",
             "info_text" to "    ● no piratejis música!\n    ● Canvia motor amb yt: / sp:",
             "sptfy_status" to "> estat_sptfy",
+            "acoustid_status" to "> estat_acoustid",
             "client" to "    ● client:",
             "api" to "    ● api:",
             "connected" to "connectat",
@@ -455,6 +468,11 @@ object Translations {
             "instruction_8" to "8. copia client id i client secret",
             "instruction_9" to "9. enganxa'ls als camps de dalt",
             "note_local_storage" to "      nota: aquestes credencials es guarden localment",
+
+            // AcoustID Configuration
+            "acoustid_api_key" to "    ● acoustid_api_key:",
+            "enter_acoustid_api_key" to "introdueix la teva api key de acoustid",
+            "acoustid_info" to "      AcoustID és un servei gratuït per identificar música.\n      Com obtenir la teva API Key:\n      1. Ves a https://acoustid.org/new-application\n      2. Crea un compte o inicia sessió\n      3. Crea una nova aplicació (nom: 'plyr')\n      4. Copia la teva API Key i enganxa-la a dalt\n      5. Aquesta key et permet identificar cançons des de l'app",
 
             // Swipe Actions Configuration
             "swipe_actions" to "> swipe_actions",
@@ -609,6 +627,7 @@ object Translations {
             "info" to "> 情報",
             "info_text" to "    ● 音楽を違法にダウンロードしないでください！\n    ● エンジンを変更するには yt: / sp: を使用",
             "sptfy_status" to "> sptfy_ステータス",
+            "acoustid_status" to "> acoustid_ステータス",
             "client" to "    ● クライアント:",
             "api" to "    ● API:",
             "connected" to "接続済み",
@@ -635,6 +654,11 @@ object Translations {
             "instruction_8" to "8. client_id と client_secret をコピー",
             "instruction_9" to "9. 上のフィールドに貼り付ける",
             "note_local_storage" to "      注: 認証情報はローカルに保存されます",
+
+            // AcoustID Configuration
+            "acoustid_api_key" to "    ● acoustid_api_key:",
+            "enter_acoustid_api_key" to "AcoustID APIキーを入力してください",
+            "acoustid_info" to "      AcoustIDは音楽識別のための無料サービスです。\n      APIキーの取得方法:\n      1. https://acoustid.org/new-application にアクセス\n      2. アカウントを作成またはログイン\n      3. 新しいアプリケーションを作成 (名前: 'plyr')\n      4. APIキーをコピーして上に貼り付け\n      5. このキーでアプリから曲を識別できます",
 
             // Main Screen
             "plyr_title" to "$ plyr",

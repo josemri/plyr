@@ -430,6 +430,23 @@ fun ConfigScreen(
             SpotifyApiConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(30.dp))
+
+            // Título y configuración de AcoustID
+            Column {
+                Text(
+                    text = Translations.get(context, "acoustid_status"),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            // Configuración de AcoustID API Key
+            AcoustidApiConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(30.dp))
         }
     }
 }
@@ -603,6 +620,111 @@ fun SpotifyApiConfigSection(context: Context) {
                             fontSize = 10.sp,
                             color = Color(0xFF7F8C8D)
                         )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AcoustidApiConfigSection(context: Context) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var apiKey by remember { mutableStateOf(Config.getAcoustidApiKey(context) ?: "") }
+    val haptic = LocalHapticFeedback.current
+
+    Column {
+        // Campo principal de API - similar al formato del cliente
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = Translations.get(context, "acoustid_api_key"),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 14.sp,
+                    color = Color(0xFF95A5A6)
+                )
+            )
+
+            Text(
+                text = if (Config.hasAcoustidApiKey(context)) Translations.get(context, "configured") else Translations.get(context, "not_configured"),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = if (Config.hasAcoustidApiKey(context)) Color(0xFF1DB954) else Color(0xFFE74C3C)
+                )
+            )
+        }
+
+        // Desplegable con campos de configuración
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp)
+            ) {
+                // Campo de entrada de API Key
+                Text(
+                    text = "      api_key:",
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = Color(0xFF95A5A6)
+                    ),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = {
+                        apiKey = it
+                        Config.setAcoustidApiKey(context, it)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF1DB954),
+                        unfocusedBorderColor = Color(0xFF95A5A6),
+                        focusedTextColor = Color(0xFFECF0F1),
+                        unfocusedTextColor = Color(0xFFBDC3C7)
+                    ),
+                    placeholder = {
+                        Text(
+                            text = Translations.get(context, "enter_acoustid_api_key"),
+                            style = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = Color(0xFF7F8C8D)
+                            )
+                        )
+                    }
+                )
+
+                // Explicación detallada sobre AcoustID
+                Column(
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Text(
+                        text = Translations.get(context, "acoustid_info"),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = Color(0xFF95A5A6)
+                        ),
+                        lineHeight = 14.sp
                     )
                 }
             }
