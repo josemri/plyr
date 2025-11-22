@@ -28,7 +28,7 @@ jobs:
       - name: Get next version tag
         id: version
         run: |
-          LAST_TAG=$(git tag --sort=-creatordate | grep -v latest | head -n 1)
+          LAST_TAG=$(git tag --sort=-creatordate | grep -vi latest | head -n 1)
 
           if [ -z "$LAST_TAG" ]; then
             NEXT_TAG="v1.0.0"
@@ -41,14 +41,12 @@ jobs:
 
           echo "Último tag: $LAST_TAG"
           echo "Nuevo tag: $NEXT_TAG"
-
           echo "tag=$NEXT_TAG" >> $GITHUB_OUTPUT
 
       - name: Generate changelog
         id: changelog
         run: |
-          LAST_TAG=$(git tag --sort=-creatordate | grep -v latest | head -n 1)
-
+          LAST_TAG=$(git tag --sort=-creatordate | grep -vi latest | head -n 1)
           if [ -z "$LAST_TAG" ]; then
             COMMITS=$(git log --pretty=format:"- %s")
           else
@@ -67,9 +65,9 @@ jobs:
           body: |
             ## Changes since last release
             ${{ steps.changelog.outputs.commits }}
-          files: app/release/plyr.apk
+          files: app/build/outputs/apk/release/plyr.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Create/Update 'latest' release
         uses: softprops/action-gh-release@v2
@@ -79,6 +77,6 @@ jobs:
           body: |
             ## Changes from ${{ steps.version.outputs.tag }}
             ${{ steps.changelog.outputs.commits }}
-          files: app/release/plyr.apk
+          files: app/build/outputs/apk/release/plyr.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
