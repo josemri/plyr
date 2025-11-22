@@ -249,6 +249,7 @@ object DownloadManager {
         uri: Uri,
         trackName: String,
         artists: String,
+        playlistId: Long? = null,
         onProgress: (Int) -> Unit = {},
         onComplete: (Boolean, String?) -> Unit
     ) {
@@ -349,6 +350,16 @@ object DownloadManager {
 
                 database.downloadedTrackDao().insertDownloadedTrack(importedTrack)
 
+                // Si se especificó una playlist, añadir el track a esa playlist
+                if (playlistId != null && playlistId != 0L) {
+                    try {
+                        database.localPlaylistDao().addTrackToPlaylist(playlistId, importedTrack.id)
+                        Log.d(TAG, "✓ Track añadido a la playlist con ID: $playlistId")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error añadiendo track a la playlist", e)
+                    }
+                }
+
                 onProgress(100)
 
                 Log.d(TAG, "✓ Importación completada: ${outputFile.length()} bytes")
@@ -363,6 +374,26 @@ object DownloadManager {
                 withContext(Dispatchers.Main) {
                     onComplete(false, e.message ?: "Unknown error")
                 }
+            }
+        }
+    }
+
+    /**
+     * Elimina una playlist local de la base de datos
+     */
+    suspend fun deleteLocalPlaylist(
+        context: Context,
+        playlist: com.plyr.database.LocalPlaylistEntity
+    ): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val database = PlaylistDatabase.getDatabase(context)
+                database.localPlaylistDao().deleteLocalPlaylist(playlist)
+                Log.d(TAG, "✓ Playlist eliminada: ${playlist.name}")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Error al eliminar playlist", e)
+                false
             }
         }
     }

@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,9 +16,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.plyr.database.DownloadedTrackEntity
 import com.plyr.database.PlaylistDatabase
 import com.plyr.database.TrackEntity
+import com.plyr.database.LocalPlaylistEntity
 import com.plyr.ui.components.*
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.DownloadManager
@@ -31,8 +36,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import com.plyr.service.detectAudioFromUri
+import coil.compose.AsyncImage
 
 @Composable
 fun LocalScreen(
@@ -44,10 +51,31 @@ fun LocalScreen(
     val listState = rememberLazyListState()
 
     var downloadedTracks by remember { mutableStateOf<List<DownloadedTrackEntity>>(emptyList()) }
+    var localPlaylists by remember { mutableStateOf<List<LocalPlaylistEntity>>(emptyList()) }
+    var selectedLocalPlaylist by remember { mutableStateOf<LocalPlaylistEntity?>(null) }
+    var selectedPlaylistTracks by remember { mutableStateOf<List<DownloadedTrackEntity>>(emptyList()) }
+
     var isLoading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var trackToDelete by remember { mutableStateOf<DownloadedTrackEntity?>(null) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var newPlaylistName by remember { mutableStateOf("") }
+    var newPlaylistDescription by remember { mutableStateOf("") }
+
+    // Estados para editar playlist
+    var showEditPlaylistDialog by remember { mutableStateOf(false) }
+    var playlistToEdit by remember { mutableStateOf<LocalPlaylistEntity?>(null) }
+    var editPlaylistName by remember { mutableStateOf("") }
+    var editPlaylistDescription by remember { mutableStateOf("") }
+
+    // Estados para eliminar playlist
+    var showDeletePlaylistDialog by remember { mutableStateOf(false) }
+    var playlistToDelete by remember { mutableStateOf<LocalPlaylistEntity?>(null) }
+
+    // Estados para añadir canción a playlist
+    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var trackToAddToPlaylist by remember { mutableStateOf<DownloadedTrackEntity?>(null) }
 
     // Estados para importar archivos
     var showImportDialog by remember { mutableStateOf(false) }
@@ -58,7 +86,7 @@ fun LocalScreen(
     var importProgress by remember { mutableStateOf(0) }
     var importError by remember { mutableStateOf<String?>(null) }
     var isDetecting by remember { mutableStateOf(false) }
-    var detectionStatus by remember { mutableStateOf<String?>(null) } // "detected", "error" o null
+    var detectionStatus by remember { mutableStateOf<String?>(null) }
 
     // Launcher para seleccionar archivo de audio
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -81,22 +109,70 @@ fun LocalScreen(
 
     // Handle back button
     BackHandler {
-        onBack()
+        if (selectedLocalPlaylist != null) {
+            selectedLocalPlaylist = null
+        } else {
+            onBack()
+        }
     }
 
-    // Cargar tracks descargados
+    // Cargar playlists y tracks - Fixed version
     LaunchedEffect(Unit) {
         try {
             val database = PlaylistDatabase.getDatabase(context)
-            database.downloadedTrackDao().getAllDownloadedTracks().collect { tracks ->
-                downloadedTracks = tracks
-                isLoading = false
-                Log.d("LocalScreen", "Loaded ${tracks.size} downloaded tracks")
+
+            // Launch separate coroutine for playlists collection
+            launch {
+                database.localPlaylistDao().getAllLocalPlaylists().collect { playlists ->
+                    localPlaylists = playlists
+                }
+            }
+
+            // Launch separate coroutine for downloaded tracks collection
+            launch {
+                database.downloadedTrackDao().getAllDownloadedTracks().collect { tracks ->
+                    downloadedTracks = tracks
+                    isLoading = false
+                    Log.d("LocalScreen", "Loaded ${tracks.size} downloaded tracks")
+                }
             }
         } catch (e: Exception) {
-            error = "Error loading downloaded tracks: ${e.message}"
+            error = "Error loading local playlists: ${e.message}"
+            Log.e("LocalScreen", "Error loading playlists", e)
             isLoading = false
+        }
+    }
+
+    // Cargar tracks según la playlist seleccionada
+    LaunchedEffect(selectedLocalPlaylist) {
+        if (selectedLocalPlaylist == null) {
+            // Reset to show all tracks view
+            selectedPlaylistTracks = emptyList()
+            return@LaunchedEffect
+        }
+
+        isLoading = true
+        try {
+            val database = PlaylistDatabase.getDatabase(context)
+
+            if (selectedLocalPlaylist!!.id == 0L) {
+                // "All Tracks" - usar downloadedTracks ya cargados
+                selectedPlaylistTracks = downloadedTracks
+                isLoading = false
+            } else {
+                // Mostrar tracks de la playlist seleccionada
+                launch {
+                    database.localPlaylistDao().getTracksFromLocalPlaylist(selectedLocalPlaylist!!.id).collect { tracks ->
+                        selectedPlaylistTracks = tracks
+                        isLoading = false
+                        Log.d("LocalScreen", "Loaded ${tracks.size} tracks from playlist ${selectedLocalPlaylist!!.name}")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            error = "Error loading tracks: ${e.message}"
             Log.e("LocalScreen", "Error loading tracks", e)
+            isLoading = false
         }
     }
 
@@ -106,20 +182,57 @@ fun LocalScreen(
             .padding(16.dp)
     ) {
         // Título
-        Titulo(Translations.get(context, "plyr_local"))
+        Titulo(
+            if (selectedLocalPlaylist == null)
+                Translations.get(context, "plyr_local")
+            else
+                selectedLocalPlaylist!!.name
+        )
 
-        // Botón de añadir archivo debajo del título
-        ActionButtonsGroup(
-            buttons = listOf(
-                ActionButtonData(
-                    text = "<add>",
-                    color = Color(0xFF4ECDC4),
-                    onClick = {
-                        filePickerLauncher.launch("audio/*")
-                    }
+        // Botones de acción
+        if (selectedLocalPlaylist == null) {
+            ActionButtonsGroup(
+                buttons = listOf(
+                    ActionButtonData(
+                        text = "<add>",
+                        color = Color(0xFF4ECDC4),
+                        onClick = {
+                            filePickerLauncher.launch("audio/*")
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "<new playlist>",
+                        color = Color(0xFF4ECDC4),
+                        onClick = {
+                            showCreatePlaylistDialog = true
+                        }
+                    )
                 )
             )
-        )
+        } else if (selectedLocalPlaylist!!.id != 0L) {
+            // Botones para playlist seleccionada (no "All Tracks")
+            ActionButtonsGroup(
+                buttons = listOf(
+                    ActionButtonData(
+                        text = "<add>",
+                        color = Color(0xFF4ECDC4),
+                        onClick = {
+                            filePickerLauncher.launch("audio/*")
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "<edit>",
+                        color = Color(0xFFFFB74D),
+                        onClick = {
+                            playlistToEdit = selectedLocalPlaylist
+                            editPlaylistName = selectedLocalPlaylist!!.name
+                            editPlaylistDescription = selectedLocalPlaylist!!.description ?: ""
+                            showEditPlaylistDialog = true
+                        }
+                    )
+                )
+            )
+        }
 
         when {
             isLoading -> {
@@ -143,7 +256,64 @@ fun LocalScreen(
                     )
                 }
             }
-            downloadedTracks.isEmpty() -> {
+            selectedLocalPlaylist != null -> {
+                // Vista de tracks de playlist seleccionada
+                if (selectedPlaylistTracks.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = Translations.get(context, "No tracks in playlist"),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF95A5A6)
+                            )
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        itemsIndexed(selectedPlaylistTracks) { index, track ->
+                            val song = Song(
+                                number = index + 1,
+                                title = track.name,
+                                artist = track.artists,
+                                spotifyId = track.spotifyTrackId,
+                                youtubeId = track.youtubeVideoId
+                            )
+
+                            SongListItem(
+                                song = song,
+                                trackEntities = selectedPlaylistTracks.map { dt ->
+                                    TrackEntity(
+                                        id = dt.id,
+                                        playlistId = "local_${selectedLocalPlaylist!!.id}",
+                                        spotifyTrackId = dt.spotifyTrackId,
+                                        name = dt.name,
+                                        artists = dt.artists,
+                                        youtubeVideoId = dt.youtubeVideoId,
+                                        audioUrl = dt.localFilePath,
+                                        position = selectedPlaylistTracks.indexOf(dt)
+                                    )
+                                },
+                                index = index,
+                                playerViewModel = playerViewModel,
+                                coroutineScope = coroutineScope,
+                                customButtonIcon = "x",
+                                customButtonAction = {
+                                    trackToDelete = track
+                                    showDeleteDialog = true
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            localPlaylists.isEmpty() && downloadedTracks.isEmpty() -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -158,54 +328,146 @@ fun LocalScreen(
                 }
             }
             else -> {
-                // Lista de tracks
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                // Grilla de playlists y tracks (igual que PlaylistScreen)
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    itemsIndexed(downloadedTracks) { index, track ->
-                        // Convertir DownloadedTrackEntity a TrackEntity para SongListItem
-                        val song = Song(
-                            number = index + 1,
-                            title = track.name,
-                            artist = track.artists,
-                            spotifyId = track.spotifyTrackId,
-                            youtubeId = track.youtubeVideoId
-                        )
+                    // Mostrar "All Tracks" como primer item (equivalente a Liked Songs)
+                    if (downloadedTracks.isNotEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedLocalPlaylist = LocalPlaylistEntity(
+                                            id = 0,
+                                            name = "All Tracks",
+                                            description = "All your local tracks",
+                                            imageUrl = null
+                                        )
+                                    },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(150.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(8.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        androidx.compose.foundation.Canvas(
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            drawRect(
+                                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        Color(0xFF4ECDC4),
+                                                        Color(0xFF7FB069)
+                                                    )
+                                                )
+                                            )
+                                        }
+                                        Text(
+                                            text = "♪",
+                                            style = MaterialTheme.typography.displayLarge.copy(
+                                                fontSize = 64.sp,
+                                                color = Color.White
+                                            )
+                                        )
+                                    }
+                                }
 
-                        SongListItem(
-                            song = song,
-                            trackEntities = downloadedTracks.map { dt ->
-                                val trackEntity = TrackEntity(
-                                    id = dt.id,
-                                    playlistId = "local",
-                                    spotifyTrackId = dt.spotifyTrackId,
-                                    name = dt.name,
-                                    artists = dt.artists,
-                                    youtubeVideoId = dt.youtubeVideoId,
-                                    audioUrl = dt.localFilePath, // Esta ruta debe usarse para reproducción local
-                                    position = downloadedTracks.indexOf(dt)
+                                Text(
+                                    text = "All Tracks",
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFFE0E0E0)
+                                    ),
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center
                                 )
-                                Log.d("LocalScreen", "TrackEntity creado - audioUrl: ${trackEntity.audioUrl}")
-                                trackEntity
-                            },
-                            index = index,
-                            playerViewModel = playerViewModel,
-                            coroutineScope = coroutineScope,
-                            customButtonIcon = "x",
-                            customButtonAction = {
-                                trackToDelete = track
-                                showDeleteDialog = true
                             }
-                        )
+                        }
+                    }
+
+                    // Playlists locales
+                    items(localPlaylists) { playlist ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedLocalPlaylist = playlist
+                                },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            // Portada de la playlist (placeholder con degradado)
+                            Box(
+                                modifier = Modifier
+                                    .size(150.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (playlist.imageUrl != null) {
+                                    AsyncImage(
+                                        model = playlist.imageUrl,
+                                        contentDescription = "Portada de ${playlist.name}",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    // Degradado por defecto
+                                    androidx.compose.foundation.Canvas(
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        drawRect(
+                                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                colors = listOf(
+                                                    Color(0xFF667EEA),
+                                                    Color(0xFF764BA2)
+                                                )
+                                            )
+                                        )
+                                    }
+                                    Text(
+                                        text = playlist.name.take(2).uppercase(),
+                                        style = MaterialTheme.typography.displayMedium.copy(
+                                            fontSize = 48.sp,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
+                            }
+
+                            Text(
+                                text = playlist.name,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = Color(0xFFE0E0E0)
+                                ),
+                                modifier = Modifier.padding(top = 8.dp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    // Diálogo de confirmación de eliminación
+    // Diálogo de confirmación de eliminación de pista
     if (showDeleteDialog && trackToDelete != null) {
         PlyrConfirmDialog(
             title = Translations.get(context, "delete track"),
@@ -215,11 +477,29 @@ fun LocalScreen(
             onConfirm = {
                 coroutineScope.launch {
                     trackToDelete?.let { track ->
-                        val success = DownloadManager.deleteDownloadedTrack(context, track)
-                        if (success) {
-                            Log.d("LocalScreen", "Track deleted successfully")
-                        } else {
-                            error = "Failed to delete track"
+                        try {
+                            val database = PlaylistDatabase.getDatabase(context)
+
+                            // Si estamos en una playlist específica (no "All Tracks")
+                            if (selectedLocalPlaylist != null && selectedLocalPlaylist!!.id != 0L) {
+                                // Solo eliminar la relación de esta playlist
+                                database.localPlaylistDao().removeTrackFromPlaylist(
+                                    playlistId = selectedLocalPlaylist!!.id,
+                                    trackId = track.id
+                                )
+                                Log.d("LocalScreen", "Track removed from playlist: ${selectedLocalPlaylist!!.name}")
+                            } else {
+                                // Si estamos en "All Tracks", eliminar completamente el track
+                                val success = DownloadManager.deleteDownloadedTrack(context, track)
+                                if (success) {
+                                    Log.d("LocalScreen", "Track deleted successfully")
+                                } else {
+                                    error = "Failed to delete track"
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("LocalScreen", "Error deleting track", e)
+                            error = "Error deleting track: ${e.message}"
                         }
                     }
                     showDeleteDialog = false
@@ -231,6 +511,364 @@ fun LocalScreen(
                 trackToDelete = null
             }
         )
+    }
+
+    // Diálogo de creación de playlist
+    if (showCreatePlaylistDialog) {
+        Dialog(onDismissRequest = { showCreatePlaylistDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF181818),
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = Translations.get(context, "new_playlist"),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+
+                    // Nombre de la playlist
+                    OutlinedTextField(
+                        value = newPlaylistName,
+                        onValueChange = { newPlaylistName = it },
+                        label = { Text(Translations.get(context, "playlist_name")) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF4ECDC4),
+                            unfocusedBorderColor = Color(0xFF555555),
+                            focusedLabelColor = Color(0xFF4ECDC4),
+                            unfocusedLabelColor = Color(0xFF888888),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            disabledTextColor = Color(0xFF888888),
+                            disabledBorderColor = Color(0xFF333333),
+                            disabledLabelColor = Color(0xFF666666)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Descripción de la playlist (opcional)
+                    OutlinedTextField(
+                        value = newPlaylistDescription,
+                        onValueChange = { newPlaylistDescription = it },
+                        label = { Text(Translations.get(context, "description")) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF4ECDC4),
+                            unfocusedBorderColor = Color(0xFF555555),
+                            focusedLabelColor = Color(0xFF4ECDC4),
+                            unfocusedLabelColor = Color(0xFF888888),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            disabledTextColor = Color(0xFF888888),
+                            disabledBorderColor = Color(0xFF333333),
+                            disabledLabelColor = Color(0xFF666666)
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3
+                    )
+
+                    // Botones Crear y Cancelar
+                    ActionButtonsGroup(
+                        buttons = listOf(
+                            ActionButtonData(
+                                text = Translations.get(context, "create"),
+                                color = Color(0xFF4ECDC4),
+                                onClick = {
+                                    // Crear nueva playlist en la base de datos
+                                    coroutineScope.launch {
+                                        try {
+                                            val database = PlaylistDatabase.getDatabase(context)
+                                            val newPlaylist = LocalPlaylistEntity(
+                                                id = 0,
+                                                name = newPlaylistName,
+                                                description = newPlaylistDescription,
+                                                imageUrl = null
+                                            )
+                                            database.localPlaylistDao().insertLocalPlaylist(newPlaylist)
+                                            Log.d("LocalScreen", "Playlist creada: $newPlaylistName")
+                                            showCreatePlaylistDialog = false
+                                            newPlaylistName = ""
+                                            newPlaylistDescription = ""
+                                        } catch (e: Exception) {
+                                            Log.e("LocalScreen", "Error creando playlist", e)
+                                        }
+                                    }
+                                }
+                            ),
+                            ActionButtonData(
+                                text = Translations.get(context, "cancel"),
+                                color = Color(0xFF95A5A6),
+                                onClick = {
+                                    showCreatePlaylistDialog = false
+                                    newPlaylistName = ""
+                                    newPlaylistDescription = ""
+                                }
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    // Diálogo de edición de playlist
+    if (showEditPlaylistDialog && playlistToEdit != null) {
+        Dialog(onDismissRequest = { showEditPlaylistDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF181818),
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = Translations.get(context, "edit_playlist"),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+
+                    // Nombre de la playlist
+                    OutlinedTextField(
+                        value = editPlaylistName,
+                        onValueChange = { editPlaylistName = it },
+                        label = { Text(Translations.get(context, "playlist_name")) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF4ECDC4),
+                            unfocusedBorderColor = Color(0xFF555555),
+                            focusedLabelColor = Color(0xFF4ECDC4),
+                            unfocusedLabelColor = Color(0xFF888888),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            disabledTextColor = Color(0xFF888888),
+                            disabledBorderColor = Color(0xFF333333),
+                            disabledLabelColor = Color(0xFF666666)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Descripción de la playlist (opcional)
+                    OutlinedTextField(
+                        value = editPlaylistDescription,
+                        onValueChange = { editPlaylistDescription = it },
+                        label = { Text(Translations.get(context, "description")) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF4ECDC4),
+                            unfocusedBorderColor = Color(0xFF555555),
+                            focusedLabelColor = Color(0xFF4ECDC4),
+                            unfocusedLabelColor = Color(0xFF888888),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            disabledTextColor = Color(0xFF888888),
+                            disabledBorderColor = Color(0xFF333333),
+                            disabledLabelColor = Color(0xFF666666)
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3
+                    )
+
+                    // Botones Guardar y Cancelar
+                    ActionButtonsGroup(
+                        buttons = listOf(
+                            ActionButtonData(
+                                text = Translations.get(context, "save"),
+                                color = Color(0xFF4ECDC4),
+                                onClick = {
+                                    // Guardar cambios en la playlist
+                                    coroutineScope.launch {
+                                        playlistToEdit?.let { playlist ->
+                                            try {
+                                                val database = PlaylistDatabase.getDatabase(context)
+                                                val updatedPlaylist = playlist.copy(
+                                                    name = editPlaylistName,
+                                                    description = editPlaylistDescription
+                                                )
+                                                database.localPlaylistDao().updateLocalPlaylist(updatedPlaylist)
+                                                Log.d("LocalScreen", "Playlist actualizada: $editPlaylistName")
+
+                                                // Recargar el nombre y descripción de la playlist seleccionada
+                                                selectedLocalPlaylist = updatedPlaylist
+
+                                                showEditPlaylistDialog = false
+                                                editPlaylistName = ""
+                                                editPlaylistDescription = ""
+                                            } catch (e: Exception) {
+                                                Log.e("LocalScreen", "Error actualizando playlist", e)
+                                            }
+                                        }
+                                    }
+                                }
+                            ),
+                            ActionButtonData(
+                                text = Translations.get(context, "cancel"),
+                                color = Color(0xFF95A5A6),
+                                onClick = {
+                                    showEditPlaylistDialog = false
+                                    editPlaylistName = ""
+                                    editPlaylistDescription = ""
+                                }
+                            ),
+                            ActionButtonData(
+                                text = "delete",
+                                color = Color(0xFFFF6B6B),
+                                onClick = {
+                                    playlistToDelete = playlistToEdit
+                                    showDeletePlaylistDialog = true
+                                }
+                            )
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    // Diálogo de confirmación de eliminación de playlist
+    if (showDeletePlaylistDialog && playlistToDelete != null) {
+        PlyrConfirmDialog(
+            title = Translations.get(context, "delete_playlist"),
+            message = Translations.get(context, "Playlist {{playlist_name}} will be removed permanently").replace("{{playlist_name}}", playlistToDelete?.name ?: ""),
+            confirmText = Translations.get(context, "delete"),
+            cancelText = "cancel",
+            onConfirm = {
+                coroutineScope.launch {
+                    playlistToDelete?.let { playlist ->
+                        val success = DownloadManager.deleteLocalPlaylist(context, playlist)
+                        if (success) {
+                            Log.d("LocalScreen", "Playlist deleted successfully")
+                            // Volver al listado de playlists
+                            selectedLocalPlaylist = null
+                            showEditPlaylistDialog = false
+                        } else {
+                            error = "Failed to delete playlist"
+                        }
+                    }
+                    showDeletePlaylistDialog = false
+                    playlistToDelete = null
+                }
+            },
+            onDismiss = {
+                showDeletePlaylistDialog = false
+                playlistToDelete = null
+            }
+        )
+    }
+
+    // Diálogo de añadir a playlist
+    if (showAddToPlaylistDialog && trackToAddToPlaylist != null) {
+        Dialog(onDismissRequest = { showAddToPlaylistDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF181818),
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = Translations.get(context, "add_to_playlist"),
+                        style = MaterialTheme.typography.titleLarge.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+
+                    // Lista de playlists locales
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(localPlaylists.size) { index ->
+                            val playlist = localPlaylists[index]
+                            // Item de playlist
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        // Añadir pista a la playlist seleccionada
+                                        coroutineScope.launch {
+                                            try {
+                                                val database = PlaylistDatabase.getDatabase(context)
+                                                database.localPlaylistDao().addTrackToPlaylist(
+                                                    playlistId = playlist.id,
+                                                    trackId = trackToAddToPlaylist!!.id
+                                                )
+                                                Log.d("LocalScreen", "Track added to playlist: ${playlist.name}")
+                                                showAddToPlaylistDialog = false
+                                                trackToAddToPlaylist = null
+                                            } catch (e: Exception) {
+                                                Log.e("LocalScreen", "Error adding track to playlist", e)
+                                            }
+                                        }
+                                    },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF252525)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text = playlist.name,
+                                            style = MaterialTheme.typography.bodyLarge.copy(
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                        if (!playlist.description.isNullOrBlank()) {
+                                            Text(
+                                                text = playlist.description,
+                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                    color = Color(0xFF888888)
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "+",
+                                        style = MaterialTheme.typography.headlineMedium.copy(
+                                            color = Color(0xFF4ECDC4)
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Botón Cancelar
+                    ActionButtonsGroup(
+                        buttons = listOf(
+                            ActionButtonData(
+                                text = Translations.get(context, "cancel"),
+                                color = Color(0xFF95A5A6),
+                                onClick = {
+                                    showAddToPlaylistDialog = false
+                                }
+                            )
+                        )
+                    )
+                }
+            }
+        }
     }
 
     // Diálogo de importación
@@ -341,7 +979,7 @@ fun LocalScreen(
                             value = importTrackName,
                             onValueChange = { importTrackName = it },
                             label = { Text(Translations.get(context, "track_name")) },
-                            enabled = !isDetecting, // Bloquear cuando está detectando
+                            enabled = !isDetecting,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF4ECDC4),
                                 unfocusedBorderColor = Color(0xFF555555),
@@ -360,7 +998,7 @@ fun LocalScreen(
                             value = importArtistName,
                             onValueChange = { importArtistName = it },
                             label = { Text(Translations.get(context, "artist_name")) },
-                            enabled = !isDetecting, // Bloquear cuando está detectando
+                            enabled = !isDetecting,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF4ECDC4),
                                 unfocusedBorderColor = Color(0xFF555555),
@@ -392,9 +1030,9 @@ fun LocalScreen(
                                         },
                                         color = when {
                                             isDetecting -> Color(0xFF4ECDC4)
-                                            detectionStatus == "detected" -> Color(0xFF4CAF50) // Verde para éxito
-                                            detectionStatus == "error" -> Color(0xFFFF6B6B) // Rojo para error
-                                            else -> Color(0xFFFFB74D) // Naranja por defecto
+                                            detectionStatus == "detected" -> Color(0xFF4CAF50)
+                                            detectionStatus == "error" -> Color(0xFFFF6B6B)
+                                            else -> Color(0xFFFFB74D)
                                         },
                                         onClick = {
                                             if (!isDetecting && detectionStatus != "detected") {
@@ -438,6 +1076,7 @@ fun LocalScreen(
                                                         uri = selectedFileUri!!,
                                                         trackName = importTrackName,
                                                         artists = importArtistName,
+                                                        playlistId = selectedLocalPlaylist?.id,
                                                         onProgress = { progress ->
                                                             importProgress = progress
                                                         },
@@ -461,8 +1100,7 @@ fun LocalScreen(
                                         enabled = importTrackName.isNotBlank() && !isDetecting
                                     )
                                 ),
-                                modifier = Modifier
-                                    .widthIn(min = 280.dp, max = 280.dp)
+                                modifier = Modifier.widthIn(min = 280.dp, max = 280.dp)
                             )
                         }
                     }
