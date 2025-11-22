@@ -1,0 +1,88 @@
+name: Auto Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+
+      - name: Get next version tag
+        id: version
+        run: |
+          # Obtener el último tag que no sea "latest"
+          LAST_TAG=$(git tag --sort=-creatordate | grep -v latest | head -n 1)
+
+          if [ -z "$LAST_TAG" ]; then
+            NEXT_TAG="v1.0.0"
+          else
+            # Quitar la "v" inicial
+            VERSION=${LAST_TAG#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            PATCH=$((PATCH + 1))
+            NEXT_TAG="v$MAJOR.$MINOR.$PATCH"
+          fi
+
+          echo "Último tag: $LAST_TAG"
+          echo "Nuevo tag: $NEXT_TAG"
+
+          echo "tag=$NEXT_TAG" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LAST_TAG=$(git tag --sort=-creatordate | grep -v latest | head -n 1)
+
+          if [ -z "$LAST_TAG" ]; then
+            COMMITS=$(git log --pretty=format:"- %s")
+          else
+            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s")
+          fi
+
+          echo "commits<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create versioned release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Release ${{ steps.version.outputs.tag }}"
+          body: |
+            ## Changes since last release
+            ${{ steps.changelog.outputs.commits }}
+          files: |
+            app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create/Update 'latest' release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest Release"
+          body: |
+            ## Changes from ${{ steps.version.outputs.tag }}
+            ${{ steps.changelog.outputs.commits }}
+          files: |
+            app/build/outputs/apk/release/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
