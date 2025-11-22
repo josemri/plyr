@@ -25,6 +25,16 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
       - name: Get next version tag
         id: version
         run: |
@@ -69,8 +79,7 @@ jobs:
           body: |
             ## Changes since last release
             ${{ steps.changelog.outputs.commits }}
-          files: |
-            app/build/outputs/apk/release/*.apk
+          files: app/release/plyr.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -82,7 +91,6 @@ jobs:
           body: |
             ## Changes from ${{ steps.version.outputs.tag }}
             ${{ steps.changelog.outputs.commits }}
-          files: |
-            app/build/outputs/apk/release/*.apk
+          files: app/release/plyr.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
