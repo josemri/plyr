@@ -25,26 +25,14 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_app
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
       - name: Get next version tag
         id: version
         run: |
-          # Obtener el último tag que no sea "latest"
           LAST_TAG=$(git tag --sort=-creatordate | grep -v latest | head -n 1)
 
           if [ -z "$LAST_TAG" ]; then
             NEXT_TAG="v1.0.0"
           else
-            # Quitar la "v" inicial
             VERSION=${LAST_TAG#v}
             IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
             PATCH=$((PATCH + 1))
