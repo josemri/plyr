@@ -9,6 +9,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import android.net.Uri
+import java.io.FileOutputStream
 
 data class AudioDetectionResult(
     val title: String,
@@ -102,4 +104,30 @@ suspend fun detectAudioFromFile(context: Context, audioFile: File): AudioDetecti
         return@withContext null
     }
 
+}
+
+suspend fun detectAudioFromUri(context: Context, uri: Uri): AudioDetectionResult? = withContext(Dispatchers.IO) {
+    try {
+        // Crear archivo temporal para análisis
+        val tempFile = File.createTempFile("temp_audio_", ".tmp", context.cacheDir)
+
+        try {
+            // Copiar contenido del URI al archivo temporal
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(tempFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            // Usar la función existente con el archivo temporal
+            return@withContext detectAudioFromFile(context, tempFile)
+        } finally {
+            // Limpiar archivo temporal
+            if (tempFile.exists()) {
+                tempFile.delete()
+            }
+        }
+    } catch (e: Exception) {
+        return@withContext null
+    }
 }

@@ -12,6 +12,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import android.net.Uri
+import android.media.MediaMetadataRetriever
 
 /**
  * DownloadManager - Gestor de descargas de audio
@@ -235,6 +237,132 @@ object DownloadManager {
             } catch (e: Exception) {
                 Log.e(TAG, "Error eliminando track", e)
                 false
+            }
+        }
+    }
+
+    /**
+     * Importa un archivo de audio local desde el dispositivo.
+     */
+    suspend fun importLocalAudioFile(
+        context: Context,
+        uri: Uri,
+        trackName: String,
+        artists: String,
+        onProgress: (Int) -> Unit = {},
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        withContext(Dispatchers.IO) {
+            try {
+                Log.d(TAG, "Importando archivo local: $trackName - $artists")
+                onProgress(10)
+
+                // Crear directorio de descargas
+                val downloadsDir = File(context.getExternalFilesDir(null), DOWNLOADS_FOLDER)
+                if (!downloadsDir.exists()) {
+                    downloadsDir.mkdirs()
+                }
+
+                // Intentar extraer metadatos del archivo
+                val retriever = MediaMetadataRetriever()
+                var durationMs: Long? = null
+                var extractedTitle: String? = null
+                var extractedArtist: String? = null
+
+                try {
+                    retriever.setDataSource(context, uri)
+                    durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+                    extractedTitle = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                    extractedArtist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error extrayendo metadatos: ${e.message}")
+                } finally {
+                    retriever.release()
+                }
+
+                onProgress(30)
+
+                // Usar metadatos extraídos si no se proporcionaron
+                val finalTrackName = trackName.ifBlank { extractedTitle ?: "Unknown Track" }
+                val finalArtists = artists.ifBlank { extractedArtist ?: "Unknown Artist" }
+
+                // Generar nombre de archivo seguro
+                val extension = context.contentResolver.getType(uri)?.let { mimeType ->
+                    when {
+                        mimeType.contains("mp3") -> "mp3"
+                        mimeType.contains("m4a") || mimeType.contains("mp4") -> "m4a"
+                        mimeType.contains("ogg") -> "ogg"
+                        mimeType.contains("wav") -> "wav"
+                        mimeType.contains("flac") -> "flac"
+                        else -> "audio"
+                    }
+                } ?: "m4a"
+
+                val safeFileName = "${finalTrackName.replace("[^a-zA-Z0-9.-]".toRegex(), "_")}_${System.currentTimeMillis()}.$extension"
+                val outputFile = File(downloadsDir, safeFileName)
+
+                // Copiar archivo
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(outputFile).use { output ->
+                        val buffer = ByteArray(BUFFER_SIZE)
+                        var bytesRead: Int
+                        var totalBytesRead = 0L
+                        var lastProgress = 30
+
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalBytesRead += bytesRead
+
+                            val progress = 30 + ((totalBytesRead * 65) / (totalBytesRead + 1024)).toInt().coerceAtMost(65)
+                            if (progress != lastProgress) {
+                                withContext(Dispatchers.Main) {
+                                    onProgress(progress)
+                                }
+                                lastProgress = progress
+                            }
+                        }
+                    }
+                }
+
+                if (!outputFile.exists() || outputFile.length() == 0L) {
+                    Log.e(TAG, "Importación incompleta")
+                    outputFile.delete()
+                    withContext(Dispatchers.Main) {
+                        onComplete(false, "Import incomplete")
+                    }
+                    return@withContext
+                }
+
+                onProgress(95)
+
+                // Guardar en base de datos (sin YouTube ID ni Spotify ID)
+                val database = PlaylistDatabase.getDatabase(context)
+                val importedTrack = DownloadedTrackEntity(
+                    id = "local_${System.currentTimeMillis()}",
+                    spotifyTrackId = "",
+                    name = finalTrackName,
+                    artists = finalArtists,
+                    youtubeVideoId = "",
+                    localFilePath = outputFile.absolutePath,
+                    durationMs = durationMs
+                )
+
+                database.downloadedTrackDao().insertDownloadedTrack(importedTrack)
+
+                onProgress(100)
+
+                Log.d(TAG, "✓ Importación completada: ${outputFile.length()} bytes")
+                Log.d(TAG, "✓ Archivo guardado en: ${outputFile.absolutePath}")
+
+                withContext(Dispatchers.Main) {
+                    onComplete(true, null)
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error crítico al importar", e)
+                withContext(Dispatchers.Main) {
+                    onComplete(false, e.message ?: "Unknown error")
+                }
             }
         }
     }
