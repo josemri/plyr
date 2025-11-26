@@ -78,7 +78,7 @@ echo "  COMPILANDO APK (modo debug)"
 echo "=============================================================="
 ./gradlew assembleDebug
 
-APK_PATH="app/build/outputs/apk/debug/plyr-debug.apk"
+APK_PATH=$(ls app/build/outputs/apk/debug/*debug*.apk | head -n 1)
 
 if [ ! -f "$APK_PATH" ]; then
   echo "ERROR: No se encontró el APK compilado en: $APK_PATH"
