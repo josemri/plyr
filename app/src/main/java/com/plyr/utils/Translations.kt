@@ -598,11 +598,11 @@ object Translations {
             "no_playlists_found" to "No s'han trobat playlists",
 
             // Swipe Actions - Short versions for config screen
-            "swipe_action_queue" to "queue",
-            "swipe_action_liked" to "fav",
-            "swipe_action_playlist" to "list",
-            "swipe_action_share" to "share",
-            "swipe_action_download" to "down",
+            "swipe_action_queue" to "cua",
+            "swipe_action_liked" to "pref",
+            "swipe_action_playlist" to "llista",
+            "swipe_action_share" to "comprti",
+            "swipe_action_download" to "desc",
 
         ),
         // JAPANESE
@@ -788,12 +788,13 @@ object Translations {
             "remove_from_liked_songs" to "お気に入りから削除",
             "download" to "ダウンロード",
 
-            // Swipe Actions - Short versions for config screen
-            "swipe_action_queue" to "queue",
-            "swipe_action_liked" to "fav",
-            "swipe_action_playlist" to "list",
-            "swipe_action_share" to "share",
-            "swipe_action_download" to "down",
+
+			// Swipe Actions - Short versions for config screen (Japanese)
+			"swipe_action_queue" to "キュー",       // queue
+			"swipe_action_liked" to "お気に",       // fav (abreviado de お気に入り)
+			"swipe_action_playlist" to "リスト",    // list
+			"swipe_action_share" to "共有",        // share
+			"swipe_action_download" to "ダウン",    // down (abreviado de ダウンロード)
 
             "error_fetching_track_info" to "トラック情報の取得エラー",
             "spotify_token_unavailable" to "Spotify トークンが利用できません",
