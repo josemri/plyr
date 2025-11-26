@@ -33,6 +33,18 @@ import com.plyr.utils.Config
 import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.launch
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+
+
 
 class MainActivity : ComponentActivity() {
     private var musicService: MusicService? = null
@@ -72,6 +84,7 @@ class MainActivity : ComponentActivity() {
 
             PlyrTheme(darkTheme = theme.value == "dark") {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    ReachabilityScaffold {
                     Box(Modifier.fillMaxSize().statusBarsPadding()) {
                         Box(Modifier.fillMaxSize().padding(bottom = 140.dp)) {
                             AudioListScreen(
@@ -94,7 +107,11 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     playerViewModel.setCurrentPlaylist(playlist, index)
-                                    lifecycleScope.launch { playerViewModel.loadAudioFromTrack(playlist[index]) }
+                                    lifecycleScope.launch {
+                                        playerViewModel.loadAudioFromTrack(
+                                            playlist[index]
+                                        )
+                                    }
                                 },
                                 onThemeChanged = { theme.value = it },
                                 playerViewModel = playerViewModel
@@ -103,8 +120,10 @@ class MainActivity : ComponentActivity() {
 
                         FloatingMusicControls(
                             playerViewModel = playerViewModel,
-                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 48.dp)
+                            modifier = Modifier.align(Alignment.BottomCenter)
+                                .padding(bottom = 48.dp)
                         )
+                    }
                     }
                 }
             }
@@ -142,4 +161,37 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    @Composable
+    fun ReachabilityScaffold(content: @Composable () -> Unit) {
+        var lowered by remember { mutableStateOf(false) }
+        val density = LocalDensity.current
+        val targetOffsetDp = with(density) { (if (lowered) 400f else 0f).toDp() }
+        val animatedOffsetDp by animateDpAsState(targetValue = targetOffsetDp)
+
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .offset(y = animatedOffsetDp)
+            ) {
+                content()
+            }
+
+            // Zona sensible en la parte baja
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .align(Alignment.BottomCenter)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures { _, dragAmount ->
+                            if (dragAmount > 50) lowered = true
+                            if (dragAmount < -50) lowered = false
+                        }
+                    }
+            )
+        }
+    }
+
+
 }
