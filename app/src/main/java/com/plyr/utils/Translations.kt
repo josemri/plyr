@@ -61,6 +61,9 @@ object Translations {
             "instruction_9" to "9. pegalos en los campos de arriba",
             "note_local_storage" to "      nota: estas credenciales se guardan localmente",
             "login" to "<iniciar_sesión>",
+            "albums" to "> álbumes",
+            "similar_songs" to "> recomendaciones",
+            "loading_recommendations" to "<generando recomendaciones...>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -289,6 +292,9 @@ object Translations {
             "instruction_8" to "8. copy client id and client secret",
             "instruction_9" to "9. paste them in the fields above",
             "note_local_storage" to "      note: these credentials are stored locally",
+            "albums" to "> albums",
+            "similar_songs" to "> recommendations",
+            "loading_recommendations" to "<generating recommendations...>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -486,6 +492,9 @@ object Translations {
             "instruction_8" to "8. copia client id i client secret",
             "instruction_9" to "9. enganxa'ls als camps de dalt",
             "note_local_storage" to "      nota: aquestes credencials es guarden localment",
+            "albums" to "> àlbums",
+            "similar_songs" to "> recomanacions",
+            "loading_recommendations" to "<generant recomanacions...>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -680,6 +689,9 @@ object Translations {
             "instruction_8" to "8. client_id と client_secret をコピー",
             "instruction_9" to "9. 上のフィールドに貼り付ける",
             "note_local_storage" to "      注: 認証情報はローカルに保存されます",
+            "albums" to "> アルバム",
+            "similar_songs" to "> おすすめ曲",
+            "loading_recommendations" to "<おすすめを生成しています...>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",

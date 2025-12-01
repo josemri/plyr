@@ -305,31 +305,46 @@ fun SongListItem(
     // Solo mostrar popup si no hay acción personalizada
     if (showPopup && customButtonAction == null) {
         // Cargar información de la canción cuando se abre el popup
-        LaunchedEffect(true) {
-            if (showPopup && song.spotifyId != null) {
-                isLoadingTrackInfo = true
+        LaunchedEffect(showPopup) {
+            if (showPopup) {
+                // Resetear estados previos
+                isLoadingTrackInfo = false
                 fetchInfoError = null
-                val accessToken = Config.getSpotifyAccessToken(context)
-                if (accessToken != null) {
-                    // Obtener info del track
-                    SpotifyRepository.getTrackInfo(accessToken, song.spotifyId) { trackInfo, error ->
-                        isLoadingTrackInfo = false
-                        if (trackInfo != null) {
-                            fetchedTrackInfo = trackInfo
-                        } else {
-                            fetchInfoError = error ?: "Error fetching track info"
-                        }
-                    }
+                fetchedTrackInfo = null
 
-                    // Verificar si está en Liked Songs
-                    SpotifyRepository.checkSavedTrack(accessToken, song.spotifyId) { liked, error ->
-                        if (error == null) {
-                            isLiked = liked
-                        }
-                    }
-                } else {
+                val sId = song.spotifyId
+                // Si no hay spotifyId real o es un placeholder (recomendación/temporal), NO llamar a la API
+                if (sId == null || sId.isBlank() || sId.startsWith("recommended_") || sId.startsWith("temp_")) {
+                    // No intentamos obtener datos desde Spotify para ids placeholder.
+                    // Mostrar la info básica (song.title / song.artist) en el diálogo.
                     isLoadingTrackInfo = false
-                    fetchInfoError = "Token de Spotify no disponible"
+                    fetchInfoError = null
+                    isLiked = null
+                } else {
+                    isLoadingTrackInfo = true
+                    fetchInfoError = null
+                    val accessToken = Config.getSpotifyAccessToken(context)
+                    if (accessToken != null) {
+                        // Obtener info del track
+                        SpotifyRepository.getTrackInfo(accessToken, sId) { trackInfo, error ->
+                            isLoadingTrackInfo = false
+                            if (trackInfo != null) {
+                                fetchedTrackInfo = trackInfo
+                            } else {
+                                fetchInfoError = error ?: "Error fetching track info"
+                            }
+                        }
+
+                        // Verificar si está en Liked Songs
+                        SpotifyRepository.checkSavedTrack(accessToken, sId) { liked, error ->
+                            if (error == null) {
+                                isLiked = liked
+                            }
+                        }
+                    } else {
+                        isLoadingTrackInfo = false
+                        fetchInfoError = "Token de Spotify no disponible"
+                    }
                 }
             }
         }
@@ -495,7 +510,7 @@ fun SongListItem(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    if (song.spotifyId != null && Config.isSpotifyConnected(context)) {
+                                    if (isRealSpotifyId(song.spotifyId) && Config.isSpotifyConnected(context)) {
                                         showPopup = false
                                         showPlaylistDialog = true
                                         isLoadingPlaylists = true
@@ -516,7 +531,7 @@ fun SongListItem(
                                             addToPlaylistError = "Token de Spotify no disponible"
                                         }
                                     } else {
-                                        Log.d("SongListItem", "No se puede añadir a playlist: sin Spotify ID o no conectado")
+                                        Log.d("SongListItem", "No se puede añadir a playlist: spotifyId inválido o no conectado")
                                         showPopup = false
                                     }
                                 }
@@ -572,11 +587,11 @@ fun SongListItem(
                                     showPopup = false
                                     isLiked?.let { currentlyLiked ->
                                         val accessToken = Config.getSpotifyAccessToken(context)
-                                        if (accessToken != null && song.spotifyId != null) {
+                                        if (accessToken != null && isRealSpotifyId(song.spotifyId)) {
                                             isLoadingTrackInfo = true
                                             if (currentlyLiked) {
                                                 // Quitar de Liked Songs
-                                                SpotifyRepository.removeTrack(accessToken, song.spotifyId) { success, error ->
+                                                SpotifyRepository.removeTrack(accessToken, song.spotifyId!!) { success, error ->
                                                     isLoadingTrackInfo = false
                                                     if (success) {
                                                         isLiked = false
@@ -588,7 +603,7 @@ fun SongListItem(
                                                 }
                                             } else {
                                                 // Añadir a Liked Songs
-                                                SpotifyRepository.saveTrack(accessToken, song.spotifyId) { success, error ->
+                                                SpotifyRepository.saveTrack(accessToken, song.spotifyId!!) { success, error ->
                                                     isLoadingTrackInfo = false
                                                     if (success) {
                                                         isLiked = true
@@ -599,6 +614,8 @@ fun SongListItem(
                                                     }
                                                 }
                                             }
+                                        } else {
+                                            Log.d("SongListItem", "No se puede (des)marcar Liked: spotifyId inválido o no conectado")
                                         }
                                     }
                                 }
@@ -782,79 +799,79 @@ fun SongListItem(
                             }
                             else -> {
                                 // Lista de playlists
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    items(userPlaylists) { playlist ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .clickable {
-                                                    // Añadir la canción a la playlist
-                                                    val accessToken = Config.getSpotifyAccessToken(context)
-                                                    if (accessToken != null && song.spotifyId != null) {
-                                                        isLoadingPlaylists = true
-                                                        SpotifyRepository.addTrackToPlaylist(
-                                                            accessToken,
-                                                            playlist.id,
-                                                            song.spotifyId
-                                                        ) { success, error ->
-                                                            isLoadingPlaylists = false
-                                                            if (success) {
-                                                                addToPlaylistSuccess = true
-                                                                Log.d("SongListItem", "✓ Canción añadida a '${playlist.name}'")
-                                                                // Cerrar el diálogo después de 1.5 segundos
-                                                                coroutineScope.launch {
-                                                                    kotlinx.coroutines.delay(1500)
-                                                                    showPlaylistDialog = false
-                                                                    addToPlaylistSuccess = false
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        items(userPlaylists) { playlist ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        // Añadir la canción a la playlist
+                                                        val accessToken = Config.getSpotifyAccessToken(context)
+                                                        if (accessToken != null && isRealSpotifyId(song.spotifyId)) {
+                                                            isLoadingPlaylists = true
+                                                            SpotifyRepository.addTrackToPlaylist(
+                                                                accessToken,
+                                                                playlist.id,
+                                                                song.spotifyId!!
+                                                            ) { success, error ->
+                                                                isLoadingPlaylists = false
+                                                                if (success) {
+                                                                    addToPlaylistSuccess = true
+                                                                    Log.d("SongListItem", "✓ Canción añadida a '${playlist.name}'")
+                                                                    // Cerrar el diálogo después de 1.5 segundos
+                                                                    coroutineScope.launch {
+                                                                        kotlinx.coroutines.delay(1500)
+                                                                        showPlaylistDialog = false
+                                                                        addToPlaylistSuccess = false
+                                                                    }
+                                                                } else {
+                                                                    addToPlaylistError = error
+                                                                    Log.e("SongListItem", "Error añadiendo canción: $error")
                                                                 }
-                                                            } else {
-                                                                addToPlaylistError = error
-                                                                Log.e("SongListItem", "Error añadiendo canción: $error")
                                                             }
                                                         }
                                                     }
-                                                }
-                                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                .padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.weight(1f)
+                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                                    .padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text(
-                                                    text = playlist.name,
-                                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                                        color = MaterialTheme.colorScheme.onBackground
-                                                    ),
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                playlist.description?.let { desc ->
-                                                    if (desc.isNotBlank()) {
-                                                        Text(
-                                                            text = desc,
-                                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            ),
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
+                                                Column(
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text = playlist.name,
+                                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                                            color = MaterialTheme.colorScheme.onBackground
+                                                        ),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                    playlist.description?.let { desc ->
+                                                        if (desc.isNotBlank()) {
+                                                            Text(
+                                                                text = desc,
+                                                                style = MaterialTheme.typography.bodySmall.copy(
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                ),
+                                                                maxLines = 1,
+                                                                overflow = TextOverflow.Ellipsis
+                                                            )
+                                                        }
                                                     }
                                                 }
-                                            }
-                                            Text(
-                                                text = ">",
-                                                style = MaterialTheme.typography.bodyLarge.copy(
-                                                    color = MaterialTheme.colorScheme.primary
+                                                Text(
+                                                    text = ">",
+                                                    style = MaterialTheme.typography.bodyLarge.copy(
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
                                                 )
-                                            )
+                                            }
                                         }
                                     }
-                                }
                             }
                         }
                     }
@@ -987,4 +1004,9 @@ fun executeSwipeAction(
             Log.w("SongListItem", "Acción desconocida para swipe: $action")
         }
     }
+}
+
+// Helper para validar si el spotifyId es real (no un placeholder generado localmente)
+fun isRealSpotifyId(sId: String?): Boolean {
+    return sId != null && sId.isNotBlank() && !sId.startsWith("recommended_") && !sId.startsWith("temp_")
 }

@@ -82,10 +82,10 @@ suspend fun getTopSimilarArtists(
     }
 }
 
-suspend fun getRandomTracksFromArtist(artistName: String, token: String, n: Int = 3): List<String> {
+suspend fun getRandomTracksFromArtist(artistName: String, token: String, n: Int = 3): List<SpotifyTrack> {
     return withContext(Dispatchers.IO) {
         try {
-            val searchUrl = "https://api.spotify.com/v1/search?q=$artistName&type=artist&limit=1"
+            val searchUrl = "https://api.spotify.com/v1/search?q=${java.net.URLEncoder.encode(artistName, "UTF-8")}&type=artist&limit=1"
             val searchRequest = Request.Builder()
                 .url(searchUrl)
                 .header("Authorization", "Bearer $token")
@@ -125,9 +125,48 @@ suspend fun getRandomTracksFromArtist(artistName: String, token: String, n: Int 
                 return@withContext emptyList()
             }
 
-            tracks.map { it.asJsonObject.get("name").asString }
-                .shuffled()
-                .take(minOf(n, tracks.size()))
+            val parsed = tracks.map { elem ->
+                val obj = elem.asJsonObject
+                val id = obj.get("id").asString
+                val name = obj.get("name").asString
+                val durationMs = if (obj.has("duration_ms")) obj.get("duration_ms").asInt else null
+
+                val artists = mutableListOf<SpotifyArtist>()
+                if (obj.has("artists")) {
+                    val arr = obj.getAsJsonArray("artists")
+                    for (a in arr) {
+                        val aobj = a.asJsonObject
+                        val aname = aobj.get("name").asString
+                        artists.add(SpotifyArtist(aname))
+                    }
+                }
+
+                var albumSimple: SpotifyAlbumSimple? = null
+                if (obj.has("album")) {
+                    val alb = obj.getAsJsonObject("album")
+                    val albumId = alb.get("id")?.asString ?: ""
+                    val albumName = alb.get("name")?.asString ?: ""
+                    val releaseDate = if (alb.has("release_date")) alb.get("release_date").asString else null
+
+                    val images = mutableListOf<SpotifyImage>()
+                    if (alb.has("images")) {
+                        val imgs = alb.getAsJsonArray("images")
+                        for (im in imgs) {
+                            val imObj = im.asJsonObject
+                            val url = imObj.get("url").asString
+                            val height = if (imObj.has("height") && !imObj.get("height").isJsonNull) imObj.get("height").asInt else null
+                            val width = if (imObj.has("width") && !imObj.get("width").isJsonNull) imObj.get("width").asInt else null
+                            images.add(SpotifyImage(url, height, width))
+                        }
+                    }
+
+                    albumSimple = SpotifyAlbumSimple(albumId, albumName, releaseDate, if (images.isEmpty()) null else images)
+                }
+
+                SpotifyTrack(id = id, name = name, artists = artists, durationMs = durationMs, album = albumSimple)
+            }
+
+            parsed.shuffled().take(minOf(n, parsed.size))
         } catch (e: Exception) {
             Log.e("RecommendationsAPI", "Error fetching tracks from $artistName: ${e.message}")
             emptyList()
@@ -135,7 +174,7 @@ suspend fun getRandomTracksFromArtist(artistName: String, token: String, n: Int 
     }
 }
 
-suspend fun getRecommendations(context: Context, myArtists: List<String>): List<Song> {
+suspend fun getRecommendations(context: Context, myArtists: List<String>): List<SpotifyTrack> {
     return try {
         if (myArtists.isEmpty()) {
             return emptyList()
@@ -153,18 +192,17 @@ suspend fun getRecommendations(context: Context, myArtists: List<String>): List<
             return emptyList()
         }
 
-        val songs = mutableListOf<Pair<String, String>>()
-        val seen = mutableSetOf<Pair<String, String>>()
+        val songs = mutableListOf<SpotifyTrack>()
+        val seen = mutableSetOf<String>()
 
-        // Obtener canciones de artistas recomendados (5 por artista)
+        // Obtener canciones de artistas recomendados
         for (artist in recommendedArtists) {
             if (songs.size >= 10) break
             val tracks = getRandomTracksFromArtist(artist, spotifyToken, n = 5)
             for (track in tracks) {
-                val key = Pair(track.lowercase(), artist.lowercase())
-                if (key !in seen) {
-                    seen.add(key)
-                    songs.add(Pair(track, artist))
+                if (track.id !in seen) {
+                    seen.add(track.id)
+                    songs.add(track)
                 }
             }
         }
@@ -175,10 +213,9 @@ suspend fun getRecommendations(context: Context, myArtists: List<String>): List<
                 if (songs.size >= 10) break
                 val tracks = getRandomTracksFromArtist(artist, spotifyToken, n = 10)
                 for (track in tracks) {
-                    val key = Pair(track.lowercase(), artist.lowercase())
-                    if (key !in seen) {
-                        seen.add(key)
-                        songs.add(Pair(track, artist))
+                    if (track.id !in seen) {
+                        seen.add(track.id)
+                        songs.add(track)
                         if (songs.size >= 10) break
                     }
                 }
@@ -186,7 +223,7 @@ suspend fun getRecommendations(context: Context, myArtists: List<String>): List<
         }
 
         Log.d("RecommendationsAPI", "Generated ${songs.size} recommendations")
-        songs.shuffled().take(10).map { (title, artist) -> Song(title, artist) }
+        songs.shuffled().take(10)
     } catch (e: Exception) {
         Log.e("RecommendationsAPI", "Error in getRecommendations: ${e.message}")
         emptyList()

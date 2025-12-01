@@ -998,7 +998,7 @@ fun PlaylistsScreen(
                         // Lista de tracks (solo visible cuando NO está en modo edición)
                         if (!isEditing) {
                             // Estado para recomendaciones
-                            var recommendedSongs by remember { mutableStateOf<List<com.plyr.network.Song>>(emptyList()) }
+                            var recommendedSongs by remember { mutableStateOf<List<com.plyr.network.SpotifyTrack>>(emptyList()) }
                             var isLoadingRecommendations by remember { mutableStateOf(false) }
                             var recommendationError by remember { mutableStateOf<String?>(null) }
 
@@ -1029,6 +1029,7 @@ fun PlaylistsScreen(
 
                                             if (finalArtistList.isNotEmpty()) {
                                                 val recommendations = getRecommendations(context, finalArtistList)
+                                                // ahora getRecommendations devuelve List<SpotifyTrack>
                                                 recommendedSongs = recommendations
                                             }
                                         } catch (e: Exception) {
@@ -1094,7 +1095,7 @@ fun PlaylistsScreen(
                                     item {
                                         Spacer(Modifier.height(24.dp))
                                         Text(
-                                            text = "> albums",
+                                            text = Translations.get(context, "albums"),
                                             style = MaterialTheme.typography.titleMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
                                                 color = MaterialTheme.colorScheme.primary
@@ -1168,12 +1169,12 @@ fun PlaylistsScreen(
                                     }
                                 }
 
-                                // Sección de recomendaciones
+                                // Sección de recomendaciones (usando SpotifyTrack real)
                                 if (recommendedSongs.isNotEmpty()) {
                                     item {
                                         Spacer(Modifier.height(24.dp))
                                         Text(
-                                            text = "> similar:",
+                                            text = Translations.get(context, "similar_songs"),
                                             style = MaterialTheme.typography.titleMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
                                                 color = MaterialTheme.colorScheme.primary
@@ -1182,48 +1183,43 @@ fun PlaylistsScreen(
                                         )
                                     }
 
-                                    items(recommendedSongs.size) { index ->
-                                        val song = recommendedSongs[index]
-                                        val songListItem = Song(
-                                            number = index + 1,
-                                            title = song.title,
-                                            artist = song.artist,
-                                            spotifyId = "",
-                                            spotifyUrl = ""
-                                        )
-
-                                        // Crear TrackEntity temporal para la canción recomendada
-                                        val recommendedTrackEntity = TrackEntity(
-                                            id = "recommended_${song.title}_${song.artist}",
+                                    // Construir TrackEntity reales a partir de SpotifyTrack
+                                    val recommendedTrackEntities = recommendedSongs.mapIndexed { i, t ->
+                                        TrackEntity(
+                                            id = "spotify_${t.id}",
                                             playlistId = "recommendations",
-                                            spotifyTrackId = "",
-                                            name = song.title,
-                                            artists = song.artist,
+                                            spotifyTrackId = t.id,
+                                            name = t.name,
+                                            artists = t.getArtistNames(),
                                             youtubeVideoId = null,
                                             audioUrl = null,
-                                            position = index,
+                                            position = i,
                                             lastSyncTime = System.currentTimeMillis()
+                                        )
+                                    }
+
+                                    items(recommendedTrackEntities.size) { index ->
+                                        val t = recommendedSongs[index]
+                                        val entity = recommendedTrackEntities[index]
+                                        val songListItem = Song(
+                                            number = index + 1,
+                                            title = t.name,
+                                            artist = t.getArtistNames(),
+                                            spotifyId = t.id,
+                                            spotifyUrl = "https://open.spotify.com/track/${t.id}"
                                         )
 
                                         SongListItem(
                                             song = songListItem,
-                                            trackEntities = recommendedSongs.mapIndexed { i, s ->
-                                                TrackEntity(
-                                                    id = "recommended_${s.title}_${s.artist}",
-                                                    playlistId = "recommendations",
-                                                    spotifyTrackId = "",
-                                                    name = s.title,
-                                                    artists = s.artist,
-                                                    youtubeVideoId = null,
-                                                    audioUrl = null,
-                                                    position = i,
-                                                    lastSyncTime = System.currentTimeMillis()
-                                                )
-                                            },
+                                            trackEntities = recommendedTrackEntities,
                                             index = index,
                                             playerViewModel = playerViewModel,
                                             coroutineScope = coroutineScope,
-                                            modifier = Modifier.fillMaxWidth()
+                                            modifier = Modifier.fillMaxWidth(),
+                                            onLikedStatusChanged = {
+                                                // si se modifica liked desde aquí, recargar liked songs
+                                                loadLikedSongs()
+                                            }
                                         )
                                     }
                                 }
@@ -1233,7 +1229,7 @@ fun PlaylistsScreen(
                                     item {
                                         Spacer(Modifier.height(24.dp))
                                         Text(
-                                            text = "> similar: <loading...>",
+                                            text = Translations.get(context, "loading_recommendations"),
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 fontFamily = FontFamily.Monospace,
                                                 color = MaterialTheme.colorScheme.tertiary
