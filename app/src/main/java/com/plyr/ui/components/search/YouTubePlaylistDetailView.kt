@@ -99,7 +99,7 @@ fun YouTubePlaylistDetailView(
             horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.large)
         ) {
             Text(
-                text = "<start>",
+                text = ">",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFF4ECDC4)
@@ -112,7 +112,7 @@ fun YouTubePlaylistDetailView(
                 }
             )
             Text(
-                text = "<rand>",
+                text = "<rnd>",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontFamily = FontFamily.Monospace,
                     color = Color(0xFFFFD93D)

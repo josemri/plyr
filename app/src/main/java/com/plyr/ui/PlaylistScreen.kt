@@ -412,18 +412,21 @@ fun PlaylistsScreen(
                     var startJob by remember { mutableStateOf<Job?>(null) }
                     var showShareDialog by remember { mutableStateOf(false) }
 
-					// Función para parar todas las reproducciones
-                    fun stopAllPlayback() {
-                        isRandomizing = false
-                        isStarting = false
-                        randomJob?.cancel()
-                        startJob?.cancel()
-                        randomJob = null
-                        startJob = null
-                        // Cancelar espera de canción y pausar el reproductor
-                        //playerViewModel?.cancelWaitForSong()
-                        playerViewModel?.pausePlayer()
-                    }
+                    // Determinar si la playlist seleccionada es editable (es 'mía')
+                    val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs"
+
+ // Función para parar todas las reproducciones
+                     fun stopAllPlayback() {
+                         isRandomizing = false
+                         isStarting = false
+                         randomJob?.cancel()
+                         startJob?.cancel()
+                         randomJob = null
+                         startJob = null
+                         // Cancelar espera de canción y pausar el reproductor
+                         //playerViewModel?.cancelWaitForSong()
+                         playerViewModel?.pausePlayer()
+                     }
 
 
                     // Función para randomización simplificada - mezcla toda la playlist
@@ -511,7 +514,7 @@ fun PlaylistsScreen(
 
                                 // Botón <start>
                                 Text(
-                                    text = if (isStarting) "<stop>" else "<start>",
+                                    text = if (isStarting) "//" else ">",
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 16.sp,
@@ -531,7 +534,7 @@ fun PlaylistsScreen(
 
                                 // Botón <rand>
                                 Text(
-                                    text = if (isRandomizing) "<stop>" else "<rand>",
+                                    text = if (isRandomizing) "<stop>" else "<rnd>",
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 16.sp,
@@ -566,168 +569,170 @@ fun PlaylistsScreen(
                                 )
                             }
 
-                            // Botón <edit> o <save>
-                            Text(
-                                text = if (isEditing) "<save>" else "<edit>",
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 16.sp,
-                                    color = if (isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                modifier = Modifier
-                                    .clickable {
-                                        if (isEditing) {
-                                            // Al hacer clic en save, verificar si hay cambios sin guardar
-                                            if (hasUnsavedChanges) {
-                                                // Guardar cambios en Spotify
-                                                val accessToken = Config.getSpotifyAccessToken(context)
-                                                if (accessToken != null && selectedPlaylist != null) {
-                                                    // Mostrar indicador de carga
-                                                    isLoadingTracks = true
-
-                                                    SpotifyRepository.updatePlaylistDetails(
-                                                        accessToken = accessToken,
-                                                        playlistId = selectedPlaylist!!.id,
-                                                        name = if (newTitle != originalTitle) newTitle else null,
-                                                        description = if (newDesc != originalDesc) newDesc else null
-                                                    ) { success, errorMsg ->
-                                                        if (success) {
-                                                            // Sincronizar playlists después de EDITAR
-                                                            coroutineScope.launch {
-                                                                localRepository.syncPlaylistsFromSpotify()
-                                                                // Esperar a que termine la sincronización
-                                                                kotlinx.coroutines.delay(500)
-                                                                isLoadingTracks = false
-                                                                // Salir del modo edición y volver al listado
-                                                                isEditing = false
-                                                                hasUnsavedChanges = false
-                                                                selectedPlaylist = null
-                                                                playlistTracks = emptyList()
-                                                            }
-                                                        } else {
-                                                            isLoadingTracks = false
-                                                            // Mostrar error
-                                                            Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
-                                                        }
-                                                    }
-                                                } else {
-                                                    // Si no hay token, solo resetear el flag y salir
-                                                    hasUnsavedChanges = false
-                                                    isEditing = false
-                                                }
-                                            } else {
-                                                // Si no hay cambios, solo salir del modo edición
-                                                isEditing = false
-                                            }
-                                        } else {
-                                            // Al entrar al modo edición, guardar valores originales e inicializar campos
-                                            originalTitle = selectedPlaylist?.name ?: ""
-                                            originalDesc = selectedPlaylist?.description ?: ""
-                                            newTitle = originalTitle
-                                            newDesc = originalDesc
-                                            hasUnsavedChanges = false
-                                            isEditing = true
-                                        }
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                    .padding(8.dp)
-                            )
-
-                            // Botón <delete> - solo visible en modo edición
-                            if (isEditing) {
-                                var showDeleteDialog by remember { mutableStateOf(false) }
-
+                            // Botón <edit> o <save> — solo mostrar si la playlist es editable (es mía)
+                            if (canEdit) {
                                 Text(
-                                    text = "<delete>",
+                                    text = if (isEditing) "<save>" else "<edit>",
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 16.sp,
-                                        color = MaterialTheme.colorScheme.error
+                                        color = if (isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                     ),
                                     modifier = Modifier
                                         .clickable {
-                                            showDeleteDialog = true
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                        .padding(8.dp)
-                                )
-
-                                // Diálogo de confirmación para eliminar playlist
-                                if (showDeleteDialog) {
-                                    AlertDialog(
-                                        onDismissRequest = { showDeleteDialog = false },
-                                        title = {
-                                            Text(
-                                                "Delete playlist",
-                                                style = MaterialTheme.typography.titleMedium.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            )
-                                        },
-                                        text = {
-                                            Text(
-                                                "Are you sure you want to delete '${selectedPlaylist?.name}'? This action cannot be undone.",
-                                                style = MaterialTheme.typography.bodyMedium.copy(
-                                                    fontFamily = FontFamily.Monospace
-                                                )
-                                            )
-                                        },
-                                        confirmButton = {
-                                            TextButton(
-                                                onClick = {
-                                                    showDeleteDialog = false
-                                                    // Eliminar la playlist
+                                            if (isEditing) {
+                                                // Al hacer clic en save, verificar si hay cambios sin guardar
+                                                if (hasUnsavedChanges) {
+                                                    // Guardar cambios en Spotify
                                                     val accessToken = Config.getSpotifyAccessToken(context)
                                                     if (accessToken != null && selectedPlaylist != null) {
-                                                        coroutineScope.launch {
-                                                            SpotifyRepository.unfollowPlaylist(
-                                                                accessToken,
-                                                                selectedPlaylist!!.id
-                                                            ) { success: Boolean, errorMsg: String? ->
-                                                                if (success) {
-                                                                    // Sincronizar playlists después de eliminar
-                                                                    coroutineScope.launch {
-                                                                        localRepository.syncPlaylistsFromSpotify()
-                                                                    }
-                                                                    // Salir del modo edición y volver a la lista
+                                                        // Mostrar indicador de carga
+                                                        isLoadingTracks = true
+
+                                                        SpotifyRepository.updatePlaylistDetails(
+                                                            accessToken = accessToken,
+                                                            playlistId = selectedPlaylist!!.id,
+                                                            name = if (newTitle != originalTitle) newTitle else null,
+                                                            description = if (newDesc != originalDesc) newDesc else null
+                                                        ) { success, errorMsg ->
+                                                            if (success) {
+                                                                // Sincronizar playlists después de EDITAR
+                                                                coroutineScope.launch {
+                                                                    localRepository.syncPlaylistsFromSpotify()
+                                                                    // Esperar a que termine la sincronización
+                                                                    kotlinx.coroutines.delay(500)
+                                                                    isLoadingTracks = false
+                                                                    // Salir del modo edición y volver al listado
                                                                     isEditing = false
                                                                     hasUnsavedChanges = false
                                                                     selectedPlaylist = null
                                                                     playlistTracks = emptyList()
-                                                                    // Recargar la lista de playlists
-                                                                    loadPlaylists()
                                                                 }
+                                                            } else {
+                                                                isLoadingTracks = false
+                                                                // Mostrar error
+                                                                Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
                                                             }
                                                         }
+                                                    } else {
+                                                        // Si no hay token, solo resetear el flag y salir
+                                                        hasUnsavedChanges = false
+                                                        isEditing = false
                                                     }
+                                                } else {
+                                                    // Si no hay cambios, solo salir del modo edición
+                                                    isEditing = false
                                                 }
-                                            ) {
-                                                Text(
-                                                    "Delete",
-                                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                                        fontFamily = FontFamily.Monospace,
-                                                        color = MaterialTheme.colorScheme.error
-                                                    )
-                                                )
+                                            } else {
+                                                // Al entrar al modo edición, guardar valores originales e inicializar campos
+                                                originalTitle = selectedPlaylist?.name ?: ""
+                                                originalDesc = selectedPlaylist?.description ?: ""
+                                                newTitle = originalTitle
+                                                newDesc = originalDesc
+                                                hasUnsavedChanges = false
+                                                isEditing = true
                                             }
-                                        },
-                                        dismissButton = {
-                                            TextButton(
-                                                onClick = { showDeleteDialog = false }
-                                            ) {
-                                                Text(
-                                                    "Cancel",
-                                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                                        fontFamily = FontFamily.Monospace,
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                )
-                                            }
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         }
-                                    )
-                                }
+                                        .padding(8.dp)
+                                )
                             }
+
+                            // Botón <delete> - solo visible en modo edición y cuando es editable
+                            if (canEdit && isEditing) {
+                                 var showDeleteDialog by remember { mutableStateOf(false) }
+
+                                 Text(
+                                     text = "<delete>",
+                                     style = MaterialTheme.typography.bodyLarge.copy(
+                                         fontFamily = FontFamily.Monospace,
+                                         fontSize = 16.sp,
+                                         color = MaterialTheme.colorScheme.error
+                                     ),
+                                     modifier = Modifier
+                                         .clickable {
+                                             showDeleteDialog = true
+                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                         }
+                                         .padding(8.dp)
+                                 )
+
+                                 // Diálogo de confirmación para eliminar playlist
+                                 if (showDeleteDialog) {
+                                     AlertDialog(
+                                         onDismissRequest = { showDeleteDialog = false },
+                                         title = {
+                                             Text(
+                                                 "Delete playlist",
+                                                 style = MaterialTheme.typography.titleMedium.copy(
+                                                     fontFamily = FontFamily.Monospace,
+                                                     color = MaterialTheme.colorScheme.primary
+                                                 )
+                                             )
+                                         },
+                                         text = {
+                                             Text(
+                                                 "Are you sure you want to delete '${selectedPlaylist?.name}'? This action cannot be undone.",
+                                                 style = MaterialTheme.typography.bodyMedium.copy(
+                                                     fontFamily = FontFamily.Monospace
+                                                 )
+                                             )
+                                         },
+                                         confirmButton = {
+                                             TextButton(
+                                                 onClick = {
+                                                     showDeleteDialog = false
+                                                     // Eliminar la playlist
+                                                     val accessToken = Config.getSpotifyAccessToken(context)
+                                                     if (accessToken != null && selectedPlaylist != null) {
+                                                         coroutineScope.launch {
+                                                             SpotifyRepository.unfollowPlaylist(
+                                                                 accessToken,
+                                                                 selectedPlaylist!!.id
+                                                             ) { success: Boolean, errorMsg: String? ->
+                                                                 if (success) {
+                                                                     // Sincronizar playlists después de eliminar
+                                                                     coroutineScope.launch {
+                                                                         localRepository.syncPlaylistsFromSpotify()
+                                                                     }
+                                                                     // Salir del modo edición y volver a la lista
+                                                                     isEditing = false
+                                                                     hasUnsavedChanges = false
+                                                                     selectedPlaylist = null
+                                                                     playlistTracks = emptyList()
+                                                                     // Recargar la lista de playlists
+                                                                     loadPlaylists()
+                                                                 }
+                                                             }
+                                                         }
+                                                     }
+                                                 }
+                                             ) {
+                                                 Text(
+                                                     "Delete",
+                                                     style = MaterialTheme.typography.bodyMedium.copy(
+                                                         fontFamily = FontFamily.Monospace,
+                                                         color = MaterialTheme.colorScheme.error
+                                                     )
+                                                 )
+                                             }
+                                         },
+                                         dismissButton = {
+                                             TextButton(
+                                                 onClick = { showDeleteDialog = false }
+                                             ) {
+                                                 Text(
+                                                     "Cancel",
+                                                     style = MaterialTheme.typography.bodyMedium.copy(
+                                                         fontFamily = FontFamily.Monospace,
+                                                         color = MaterialTheme.colorScheme.primary
+                                                     )
+                                                 )
+                                             }
+                                         }
+                                     )
+                                 }
+                             }
                         }
                         if (isEditing) {
                             // Estados para el buscador de canciones en edición
@@ -1800,8 +1805,8 @@ fun SpotifyPlaylistDetailView(
         // Botones de acción (usar tokens del tema en lugar de hex literals)
         ActionButtonsGroup(
             buttons = listOf(
-                ActionButtonData("<start>", MaterialTheme.colorScheme.primary, onStart, tracks.isNotEmpty()),
-                ActionButtonData("<rand>", MaterialTheme.colorScheme.tertiary, onRandom, tracks.isNotEmpty()),
+                ActionButtonData(">", MaterialTheme.colorScheme.primary, onStart, tracks.isNotEmpty()),
+                ActionButtonData("<rnd>", MaterialTheme.colorScheme.tertiary, onRandom, tracks.isNotEmpty()),
                 ActionButtonData("<save>", MaterialTheme.colorScheme.secondary, onSave, true),
                 ActionButtonData("<share>", MaterialTheme.colorScheme.error, { showShareDialog = true }, true)
             )
