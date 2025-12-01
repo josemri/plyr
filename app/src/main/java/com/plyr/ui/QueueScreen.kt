@@ -8,7 +8,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.plyr.viewmodel.PlayerViewModel
@@ -88,7 +87,7 @@ fun QueueScreen(
                         text = Translations.get(context, "No tracks loaded"),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
+                            color = MaterialTheme.colorScheme.outline
                         )
                     )
                 }
@@ -104,10 +103,10 @@ fun QueueScreen(
                     text = Translations.get(context, "Player not available"),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF95A5A6)
+                        color = MaterialTheme.colorScheme.outline
                     )
                 )
-            }
-        }
-    }
-}
+             }
+         }
+     }
+ }

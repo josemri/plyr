@@ -223,7 +223,7 @@ private fun StatusAndTitleRow(
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
-                        color = Color(0xFFFFD93D)
+                        color = MaterialTheme.colorScheme.tertiary
                     )
                 )
             } else {
@@ -299,8 +299,8 @@ private fun ProgressBar(
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp)),
-                color = Color(0xFFFFD93D),
-                trackColor = Color(0xFF2C2C2C).copy(alpha = 0.3f),
+                color = MaterialTheme.colorScheme.tertiary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
             )
         } else {
             // Slider interactivo estilo Spotify/YouTube
@@ -475,8 +475,8 @@ private fun RepeatButton(
     }
     val color = when (currentMode) {
         Config.REPEAT_MODE_OFF -> MaterialTheme.colorScheme.outline
-        Config.REPEAT_MODE_ONE -> Color(0xFFFFD93D)
-        Config.REPEAT_MODE_ALL -> Color(0xFF4ECDC4)
+        Config.REPEAT_MODE_ONE -> MaterialTheme.colorScheme.tertiary
+        Config.REPEAT_MODE_ALL -> MaterialTheme.colorScheme.primary
         else -> MaterialTheme.colorScheme.outline
     }
 

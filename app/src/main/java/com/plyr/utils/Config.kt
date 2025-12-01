@@ -44,7 +44,7 @@ object Config {
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
 
     // Valores por defecto
-    private const val DEFAULT_THEME = "dark"
+    private const val DEFAULT_THEME = "system" // Por defecto en nuevas instalaciones seguir el tema del sistema
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
     private const val DEFAULT_AUDIO_QUALITY = "high"
     private const val DEFAULT_REPEAT_MODE = "off"
@@ -119,12 +119,12 @@ object Config {
     /**
      * Obtiene el tema actual de la aplicación.
      * @param context Contexto de la aplicación
-     * @return Tema actual (por defecto "dark")
+     * @return Tema actual (por defecto "system")
      */
     fun getTheme(context: Context): String {
         return getPrefs(context).getString(KEY_THEME, DEFAULT_THEME) ?: DEFAULT_THEME
     }
-    
+
     // === GESTIÓN DE TOKENS DE SPOTIFY ===
     
     /**
@@ -212,7 +212,7 @@ object Config {
             remove(KEY_SPOTIFY_TOKEN_EXPIRY)
         }
     }
-    
+
     /**
      * Verifica si hay una conexión válida con Spotify.
      * Considera válida la conexión si existe un token de acceso válido
@@ -226,7 +226,7 @@ object Config {
         val hasRefreshToken = getSpotifyRefreshToken(context) != null
         return hasValidAccessToken || hasRefreshToken
     }
-    
+
     /**
      * Obtiene el Client ID de Spotify configurado por el usuario.
      * @param context Contexto de la aplicación
@@ -235,7 +235,7 @@ object Config {
     fun getSpotifyClientId(context: Context): String? {
         return getPrefs(context).getString(KEY_SPOTIFY_CLIENT_ID, null)
     }
-    
+
     /**
      * Obtiene el Client Secret de Spotify configurado por el usuario.
      * @param context Contexto de la aplicación
@@ -244,7 +244,7 @@ object Config {
     fun getSpotifyClientSecret(context: Context): String? {
         return getPrefs(context).getString(KEY_SPOTIFY_CLIENT_SECRET, null)
     }
-    
+
     /**
      * Establece el Client ID de Spotify del usuario.
      * @param context Contexto de la aplicación

@@ -12,7 +12,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -40,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import com.plyr.service.detectAudioFromUri
 import coil.compose.AsyncImage
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun LocalScreen(
@@ -195,14 +195,14 @@ fun LocalScreen(
                 buttons = listOf(
                     ActionButtonData(
                         text = "<add>",
-                        color = Color(0xFF4ECDC4),
+                        color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                         onClick = {
                             filePickerLauncher.launch("audio/*")
                         }
                     ),
                     ActionButtonData(
                         text = "<new playlist>",
-                        color = Color(0xFF4ECDC4),
+                        color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                         onClick = {
                             showCreatePlaylistDialog = true
                         }
@@ -215,14 +215,14 @@ fun LocalScreen(
                 buttons = listOf(
                     ActionButtonData(
                         text = "<add>",
-                        color = Color(0xFF4ECDC4),
+                        color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                         onClick = {
                             filePickerLauncher.launch("audio/*")
                         }
                     ),
                     ActionButtonData(
                         text = "<edit>",
-                        color = Color(0xFFFFB74D),
+                        color = MaterialTheme.colorScheme.tertiary, // antes Color(0xFFFFB74D)
                         onClick = {
                             playlistToEdit = selectedLocalPlaylist
                             editPlaylistName = selectedLocalPlaylist!!.name
@@ -240,7 +240,7 @@ fun LocalScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Color(0xFF4ECDC4))
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.secondary)
                 }
             }
             error != null -> {
@@ -251,7 +251,7 @@ fun LocalScreen(
                     Text(
                         text = error ?: Translations.get(context, "unknown_error"),
                         style = MaterialTheme.typography.bodyMedium.copy(
-                            color = Color(0xFFFF6B6B)
+                            color = MaterialTheme.colorScheme.error
                         )
                     )
                 }
@@ -267,7 +267,7 @@ fun LocalScreen(
                             text = Translations.get(context, "No tracks in playlist"),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF95A5A6)
+                                color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
                             )
                         )
                     }
@@ -318,11 +318,11 @@ fun LocalScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-				    Text(
+                    	Text(
                         text = Translations.get(context, "No tracks downloaded"),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
+                            color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
                         )
                     )
                 }
@@ -358,39 +358,34 @@ fun LocalScreen(
                                         .clip(RoundedCornerShape(8.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        contentAlignment = Alignment.Center
+                                    // compute gradient colors in composable scope (Canvas's draw lambda is not @Composable)
+                                    val allTracksGradientColors = listOf(
+                                        MaterialTheme.colorScheme.secondary,
+                                        MaterialTheme.colorScheme.primary
+                                    )
+                                    androidx.compose.foundation.Canvas(
+                                        modifier = Modifier.fillMaxSize()
                                     ) {
-                                        androidx.compose.foundation.Canvas(
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            drawRect(
-                                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                                    colors = listOf(
-                                                        Color(0xFF4ECDC4),
-                                                        Color(0xFF7FB069)
-                                                    )
-                                                )
-                                            )
-                                        }
-                                        Text(
-                                            text = "♪",
-                                            style = MaterialTheme.typography.displayLarge.copy(
-                                                fontSize = 64.sp,
-                                                color = Color.White
+                                        drawRect(
+                                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                                                colors = allTracksGradientColors
                                             )
                                         )
                                     }
+                                    Text(
+                                        text = "♪",
+                                        style = MaterialTheme.typography.displayLarge.copy(
+                                            fontSize = 64.sp,
+                                            color = MaterialTheme.colorScheme.onSurface // antes Color.White
+                                        )
+                                    )
                                 }
 
                                 Text(
                                     text = "All Tracks",
                                     style = MaterialTheme.typography.bodySmall.copy(
                                         fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFFE0E0E0)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant // antes Color(0xFFE0E0E0)
                                     ),
                                     modifier = Modifier.padding(top = 8.dp),
                                     maxLines = 2,
@@ -425,16 +420,17 @@ fun LocalScreen(
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else {
-                                    // Degradado por defecto
+                                    // Degradado por defecto (compute colors outside draw lambda)
+                                    val playlistPlaceholderGradient = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary
+                                    )
                                     androidx.compose.foundation.Canvas(
                                         modifier = Modifier.fillMaxSize()
                                     ) {
                                         drawRect(
                                             brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                                colors = listOf(
-                                                    Color(0xFF667EEA),
-                                                    Color(0xFF764BA2)
-                                                )
+                                                colors = playlistPlaceholderGradient
                                             )
                                         )
                                     }
@@ -442,7 +438,7 @@ fun LocalScreen(
                                         text = playlist.name.take(2).uppercase(),
                                         style = MaterialTheme.typography.displayMedium.copy(
                                             fontSize = 48.sp,
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onSurface, // antes Color.White
                                             fontWeight = FontWeight.Bold
                                         )
                                     )
@@ -453,7 +449,7 @@ fun LocalScreen(
                                 text = playlist.name,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFE0E0E0)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant // antes Color(0xFFE0E0E0)
                                 ),
                                 modifier = Modifier.padding(top = 8.dp),
                                 maxLines = 2,
@@ -518,7 +514,7 @@ fun LocalScreen(
         Dialog(onDismissRequest = { showCreatePlaylistDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF181818),
+                color = MaterialTheme.colorScheme.surface, // antes Color(0xFF181818)
                 modifier = Modifier.padding(16.dp)
             ) {
                 Column(
@@ -528,7 +524,7 @@ fun LocalScreen(
                     Text(
                         text = Translations.get(context, "new_playlist"),
                         style = MaterialTheme.typography.titleLarge.copy(
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface, // antes Color.White
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -539,15 +535,15 @@ fun LocalScreen(
                         onValueChange = { newPlaylistName = it },
                         label = { Text(Translations.get(context, "playlist_name")) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF4ECDC4),
-                            unfocusedBorderColor = Color(0xFF555555),
-                            focusedLabelColor = Color(0xFF4ECDC4),
-                            unfocusedLabelColor = Color(0xFF888888),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            disabledTextColor = Color(0xFF888888),
-                            disabledBorderColor = Color(0xFF333333),
-                            disabledLabelColor = Color(0xFF666666)
+                            focusedBorderColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF555555)
+                            focusedLabelColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedLabelColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            disabledTextColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant, // antes Color(0xFF333333)
+                            disabledLabelColor = MaterialTheme.colorScheme.outline // antes Color(0xFF666666)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -558,15 +554,15 @@ fun LocalScreen(
                         onValueChange = { newPlaylistDescription = it },
                         label = { Text(Translations.get(context, "description")) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF4ECDC4),
-                            unfocusedBorderColor = Color(0xFF555555),
-                            focusedLabelColor = Color(0xFF4ECDC4),
-                            unfocusedLabelColor = Color(0xFF888888),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            disabledTextColor = Color(0xFF888888),
-                            disabledBorderColor = Color(0xFF333333),
-                            disabledLabelColor = Color(0xFF666666)
+                            focusedBorderColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF555555)
+                            focusedLabelColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedLabelColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            disabledTextColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant, // antes Color(0xFF333333)
+                            disabledLabelColor = MaterialTheme.colorScheme.outline // antes Color(0xFF666666)
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 3
@@ -577,7 +573,7 @@ fun LocalScreen(
                         buttons = listOf(
                             ActionButtonData(
                                 text = Translations.get(context, "create"),
-                                color = Color(0xFF4ECDC4),
+                                color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                                 onClick = {
                                     // Crear nueva playlist en la base de datos
                                     coroutineScope.launch {
@@ -602,7 +598,7 @@ fun LocalScreen(
                             ),
                             ActionButtonData(
                                 text = Translations.get(context, "cancel"),
-                                color = Color(0xFF95A5A6),
+                                color = MaterialTheme.colorScheme.outline, // antes Color(0xFF95A5A6)
                                 onClick = {
                                     showCreatePlaylistDialog = false
                                     newPlaylistName = ""
@@ -621,7 +617,7 @@ fun LocalScreen(
         Dialog(onDismissRequest = { showEditPlaylistDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF181818),
+                color = MaterialTheme.colorScheme.surface, // antes Color(0xFF181818)
                 modifier = Modifier.padding(16.dp)
             ) {
                 Column(
@@ -631,7 +627,7 @@ fun LocalScreen(
                     Text(
                         text = Translations.get(context, "edit_playlist"),
                         style = MaterialTheme.typography.titleLarge.copy(
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface, // antes Color.White
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -642,15 +638,15 @@ fun LocalScreen(
                         onValueChange = { editPlaylistName = it },
                         label = { Text(Translations.get(context, "playlist_name")) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF4ECDC4),
-                            unfocusedBorderColor = Color(0xFF555555),
-                            focusedLabelColor = Color(0xFF4ECDC4),
-                            unfocusedLabelColor = Color(0xFF888888),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            disabledTextColor = Color(0xFF888888),
-                            disabledBorderColor = Color(0xFF333333),
-                            disabledLabelColor = Color(0xFF666666)
+                            focusedBorderColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF555555)
+                            focusedLabelColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedLabelColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            disabledTextColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant, // antes Color(0xFF333333)
+                            disabledLabelColor = MaterialTheme.colorScheme.outline // antes Color(0xFF666666)
                         ),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -661,15 +657,15 @@ fun LocalScreen(
                         onValueChange = { editPlaylistDescription = it },
                         label = { Text(Translations.get(context, "description")) },
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF4ECDC4),
-                            unfocusedBorderColor = Color(0xFF555555),
-                            focusedLabelColor = Color(0xFF4ECDC4),
-                            unfocusedLabelColor = Color(0xFF888888),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            disabledTextColor = Color(0xFF888888),
-                            disabledBorderColor = Color(0xFF333333),
-                            disabledLabelColor = Color(0xFF666666)
+                            focusedBorderColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF555555)
+                            focusedLabelColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                            unfocusedLabelColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                            disabledTextColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                            disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant, // antes Color(0xFF333333)
+                            disabledLabelColor = MaterialTheme.colorScheme.outline // antes Color(0xFF666666)
                         ),
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 3
@@ -680,7 +676,7 @@ fun LocalScreen(
                         buttons = listOf(
                             ActionButtonData(
                                 text = Translations.get(context, "save"),
-                                color = Color(0xFF4ECDC4),
+                                color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                                 onClick = {
                                     // Guardar cambios en la playlist
                                     coroutineScope.launch {
@@ -709,7 +705,7 @@ fun LocalScreen(
                             ),
                             ActionButtonData(
                                 text = Translations.get(context, "cancel"),
-                                color = Color(0xFF95A5A6),
+                                color = MaterialTheme.colorScheme.outline, // antes Color(0xFF95A5A6)
                                 onClick = {
                                     showEditPlaylistDialog = false
                                     editPlaylistName = ""
@@ -718,7 +714,7 @@ fun LocalScreen(
                             ),
                             ActionButtonData(
                                 text = "delete",
-                                color = Color(0xFFFF6B6B),
+                                color = MaterialTheme.colorScheme.error, // antes Color(0xFFFF6B6B)
                                 onClick = {
                                     playlistToDelete = playlistToEdit
                                     showDeletePlaylistDialog = true
@@ -767,7 +763,7 @@ fun LocalScreen(
         Dialog(onDismissRequest = { showAddToPlaylistDialog = false }) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color(0xFF181818),
+                color = MaterialTheme.colorScheme.surface, // antes Color(0xFF181818)
                 modifier = Modifier.padding(16.dp)
             ) {
                 Column(
@@ -777,7 +773,7 @@ fun LocalScreen(
                     Text(
                         text = Translations.get(context, "add_to_playlist"),
                         style = MaterialTheme.typography.titleLarge.copy(
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface, // antes Color.White
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -813,7 +809,7 @@ fun LocalScreen(
                                         }
                                     },
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color(0xFF252525)
+                                color = MaterialTheme.colorScheme.surfaceVariant // antes Color(0xFF252525)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -828,7 +824,7 @@ fun LocalScreen(
                                         Text(
                                             text = playlist.name,
                                             style = MaterialTheme.typography.bodyLarge.copy(
-                                                color = Color.White,
+                                                color = MaterialTheme.colorScheme.onSurface, // antes Color.White
                                                 fontWeight = FontWeight.Bold
                                             )
                                         )
@@ -836,7 +832,7 @@ fun LocalScreen(
                                             Text(
                                                 text = playlist.description,
                                                 style = MaterialTheme.typography.bodySmall.copy(
-                                                    color = Color(0xFF888888)
+                                                    color = MaterialTheme.colorScheme.outline // antes Color(0xFF888888)
                                                 ),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
@@ -846,7 +842,7 @@ fun LocalScreen(
                                     Text(
                                         text = "+",
                                         style = MaterialTheme.typography.headlineMedium.copy(
-                                            color = Color(0xFF4ECDC4)
+                                            color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                                         )
                                     )
                                 }
@@ -859,7 +855,7 @@ fun LocalScreen(
                         buttons = listOf(
                             ActionButtonData(
                                 text = Translations.get(context, "cancel"),
-                                color = Color(0xFF95A5A6),
+                                color = MaterialTheme.colorScheme.outline, // antes Color(0xFF95A5A6)
                                 onClick = {
                                     showAddToPlaylistDialog = false
                                 }
@@ -912,7 +908,7 @@ fun LocalScreen(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF181818))
+                    .background(MaterialTheme.colorScheme.surface) // antes Color(0xFF181818)
                     .padding(24.dp)
                     .fillMaxWidth(0.9f)
             ) {
@@ -923,7 +919,7 @@ fun LocalScreen(
                     Text(
                         text = Translations.get(context, "import_audio_file"),
                         style = MaterialTheme.typography.titleLarge.copy(
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSurface, // antes Color.White
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -932,13 +928,13 @@ fun LocalScreen(
                         // Mostrar progreso de importación
                         CircularProgressIndicator(
                             progress = { importProgress / 100f },
-                            color = Color(0xFF4ECDC4),
+                            color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                             modifier = Modifier.size(64.dp)
                         )
                         Text(
                             text = "$importProgress%",
                             style = MaterialTheme.typography.bodyMedium.copy(
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface // antes Color.White
                             )
                         )
                     } else if (importError != null) {
@@ -946,13 +942,13 @@ fun LocalScreen(
                         Text(
                             text = "✗",
                             style = MaterialTheme.typography.displayLarge.copy(
-                                color = Color(0xFFFF6B6B)
+                                color = MaterialTheme.colorScheme.error // antes Color(0xFFFF6B6B)
                             )
                         )
                         Text(
                             text = importError ?: "Error",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = Color(0xFFFF6B6B)
+                                color = MaterialTheme.colorScheme.error // antes Color(0xFFFF6B6B)
                             ),
                             textAlign = TextAlign.Center
                         )
@@ -963,7 +959,7 @@ fun LocalScreen(
                             buttons = listOf(
                                 ActionButtonData(
                                     text = Translations.get(context, "close"),
-                                    color = Color(0xFF4ECDC4),
+                                    color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                                     onClick = {
                                         showImportDialog = false
                                         selectedFileUri = null
@@ -981,15 +977,15 @@ fun LocalScreen(
                             label = { Text(Translations.get(context, "track_name")) },
                             enabled = !isDetecting,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF4ECDC4),
-                                unfocusedBorderColor = Color(0xFF555555),
-                                focusedLabelColor = Color(0xFF4ECDC4),
-                                unfocusedLabelColor = Color(0xFF888888),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                disabledTextColor = Color(0xFF888888),
-                                disabledBorderColor = Color(0xFF333333),
-                                disabledLabelColor = Color(0xFF666666)
+                                focusedBorderColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF555555)
+                                focusedLabelColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                                unfocusedLabelColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                                disabledTextColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                                disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant, // antes Color(0xFF333333)
+                                disabledLabelColor = MaterialTheme.colorScheme.outline // antes Color(0xFF666666)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -1000,15 +996,15 @@ fun LocalScreen(
                             label = { Text(Translations.get(context, "artist_name")) },
                             enabled = !isDetecting,
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF4ECDC4),
-                                unfocusedBorderColor = Color(0xFF555555),
-                                focusedLabelColor = Color(0xFF4ECDC4),
-                                unfocusedLabelColor = Color(0xFF888888),
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                disabledTextColor = Color(0xFF888888),
-                                disabledBorderColor = Color(0xFF333333),
-                                disabledLabelColor = Color(0xFF666666)
+                                focusedBorderColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF555555)
+                                focusedLabelColor = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
+                                unfocusedLabelColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface, // antes Color.White
+                                disabledTextColor = MaterialTheme.colorScheme.outline, // antes Color(0xFF888888)
+                                disabledBorderColor = MaterialTheme.colorScheme.surfaceVariant, // antes Color(0xFF333333)
+                                disabledLabelColor = MaterialTheme.colorScheme.outline // antes Color(0xFF666666)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -1029,10 +1025,10 @@ fun LocalScreen(
                                             else -> Translations.get(context, "detect")
                                         },
                                         color = when {
-                                            isDetecting -> Color(0xFF4ECDC4)
-                                            detectionStatus == "detected" -> Color(0xFF4CAF50)
-                                            detectionStatus == "error" -> Color(0xFFFF6B6B)
-                                            else -> Color(0xFFFFB74D)
+                                            isDetecting -> MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
+                                            detectionStatus == "detected" -> MaterialTheme.colorScheme.primary // antes Color(0xFF4CAF50)
+                                            detectionStatus == "error" -> MaterialTheme.colorScheme.error // antes Color(0xFFFF6B6B)
+                                            else -> MaterialTheme.colorScheme.tertiary // antes Color(0xFFFFB74D)
                                         },
                                         onClick = {
                                             if (!isDetecting && detectionStatus != "detected") {
@@ -1063,7 +1059,7 @@ fun LocalScreen(
                                     ),
                                     ActionButtonData(
                                         text = Translations.get(context, "import"),
-                                        color = Color(0xFF4ECDC4),
+                                        color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF4ECDC4)
                                         onClick = {
                                             if (importTrackName.isNotBlank()) {
                                                 isImporting = true

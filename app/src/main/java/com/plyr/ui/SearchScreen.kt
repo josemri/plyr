@@ -532,7 +532,7 @@ fun SearchScreen(
                             style = MaterialTheme.typography.headlineMedium.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 20.sp,
-                                color = Color(0xFF4ECDC4)
+                                color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -549,7 +549,7 @@ fun SearchScreen(
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp,
-                                color = Color(0xFF4ECDC4)
+                                color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                             ),
                             modifier = Modifier.clickable {
                                 // Start playback from first track
@@ -584,7 +584,7 @@ fun SearchScreen(
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp,
-                                color = Color(0xFFFFD93D)
+                                color = MaterialTheme.colorScheme.tertiary // antes Color(0xFFFFD93D)
                             ),
                             modifier = Modifier.clickable {
                                 // Start playback with shuffled tracks
@@ -622,7 +622,7 @@ fun SearchScreen(
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 14.sp,
-                                    color = Color(0xFF95A5A6)
+                                    color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
                                 ),
                                 modifier = Modifier.padding(4.dp)
                             )
@@ -632,7 +632,7 @@ fun SearchScreen(
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 14.sp,
-                                    color = if (isAlbumSaved == true) Color(0xFFFF6B6B) else Color(0xFF6BCF7F)
+                                    color = if (isAlbumSaved == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary // antes Color(0xFFFF6B6B) / Color(0xFF6BCF7F)
                                 ),
                                 modifier = Modifier.clickable {
                                     coroutineScope.launch {
@@ -687,7 +687,7 @@ fun SearchScreen(
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 14.sp,
-                                color = Color(0xFFFF6B9D)
+                                color = MaterialTheme.colorScheme.error // antes Color(0xFFFF6B9D)
                             ),
                             modifier = Modifier.clickable {
                                 showShareDialog = true
@@ -700,7 +700,7 @@ fun SearchScreen(
                             text = "$ $status",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
-                                color = if (status.startsWith("error")) Color(0xFFFF6B6B) else Color(0xFF6BCF7F)
+                                color = if (status.startsWith("error")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary // antes Color(0xFFFF6B6B) / Color(0xFF6BCF7F)
                             ),
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
@@ -715,7 +715,7 @@ fun SearchScreen(
                                 text = Translations.get(context, "search_loading_tracks"),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFFFD93D)
+                                    color = MaterialTheme.colorScheme.tertiary // antes Color(0xFFFFD93D)
                                 )
                             )
                         }
@@ -723,7 +723,7 @@ fun SearchScreen(
                     error?.let {
                         Text(
                             "${Translations.get(context, "search_error")}: $it",
-                            color = Color(0xFFFF6B6B),
+                            color = MaterialTheme.colorScheme.error, // antes Color(0xFFFF6B6B)
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace
                             ),
@@ -953,7 +953,7 @@ fun SearchScreen(
                                             },
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFFE0E0E0)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         ),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
@@ -1091,7 +1091,7 @@ private fun SearchMainView(
                     ActionButton(
                         data = ActionButtonData(
                             text = "<limpiar>",
-                            color = Color(0xFFFF6B6B),
+                            color = MaterialTheme.colorScheme.error, // antes Color(0xFFFF6B6B)
                             onClick = {
                                 coroutineScope.launch {
                                     searchHistoryDao.clearHistory()
@@ -1107,9 +1107,9 @@ private fun SearchMainView(
                 ) {
                     searchHistory.take(10).forEach { historyItem ->
                         val color = when (historyItem.searchEngine) {
-                            "youtube" -> Color(0xFFFF6B6B) // Rojo para YouTube
-                            "spotify" -> Color(0xFF6BCF7F) // Verde para Spotify
-                            else -> Color(0xFF95A5A6)
+                            "youtube" -> MaterialTheme.colorScheme.error // Rojo para YouTube
+                            "spotify" -> MaterialTheme.colorScheme.primary // Verde para Spotify
+                            else -> MaterialTheme.colorScheme.outline
                         }
 
                         Row(
@@ -1155,7 +1155,7 @@ private fun SearchMainView(
                                     text = "x",
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFF95A5A6)
+                                        color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
                                     )
                                 )
                             }
@@ -1174,7 +1174,7 @@ private fun SearchMainView(
                         text = Translations.get(context, "colored by used engine"),
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
+                            color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
                         )
                     )
                 }
@@ -1190,10 +1190,10 @@ private fun SearchMainView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "$ ${Translations.get(context, "search_loading")}",
+                    "\$ ${Translations.get(context, "search_loading")}",
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFFFFD93D)
+                        color = MaterialTheme.colorScheme.tertiary // antes Color(0xFFFFD93D)
                     )
                 )
             }
@@ -1203,7 +1203,7 @@ private fun SearchMainView(
             Spacer(Modifier.height(8.dp))
             Text(
                 "${Translations.get(context, "search_error")}: $it",
-                color = Color(0xFFFF6B6B),
+                color = MaterialTheme.colorScheme.error, // antes Color(0xFFFF6B6B)
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace
                 )
@@ -1279,7 +1279,7 @@ fun CollapsibleSpotifySearchResultsView(
                 text = if (tracksExpanded) "v $tracksLabel" else "> $tracksLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4ECDC4)
+                    color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                 ),
                 modifier = Modifier
                     .clickable { tracksExpanded = !tracksExpanded }
@@ -1331,7 +1331,7 @@ fun CollapsibleSpotifySearchResultsView(
                 text = if (albumsExpanded) "v $albumsLabel" else "> $albumsLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4ECDC4)
+                    color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                 ),
                 modifier = Modifier
                     .clickable { albumsExpanded = !albumsExpanded }
@@ -1364,7 +1364,7 @@ fun CollapsibleSpotifySearchResultsView(
                                 text = album.name,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFE0E0E0)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant // antes Color(0xFFE0E0E0)
                                 ),
                                 modifier = Modifier.padding(top = 4.dp),
                                 maxLines = 2,
@@ -1376,7 +1376,7 @@ fun CollapsibleSpotifySearchResultsView(
                                 text = album.getArtistNames(),
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
+                                    color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
                                 ),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -1394,7 +1394,7 @@ fun CollapsibleSpotifySearchResultsView(
                 text = if (playlistsExpanded) "v $playlistsLabel" else "> $playlistsLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4ECDC4)
+                    color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                 ),
                 modifier = Modifier
                     .clickable { playlistsExpanded = !playlistsExpanded }
@@ -1427,7 +1427,7 @@ fun CollapsibleSpotifySearchResultsView(
                                 text = playlist.name,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFE0E0E0)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant // antes Color(0xFFE0E0E0)
                                 ),
                                 modifier = Modifier.padding(top = 4.dp),
                                 maxLines = 2,
@@ -1446,7 +1446,7 @@ fun CollapsibleSpotifySearchResultsView(
                 text = if (artistsExpanded) "v $artistsLabel" else "> $artistsLabel",
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4ECDC4)
+                    color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                 ),
                 modifier = Modifier
                     .clickable { artistsExpanded = !artistsExpanded }
@@ -1479,7 +1479,7 @@ fun CollapsibleSpotifySearchResultsView(
                                 text = artist.name,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFFE0E0E0)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant // antes Color(0xFFE0E0E0)
                                 ),
                                 modifier = Modifier.padding(top = 4.dp),
                                 maxLines = 2,
@@ -1517,7 +1517,7 @@ fun CollapsibleYouTubeSearchResultsView(
             text = if (videosExpanded) "v $youtubeLabel [${results.size}]" else "> $youtubeLabel [${results.size}]",
             style = MaterialTheme.typography.titleMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                color = Color(0xFF4ECDC4)
+                color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
             ),
             modifier = Modifier
                 .clickable { videosExpanded = !videosExpanded }
@@ -1566,7 +1566,7 @@ fun CollapsibleYouTubeSearchResultsView(
                         text = "> $loadMoreLabel",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF4ECDC4)
+                            color = MaterialTheme.colorScheme.secondary // antes Color(0xFF4ECDC4)
                         ),
                         modifier = Modifier
                             .clickable { onLoadMore() }

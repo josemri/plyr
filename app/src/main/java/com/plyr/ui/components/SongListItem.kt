@@ -54,14 +54,15 @@ data class Song(
 )
 
 // Helper function para obtener icono y color según la acción
+@Composable
 private fun getSwipeIconAndColor(action: String): Pair<String, Color> {
     return when (action) {
-        Config.SWIPE_ACTION_ADD_TO_QUEUE -> "+" to Color(0xFF3FFFEF)
-        Config.SWIPE_ACTION_ADD_TO_LIKED -> "♥" to Color(0xFFFF6B9D)
-        Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> "≡" to Color(0xFFFFB84D)
-        Config.SWIPE_ACTION_SHARE -> "⤴" to Color(0xFF9B59B6)
-        Config.SWIPE_ACTION_DOWNLOAD -> "↓" to Color(0xFF2ECC71)
-        else -> "?" to Color(0xFF95A5A6)
+        Config.SWIPE_ACTION_ADD_TO_QUEUE -> "+" to MaterialTheme.colorScheme.primary
+        Config.SWIPE_ACTION_ADD_TO_LIKED -> "♥" to MaterialTheme.colorScheme.error
+        Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> "≡" to MaterialTheme.colorScheme.tertiary
+        Config.SWIPE_ACTION_SHARE -> "⤴" to MaterialTheme.colorScheme.secondary
+        Config.SWIPE_ACTION_DOWNLOAD -> "↓" to MaterialTheme.colorScheme.primary
+        else -> "?" to MaterialTheme.colorScheme.onSurfaceVariant
     }
 }
 
@@ -295,7 +296,7 @@ fun SongListItem(
                 Text(
                     text = customButtonIcon ?: "*",
                     style = PlyrTextStyles.menuOption(),
-                    color = Color(0xFF3FFFEF)
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -341,7 +342,7 @@ fun SongListItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF181818))
+                    .background(MaterialTheme.colorScheme.surface)
                     .padding(24.dp)
                     .fillMaxWidth(0.9f)
             ) {
@@ -363,12 +364,12 @@ fun SongListItem(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    CircularProgressIndicator(color = Color(0xFF4ECDC4))
+                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = Translations.get(context, "loading"),
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Color(0xFF888888)
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                         )
                                     )
                                 }
@@ -383,14 +384,14 @@ fun SongListItem(
                                     Text(
                                         text = "✗",
                                         style = MaterialTheme.typography.displayMedium.copy(
-                                            color = Color(0xFFFF6B6B)
+                                            color = MaterialTheme.colorScheme.error
                                         )
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = fetchInfoError ?: "Error",
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Color(0xFFFF6B6B)
+                                            color = MaterialTheme.colorScheme.error
                                         ),
                                         textAlign = TextAlign.Center
                                     )
@@ -407,7 +408,7 @@ fun SongListItem(
                                         Text(
                                             text = trackInfo?.name ?: song.title,
                                             style = MaterialTheme.typography.titleMedium.copy(
-                                                color = Color.White,
+                                                color = MaterialTheme.colorScheme.onBackground,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         )
@@ -416,7 +417,7 @@ fun SongListItem(
                                         Text(
                                             text = trackInfo?.artists?.joinToString(", ") { it.name } ?: song.artist,
                                             style = MaterialTheme.typography.bodyMedium.copy(
-                                                color = Color(0xFFAAAAAA)
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                                             )
                                         )
                                     }
@@ -426,7 +427,7 @@ fun SongListItem(
                                             Text(
                                                 text = "Album: ${album.name}",
                                                 style = MaterialTheme.typography.bodySmall.copy(
-                                                    color = Color(0xFF888888)
+                                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                                 )
                                             )
                                         }
@@ -435,7 +436,7 @@ fun SongListItem(
                                                 Text(
                                                     text = "Release: $date",
                                                     style = MaterialTheme.typography.bodySmall.copy(
-                                                        color = Color(0xFF888888)
+                                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                                     )
                                                 )
                                             }
@@ -449,7 +450,7 @@ fun SongListItem(
                                                 "$minutes:$seconds"
                                             } ?: "N/A"}",
                                             style = MaterialTheme.typography.bodySmall.copy(
-                                                color = Color(0xFF888888)
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                             )
                                         )
                                     }
@@ -465,14 +466,14 @@ fun SongListItem(
                                     Text(
                                         text = song.title,
                                         style = MaterialTheme.typography.titleMedium.copy(
-                                            color = Color.White,
+                                            color = MaterialTheme.colorScheme.onBackground,
                                             fontWeight = FontWeight.Bold
                                         )
                                     )
                                     Text(
                                         text = song.artist,
                                         style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = Color(0xFFAAAAAA)
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                                         )
                                     )
                                 }
@@ -488,7 +489,7 @@ fun SongListItem(
                         // Add to Playlist
                         Text(
                             text = Translations.get(context, "add_to_playlist"),
-                            color = Color(0xFF3FFFEF),
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -525,7 +526,7 @@ fun SongListItem(
                         // Add to Queue
                         Text(
                             text = Translations.get(context, "add_to_queue"),
-                            color = Color(0xFF3FFFEF),
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -546,7 +547,7 @@ fun SongListItem(
                         // Share
                         Text(
                             text = Translations.get(context, "share"),
-                            color = Color(0xFF3FFFEF),
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -561,7 +562,7 @@ fun SongListItem(
                         // Like / Unlike
                         Text(
                             text = if (isLiked == true) Translations.get(context, "remove_from_liked_songs") else Translations.get(context, "add_to_liked_songs"),
-                            color = Color(0xFF3FFFEF),
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -607,7 +608,7 @@ fun SongListItem(
                         // Download
                         Text(
                             text = Translations.get(context, "download"),
-                            color = Color(0xFF3FFFEF),
+                            color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,
                             modifier = Modifier
@@ -687,7 +688,7 @@ fun SongListItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFF181818))
+                    .background(MaterialTheme.colorScheme.surface)
                     .padding(24.dp)
                     .fillMaxWidth(0.9f)
             ) {
@@ -709,12 +710,12 @@ fun SongListItem(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
                                 ) {
-                                    CircularProgressIndicator(color = Color(0xFF4ECDC4))
+                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = Translations.get(context, "loading_playlists"),
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Color(0xFF888888)
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                         )
                                     )
                                 }
@@ -729,14 +730,14 @@ fun SongListItem(
                                     Text(
                                         text = "✓",
                                         style = MaterialTheme.typography.displayLarge.copy(
-                                            color = Color(0xFF4ECDC4)
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = Translations.get(context, "track_added_successfully"),
                                         style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = Color.White
+                                            color = MaterialTheme.colorScheme.onBackground
                                         )
                                     )
                                 }
@@ -751,14 +752,14 @@ fun SongListItem(
                                     Text(
                                         text = "✗",
                                         style = MaterialTheme.typography.displayLarge.copy(
-                                            color = Color(0xFFFF6B6B)
+                                            color = MaterialTheme.colorScheme.error
                                         )
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
                                     Text(
                                         text = addToPlaylistError ?: "Error",
                                         style = MaterialTheme.typography.bodySmall.copy(
-                                            color = Color(0xFFFF6B6B)
+                                            color = MaterialTheme.colorScheme.error
                                         ),
                                         textAlign = TextAlign.Center
                                     )
@@ -774,7 +775,7 @@ fun SongListItem(
                                     Text(
                                         text = Translations.get(context, "no_playlists_found"),
                                         style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = Color(0xFF888888)
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                         )
                                     )
                                 }
@@ -817,7 +818,7 @@ fun SongListItem(
                                                         }
                                                     }
                                                 }
-                                                .background(Color(0xFF252525))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                                 .padding(12.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -827,7 +828,7 @@ fun SongListItem(
                                                 Text(
                                                     text = playlist.name,
                                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                                        color = Color.White
+                                                        color = MaterialTheme.colorScheme.onBackground
                                                     ),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -837,7 +838,7 @@ fun SongListItem(
                                                         Text(
                                                             text = desc,
                                                             style = MaterialTheme.typography.bodySmall.copy(
-                                                                color = Color(0xFF888888)
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                                             ),
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
@@ -848,7 +849,7 @@ fun SongListItem(
                                             Text(
                                                 text = ">",
                                                 style = MaterialTheme.typography.bodyLarge.copy(
-                                                    color = Color(0xFF4ECDC4)
+                                                    color = MaterialTheme.colorScheme.primary
                                                 )
                                             )
                                         }

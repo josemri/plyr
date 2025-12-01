@@ -21,7 +21,6 @@ import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.network.SpotifyRepository
-import androidx.compose.ui.graphics.Color
 import com.plyr.ui.components.BinaryToggle
 import com.plyr.ui.components.TernaryToggle
 import com.plyr.ui.components.MultiToggle
@@ -85,12 +84,24 @@ fun ConfigScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            BinaryToggle(
-                option1 = Translations.get(context, "theme_dark"),
-                option2 = Translations.get(context, "theme_light"),
-                initialValue = selectedTheme == "dark",
-                onChange = { isDark ->
-                    selectedTheme = if (isDark) "dark" else "light"
+            // Reemplazado BinaryToggle por TernaryToggle para soportar "system"
+            TernaryToggle(
+                option1 = Translations.get(context, "theme_system"),
+                option2 = Translations.get(context, "theme_dark"),
+                option3 = Translations.get(context, "theme_light"),
+                initialValue = when (selectedTheme) {
+                    "system" -> 0
+                    "dark" -> 1
+                    "light" -> 2
+                    else -> 0
+                },
+                onChange = { selectedIndex ->
+                    selectedTheme = when (selectedIndex) {
+                        0 -> "system"
+                        1 -> "dark"
+                        2 -> "light"
+                        else -> "system"
+                    }
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
@@ -220,7 +231,7 @@ fun ConfigScreen(
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
-                    color = Color(0xFF95A5A6)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -269,7 +280,7 @@ fun ConfigScreen(
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
-                    color = Color(0xFF95A5A6)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -322,7 +333,7 @@ fun ConfigScreen(
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 14.sp,
-                        color = Color(0xFF95A5A6)
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
                     lineHeight = 18.sp
                 )
@@ -395,7 +406,7 @@ fun ConfigScreen(
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 14.sp,
-                            color = Color(0xFF95A5A6)
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                         )
                     )
 
@@ -415,10 +426,10 @@ fun ConfigScreen(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 12.sp,
                                 color = when {
-                                    connectionMessage == "credentials_required" -> Color(0xFFE74C3C)
-                                    !Config.hasSpotifyCredentials(context) -> Color(0xFFE74C3C)
-                                    isSpotifyConnected -> Color(0xFF1DB954)
-                                    else -> Color(0xFF95A5A6)
+                                    connectionMessage == "credentials_required" -> MaterialTheme.colorScheme.error
+                                    !Config.hasSpotifyCredentials(context) -> MaterialTheme.colorScheme.error
+                                    isSpotifyConnected -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                 }
                             )
                         )
@@ -476,7 +487,7 @@ fun SpotifyApiConfigSection(context: Context) {
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
-                    color = Color(0xFF95A5A6)
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
             )
 
@@ -485,7 +496,7 @@ fun SpotifyApiConfigSection(context: Context) {
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
-                    color = if (Config.hasSpotifyCredentials(context)) Color(0xFF1DB954) else Color(0xFFE74C3C)
+                    color = if (Config.hasSpotifyCredentials(context)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 )
             )
         }
@@ -503,7 +514,7 @@ fun SpotifyApiConfigSection(context: Context) {
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
-                        color = Color(0xFF95A5A6)
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
@@ -522,10 +533,10 @@ fun SpotifyApiConfigSection(context: Context) {
                         fontSize = 11.sp
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF1DB954),
-                        unfocusedBorderColor = Color(0xFF95A5A6),
-                        focusedTextColor = Color(0xFFECF0F1),
-                        unfocusedTextColor = Color(0xFFBDC3C7)
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
                     ),
                     placeholder = {
                         Text(
@@ -533,7 +544,7 @@ fun SpotifyApiConfigSection(context: Context) {
                             style = TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
-                                color = Color(0xFF7F8C8D)
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             )
                         )
                     }
@@ -544,7 +555,7 @@ fun SpotifyApiConfigSection(context: Context) {
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
-                        color = Color(0xFF95A5A6)
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
@@ -563,10 +574,10 @@ fun SpotifyApiConfigSection(context: Context) {
                         fontSize = 11.sp
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF1DB954),
-                        unfocusedBorderColor = Color(0xFF95A5A6),
-                        focusedTextColor = Color(0xFFECF0F1),
-                        unfocusedTextColor = Color(0xFFBDC3C7)
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
                     ),
                     visualTransformation = PasswordVisualTransformation(),
                     placeholder = {
@@ -575,7 +586,7 @@ fun SpotifyApiConfigSection(context: Context) {
                             style = TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
-                                color = Color(0xFF7F8C8D)
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             )
                         )
                     }
@@ -590,7 +601,7 @@ fun SpotifyApiConfigSection(context: Context) {
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
-                            color = Color(0xFF3498DB)
+                            color = MaterialTheme.colorScheme.tertiary
                         ),
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
@@ -605,7 +616,7 @@ fun SpotifyApiConfigSection(context: Context) {
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 10.sp,
-                                color = Color(0xFF95A5A6)
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             ),
                             modifier = Modifier.padding(bottom = 2.dp)
                         )
@@ -618,7 +629,7 @@ fun SpotifyApiConfigSection(context: Context) {
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 10.sp,
-                            color = Color(0xFF7F8C8D)
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                         )
                     )
                 }
@@ -650,7 +661,7 @@ fun AcoustidApiConfigSection(context: Context) {
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 14.sp,
-                    color = Color(0xFF95A5A6)
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
             )
 
@@ -659,7 +670,7 @@ fun AcoustidApiConfigSection(context: Context) {
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
-                    color = if (Config.hasAcoustidApiKey(context)) Color(0xFF1DB954) else Color(0xFFE74C3C)
+                    color = if (Config.hasAcoustidApiKey(context)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 )
             )
         }
@@ -677,7 +688,7 @@ fun AcoustidApiConfigSection(context: Context) {
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 11.sp,
-                        color = Color(0xFF95A5A6)
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
@@ -696,10 +707,10 @@ fun AcoustidApiConfigSection(context: Context) {
                         fontSize = 11.sp
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF1DB954),
-                        unfocusedBorderColor = Color(0xFF95A5A6),
-                        focusedTextColor = Color(0xFFECF0F1),
-                        unfocusedTextColor = Color(0xFFBDC3C7)
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
                     ),
                     placeholder = {
                         Text(
@@ -707,7 +718,7 @@ fun AcoustidApiConfigSection(context: Context) {
                             style = TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
-                                color = Color(0xFF7F8C8D)
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             )
                         )
                     }
@@ -722,7 +733,7 @@ fun AcoustidApiConfigSection(context: Context) {
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 10.sp,
-                            color = Color(0xFF95A5A6)
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                         ),
                         lineHeight = 14.sp
                     )

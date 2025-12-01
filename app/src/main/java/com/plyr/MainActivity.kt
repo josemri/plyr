@@ -43,6 +43,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.isSystemInDarkTheme
 
 
 
@@ -82,7 +83,15 @@ class MainActivity : ComponentActivity() {
             val playerViewModel = (application as PlyrApp).playerViewModel
             val theme = remember { mutableStateOf(Config.getTheme(this)) }
 
-            PlyrTheme(darkTheme = theme.value == "dark") {
+            // Determinar el modo efectivo: 'dark', 'light' o seguir el sistema
+            val effectiveDark = when (theme.value) {
+                "dark" -> true
+                "light" -> false
+                "system" -> isSystemInDarkTheme()
+                else -> isSystemInDarkTheme()
+            }
+
+            PlyrTheme(darkTheme = effectiveDark) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     ReachabilityScaffold {
                     Box(Modifier.fillMaxSize().statusBarsPadding()) {

@@ -9,7 +9,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -93,7 +92,7 @@ fun SpotifyArtistDetailView(
                     Text(
                         text = "♫",
                         style = MaterialTheme.typography.headlineLarge.copy(
-                            color = Color(0xFF1DB954),
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 48.sp
                         )
                     )
@@ -147,7 +146,7 @@ fun SpotifyArtistDetailView(
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 16.sp,
-                    color = Color(0xFFFF6B9D)
+                    color = MaterialTheme.colorScheme.error
                 ),
                 modifier = Modifier
                     .clickable { showShareDialog = true }
@@ -161,7 +160,7 @@ fun SpotifyArtistDetailView(
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 14.sp,
-                        color = Color(0xFF95A5A6)
+                        color = MaterialTheme.colorScheme.outline
                     ),
                     modifier = Modifier.padding(4.dp)
                 )
@@ -171,7 +170,7 @@ fun SpotifyArtistDetailView(
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 14.sp,
-                        color = if (isFollowing == true) Color(0xFFFF6B6B) else Color(0xFF6BCF7F)
+                        color = if (isFollowing == true) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     ),
                     modifier = Modifier.clickable {
                         coroutineScope.launch {
@@ -203,7 +202,7 @@ fun SpotifyArtistDetailView(
                     text = "...",
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFF95A5A6)
+                        color = MaterialTheme.colorScheme.outline
                     ),
                     modifier = Modifier.padding(start = 8.dp)
                 )
@@ -221,7 +220,7 @@ fun SpotifyArtistDetailView(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         CircularProgressIndicator(
-                            color = Color(0xFF1DB954)
+                            color = MaterialTheme.colorScheme.primary
                         )
                         Text(
                             text = "Cargando álbumes...",
@@ -325,7 +324,7 @@ private fun AlbumItem(
                 Text(
                     text = "♪",
                     style = MaterialTheme.typography.titleMedium.copy(
-                        color = Color(0xFF1DB954)
+                        color = MaterialTheme.colorScheme.primary
                     )
                 )
             }

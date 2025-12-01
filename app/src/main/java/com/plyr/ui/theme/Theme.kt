@@ -1,3 +1,4 @@
+@file:Suppress("unused")
 package com.plyr.ui.theme
 
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +33,7 @@ private val DarkTerminalRed = Color(0xFFFF6B6B)
 private val DarkTerminalWhite = Color(0xFFE0E0E0)
 
 // Light Theme Colors
-private val LightTerminalGreen = Color(0xFF2D7A78)
+private val LightTerminalGreen = Color(0xFF1A73E8)
 private val LightTerminalWhite = Color(0xFFFAFAFA)
 private val LightTerminalDarkGray = Color(0xFF2C3E50)
 private val LightTerminalYellow = Color(0xFFE67E22)

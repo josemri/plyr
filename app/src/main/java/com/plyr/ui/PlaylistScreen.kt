@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -47,12 +46,12 @@ import com.plyr.ui.components.ShareDialog
 import com.plyr.ui.components.ShareableItem
 import com.plyr.ui.components.ShareType
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import com.plyr.utils.Translations
 import com.plyr.ui.components.*
+import androidx.compose.ui.graphics.Brush
 
 @OptIn(DelicateCoroutinesApi::class)
 @Composable
@@ -348,14 +347,14 @@ fun PlaylistsScreen(
             )
             return@Column
         }
-        Titulo(if (selectedPlaylist == null) Translations.get(context, "plyr_lists") else "${selectedPlaylist!!.name}")
+        Titulo(if (selectedPlaylist == null) Translations.get(context, "plyr_lists") else selectedPlaylist!!.name)
 
         // Botón de sincronización manual (solo visible si está conectado y no es una playlist individual)
         if (isSpotifyConnected && selectedPlaylist == null) {
             ActionButtonsGroup(listOf(
 		    ActionButtonData(
 		        text = Translations.get(context, if (isSyncing) "<syncing...>" else "<sync>"),
-				color = if (isSyncing) Color(0xFFFFD93D) else Color(0xFF4ECDC4),
+				color = if (isSyncing) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
 		        onClick = {
 		            forceSyncAll()
 		            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -364,27 +363,27 @@ fun PlaylistsScreen(
 		    ),
 		    ActionButtonData(
 		        text = Translations.get(context, "<new>"),
-		        color = Color(0xFF4ECDC4),
+		        color = MaterialTheme.colorScheme.primary,
 		        onClick = { showCreatePlaylistScreen = true },
 		        enabled = !isSyncing
-				    )
-				)
+			    )
+			)
 		    )
         }
-			
+
         Spacer(modifier = Modifier.height(16.dp))
 
         when { // Estado no conectado
             !isSpotifyConnected -> {
-				Box(
+			Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-				    Text(
+			    Text(
                         text = Translations.get(context, "Spotify not connected"),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF95A5A6)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -397,11 +396,11 @@ fun PlaylistsScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-				        Text(
+                        Text(
                             text = Translations.get(context, "Loading tracks..."),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFF95A5A6)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         )
                     }   
@@ -516,7 +515,7 @@ fun PlaylistsScreen(
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 16.sp,
-                                        color = if (isStarting) Color(0xFFFF6B6B) else Color(0xFF4ECDC4)
+                                        color = if (isStarting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                                     ),
                                     modifier = Modifier
                                         .clickable {
@@ -536,7 +535,7 @@ fun PlaylistsScreen(
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 16.sp,
-                                        color = if (isRandomizing) Color(0xFFFF6B6B) else Color(0xFFFFD93D)
+                                        color = if (isRandomizing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
                                     ),
                                     modifier = Modifier
                                         .clickable {
@@ -556,7 +555,7 @@ fun PlaylistsScreen(
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 16.sp,
-                                        color = Color(0xFFFF6B9D)
+                                        color = MaterialTheme.colorScheme.error
                                     ),
                                     modifier = Modifier
                                         .clickable {
@@ -573,7 +572,7 @@ fun PlaylistsScreen(
                                 style = MaterialTheme.typography.bodyLarge.copy(
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 16.sp,
-                                    color = if (isEditing) Color(0xFF7FB069) else Color(0xFF95A5A6)
+                                    color = if (isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 modifier = Modifier
                                     .clickable {
@@ -643,7 +642,7 @@ fun PlaylistsScreen(
                                     style = MaterialTheme.typography.bodyLarge.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontSize = 16.sp,
-                                        color = Color(0xFFFF6B6B)
+                                        color = MaterialTheme.colorScheme.error
                                     ),
                                     modifier = Modifier
                                         .clickable {
@@ -662,7 +661,7 @@ fun PlaylistsScreen(
                                                 "Delete playlist",
                                                 style = MaterialTheme.typography.titleMedium.copy(
                                                     fontFamily = FontFamily.Monospace,
-                                                    color = Color(0xFF4ECDC4)
+                                                    color = MaterialTheme.colorScheme.primary
                                                 )
                                             )
                                         },
@@ -708,7 +707,7 @@ fun PlaylistsScreen(
                                                     "Delete",
                                                     style = MaterialTheme.typography.bodyMedium.copy(
                                                         fontFamily = FontFamily.Monospace,
-                                                        color = Color(0xFFFF6B6B)
+                                                        color = MaterialTheme.colorScheme.error
                                                     )
                                                 )
                                             }
@@ -721,7 +720,7 @@ fun PlaylistsScreen(
                                                     "Cancel",
                                                     style = MaterialTheme.typography.bodyMedium.copy(
                                                         fontFamily = FontFamily.Monospace,
-                                                        color = Color(0xFF4ECDC4)
+                                                        color = MaterialTheme.colorScheme.primary
                                                     )
                                                 )
                                             }
@@ -756,7 +755,7 @@ fun PlaylistsScreen(
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 16.sp,
-                                            color = Color(0xFF4ECDC4)
+                                            color = MaterialTheme.colorScheme.primary
                                         ),
                                         modifier = Modifier.padding(bottom = 8.dp)
                                     )
@@ -791,7 +790,7 @@ fun PlaylistsScreen(
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 16.sp,
-                                            color = Color(0xFF4ECDC4)
+                                            color = MaterialTheme.colorScheme.primary
                                         ),
                                         modifier = Modifier.padding(bottom = 8.dp)
                                     )
@@ -849,7 +848,7 @@ fun PlaylistsScreen(
                                             text = "$ searching...",
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFFFD93D)
+                                                color = MaterialTheme.colorScheme.tertiary
                                             )
                                         )
                                     }
@@ -863,7 +862,7 @@ fun PlaylistsScreen(
                                             text = "results:",
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
+                                                color = MaterialTheme.colorScheme.onBackground
                                             )
                                         )
                                     }
@@ -931,7 +930,7 @@ fun PlaylistsScreen(
                                 editError?.let {
                                     item {
                                         Spacer(Modifier.height(8.dp))
-                                        Text("${Translations.get(context, "error_prefix")}$it", color = Color.Red, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+                                        Text("${Translations.get(context, "error_prefix")}$it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
                                     }
                                 }
 
@@ -946,7 +945,7 @@ fun PlaylistsScreen(
                                             text = "current tracks [${playlistTracks.size}]:",
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFF4ECDC4)
+                                                color = MaterialTheme.colorScheme.primary
                                             )
                                         )
                                         Spacer(Modifier.height(8.dp))
@@ -1057,7 +1056,7 @@ fun PlaylistsScreen(
                                             text = "> albums",
                                             style = MaterialTheme.typography.titleMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFF4ECDC4)
+                                                color = MaterialTheme.colorScheme.primary
                                             ),
                                             modifier = Modifier.padding(bottom = 12.dp)
                                         )
@@ -1102,17 +1101,20 @@ fun PlaylistsScreen(
                                                 ) {
                                                     AsyncImage(
                                                         model = album.getImageUrl(),
-                                                        contentDescription = "Album cover",
+                                                        contentDescription = "Portada de ${album.name}",
                                                         modifier = Modifier
-                                                            .size(120.dp)
-                                                            .clip(RoundedCornerShape(8.dp))
+                                                            .size(150.dp)
+                                                            .clip(RoundedCornerShape(8.dp)),
+                                                        placeholder = null,
+                                                        error = null,
+                                                        fallback = null
                                                     )
 
                                                     Text(
                                                         text = album.name,
                                                         style = MaterialTheme.typography.bodySmall.copy(
                                                             fontFamily = FontFamily.Monospace,
-                                                            color = Color(0xFFE0E0E0)
+                                                            color = MaterialTheme.colorScheme.onBackground
                                                         ),
                                                         modifier = Modifier.padding(top = 4.dp),
                                                         maxLines = 2,
@@ -1140,7 +1142,7 @@ fun PlaylistsScreen(
                                     "Unsaved changes",
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontFamily = FontFamily.Monospace,
-                                        color = Color(0xFF4ECDC4)
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 )
                             },
@@ -1175,7 +1177,7 @@ fun PlaylistsScreen(
                                         "Exit",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFFFF6B6B)
+                                            color = MaterialTheme.colorScheme.error
                                         )
                                     )
                                 }
@@ -1191,7 +1193,7 @@ fun PlaylistsScreen(
                                         "Cancel",
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFF4ECDC4)
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     )
                                 }
@@ -1229,7 +1231,7 @@ fun PlaylistsScreen(
                                 text = "No playlists found",
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = Color(0xFF95A5A6)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                         }
@@ -1283,24 +1285,25 @@ fun PlaylistsScreen(
                                                     .clip(RoundedCornerShape(8.dp)),
                                                 contentAlignment = Alignment.Center
                                             ) {
+                                                // Precompute gradient brush using theme colors (must be computed in a composable scope)
+                                                val likedGradient = Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        MaterialTheme.colorScheme.primary,
+                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                                                    )
+                                                )
+
                                                 androidx.compose.foundation.Canvas(
                                                     modifier = Modifier.fillMaxSize()
                                                 ) {
-                                                    drawRect(
-                                                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                                            colors = listOf(
-                                                                Color(0xFF4ECDC4),
-                                                                Color(0xFF7FB069)
-                                                            )
-                                                        )
-                                                    )
+                                                    drawRect(brush = likedGradient)
                                                 }
                                                 // Emoji de corazón
                                                 Text(
                                                     text = "♥",
                                                     style = MaterialTheme.typography.displayLarge.copy(
                                                         fontSize = 64.sp,
-                                                        color = Color.White
+                                                        color = MaterialTheme.colorScheme.onPrimary
                                                     )
                                                 )
                                             }
@@ -1311,7 +1314,7 @@ fun PlaylistsScreen(
                                             text = "Liked Songs",
                                             style = MaterialTheme.typography.bodySmall.copy(
                                                 fontFamily = FontFamily.Monospace,
-                                                color = Color(0xFFE0E0E0)
+                                                color = MaterialTheme.colorScheme.onBackground
                                             ),
                                             modifier = Modifier.padding(top = 8.dp),
                                             maxLines = 2,
@@ -1362,7 +1365,7 @@ fun PlaylistsScreen(
                                         text = playlist.name,
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFFE0E0E0)
+                                            color = MaterialTheme.colorScheme.onBackground
                                         ),
                                         modifier = Modifier.padding(top = 8.dp),
                                         maxLines = 2,
@@ -1424,7 +1427,7 @@ fun PlaylistsScreen(
                                         text = albumEntity.name,
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFFE0E0E0)
+                                            color = MaterialTheme.colorScheme.onBackground
                                         ),
                                         modifier = Modifier.padding(top = 8.dp),
                                         maxLines = 1,
@@ -1438,7 +1441,7 @@ fun PlaylistsScreen(
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
                                             fontSize = 10.sp,
-                                            color = Color(0xFF95A5A6)
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         ),
                                         modifier = Modifier.padding(top = 2.dp),
                                         maxLines = 1,
@@ -1512,7 +1515,7 @@ fun PlaylistsScreen(
                                         text = artist.name,
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = FontFamily.Monospace,
-                                            color = Color(0xFFE0E0E0)
+                                            color = MaterialTheme.colorScheme.onBackground
                                         ),
                                         modifier = Modifier.padding(top = 8.dp),
                                         maxLines = 1,
@@ -1631,7 +1634,7 @@ fun CreateSpotifyPlaylistScreen(
                 text = "$ searching...",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFFFFD93D)
+                    color = MaterialTheme.colorScheme.tertiary
                 )
             )
         }
@@ -1686,7 +1689,7 @@ fun CreateSpotifyPlaylistScreen(
                 text = "selected [${selectedTracks.size}]:",
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF4ECDC4)
+                    color = MaterialTheme.colorScheme.primary
                 )
             )
             val tracksEntities = selectedTracks.mapIndexed { trackIndex, track ->
@@ -1732,7 +1735,7 @@ fun CreateSpotifyPlaylistScreen(
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 14.sp,
-                color = if (isLoading) Color(0xFFFFD93D) else Color(0xFF4ECDC4)
+                color = if (isLoading) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
             ),
             modifier = Modifier
                 .clickable(enabled = !isLoading && playlistName.isNotBlank()) {
@@ -1769,7 +1772,7 @@ fun CreateSpotifyPlaylistScreen(
         )
         error?.let {
             Spacer(Modifier.height(8.dp))
-            Text("${Translations.get(context, "error_prefix")}$it", color = Color.Red)
+            Text("${Translations.get(context, "error_prefix")}$it", color = MaterialTheme.colorScheme.error)
         }
     }
 }
@@ -1794,13 +1797,13 @@ fun SpotifyPlaylistDetailView(
     ) {
         Titulo(playlist.name)
 
-        // Botones de acción
+        // Botones de acción (usar tokens del tema en lugar de hex literals)
         ActionButtonsGroup(
             buttons = listOf(
-                ActionButtonData("<start>", Color(0xFF4ECDC4), onStart, tracks.isNotEmpty()),
-                ActionButtonData("<rand>", Color(0xFFFFD93D), onRandom, tracks.isNotEmpty()),
-                ActionButtonData("<save>", Color(0xFF7FB069), onSave, true),
-                ActionButtonData("<share>", Color(0xFFFF6B9D), { showShareDialog = true }, true)
+                ActionButtonData("<start>", MaterialTheme.colorScheme.primary, onStart, tracks.isNotEmpty()),
+                ActionButtonData("<rand>", MaterialTheme.colorScheme.tertiary, onRandom, tracks.isNotEmpty()),
+                ActionButtonData("<save>", MaterialTheme.colorScheme.secondary, onSave, true),
+                ActionButtonData("<share>", MaterialTheme.colorScheme.error, { showShareDialog = true }, true)
             )
         )
 
@@ -1814,7 +1817,7 @@ fun SpotifyPlaylistDetailView(
                     "$ loading tracks...",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
-                        color = Color(0xFFFFD93D)
+                        color = MaterialTheme.colorScheme.tertiary
                     )
                 )
             }
@@ -1823,7 +1826,7 @@ fun SpotifyPlaylistDetailView(
         error?.let {
             Text(
                 "ERR: $it",
-                color = Color(0xFFFF6B6B),
+                color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace
                 ),

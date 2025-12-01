@@ -52,7 +52,7 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF181818)
+                containerColor = MaterialTheme.colorScheme.surface
             )
         ) {
             Column(

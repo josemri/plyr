@@ -35,7 +35,7 @@ fun ActionButton(
         style = MaterialTheme.typography.bodyMedium.copy(
             fontFamily = FontFamily.Monospace,
             fontSize = 16.sp,
-            color = if (data.enabled) data.color else Color(0xFF95A5A6)
+            color = if (data.enabled) data.color else MaterialTheme.colorScheme.outline
         ),
         modifier = modifier
             .clickable(enabled = data.enabled) { data.onClick() }
