@@ -39,7 +39,9 @@ object Config {
     private const val KEY_SPOTIFY_TOKEN_EXPIRY = "spotify_token_expiry"
     private const val KEY_SPOTIFY_CLIENT_ID = "spotify_client_id"
     private const val KEY_SPOTIFY_CLIENT_SECRET = "spotify_client_secret"
+    private const val KEY_SPOTIFY_USER_NAME = "spotify_user_name"
     private const val KEY_ACOUSTID_API_KEY = "acoustid_api_key"
+    private const val KEY_LASTFM_API_KEY = "lastfm_api_key"
     private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
 
@@ -481,6 +483,70 @@ object Config {
     fun hasAcoustidApiKey(context: Context): Boolean {
         val apiKey = getPrefs(context).getString(KEY_ACOUSTID_API_KEY, null)
         return !apiKey.isNullOrBlank()
+    }
+
+    // === GESTIÓN DE LASTFM API KEY ===
+
+    /**
+     * Obtiene la API Key de Last.fm configurada por el usuario.
+     * @param context Contexto de la aplicación
+     * @return API Key de Last.fm o null si no está configurada
+     */
+    fun getLastfmApiKey(context: Context): String? {
+        return getPrefs(context).getString(KEY_LASTFM_API_KEY, null)
+    }
+
+    /**
+     * Establece la API Key de Last.fm del usuario.
+     * @param context Contexto de la aplicación
+     * @param apiKey API Key de Last.fm
+     */
+    fun setLastfmApiKey(context: Context, apiKey: String) {
+        getPrefs(context).edit {
+            putString(KEY_LASTFM_API_KEY, apiKey.trim())
+        }
+    }
+
+    /**
+     * Verifica si el usuario tiene una API Key de Last.fm configurada.
+     * @param context Contexto de la aplicación
+     * @return true si tiene la API Key configurada, false en caso contrario
+     */
+    fun hasLastfmApiKey(context: Context): Boolean {
+        val apiKey = getPrefs(context).getString(KEY_LASTFM_API_KEY, null)
+        return !apiKey.isNullOrBlank()
+    }
+
+    // === GESTIÓN DE NOMBRE DE USUARIO DE SPOTIFY ===
+
+    /**
+     * Obtiene el nombre de usuario de Spotify almacenado.
+     * @param context Contexto de la aplicación
+     * @return Nombre de usuario de Spotify o null si no está configurado
+     */
+    fun getSpotifyUserName(context: Context): String? {
+        return getPrefs(context).getString(KEY_SPOTIFY_USER_NAME, null)
+    }
+
+    /**
+     * Establece el nombre de usuario de Spotify.
+     * @param context Contexto de la aplicación
+     * @param userName Nombre de usuario de Spotify
+     */
+    fun setSpotifyUserName(context: Context, userName: String) {
+        getPrefs(context).edit {
+            putString(KEY_SPOTIFY_USER_NAME, userName.trim())
+        }
+    }
+
+    /**
+     * Elimina el nombre de usuario de Spotify almacenado.
+     * @param context Contexto de la aplicación
+     */
+    fun clearSpotifyUserName(context: Context) {
+        getPrefs(context).edit {
+            remove(KEY_SPOTIFY_USER_NAME)
+        }
     }
 
 }

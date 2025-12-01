@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.background
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -52,6 +53,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import com.plyr.utils.Translations
 import com.plyr.ui.components.*
 import androidx.compose.ui.graphics.Brush
+import com.plyr.network.getRecommendations
 
 @OptIn(DelicateCoroutinesApi::class)
 @Composable
@@ -443,8 +445,6 @@ fun PlaylistsScreen(
                                 val shuffledTracks = tracksFromDB.shuffled()
                                 val firstTrack = shuffledTracks.first()
 
-                                println("🔀 RANDOM: ${firstTrack.name}")
-
                                 // Reproducir la canción usando PlayerViewModel
                                 playerViewModel.initializePlayer()
 
@@ -473,18 +473,10 @@ fun PlaylistsScreen(
                                 playerViewModel.setCurrentPlaylist(tracksFromDB, 0)
                                 val selectedTrackEntity = tracksFromDB[0]
 
-                                Log.d("PlaylistScreen", "═══════════════════════════════════")
-                                Log.d("PlaylistScreen", "🎵 REPRODUCIR TRACK (START)")
-                                Log.d("PlaylistScreen", "═══════════════════════════════════")
-                                Log.d("PlaylistScreen", "Track: ${selectedTrackEntity.name}")
-                                Log.d("PlaylistScreen", "AudioUrl: ${selectedTrackEntity.audioUrl}")
-                                Log.d("PlaylistScreen", "Es archivo local: ${selectedTrackEntity.audioUrl?.startsWith("/") == true}")
-
                                 try {
                                     playerViewModel.loadAudioFromTrack(selectedTrackEntity)
-                                    Log.d("PlaylistScreen", "✓ loadAudioFromTrack llamado exitosamente")
                                 } catch (e: Exception) {
-                                    Log.e("PlaylistScreen", "✗ Error al reproducir track", e)
+                                    Log.e("PlaylistScreen", "Error al reproducir track: ${e.message}")
                                 }
 
                                 isStarting = false
@@ -1005,6 +997,50 @@ fun PlaylistsScreen(
                         }
                         // Lista de tracks (solo visible cuando NO está en modo edición)
                         if (!isEditing) {
+                            // Estado para recomendaciones
+                            var recommendedSongs by remember { mutableStateOf<List<com.plyr.network.Song>>(emptyList()) }
+                            var isLoadingRecommendations by remember { mutableStateOf(false) }
+                            var recommendationError by remember { mutableStateOf<String?>(null) }
+
+                            // Cargar recomendaciones cuando se carga la playlist
+                            LaunchedEffect(playlistTracks) {
+                                if (playlistTracks.isNotEmpty()) {
+                                    isLoadingRecommendations = true
+                                    recommendationError = null
+                                    coroutineScope.launch {
+                                        try {
+                                            // Extraer nombres de artistas de las canciones - obtener múltiples artistas distintos
+                                            val artistNames = mutableSetOf<String>()
+
+                                            // Iterar sobre todas las canciones para recolectar artistas distintos
+                                            for (track in playlistTracks) {
+                                                val trackArtists = track.getArtistNames()
+                                                // Dividir por comas si hay múltiples artistas
+                                                val artistList = trackArtists.split(",").map { it.trim() }
+                                                artistNames.addAll(artistList)
+
+                                                // Detener cuando tengamos suficientes artistas (máximo 10)
+                                                if (artistNames.size >= 10) {
+                                                    break
+                                                }
+                                            }
+
+                                            val finalArtistList = artistNames.toList().take(10)
+
+                                            if (finalArtistList.isNotEmpty()) {
+                                                val recommendations = getRecommendations(context, finalArtistList)
+                                                recommendedSongs = recommendations
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e("PlaylistScreen", "Error loading recommendations: ${e.message}")
+                                            recommendationError = e.message
+                                        } finally {
+                                            isLoadingRecommendations = false
+                                        }
+                                    }
+                                }
+                            }
+
                             LazyColumn(
                                 modifier = Modifier.fillMaxWidth(),
                                 contentPadding = PaddingValues(bottom = 16.dp),
@@ -1129,6 +1165,96 @@ fun PlaylistsScreen(
                                                 }
                                             }
                                         }
+                                    }
+                                }
+
+                                // Sección de recomendaciones
+                                if (recommendedSongs.isNotEmpty()) {
+                                    item {
+                                        Spacer(Modifier.height(24.dp))
+                                        Text(
+                                            text = "> similar:",
+                                            style = MaterialTheme.typography.titleMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.primary
+                                            ),
+                                            modifier = Modifier.padding(bottom = 12.dp)
+                                        )
+                                    }
+
+                                    items(recommendedSongs.size) { index ->
+                                        val song = recommendedSongs[index]
+                                        val songListItem = Song(
+                                            number = index + 1,
+                                            title = song.title,
+                                            artist = song.artist,
+                                            spotifyId = "",
+                                            spotifyUrl = ""
+                                        )
+
+                                        // Crear TrackEntity temporal para la canción recomendada
+                                        val recommendedTrackEntity = TrackEntity(
+                                            id = "recommended_${song.title}_${song.artist}",
+                                            playlistId = "recommendations",
+                                            spotifyTrackId = "",
+                                            name = song.title,
+                                            artists = song.artist,
+                                            youtubeVideoId = null,
+                                            audioUrl = null,
+                                            position = index,
+                                            lastSyncTime = System.currentTimeMillis()
+                                        )
+
+                                        SongListItem(
+                                            song = songListItem,
+                                            trackEntities = recommendedSongs.mapIndexed { i, s ->
+                                                TrackEntity(
+                                                    id = "recommended_${s.title}_${s.artist}",
+                                                    playlistId = "recommendations",
+                                                    spotifyTrackId = "",
+                                                    name = s.title,
+                                                    artists = s.artist,
+                                                    youtubeVideoId = null,
+                                                    audioUrl = null,
+                                                    position = i,
+                                                    lastSyncTime = System.currentTimeMillis()
+                                                )
+                                            },
+                                            index = index,
+                                            playerViewModel = playerViewModel,
+                                            coroutineScope = coroutineScope,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                }
+
+                                // Mostrar indicador de carga
+                                if (isLoadingRecommendations) {
+                                    item {
+                                        Spacer(Modifier.height(24.dp))
+                                        Text(
+                                            text = "> similar: <loading...>",
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.tertiary
+                                            ),
+                                            modifier = Modifier.padding(start = 8.dp)
+                                        )
+                                    }
+                                }
+
+                                // Mostrar error si existe
+                                recommendationError?.let {
+                                    item {
+                                        Spacer(Modifier.height(24.dp))
+                                        Text(
+                                            text = "⚠ Error loading similar: $it",
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodySmall.copy(
+                                                fontFamily = FontFamily.Monospace
+                                            ),
+                                            modifier = Modifier.padding(start = 8.dp)
+                                        )
                                     }
                                 }
                             }

@@ -762,7 +762,7 @@ object SpotifyRepository {
     }
 
     // Obtener el perfil del usuario (necesario para crear playlists)
-    private fun getUserProfile(accessToken: String, callback: (String?, String?) -> Unit) {
+    fun getUserProfile(accessToken: String, callback: (SpotifyUserProfile?, String?) -> Unit) {
         val request = Request.Builder()
             .url("$API_BASE_URL/me")
             .addHeader("Authorization", "Bearer $accessToken")
@@ -779,7 +779,7 @@ object SpotifyRepository {
                 if (response.isSuccessful) {
                     try {
                         val userProfile = gson.fromJson(body, SpotifyUserProfile::class.java)
-                        callback(userProfile.id, null)
+                        callback(userProfile, null)
                     } catch (e: Exception) {
                         callback(null, "Error parsing user profile: ${e.message}")
                     }

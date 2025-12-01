@@ -46,11 +46,11 @@ plyr/
 
 ## Roadmap
 
-- [ ] **Smart Recommendations** - Playlist recommendations based on your music taste
+- [x] **Smart Recommendations** - Playlist recommendations based on your music taste
 - [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
 - [ ] **Now Playing Indicator** - Highlight current track with color change in playlists
 - [ ] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
-- [ ] **Fix dark Mode** - Some screens have white background or not enough contrast
+- [x] **Fix dark Mode** - Some screens have white background or not enough contrast
 
 
 ## License

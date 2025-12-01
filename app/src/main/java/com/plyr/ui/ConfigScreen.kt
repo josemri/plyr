@@ -37,9 +37,17 @@ fun ConfigScreen(
     var selectedSearchEngine by remember { mutableStateOf(Config.getSearchEngine(context)) }
     var selectedLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
 
-    // Estado para Spotify
+    // Estado para Spotify - se actualiza cada vez que se abre la pantalla
     var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
+    var spotifyUserName by remember { mutableStateOf(Config.getSpotifyUserName(context)) }
     var connectionMessage by remember { mutableStateOf("") }
+
+    // Actualizar el estado de Spotify cuando la pantalla es visible
+    LaunchedEffect(Unit) {
+        isSpotifyConnected = Config.isSpotifyConnected(context)
+        spotifyUserName = Config.getSpotifyUserName(context)
+        android.util.Log.d("ConfigScreen", "🔄 Estado actualizado - Conectado: $isSpotifyConnected, Usuario: $spotifyUserName")
+    }
 
     LaunchedEffect(selectedTheme) {
         Config.setTheme(context, selectedTheme)
@@ -358,23 +366,34 @@ fun ConfigScreen(
 
             // Status unificado de plyr y Spotify
             Column {
+                // Botón de Spotify Login/Logout
                 Text(
-                    text = Translations.get(context, "sptfy_status"),
-                    style = MaterialTheme.typography.bodyMedium.copy(
+                    text = when {
+                        isSpotifyConnected && Config.hasSpotifyCredentials(context) -> {
+                            val userName = Config.getSpotifyUserName(context)
+                            if (!userName.isNullOrBlank()) {
+                                "Hello $userName!"
+                            } else {
+                                Translations.get(context, "configured")
+                            }
+                        }
+                        else -> Translations.get(context, "login")
+                    },
+                    style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
+                        fontSize = 14.sp,
+                        color = when {
+                            isSpotifyConnected && Config.hasSpotifyCredentials(context) -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.error
+                        }
                     ),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                // Estado de Spotify (clickeable)
-                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
                             if (isSpotifyConnected) {
                                 // Desconectar Spotify
                                 Config.clearSpotifyTokens(context)
+                                Config.clearSpotifyUserName(context)
                                 isSpotifyConnected = false
                                 connectionMessage = Translations.get(context, "disconnected")
                             } else {
@@ -398,64 +417,23 @@ fun ConfigScreen(
                             }
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = Translations.get(context, "client"),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                        )
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Estado de conexión
-                        Text(
-                            text = when {
-                                connectionMessage == "credentials_required" -> Translations.get(context, "configure_credentials_first")
-                                connectionMessage.isNotEmpty() -> connectionMessage
-                                isSpotifyConnected && Config.hasSpotifyCredentials(context) -> Translations.get(context, "connected")
-                                Config.hasSpotifyCredentials(context) -> Translations.get(context, "disconnected")
-                                else -> Translations.get(context, "credentials_required")
-                            },
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp,
-                                color = when {
-                                    connectionMessage == "credentials_required" -> MaterialTheme.colorScheme.error
-                                    !Config.hasSpotifyCredentials(context) -> MaterialTheme.colorScheme.error
-                                    isSpotifyConnected -> MaterialTheme.colorScheme.primary
-                                    else -> MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                }
-                            )
-                        )
-                    }
-                }
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Configuración de API de Spotify
             SpotifyApiConfigSection(context = context)
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Título y configuración de AcoustID
-            Column {
-                Text(
-                    text = Translations.get(context, "acoustid_status"),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
-                    ),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-
-            // Configuración de AcoustID API Key
             AcoustidApiConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LastfmApiConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(30.dp))
         }
@@ -483,12 +461,12 @@ fun SpotifyApiConfigSection(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = Translations.get(context, "api"),
-                style = MaterialTheme.typography.bodySmall.copy(
+                text = Translations.get(context, "spotify_status"),
+                style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
+                    fontSize = 16.sp,
+                ),
+                modifier = Modifier.padding(bottom = 8.dp)
             )
 
             Text(
@@ -530,13 +508,16 @@ fun SpotifyApiConfigSection(context: Context) {
                         .padding(bottom = 8.dp),
                     textStyle = TextStyle(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onBackground
                     ),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                        focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
                     placeholder = {
                         Text(
@@ -544,7 +525,7 @@ fun SpotifyApiConfigSection(context: Context) {
                             style = TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                             )
                         )
                     }
@@ -576,8 +557,10 @@ fun SpotifyApiConfigSection(context: Context) {
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                        focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
                     visualTransformation = PasswordVisualTransformation(),
                     placeholder = {
@@ -657,13 +640,14 @@ fun AcoustidApiConfigSection(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = Translations.get(context, "acoustid_api_key"),
-                style = MaterialTheme.typography.bodySmall.copy(
+                text = Translations.get(context, "acoustid_status"),
+                style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
+                    fontSize = 16.sp,
+                ),
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+
 
             Text(
                 text = if (Config.hasAcoustidApiKey(context)) Translations.get(context, "configured") else Translations.get(context, "not_configured"),
@@ -671,6 +655,103 @@ fun AcoustidApiConfigSection(context: Context) {
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     color = if (Config.hasAcoustidApiKey(context)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+            )
+        }
+
+        // Desplegable con campos de configuración
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp)
+            ) {
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = {
+                        apiKey = it
+                        Config.setAcoustidApiKey(context, it)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    ),
+                    placeholder = {
+                        Text(
+                            text = Translations.get(context, "enter_acoustid_api_key"),
+                            style = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
+                )
+
+                // Explicación detallada sobre AcoustID
+                Column(
+                    modifier = Modifier.padding(bottom = 16.dp)
+                ) {
+                    Text(
+                        text = Translations.get(context, "acoustid_info"),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        ),
+                        lineHeight = 14.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LastfmApiConfigSection(context: Context) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var apiKey by remember { mutableStateOf(Config.getLastfmApiKey(context) ?: "") }
+    val haptic = LocalHapticFeedback.current
+
+    Column {
+        // Campo principal de API - similar al formato del cliente
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = Translations.get(context, "lastfm_status"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                ),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Text(
+                text = if (Config.hasLastfmApiKey(context)) Translations.get(context, "configured") else Translations.get(context, "not_configured"),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = if (Config.hasLastfmApiKey(context)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 )
             )
         }
@@ -697,7 +778,7 @@ fun AcoustidApiConfigSection(context: Context) {
                     value = apiKey,
                     onValueChange = {
                         apiKey = it
-                        Config.setAcoustidApiKey(context, it)
+                        Config.setLastfmApiKey(context, it)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -709,12 +790,14 @@ fun AcoustidApiConfigSection(context: Context) {
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                        focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
                     placeholder = {
                         Text(
-                            text = Translations.get(context, "enter_acoustid_api_key"),
+                            text = Translations.get(context, "enter_lastfm_api_key"),
                             style = TextStyle(
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 11.sp,
@@ -724,12 +807,12 @@ fun AcoustidApiConfigSection(context: Context) {
                     }
                 )
 
-                // Explicación detallada sobre AcoustID
+                // Explicación detallada sobre Last.fm
                 Column(
                     modifier = Modifier.padding(bottom = 16.dp)
                 ) {
                     Text(
-                        text = Translations.get(context, "acoustid_info"),
+                        text = Translations.get(context, "lastfm_info"),
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 10.sp,

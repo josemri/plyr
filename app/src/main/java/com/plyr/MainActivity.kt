@@ -161,6 +161,17 @@ class MainActivity : ComponentActivity() {
                     SpotifyRepository.exchangeCodeForTokens(this, code) { tokens, error ->
                         if (tokens != null && error == null) {
                             Config.setSpotifyTokens(this, tokens.accessToken, tokens.refreshToken, tokens.expiresIn)
+
+                            // Obtener el perfil del usuario y guardar el nombre de usuario
+                            SpotifyRepository.getUserProfile(tokens.accessToken) { userProfile, profileError ->
+                                if (userProfile != null && !userProfile.displayName.isNullOrBlank()) {
+                                    Config.setSpotifyUserName(this, userProfile.displayName)
+                                    android.util.Log.d("MainActivity", "✓ Nombre de usuario guardado: ${userProfile.displayName}")
+                                } else {
+                                    android.util.Log.d("MainActivity", "⚠ displayName es null o vacío: ${userProfile?.displayName}")
+                                }
+                            }
+
                             SpotifyAuthEvent.onAuthComplete(true, "connected_successfully")
                         } else {
                             SpotifyAuthEvent.onAuthComplete(false, "token_exchange_failed")

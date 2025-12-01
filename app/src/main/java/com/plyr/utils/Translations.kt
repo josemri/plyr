@@ -32,7 +32,7 @@ object Translations {
             "lang_japanese" to "ja",
             "info" to "> información",
             "info_text" to "    ● ¡no piratees música!\n    ● cambia el motor con yt: / sp:",
-            "sptfy_status" to "> estado_sptfy",
+            "spotify_status" to "> estado_sptfy",
             "acoustid_status" to "> estado_acoustid",
             "client" to "    ● cliente:",
             "api" to "    ● api:",
@@ -60,11 +60,18 @@ object Translations {
             "instruction_8" to "8. copia el client_id y el client_secret",
             "instruction_9" to "9. pegalos en los campos de arriba",
             "note_local_storage" to "      nota: estas credenciales se guardan localmente",
+            "login" to "<iniciar_sesión>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
             "enter_acoustid_api_key" to "introduce tu api key de acoustid",
             "acoustid_info" to "      AcoustID es un servicio gratuito para identificar música.\n      Cómo obtener tu API Key:\n      1. Ve a https://acoustid.org/new-application\n      2. Crea una cuenta o inicia sesión\n      3. Crea una nueva aplicación (nombre: 'plyr')\n      4. Copia tu API Key y pégala arriba\n      5. Esta key te permite identificar canciones desde la app",
+
+            // Last.fm Configuration
+            "lastfm_status" to "> estado_lastfm",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
+            "enter_lastfm_api_key" to "introduce tu api key de last.fm",
+            "lastfm_info" to "      Last.fm es un servicio de música para obtener recomendaciones.\n      Cómo obtener tu API Key:\n      1. Ve a https://www.last.fm/api/account/create\n      2. Crea una cuenta o inicia sesión\n      3. Rellena los datos de la aplicación (nombre: 'plyr')\n      4. Copia tu API Key y pégala arriba\n      5. Esta key te permite obtener recomendaciones de artistas",
 
             // Swipe Actions Configuration
             "swipe_actions" to "> acciones_de_deslizamiento",
@@ -252,8 +259,9 @@ object Translations {
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
             "info" to "> info",
+            "login" to "<login>",
             "info_text" to "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
-            "sptfy_status" to "> sptfy_status",
+            "spotify_status" to "> sptfy_status",
             "acoustid_status" to "> acoustid_status",
             "client" to "    ● client:",
             "api" to "    ● api:",
@@ -286,6 +294,12 @@ object Translations {
             "acoustid_api_key" to "    ● acoustid_api_key:",
             "enter_acoustid_api_key" to "enter your acoustid api key",
             "acoustid_info" to "      AcoustID is a free service for music identification.\n      How to get your API Key:\n      1. Go to https://acoustid.org/new-application\n      2. Create an account or log in\n      3. Create a new application (name: 'plyr')\n      4. Copy your API Key and paste it above\n      5. This key allows you to identify songs from the app",
+
+            // Last.fm Configuration
+            "lastfm_status" to "> lastfm_status",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
+            "enter_lastfm_api_key" to "enter your last.fm api key",
+            "lastfm_info" to "      Last.fm is a music service for getting recommendations.\n      How to get your API Key:\n      1. Go to https://www.last.fm/api/account/create\n      2. Create an account or log in\n      3. Fill in the application data (name: 'plyr')\n      4. Copy your API Key and paste it above\n      5. This key allows you to get artist recommendations",
 
             // Swipe Actions Configuration
             "swipe_actions" to "> swipe_actions",
@@ -443,8 +457,9 @@ object Translations {
             "lang_japanese" to "ja",
             "info" to "> info",
             "info_text" to "    ● no piratejis música!\n    ● Canvia motor amb yt: / sp:",
-            "sptfy_status" to "> estat_sptfy",
+            "spotify_status" to "> estat_sptfy",
             "acoustid_status" to "> estat_acoustid",
+            "login" to "<iniciar_sessió>",
             "client" to "    ● client:",
             "api" to "    ● api:",
             "connected" to "connectat",
@@ -476,6 +491,12 @@ object Translations {
             "acoustid_api_key" to "    ● acoustid_api_key:",
             "enter_acoustid_api_key" to "introdueix la teva api key de acoustid",
             "acoustid_info" to "      AcoustID és un servei gratuït per identificar música.\n      Com obtenir la teva API Key:\n      1. Ves a https://acoustid.org/new-application\n      2. Crea un compte o inicia sessió\n      3. Crea una nova aplicació (nom: 'plyr')\n      4. Copia la teva API Key i enganxa-la a dalt\n      5. Aquesta key et permet identificar cançons des de l'app",
+
+            // Last.fm Configuration
+            "lastfm_status" to "> estat_lastfm",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
+            "enter_lastfm_api_key" to "introdueix la teva api key de last.fm",
+            "lastfm_info" to "      Last.fm és un servei de música per obtenir recomanacions.\n      Com obtenir la teva API Key:\n      1. Ves a https://www.last.fm/api/account/create\n      2. Crea un compte o inicia sessió\n      3. Omple les dades de l'aplicació (nom: 'plyr')\n      4. Copia la teva API Key i enganxa-la a dalt\n      5. Aquesta key et permet obtenir recomanacions d'artistes",
 
             // Swipe Actions Configuration
             "swipe_actions" to "> swipe_actions",
@@ -611,6 +632,7 @@ object Translations {
         // JAPANESE
         "日本語" to mapOf(
             // Config Screen
+            "login" to "<ログイン>",
             "config_title" to "plyr_設定",
             "theme" to "> テーマ",
             "theme_dark" to "ダーク",
@@ -630,7 +652,7 @@ object Translations {
             "lang_japanese" to "ja",
             "info" to "> 情報",
             "info_text" to "    ● 音楽を違法にダウンロードしないでください！\n    ● エンジンを変更するには yt: / sp: を使用",
-            "sptfy_status" to "> sptfy_ステータス",
+            "spotify_status" to "> sptfy_ステータス",
             "acoustid_status" to "> acoustid_ステータス",
             "client" to "    ● クライアント:",
             "api" to "    ● API:",
@@ -663,6 +685,13 @@ object Translations {
             "acoustid_api_key" to "    ● acoustid_api_key:",
             "enter_acoustid_api_key" to "AcoustID APIキーを入力してください",
             "acoustid_info" to "      AcoustIDは音楽識別のための無料サービスです。\n      APIキーの取得方法:\n      1. https://acoustid.org/new-application にアクセス\n      2. アカウントを作成またはログイン\n      3. 新しいアプリケーションを作成 (名前: 'plyr')\n      4. APIキーをコピーして上に貼り付け\n      5. このキーでアプリから曲を識別できます",
+
+            // Last.fm Configuration
+            "lastfm_status" to "> lastfm_status",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
+            "enter_lastfm_api_key" to "Last.fm APIキーを入力してください",
+            "lastfm_info" to "      Last.fmは音楽の推薦を得るためのサービスです。\n      APIキーの取得方法:\n      1. https://www.last.fm/api/account/create にアクセス\n      2. アカウントを作成またはログイン\n      3. アプリケーションデータを入力 (名前: 'plyr')\n      4. APIキーをコピーして上に貼り付け\n      5. このキーでアーティストの推薦を得ることができます",
+
 
             // Main Screen
             "plyr_title" to "$ plyr",
