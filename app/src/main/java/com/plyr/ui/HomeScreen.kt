@@ -27,6 +27,12 @@ import com.plyr.ui.theme.*
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
 
+// Nuevos imports para el icono de settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+
 @Composable
 fun HomeScreen(
     context: Context,
@@ -165,6 +171,23 @@ fun HomeScreen(
                 .verticalScroll(verticalScrollState),
             contentAlignment = Alignment.Center
         ) {
+            // Icono de configuración en la esquina superior derecha (fuera del Column)
+            IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNavigateToScreen(Screen.CONFIG)
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = Translations.get(context, "settings"),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -228,14 +251,6 @@ fun HomeScreen(
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onNavigateToScreen(Screen.LOCAL)
                         }
-                    ),
-                    ActionButtonData(
-                        text = "< ${Translations.get(context, "home_settings")} >",
-                        color = MaterialTheme.colorScheme.primary, // antes Color(0xFF9B59B6)
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(Screen.CONFIG)
-                        }
                     )
                 )
 
@@ -260,9 +275,3 @@ fun HomeScreen(
         }
     }
 }
-
-data class HomeMenuOption(
-    val screen: Screen,
-    val title: String,
-    val color: Color = Color.Unspecified // previously Color.White; use Unspecified so callers can provide MaterialTheme colors inside composables
-)
