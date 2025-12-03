@@ -1107,8 +1107,8 @@ private fun SearchMainView(
                 ) {
                     searchHistory.take(10).forEach { historyItem ->
                         val color = when (historyItem.searchEngine) {
-                            "youtube" -> MaterialTheme.colorScheme.error // Rojo para YouTube
-                            "spotify" -> MaterialTheme.colorScheme.primary // Verde para Spotify
+                            "youtube" -> Color.Red // Rojo para YouTube
+                            "spotify" -> Color.Green// Verde para Spotify
                             else -> MaterialTheme.colorScheme.outline
                         }
 
