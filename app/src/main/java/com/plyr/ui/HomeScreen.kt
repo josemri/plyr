@@ -199,7 +199,7 @@ fun HomeScreen(
                 val buttons = listOf(
                     ActionButtonData(
                         text = "< ${Translations.get(context, "home_search")} >",
-                        color = MaterialTheme.colorScheme.error, // antes Color(0xFFE74C3C)
+                        color = MaterialTheme.colorScheme.primary, // antes Color(0xFFE74C3C)
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onNavigateToScreen(Screen.SEARCH)
@@ -215,7 +215,7 @@ fun HomeScreen(
                     ),
                     ActionButtonData(
                         text = "< ${Translations.get(context, "home_queue")} >",
-                        color = MaterialTheme.colorScheme.secondary, // antes Color(0xFF2ECC71)
+                        color = MaterialTheme.colorScheme.primary, // antes Color(0xFF2ECC71)
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onNavigateToScreen(Screen.QUEUE)
@@ -223,7 +223,7 @@ fun HomeScreen(
                     ),
                     ActionButtonData(
                         text = "< ${Translations.get(context, "home_local")} >",
-                        color = MaterialTheme.colorScheme.tertiary, // antes Color(0xFFF39C12)
+                        color = MaterialTheme.colorScheme.primary, // antes Color(0xFFF39C12)
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onNavigateToScreen(Screen.LOCAL)
@@ -231,7 +231,7 @@ fun HomeScreen(
                     ),
                     ActionButtonData(
                         text = "< ${Translations.get(context, "home_settings")} >",
-                        color = MaterialTheme.colorScheme.secondaryContainer, // antes Color(0xFF9B59B6)
+                        color = MaterialTheme.colorScheme.primary, // antes Color(0xFF9B59B6)
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             onNavigateToScreen(Screen.CONFIG)
