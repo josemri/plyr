@@ -8,7 +8,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -25,6 +24,9 @@ import com.plyr.ui.components.BinaryToggle
 import com.plyr.ui.components.TernaryToggle
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
+import com.plyr.ui.components.AsciiWaveActionButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 
 
 @Composable
@@ -63,6 +65,22 @@ fun ConfigScreen(
     }
 
     val haptic = LocalHapticFeedback.current
+    // Estado y URL para compartir por NFC (mantenidos a nivel del screen)
+    val shareNfcUrl = "https://github.com/josemri/plyr/releases/download/latest/plyr.apk"
+    var nfcSharingEnabled by remember { mutableStateOf(false) }
+
+    // Asegurar que al salir de la pantalla se desactive el envío NFC si quedó activo
+    DisposableEffect(Unit) {
+        onDispose {
+            if (nfcSharingEnabled) {
+                try {
+                    com.plyr.utils.NfcShareHelper.disableNfcPush(context)
+                } catch (_: Exception) {
+                    // no critical
+                }
+            }
+        }
+    }
 
     // Handle back button
     BackHandler {
@@ -387,6 +405,7 @@ fun ConfigScreen(
                             else -> MaterialTheme.colorScheme.error
                         }
                     ),
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
@@ -415,14 +434,11 @@ fun ConfigScreen(
                                     }
                                 }
                             }
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
-                        .padding(vertical = 8.dp, horizontal = 4.dp),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(30.dp))
 
             // Configuración de API de Spotify
             SpotifyApiConfigSection(context = context)
@@ -436,6 +452,33 @@ fun ConfigScreen(
             LastfmApiConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(30.dp))
+
+            // Botón para compartir por NFC con animación ASCII
+            AsciiWaveActionButton(
+                isActive = nfcSharingEnabled,
+                onToggle = {
+                    nfcSharingEnabled = !nfcSharingEnabled
+                    if (nfcSharingEnabled) {
+                        try {
+                            com.plyr.utils.NfcShareHelper.enableNfcPush(context, shareNfcUrl)
+                        } catch (e: Exception) {
+                            android.util.Log.e("ConfigScreen", "Error enabling NFC push: ${'$'}{e.message}")
+                            android.widget.Toast.makeText(context, "NFC error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                            // revertir el estado si falla
+                            nfcSharingEnabled = false
+                        }
+                    } else {
+                        try {
+                            com.plyr.utils.NfcShareHelper.disableNfcPush(context)
+                        } catch (e: Exception) {
+                            android.util.Log.e("ConfigScreen", "Error disabling NFC push: ${'$'}{e.message}")
+                            android.widget.Toast.makeText(context, "NFC error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+                normalText = Translations.get(context, "share_with_NFC"),
+            )
         }
     }
 }

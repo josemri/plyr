@@ -64,6 +64,7 @@ object Translations {
             "albums" to "> álbumes",
             "similar_songs" to "> recomendaciones",
             "loading_recommendations" to "<generando recomendaciones...>",
+            "share_with_NFC" to "<compartir con NFC>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -203,6 +204,7 @@ object Translations {
             "btn_delete" to "<delete>",
             "creating" to "<creating...>",
             "create" to "<create>",
+            "btn_nfc" to "<nfc>",
             "delete_playlist_title" to "Eliminar playlist",
             "delete_playlist_confirm" to "¿Seguro que quieres eliminar '%s'? Esta acción no se puede deshacer.",
             "unsaved_changes_title" to "Cambios sin guardar",
@@ -295,6 +297,7 @@ object Translations {
             "albums" to "> albums",
             "similar_songs" to "> recommendations",
             "loading_recommendations" to "<generating recommendations...>",
+            "share_with_NFC" to "<share with NFC>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -403,6 +406,7 @@ object Translations {
             "btn_delete" to "<delete>",
             "creating" to "<creating...>",
             "create" to "<create>",
+            "btn_nfc" to "<nfc>",
             "delete_playlist_title" to "Delete playlist",
             "delete_playlist_confirm" to "Are you sure you want to delete '%s'? This action cannot be undone.",
             "unsaved_changes_title" to "Unsaved changes",
@@ -495,6 +499,7 @@ object Translations {
             "albums" to "> àlbums",
             "similar_songs" to "> recomanacions",
             "loading_recommendations" to "<generant recomanacions...>",
+            "share_with_NFC" to "<compartir amb NFC>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -602,6 +607,7 @@ object Translations {
             "btn_delete" to "<delete>",
             "creating" to "<creating...>",
             "create" to "<create>",
+            "btn_nfc" to "<nfc>",
             "delete_playlist_title" to "Eliminar playlist",
             "delete_playlist_confirm" to "Segur que vols eliminar '%s'? Aquesta acció no es pot desfer.",
             "unsaved_changes_title" to "Canvis sense desar",
@@ -692,6 +698,7 @@ object Translations {
             "albums" to "> アルバム",
             "similar_songs" to "> おすすめ曲",
             "loading_recommendations" to "<おすすめを生成しています...>",
+            "share_with_NFC" to "<NFCで共有>",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -787,6 +794,7 @@ object Translations {
             "btn_delete" to "<削除>",
             "creating" to "<作成中...>",
             "create" to "<作成>",
+            "btn_nfc" to "<nfc>",
             "delete_playlist_title" to "プレイリストを削除",
             "delete_playlist_confirm" to "「%s」を削除してもよろしいですか？この操作は元に戻せません。",
             "unsaved_changes_title" to "未保存の変更",
