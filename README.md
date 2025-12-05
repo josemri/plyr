@@ -36,12 +36,15 @@ plyr/
 ## Permissions
 
 ```xml
+<uses-permission android:name="android.permission.NFC" />
 <uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:ignore="ForegroundServicesPolicy" />
 <uses-permission android:name="android.permission.WAKE_LOCK" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 <uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+<uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 ```
 
 ## Roadmap
@@ -52,7 +55,7 @@ plyr/
 - [ ] **Now Playing Indicator** - Highlight current track with color change in playlists
 - [ ] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
 - [ ] **Fix accesibility** - Control bar sometimes does not detect clicks because of this
-- [ ] **NFC share integration** - User will be able to share anything through nfc
+- [x] **NFC share integration** - User will be able to share anything through nfc
 - [ ] **Google assistant integration** - User will be able to ask google assistant to play songs, albums etc...
 
 
