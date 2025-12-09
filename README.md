@@ -22,11 +22,14 @@ cd plyr
 ```
 plyr/
 ├── app/src/main/java/com/plyr/
+│   ├── assistant/     # Voice assistant integration
 │   ├── database/      # Room entities
 │   ├── network/       # API integration
 │   ├── ui/            # Compose screens
 │   ├── viewmodel/     # State management
 │   ├── service/       # Background services
+│   ├── reciebers/     # Broadcast receivers
+│   ├── model/         # Data models
 │   └── utils/         # Utilities
 ├── gradle/            # Dependencies
 ├── run.sh
@@ -36,8 +39,8 @@ plyr/
 ## Permissions
 
 ```xml
-<uses-permission android:name="android.permission.NFC" />
 <uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:ignore="ForegroundServicesPolicy" />
 <uses-permission android:name="android.permission.WAKE_LOCK" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
