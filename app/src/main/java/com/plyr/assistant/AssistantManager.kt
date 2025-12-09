@@ -26,9 +26,16 @@ import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 
 /**
- * Lightweight on-device assistant manager.
+ * Lightweight on-device assistant manager with enhanced NLU capabilities.
  */
 class AssistantManager(private val context: Context) {
+
+    companion object {
+        private const val TAG = "AssistantManager"
+
+        // Umbral de similitud para fuzzy matching (0.0 - 1.0)
+        private const val FUZZY_THRESHOLD = 0.7f
+    }
 
     data class IntentResult(
         val intent: String,
@@ -72,6 +79,266 @@ class AssistantManager(private val context: Context) {
         onStateChange?.invoke(state)
     }
 
+    // ==================== FUZZY MATCHING ====================
+
+    /**
+     * Calcula la distancia de Levenshtein entre dos strings
+     */
+    private fun levenshteinDistance(s1: String, s2: String): Int {
+        val m = s1.length
+        val n = s2.length
+        val dp = Array(m + 1) { IntArray(n + 1) }
+
+        for (i in 0..m) dp[i][0] = i
+        for (j in 0..n) dp[0][j] = j
+
+        for (i in 1..m) {
+            for (j in 1..n) {
+                dp[i][j] = if (s1[i-1] == s2[j-1]) {
+                    dp[i-1][j-1]
+                } else {
+                    minOf(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]) + 1
+                }
+            }
+        }
+        return dp[m][n]
+    }
+
+    /**
+     * Calcula similitud entre dos strings (0.0 - 1.0)
+     */
+    private fun similarity(s1: String, s2: String): Float {
+        val maxLen = maxOf(s1.length, s2.length)
+        if (maxLen == 0) return 1.0f
+        return 1.0f - (levenshteinDistance(s1, s2).toFloat() / maxLen)
+    }
+
+    /**
+     * Busca si alguna palabra del texto es similar a algún trigger (fuzzy match)
+     */
+    private fun fuzzyContains(text: String, triggers: List<String>): Pair<Boolean, Float> {
+        val words = text.lowercase().split(" ", ",", ".", "?", "!")
+        var bestScore = 0f
+
+        for (trigger in triggers) {
+            // Match exacto
+            if (text.lowercase().contains(trigger)) {
+                return Pair(true, 1.0f)
+            }
+
+            // Fuzzy match por palabras
+            val triggerWords = trigger.split(" ")
+            for (word in words) {
+                if (word.length < 3) continue // Ignorar palabras muy cortas
+
+                for (tw in triggerWords) {
+                    if (tw.length < 3) continue
+                    val sim = similarity(word, tw)
+                    if (sim > bestScore) bestScore = sim
+                }
+            }
+
+            // También comparar frases completas si el trigger tiene múltiples palabras
+            if (triggerWords.size > 1) {
+                val sim = similarity(text.lowercase(), trigger)
+                if (sim > bestScore) bestScore = sim
+            }
+        }
+
+        return Pair(bestScore >= FUZZY_THRESHOLD, bestScore)
+    }
+
+    // ==================== SEMANTIC PATTERNS ====================
+
+    /**
+     * Patrones semánticos para detectar intenciones de forma más natural
+     */
+    private data class SemanticPattern(
+        val intent: String,
+        val patterns: List<Regex>,
+        val entityExtractor: ((MatchResult) -> Map<String, String>)? = null
+    )
+
+    private val semanticPatterns: List<SemanticPattern> by lazy {
+        listOf(
+            // Reproducir música - patrones muy flexibles
+            SemanticPattern(
+                "play_search",
+                listOf(
+                    // "quiero escuchar X", "I want to hear X", "me apetece X"
+                    Regex("(?:quiero|want|wanna|me apetece|me gustaría|i'd like to).*(?:escuchar|oír|oir|hear|listen)\\s+(.+)", RegexOption.IGNORE_CASE),
+                    // "ponme X", "play X", "pon X"
+                    Regex("(?:ponme|pon|play|put on|reproduce|toca)\\s+(.+)", RegexOption.IGNORE_CASE),
+                    // "algo de X", "something from X", "música de X"
+                    Regex("(?:algo|something|anything|música|music)\\s+(?:de|from|by|del)\\s+(.+)", RegexOption.IGNORE_CASE),
+                    // "X por favor", "X please"
+                    Regex("(.+?)\\s+(?:por favor|please|porfavor|porfa)$", RegexOption.IGNORE_CASE),
+                    // "escucha X", "reproduce X"
+                    Regex("(?:escucha|reproduce|listen to)\\s+(.+)", RegexOption.IGNORE_CASE)
+                )
+            ) { match ->
+                val query = cleanQueryText(match.groupValues[1])
+                if (query.isNotBlank()) mapOf("query" to query) else emptyMap()
+            },
+
+            // Control de reproducción
+            SemanticPattern(
+                "pause",
+                listOf(
+                    Regex("(?:para|stop|detén|deten|calla|silencio|quiet|pause|pausa|wait|espera)", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            SemanticPattern(
+                "play",
+                listOf(
+                    Regex("^(?:play|resume|continua|continue|sigue|dale|go|start|empieza|comienza)$", RegexOption.IGNORE_CASE),
+                    Regex("(?:sigue|continúa|resume)\\s*(?:la música|playing|reproduciendo)?", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            SemanticPattern(
+                "next",
+                listOf(
+                    Regex("(?:siguiente|next|skip|salta|pasa|otra|another|cambia|change)", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            SemanticPattern(
+                "previous",
+                listOf(
+                    Regex("(?:anterior|previous|back|atrás|atras|vuelve|go back|última|ultima|last)", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            // Volumen - IMPORTANTE: volume_set debe ir ANTES que volume_up/down
+            SemanticPattern(
+                "volume_set",
+                listOf(
+                    // "volumen al 50", "volume to 50", "set volume to 50"
+                    Regex("(?:volumen|volume|sonido|sound)\\s*(?:al?|to|at)\\s*(\\d+)", RegexOption.IGNORE_CASE),
+                    // "pon el volumen al 50", "set volume at 50"
+                    Regex("(?:pon|set|put).*(?:volumen|volume).*(?:al?|to|at)\\s*(\\d+)", RegexOption.IGNORE_CASE),
+                    // "50 percent volume", "50% volume"
+                    Regex("(\\d+)\\s*(?:%|percent|por ?ciento)?\\s*(?:de )?(?:volumen|volume)", RegexOption.IGNORE_CASE),
+                    // "volumen 50", "volume 50" (número después de volumen)
+                    Regex("(?:volumen|volume)\\s+(\\d+)(?:\\s*%)?", RegexOption.IGNORE_CASE)
+                )
+            ) { match ->
+                val level = match.groupValues.getOrNull(1)?.toIntOrNull()
+                if (level != null) mapOf("level" to level.toString()) else emptyMap()
+            },
+
+            SemanticPattern(
+                "volume_up",
+                listOf(
+                    Regex("(?:sube|subir|más alto|louder|turn up|volume up|aumenta|increase).*(?:volumen|volume|sonido|sound)?", RegexOption.IGNORE_CASE),
+                    Regex("(?:volumen|volume|sonido).*(?:arriba|up|más|more|alto)", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            SemanticPattern(
+                "volume_down",
+                listOf(
+                    Regex("(?:baja|bajar|más bajo|quieter|softer|turn down|volume down|reduce|disminuye).*(?:volumen|volume|sonido|sound)?", RegexOption.IGNORE_CASE),
+                    Regex("(?:volumen|volume|sonido).*(?:abajo|down|menos|less|bajo)", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            // Información
+            SemanticPattern(
+                "whats_playing",
+                listOf(
+                    Regex("(?:qué|que|what|which).*(?:suena|canción|song|playing|sonando|escuchando|track)", RegexOption.IGNORE_CASE),
+                    Regex("(?:cómo|como|how).*(?:llama|call|nombre|name).*(?:canción|song|esta|this)", RegexOption.IGNORE_CASE),
+                    Regex("(?:dime|tell me).*(?:canción|song|qué|what)", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            SemanticPattern(
+                "who_sings",
+                listOf(
+                    Regex("(?:quién|quien|who).*(?:canta|sings|artista|artist|interpreta)", RegexOption.IGNORE_CASE),
+                    Regex("(?:de quién|de quien|whose|by whom).*(?:es|is).*(?:canción|song|esta|this)?", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            // Shuffle
+            SemanticPattern(
+                "shuffle",
+                listOf(
+                    Regex("(?:mezcla|shuffle|random|aleatorio|mix|revuelve|desordena)", RegexOption.IGNORE_CASE)
+                )
+            ),
+
+            // Ayuda
+            SemanticPattern(
+                "help",
+                listOf(
+                    Regex("(?:ayuda|help|comandos|commands|qué puedo|what can|opciones|options)", RegexOption.IGNORE_CASE)
+                )
+            )
+        )
+    }
+
+    /**
+     * Limpia el texto de query eliminando palabras innecesarias
+     */
+    private fun cleanQueryText(query: String): String {
+        val stopWords = listOf(
+            // English
+            "something", "anything", "some", "a", "the", "from", "by", "of",
+            "please", "pls", "plz", "thanks", "thank you",
+            "i want", "i wanna", "i'd like", "can you", "could you",
+            "play me", "put on", "give me",
+            // Spanish
+            "algo", "alguna", "algún", "algun", "una", "un", "el", "la", "los", "las",
+            "de", "del", "por favor", "porfa", "porfavor", "gracias",
+            "quiero", "quisiera", "me gustaría", "puedes", "podrías",
+            "ponme", "dame", "pon",
+            // Catalan
+            "alguna cosa", "una", "un", "el", "la", "els", "les",
+            "de", "del", "si us plau", "sisplau", "gràcies"
+        )
+
+        var cleaned = query.lowercase().trim()
+
+        // Eliminar stop words del inicio
+        for (sw in stopWords.sortedByDescending { it.length }) {
+            if (cleaned.startsWith("$sw ")) {
+                cleaned = cleaned.removePrefix("$sw ").trim()
+            }
+        }
+
+        // Eliminar stop words del final
+        for (sw in stopWords.sortedByDescending { it.length }) {
+            if (cleaned.endsWith(" $sw")) {
+                cleaned = cleaned.removeSuffix(" $sw").trim()
+            }
+        }
+
+        return cleaned.trim()
+    }
+
+    /**
+     * Intenta hacer match con patrones semánticos
+     */
+    private fun matchSemanticPatterns(text: String): IntentResult? {
+        for (pattern in semanticPatterns) {
+            for (regex in pattern.patterns) {
+                val match = regex.find(text)
+                if (match != null) {
+                    val entities = pattern.entityExtractor?.invoke(match) ?: emptyMap()
+                    Log.d(TAG, "Semantic match: ${pattern.intent} with entities: $entities")
+                    return IntentResult(pattern.intent, 0.85f, entities)
+                }
+            }
+        }
+        return null
+    }
+
+    // ==================== INTENT INFERENCE ====================
+
     init {
         try {
             Class.forName("ai.onnxruntime.OnnxTensor")
@@ -89,7 +356,8 @@ class AssistantManager(private val context: Context) {
                         val bytes = am.open(assetName).use { it.readBytes() }
                         ortEnv?.createSession(bytes)
                     } catch (ex: Exception) {
-                        Log.i("AssistantManager", "Model $assetName not found: ${ex.message}")
+                        // Models are optional - silently skip if not found
+                        Log.v(TAG, "Optional model $assetName not available")
                         null
                     }
                 }
@@ -97,9 +365,10 @@ class AssistantManager(private val context: Context) {
                 sessionNer = loadSession("assistant_ner.onnx")
                 if (sessionIntent == null && sessionNer == null) {
                     onnxAvailable = false
+                    Log.d(TAG, "ONNX models not found, using rule-based NLU")
                 }
             } catch (ex: Throwable) {
-                Log.i("AssistantManager", "ONNX init failed: ${ex.message}")
+                Log.d(TAG, "ONNX runtime not available, using rule-based NLU")
                 onnxAvailable = false
             }
         }
@@ -109,6 +378,9 @@ class AssistantManager(private val context: Context) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return IntentResult("none", 1f)
 
+        Log.d(TAG, "Analyzing: \"$trimmed\"")
+
+        // 1. Intentar con ONNX si está disponible
         if (onnxAvailable && sessionIntent != null && ortEnv != null) {
             try {
                 val inputName = sessionIntent!!.inputNames.iterator().next()
@@ -120,9 +392,15 @@ class AssistantManager(private val context: Context) {
                         val value = first.value
                         if (value is Array<*>) {
                             val maybe = value.firstOrNull() as? String
-                            if (!maybe.isNullOrBlank()) return IntentResult(maybe, 0.95f)
+                            if (!maybe.isNullOrBlank()) {
+                                Log.d(TAG, "ONNX result: $maybe")
+                                return IntentResult(maybe, 0.95f)
+                            }
                         } else if (value is String) {
-                            if (value.isNotBlank()) return IntentResult(value, 0.95f)
+                            if (value.isNotBlank()) {
+                                Log.d(TAG, "ONNX result: $value")
+                                return IntentResult(value, 0.95f)
+                            }
                         }
                     }
                 } finally {
@@ -130,9 +408,17 @@ class AssistantManager(private val context: Context) {
                     try { tensor.close() } catch (_: Exception) {}
                 }
             } catch (e: Exception) {
-                Log.i("AssistantManager", "ONNX intent inference failed: ${e.message}")
+                Log.i(TAG, "ONNX intent inference failed: ${e.message}")
             }
         }
+
+        // 2. Intentar con patrones semánticos (más flexibles)
+        val semanticResult = matchSemanticPatterns(trimmed)
+        if (semanticResult != null) {
+            return semanticResult
+        }
+
+        // 3. Fallback a análisis basado en reglas con fuzzy matching
         return ruleBasedAnalysis(trimmed)
     }
 
@@ -143,6 +429,18 @@ class AssistantManager(private val context: Context) {
         val quoted = quoteRegex.find(text)?.groups?.get(1)?.value
 
         fun containsAny(triggerKey: String): Boolean {
+            val triggers = getTriggers(triggerKey)
+            // Primero intentar match exacto
+            if (triggers.any { lower.contains(it) }) return true
+            // Luego fuzzy match
+            val (found, score) = fuzzyContains(lower, triggers)
+            if (found) {
+                Log.d(TAG, "Fuzzy match for $triggerKey with score $score")
+            }
+            return found
+        }
+
+        fun containsAnyExact(triggerKey: String): Boolean {
             return getTriggers(triggerKey).any { lower.contains(it) }
         }
 
@@ -157,7 +455,37 @@ class AssistantManager(private val context: Context) {
             return null
         }
 
-        // Extraer número del texto (para volumen, temporizador, etc.)
+        // Extractor de entidades mejorado
+        fun extractMusicEntity(text: String): String? {
+            // Patrones para extraer artista/canción
+            val patterns = listOf(
+                // "de X", "by X", "from X"
+                Regex("(?:de|by|from|del)\\s+(.+?)(?:\\s+(?:por favor|please))?$", RegexOption.IGNORE_CASE),
+                // Contenido entre comillas
+                Regex("\"(.+?)\""),
+                Regex("'(.+?)'"),
+                // Después de verbos de reproducción
+                Regex("(?:play|pon|reproduce|escucha|toca)\\s+(.+?)(?:\\s+(?:por favor|please))?$", RegexOption.IGNORE_CASE)
+            )
+
+            for (pattern in patterns) {
+                val match = pattern.find(text)
+                if (match != null && match.groupValues.size > 1) {
+                    val extracted = cleanQueryText(match.groupValues[1])
+                    if (extracted.isNotBlank() && extracted.length > 1) {
+                        return extracted
+                    }
+                }
+            }
+            return null
+        }
+
+        // Limpiar frases comunes que no son parte del artista/canción
+        fun cleanQuery(query: String): String {
+            return cleanQueryText(query)
+        }
+
+        // Extraer número del texto
         fun extractNumber(): Int? {
             val numberRegex = "(\\d+)".toRegex()
             return numberRegex.find(lower)?.groups?.get(1)?.value?.toIntOrNull()
@@ -165,7 +493,6 @@ class AssistantManager(private val context: Context) {
 
         // Extraer tiempo para sleep timer
         fun extractTime(): Pair<Int, String>? {
-            // "en 30 minutos", "in 30 minutes"
             val minutesRegex = "(\\d+)\\s*(minuto|minute|min)".toRegex()
             val hoursRegex = "(\\d+)\\s*(hora|hour|h)".toRegex()
             val atTimeRegex = "(\\d{1,2})[:\\.]?(\\d{2})?".toRegex()
@@ -176,7 +503,6 @@ class AssistantManager(private val context: Context) {
             hoursRegex.find(lower)?.let {
                 return Pair(it.groups[1]?.value?.toIntOrNull() ?: 0, "hours")
             }
-            // "a las 11", "at 11"
             if (lower.contains("a las") || lower.contains("at ")) {
                 atTimeRegex.find(lower)?.let {
                     val hour = it.groups[1]?.value?.toIntOrNull() ?: return null
@@ -188,9 +514,9 @@ class AssistantManager(private val context: Context) {
         }
 
         // Detectar comandos compuestos
-        val hasNext = containsAny("assistant_triggers_next")
-        val hasVolumeUp = containsAny("assistant_triggers_volume_up")
-        val hasVolumeDown = containsAny("assistant_triggers_volume_down")
+        val hasNext = containsAnyExact("assistant_triggers_next")
+        val hasVolumeUp = containsAnyExact("assistant_triggers_volume_up")
+        val hasVolumeDown = containsAnyExact("assistant_triggers_volume_down")
 
         if (hasNext && (hasVolumeUp || hasVolumeDown)) {
             return IntentResult("compound", 0.9f, mapOf(
@@ -271,8 +597,15 @@ class AssistantManager(private val context: Context) {
                 else IntentResult("add_queue")
             }
             containsAny("assistant_triggers_play") -> {
-                val after = extractAfter("assistant_triggers_play") ?: quoted
-                if (!after.isNullOrBlank()) IntentResult("play_search", 0.9f, mapOf("query" to after))
+                val after = extractAfter("assistant_triggers_play") ?: quoted ?: extractMusicEntity(text)
+                if (!after.isNullOrBlank()) {
+                    val cleanedQuery = cleanQuery(after)
+                    if (cleanedQuery.isNotBlank()) {
+                        IntentResult("play_search", 0.9f, mapOf("query" to cleanedQuery))
+                    } else {
+                        IntentResult("play", 0.9f)
+                    }
+                }
                 else IntentResult("play", 0.9f)
             }
             containsAny("assistant_triggers_resume") -> IntentResult("play")
@@ -282,9 +615,19 @@ class AssistantManager(private val context: Context) {
                 else IntentResult("search", 0.6f)
             }
             containsAny("assistant_triggers_settings") -> IntentResult("settings")
+
+            // Fallback: si hay comillas, asumir que quiere reproducir
+            !quoted.isNullOrBlank() -> IntentResult("play_search", 0.8f, mapOf("query" to quoted))
+
+            // Último intento: extraer entidad musical del texto completo
             else -> {
-                if (!quoted.isNullOrBlank()) IntentResult("play_search", 0.9f, mapOf("query" to quoted))
-                else IntentResult("unknown")
+                val entity = extractMusicEntity(text)
+                if (!entity.isNullOrBlank()) {
+                    Log.d(TAG, "Fallback entity extraction: $entity")
+                    IntentResult("play_search", 0.7f, mapOf("query" to entity))
+                } else {
+                    IntentResult("unknown")
+                }
             }
         }
     }
@@ -411,8 +754,8 @@ class AssistantManager(private val context: Context) {
             when (result.intent) {
                 "help" -> {
                     val commands = getAvailableCommands()
-                    val list = commands.joinToString("\n") { "• ${it.first}: ${it.second}" }
-                    "${t("assistant_commands_available")}\n$list"
+                    val list = commands.map { it.first }.joinToString(" / ")
+                    list
                 }
                 "whats_playing" -> {
                     val track = playerViewModel.currentTrack.value
@@ -596,6 +939,7 @@ class AssistantManager(private val context: Context) {
                 "settings" -> t("assistant_open_settings")
                 "play_search" -> {
                     val q = result.entities["query"] ?: ""
+                    Log.d("AssistantManager", "play_search query: \"$q\"")
                     if (q.isBlank()) return t("assistant_what_play")
                     val track = createTrackFromSpotify(q, "assistant_${System.currentTimeMillis()}")
                         ?: return String.format(t("assistant_no_results"), q)

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +71,33 @@ fun HomeScreen(
     var assistantResponse by remember { mutableStateOf("") }
     var displayedResponse by remember { mutableStateOf("") }
     var isTyping by remember { mutableStateOf(false) }
+
+    // Animación CAVA para procesamiento
+    val processingFrames = listOf(
+        "▃▇▁▆▂█▄",
+        "▆▂▅▁▇▃█",
+        "▁▄█▃▆▅▂",
+        "▇▅▂▄▁█▃",
+        "▂█▆▇▄▁▅",
+        "▅▁▃▂▇▄▆",
+        "█▃▄▅▂▆▁",
+        "▄▆▇▁▅▂█",
+        "▃▂▆▄█▇▁",
+        "▆▄▁▇▃▅█",
+        "▁▇▅█▂▃▄",
+        "▇▃█▂▆▁▅"
+    )
+    var processingFrame by remember { mutableStateOf(0) }
+
+    // Animar el frame de procesamiento
+    LaunchedEffect(isProcessing) {
+        if (isProcessing) {
+            while (isProcessing) {
+                delay(100)
+                processingFrame = (processingFrame + 1) % processingFrames.size
+            }
+        }
+    }
 
     val pullProgress = (pullOffset / maxPullPx).coerceIn(0f, 1f)
     val scope = rememberCoroutineScope()
@@ -339,7 +365,7 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 140.dp)
+                        .padding(bottom = 100.dp)
                         .padding(horizontal = 24.dp)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -347,29 +373,11 @@ fun HomeScreen(
                         }
                 ) {
                     if (isProcessing) {
-                        Row(
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = MaterialTheme.colorScheme.primary,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = Translations.get(context, "assistant_processing"),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            if (recognizedCommand.isNotBlank()) {
-                                Text(
-                                    text = " → $recognizedCommand",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
+                        Text(
+                            text = processingFrames[processingFrame],
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     } else {
                         Text(
                             text = displayedResponse + if (isTyping) "▌" else "",

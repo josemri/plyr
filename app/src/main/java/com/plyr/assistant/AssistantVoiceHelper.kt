@@ -19,6 +19,10 @@ class AssistantVoiceHelper(private val context: Context) {
     @Volatile
     private var isCancelled = false
 
+    companion object {
+        private const val TAG = "AssistantVoice"
+    }
+
     interface VoiceListener {
         fun onPartial(text: String)
         fun onResult(text: String)
@@ -32,13 +36,19 @@ class AssistantVoiceHelper(private val context: Context) {
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
                 speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {
+                        Log.d(TAG, "Ready for speech")
                         if (!isCancelled) listener?.onReady()
                     }
-                    override fun onBeginningOfSpeech() {}
+                    override fun onBeginningOfSpeech() {
+                        Log.d(TAG, "Beginning of speech detected")
+                    }
                     override fun onRmsChanged(rmsdB: Float) {}
                     override fun onBufferReceived(buffer: ByteArray?) {}
-                    override fun onEndOfSpeech() {}
+                    override fun onEndOfSpeech() {
+                        Log.d(TAG, "End of speech detected")
+                    }
                     override fun onError(error: Int) {
+                        Log.e(TAG, "Recognition error: $error")
                         if (!isCancelled) listener?.onError(error)
                     }
 
@@ -46,6 +56,7 @@ class AssistantVoiceHelper(private val context: Context) {
                         if (isCancelled) return
                         val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         val text = matches?.firstOrNull() ?: ""
+                        Log.d(TAG, "Final result: \"$text\"")
                         listener?.onResult(text)
                     }
 
@@ -53,6 +64,7 @@ class AssistantVoiceHelper(private val context: Context) {
                         if (isCancelled) return
                         val partials = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                         val text = partials?.firstOrNull() ?: ""
+                        Log.d(TAG, "Partial result: \"$text\"")
                         listener?.onPartial(text)
                     }
 
@@ -91,6 +103,10 @@ class AssistantVoiceHelper(private val context: Context) {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, langCode)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, langCode)
+            // Apagar micrófono tras 1.5 segundos de silencio
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500L)
         }
         try {
             sr.startListening(intent)
