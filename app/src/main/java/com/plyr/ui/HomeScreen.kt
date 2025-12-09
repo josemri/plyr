@@ -4,12 +4,11 @@ import android.content.Context
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
@@ -65,15 +64,14 @@ fun HomeScreen(
     var isListening by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
     var interimText by remember { mutableStateOf("") }
-    var recognizedCommand by remember { mutableStateOf("") }
 
     // Assistant response with typewriter effect
     var assistantResponse by remember { mutableStateOf("") }
     var displayedResponse by remember { mutableStateOf("") }
     var isTyping by remember { mutableStateOf(false) }
 
-    // Animación CAVA para procesamiento
-    val processingFrames = listOf(
+    // Animación CAVA para escucha y procesamiento
+    val animationFrames = listOf(
         "▃▇▁▆▂█▄",
         "▆▂▅▁▇▃█",
         "▁▄█▃▆▅▂",
@@ -87,19 +85,29 @@ fun HomeScreen(
         "▁▇▅█▂▃▄",
         "▇▃█▂▆▁▅"
     )
-    var processingFrame by remember { mutableStateOf(0) }
+    var animationFrame by remember { mutableStateOf(0) }
 
-    // Animar el frame de procesamiento
-    LaunchedEffect(isProcessing) {
-        if (isProcessing) {
-            while (isProcessing) {
+    // Animar durante escucha o procesamiento
+    LaunchedEffect(isListening, isProcessing) {
+        if (isListening || isProcessing) {
+            while (isListening || isProcessing) {
                 delay(100)
-                processingFrame = (processingFrame + 1) % processingFrames.size
+                animationFrame = (animationFrame + 1) % animationFrames.size
             }
         }
     }
 
-    val pullProgress = (pullOffset / maxPullPx).coerceIn(0f, 1f)
+    // Auto-dismiss de la respuesta después de 8 segundos
+    LaunchedEffect(displayedResponse, isTyping) {
+        if (displayedResponse.isNotEmpty() && !isTyping) {
+            delay(8000)
+            if (displayedResponse.isNotEmpty() && !isTyping) {
+                assistantResponse = ""
+                displayedResponse = ""
+            }
+        }
+    }
+
     val scope = rememberCoroutineScope()
     val assistantVoiceHelper = remember { AssistantVoiceHelper(context) }
     val assistantManager = remember { AssistantManager(context) }
@@ -110,15 +118,15 @@ fun HomeScreen(
         if (assistantResponse.isNotEmpty()) {
             isTyping = true
             displayedResponse = ""
-            val responseToType = assistantResponse // Store local copy
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            val responseToType = assistantResponse
             for (i in responseToType.indices) {
-                // Check if response was cleared during typing
                 if (assistantResponse.isEmpty()) {
                     displayedResponse = ""
                     break
                 }
                 displayedResponse = responseToType.substring(0, i + 1)
-                delay(20) // velocidad de escritura
+                delay(20)
             }
             isTyping = false
         }
@@ -150,35 +158,13 @@ fun HomeScreen(
                 isProcessing = true
                 interimText = ""
 
-                // analyze + perform and show response
                 scope.launch {
                     val result = withContext(Dispatchers.Default) { assistantManager.analyze(text) }
-
-                    // Mostrar comando entendido
-                    recognizedCommand = when(result.intent) {
-                        "play" -> Translations.get(context, "assistant_cmd_play")
-                        "pause" -> Translations.get(context, "assistant_cmd_pause")
-                        "next" -> Translations.get(context, "assistant_cmd_next")
-                        "previous" -> Translations.get(context, "assistant_cmd_previous")
-                        "play_search" -> "${Translations.get(context, "assistant_cmd_play_song")}: ${result.entities["query"] ?: ""}"
-                        "volume_up" -> Translations.get(context, "assistant_cmd_volume") + " ↑"
-                        "volume_down" -> Translations.get(context, "assistant_cmd_volume") + " ↓"
-                        "shuffle" -> Translations.get(context, "assistant_cmd_shuffle")
-                        "sleep_timer" -> Translations.get(context, "assistant_cmd_sleep_timer")
-                        "who_sings" -> Translations.get(context, "assistant_cmd_who_sings")
-                        else -> result.intent
-                    }
-
                     val vm = playerViewModel ?: return@launch
                     val reply = withContext(Dispatchers.Default) { assistantManager.perform(result, vm) }
 
                     isProcessing = false
-                    recognizedCommand = ""
-
-                    // Show response with typewriter effect
                     assistantResponse = reply
-
-                    // Speak the response
                     assistantTTS.speak(reply)
                 }
             }
@@ -186,9 +172,10 @@ fun HomeScreen(
                 isListening = false
                 isProcessing = false
                 interimText = ""
-                recognizedCommand = ""
             }
-            override fun onReady() {}
+            override fun onReady() {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
         }
         assistantVoiceHelper.setListener(listener)
         onDispose {
@@ -214,8 +201,7 @@ fun HomeScreen(
                                 overlayVisible = true
                             }
                         },
-                        onVerticalDrag = { change, dragAmount ->
-                            // If response is visible and user scrolls up, dismiss it
+                        onVerticalDrag = { _, dragAmount ->
                             if (assistantResponse.isNotEmpty() && dragAmount < 0) {
                                 dismissResponse()
                                 return@detectVerticalDragGestures
@@ -230,6 +216,7 @@ fun HomeScreen(
                             if (!overlayVisible) return@detectVerticalDragGestures
                             val pulledEnough = pullOffset >= activationPx
                             if (pulledEnough) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 assistantTTS.stop()
                                 dismissResponse()
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -270,7 +257,7 @@ fun HomeScreen(
             val asciiResIds = remember {
                 val ids = mutableListOf<Int>()
                 for (i in 1..50) {
-                    val name = "ascii_" + i
+                    val name = "ascii_$i"
                     val resId = context.resources.getIdentifier(name, "drawable", context.packageName)
                     if (resId != 0) ids.add(resId)
                 }
@@ -300,7 +287,7 @@ fun HomeScreen(
                     }
                     Image(
                         painter = painter,
-                        contentDescription = null,
+                        contentDescription = Translations.get(context, "app_logo"),
                         contentScale = ContentScale.Fit,
                         colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
                         modifier = imgModifier
@@ -309,40 +296,40 @@ fun HomeScreen(
                 }
 
                 // ActionButtonsGroup
-                val buttons = mutableListOf(
-                     ActionButtonData(
-                         text = "< ${Translations.get(context, "home_search")} >",
-                         color = MaterialTheme.colorScheme.primary,
-                         onClick = {
-                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                             onNavigateToScreen(Screen.SEARCH)
-                         }
-                     ),
-                     ActionButtonData(
-                         text = "< ${Translations.get(context, "home_playlists")} >",
-                         color = MaterialTheme.colorScheme.primary,
-                         onClick = {
-                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                             onNavigateToScreen(Screen.PLAYLISTS)
-                         }
-                     ),
-                     ActionButtonData(
-                         text = "< ${Translations.get(context, "home_queue")} >",
-                         color = MaterialTheme.colorScheme.primary,
-                         onClick = {
-                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                             onNavigateToScreen(Screen.QUEUE)
-                         }
-                     ),
-                     ActionButtonData(
-                         text = "< ${Translations.get(context, "home_local")} >",
-                         color = MaterialTheme.colorScheme.primary,
-                         onClick = {
-                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                             onNavigateToScreen(Screen.LOCAL)
-                         }
-                     )
-                 )
+                val buttons = listOf(
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_search")} >",
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.SEARCH)
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_playlists")} >",
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.PLAYLISTS)
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_queue")} >",
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.QUEUE)
+                        }
+                    ),
+                    ActionButtonData(
+                        text = "< ${Translations.get(context, "home_local")} >",
+                        color = MaterialTheme.colorScheme.primary,
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.LOCAL)
+                        }
+                    )
+                )
 
                 ActionButtonsGroup(
                     buttons = buttons,
@@ -360,43 +347,64 @@ fun HomeScreen(
                 }
             }
 
-            // Assistant response overlay (positioned at bottom, doesn't affect button layout)
+            // Assistant response overlay with fade animation
             if (displayedResponse.isNotEmpty() || isProcessing) {
-                Box(
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = displayedResponse.isNotEmpty() || isProcessing,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 100.dp)
                         .padding(horizontal = 24.dp)
-                        .clickable {
+                ) {
+                    Text(
+                        text = if (isProcessing) animationFrames[animationFrame]
+                               else displayedResponse + if (isTyping) "▌" else "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             dismissResponse()
                         }
-                ) {
-                    if (isProcessing) {
-                        Text(
-                            text = processingFrames[processingFrame],
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        Text(
-                            text = displayedResponse + if (isTyping) "▌" else "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    )
                 }
             }
 
             // Overlay mic animation coming from top
             if (overlayVisible || isListening) {
-                Box(modifier = Modifier
-                    .fillMaxWidth()
-                    .offset(y = if (isListening) 12.dp else (-24).dp + (pullOffset / density.density).dp),
-                    contentAlignment = Alignment.TopCenter
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = overlayVisible || isListening,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = if (isListening) 12.dp else (-24).dp + (pullOffset / density.density).dp)
+                        .align(Alignment.TopCenter)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         if (isListening) {
+                            // Animación CAVA mientras escucha
+                            Text(
+                                text = animationFrames[animationFrame],
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (interimText.isNotBlank()) {
+                                Text(
+                                    text = interimText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+
                             IconButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -407,28 +415,15 @@ fun HomeScreen(
                             ) {
                                 Icon(
                                     Icons.Filled.Close,
-                                    contentDescription = "Cancel",
+                                    contentDescription = Translations.get(context, "cancel"),
                                     tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-
-                            if (interimText.isNotBlank()) {
-                                Text(
-                                    text = interimText,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
-                                )
-                            } else {
-                                Text(
-                                    text = Translations.get(context, "assistant_listening"),
-                                    style = MaterialTheme.typography.bodySmall
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         } else {
                             Icon(
                                 Icons.Filled.Mic,
-                                contentDescription = "Mic",
+                                contentDescription = Translations.get(context, "assistant"),
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
