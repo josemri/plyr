@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import com.plyr.model.AudioItem
 import com.plyr.viewmodel.PlayerViewModel
+import com.plyr.assistant.AssistantChatScreen
 
 // Estados para navegación
 enum class Screen {
@@ -13,7 +14,8 @@ enum class Screen {
     QUEUE,
     CONFIG,
     PLAYLISTS,
-    LOCAL
+    LOCAL,
+    ASSISTANT
 }
 
 @Stable
@@ -33,7 +35,11 @@ fun AudioListScreen(
     }
 
     when (currentScreen) {
-        Screen.HOME -> HomeScreen(context) { screen -> currentScreen = screen }
+        Screen.HOME -> HomeScreen(
+            context = context,
+            playerViewModel = playerViewModel,
+            onNavigateToScreen = { screen -> currentScreen = screen }
+        )
         Screen.SEARCH -> SearchScreen(
             context = context,
             onVideoSelectedFromSearch = onVideoSelectedFromSearch,
@@ -55,6 +61,11 @@ fun AudioListScreen(
             playerViewModel = playerViewModel
         )
         Screen.LOCAL -> LocalScreen(
+            onBack = { currentScreen = Screen.HOME },
+            playerViewModel = playerViewModel
+        )
+        Screen.ASSISTANT -> AssistantChatScreen(
+            context = context,
             onBack = { currentScreen = Screen.HOME },
             playerViewModel = playerViewModel
         )

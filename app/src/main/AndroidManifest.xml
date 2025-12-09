@@ -11,6 +11,8 @@
         android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Permiso para entrada por voz -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:ignore="ForegroundServicesPolicy" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
