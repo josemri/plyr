@@ -7,6 +7,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import com.plyr.utils.Config
 
 /**
  * Helper wrapper around Android SpeechRecognizer to simplify usage.
@@ -64,6 +65,19 @@ class AssistantVoiceHelper(private val context: Context) {
         }
     }
 
+    /**
+     * Convierte el idioma de la app al código de idioma para el reconocimiento de voz
+     */
+    private fun getLanguageCode(): String {
+        return when (Config.getLanguage(context)) {
+            "español" -> "es-ES"
+            "english" -> "en-US"
+            "català" -> "ca-ES"
+            "日本語" -> "ja-JP"
+            else -> "es-ES"
+        }
+    }
+
     fun setListener(l: VoiceListener?) {
         listener = l
     }
@@ -71,10 +85,12 @@ class AssistantVoiceHelper(private val context: Context) {
     fun startListening(language: String? = null) {
         isCancelled = false
         val sr = speechRecognizer ?: return
+        val langCode = language ?: getLanguageCode()
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            language?.let { putExtra(RecognizerIntent.EXTRA_LANGUAGE, it) }
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, langCode)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, langCode)
         }
         try {
             sr.startListening(intent)

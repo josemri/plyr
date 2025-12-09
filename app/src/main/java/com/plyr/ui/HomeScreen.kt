@@ -4,14 +4,19 @@ import android.content.Context
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,9 +48,7 @@ import androidx.compose.material.icons.filled.Close
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.assistant.AssistantVoiceHelper
 import com.plyr.assistant.AssistantManager
-import com.plyr.assistant.AssistantStorage
 import com.plyr.assistant.AssistantTTSHelper
-import com.plyr.assistant.ChatMessage
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -59,15 +62,19 @@ fun HomeScreen(
 
     // pull-down related states
     val density = LocalDensity.current
-    val bottomExclusionPx = with(density) { 120.dp.toPx() } // Excluir zona inferior para FloatingMusicControl
+    val bottomExclusionPx = with(density) { 120.dp.toPx() }
     val maxPullPx = with(density) { 200.dp.toPx() }
     val activationPx = with(density) { 60.dp.toPx() }
-    val holdMs = 800L
 
     var pullOffset by remember { mutableStateOf(0f) }
     var overlayVisible by remember { mutableStateOf(false) }
     var isListening by remember { mutableStateOf(false) }
     var interimText by remember { mutableStateOf("") }
+
+    // Notification state
+    var notificationText by remember { mutableStateOf("") }
+    var notificationVisible by remember { mutableStateOf(false) }
+    var notificationDismissOffset by remember { mutableStateOf(0f) }
 
     val pullProgress = (pullOffset / maxPullPx).coerceIn(0f, 1f)
     val animatedScale by animateFloatAsState(targetValue = 0.8f + 0.4f * pullProgress)
@@ -76,7 +83,7 @@ fun HomeScreen(
     val assistantManager = remember { AssistantManager(context) }
     val assistantTTS = remember { AssistantTTSHelper(context) }
 
-    // Permission launcher: if granted, start listening immediately
+    // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             isListening = true
@@ -84,7 +91,13 @@ fun HomeScreen(
         }
     }
 
-    var holdJob by remember { mutableStateOf<Job?>(null) }
+    // Function to dismiss notification and stop TTS
+    fun dismissNotification() {
+        notificationVisible = false
+        notificationText = ""
+        notificationDismissOffset = 0f
+        assistantTTS.stop()
+    }
 
     // Voice listener setup
     DisposableEffect(Unit) {
@@ -95,26 +108,19 @@ fun HomeScreen(
             override fun onResult(text: String) {
                 isListening = false
                 interimText = ""
-                // persist and process result
-                val userMsg = ChatMessage("user", text)
-                val messages = AssistantStorage.loadChat(context).toMutableList()
-                messages.add(userMsg)
-                AssistantStorage.saveChat(context, messages)
 
-                // analyze + perform and save reply
+                // analyze + perform and show as notification
                 scope.launch {
                     val result = withContext(Dispatchers.Default) { assistantManager.analyze(text) }
-                    val vm = playerViewModel
-                    if (vm == null) {
-                        return@launch
-                    }
+                    val vm = playerViewModel ?: return@launch
                     val reply = withContext(Dispatchers.Default) { assistantManager.perform(result, vm) }
-                    val assistantMsg = ChatMessage("assistant", reply)
-                    val msgs2 = AssistantStorage.loadChat(context).toMutableList()
-                    msgs2.add(assistantMsg)
-                    AssistantStorage.saveChat(context, msgs2)
 
-                    // Reproducir la respuesta por audio
+                    // Show notification
+                    notificationText = reply
+                    notificationVisible = true
+                    notificationDismissOffset = 0f
+
+                    // Speak the response
                     assistantTTS.speak(reply)
                 }
             }
@@ -122,9 +128,7 @@ fun HomeScreen(
                 isListening = false
                 interimText = ""
             }
-            override fun onReady() {
-                // no-op
-            }
+            override fun onReady() {}
         }
         assistantVoiceHelper.setListener(listener)
         onDispose {
@@ -134,17 +138,13 @@ fun HomeScreen(
         }
     }
 
-    // Language pulldown gesture on the top of the Box
-
     PlyrScreenContainer {
-        val verticalScrollState = rememberScrollState()
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
                         onDragStart = { offset: Offset ->
-                            // start from anywhere except bottom area (FloatingMusicControl)
                             pullOffset = 0f
                             val screenHeight = size.height.toFloat()
                             if (offset.y > (screenHeight - bottomExclusionPx)) {
@@ -154,39 +154,32 @@ fun HomeScreen(
                             }
                         },
                         onVerticalDrag = { change, dragAmount ->
+                            // If notification is visible and user scrolls up, dismiss it
+                            if (notificationVisible && dragAmount < 0) {
+                                notificationDismissOffset += dragAmount
+                                if (notificationDismissOffset < -50f) {
+                                    dismissNotification()
+                                }
+                                return@detectVerticalDragGestures
+                            }
+
                             if (!overlayVisible) return@detectVerticalDragGestures
                             // Aplicar resistencia más fuerte: cuanto más se arrastra, más resistencia hay
                             val resistance = 0.3f - (pullOffset / maxPullPx) * 0.2f
                             val dampedDrag = dragAmount * resistance
                             pullOffset = (pullOffset + dampedDrag).coerceIn(0f, maxPullPx * 0.5f)
-                            // start hold job if passed activation threshold
-                            if (pullOffset >= activationPx && holdJob == null) {
-                                holdJob = scope.launch {
-                                    // wait for holdMs; if still pulled, navigate to chat
-                                    delay(holdMs)
-                                    if (overlayVisible && pullOffset >= activationPx) {
-                                        overlayVisible = false
-                                        pullOffset = 0f
-                                        onNavigateToScreen(Screen.ASSISTANT)
-                                    }
-                                }
-                            }
-                            // cancel hold if released below threshold
-                            if (pullOffset < activationPx) {
-                                holdJob?.cancel()
-                                holdJob = null
-                            }
                         },
                         onDragEnd = {
                             if (!overlayVisible) return@detectVerticalDragGestures
                             val pulledEnough = pullOffset >= activationPx
-                            // If holdJob is active and not completed, cancel it (we handle hold inside the job)
-                            holdJob?.cancel()
-                            holdJob = null
                             if (pulledEnough) {
-                                // Detener TTS si está sonando
+                                // Stop TTS if playing
                                 assistantTTS.stop()
-                                // Quick release => start voice
+                                // Dismiss notification if showing
+                                if (notificationVisible) {
+                                    dismissNotification()
+                                }
+                                // Start voice
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 } else {
@@ -244,7 +237,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Imagen ASCII centrada arriba de los botones
+                // ASCII image
                 if (selectedRes != 0) {
                     val painter = painterResource(id = selectedRes)
                     val intrinsic = painter.intrinsicSize
@@ -264,7 +257,7 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(32.dp))
                 }
 
-                // ActionButtonsGroup centrado
+                // ActionButtonsGroup
                 val buttons = mutableListOf(
                      ActionButtonData(
                          text = "< ${Translations.get(context, "home_search")} >",
@@ -325,7 +318,6 @@ fun HomeScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         if (isListening) {
-                            // Mostrar X para cancelar cuando está escuchando
                             IconButton(
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -344,10 +336,9 @@ fun HomeScreen(
                             if (interimText.isNotBlank()) {
                                 Text(interimText, style = MaterialTheme.typography.bodySmall)
                             } else {
-                                Text("Escuchando...", style = MaterialTheme.typography.bodySmall)
+                                Text(Translations.get(context, "assistant_listening"), style = MaterialTheme.typography.bodySmall)
                             }
                         } else {
-                            // Mostrar micro cuando está arrastrando
                             Icon(
                                 Icons.Filled.Mic,
                                 contentDescription = "Mic",
@@ -359,6 +350,67 @@ fun HomeScreen(
                 }
             }
 
+            // Notification overlay at bottom
+            if (notificationVisible) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = notificationVisible,
+                    enter = slideInVertically(initialOffsetY = { it }),
+                    exit = slideOutVertically(targetOffsetY = { it }),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 140.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        tonalElevation = 4.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures(
+                                    onVerticalDrag = { _, dragAmount ->
+                                        if (dragAmount < 0) {
+                                            notificationDismissOffset += dragAmount
+                                            if (notificationDismissOffset < -50f) {
+                                                dismissNotification()
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        if (notificationDismissOffset > -50f) {
+                                            notificationDismissOffset = 0f
+                                        }
+                                    }
+                                )
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = notificationText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { dismissNotification() },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
