@@ -21,7 +21,6 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.set
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
-import com.plyr.utils.NfcShareHelper
 import com.plyr.utils.Translations
 
 data class ShareableItem(
@@ -48,21 +47,6 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
         else -> null
     }
 
-    // Estado para compartir por NFC desde este diálogo
-    var nfcSharingEnabled by remember { mutableStateOf(false) }
-
-    // Asegurar que al cerrar el diálogo se desactive el envío NFC si estaba activo
-    DisposableEffect(Unit) {
-        onDispose {
-            if (nfcSharingEnabled) {
-                try {
-                    NfcShareHelper.disableNfcPush(context)
-                } catch (_: Exception) {
-                    // ignore
-                }
-            }
-        }
-    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -115,40 +99,6 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
                 ) {
-                    // Botón NFC: comparte la misma URL por NDEF push
-                    if (shareUrl != null) {
-                        Text(
-                            text = Translations.get(context, "<nfc>"),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 16.sp,
-                                color = if (nfcSharingEnabled) MaterialTheme.colorScheme.primary else Color(0xFFFF6B9D)
-                            ),
-                            modifier = Modifier
-                                .clickable {
-                                    // Alternar el envío NFC
-                                    nfcSharingEnabled = !nfcSharingEnabled
-                                    if (nfcSharingEnabled) {
-                                        try {
-                                            NfcShareHelper.enableNfcPush(context, shareUrl)
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("ShareDialog", "Error enabling NFC push: ${'$'}{e.message}")
-                                            nfcSharingEnabled = false
-                                        }
-                                    } else {
-                                        try {
-                                            NfcShareHelper.disableNfcPush(context)
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("ShareDialog", "Error disabling NFC push: ${'$'}{e.message}")
-                                        }
-                                    }
-                                }
-                                .padding(8.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(12.dp))
-                    }
-
                     // Botón compartir con diálogo nativo
                     if (shareUrl != null) {
                         Text(

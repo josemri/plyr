@@ -275,6 +275,32 @@ object Translations {
             "assistant_not_understand" to "No entiendo. Di 'ayuda' para ver los comandos disponibles.",
             "assistant_error" to "Error al ejecutar la acción",
             "assistant_listening" to "Escuchando...",
+            "assistant_processing" to "Procesando...",
+
+            // Nuevas respuestas del asistente
+            "assistant_muted" to "Silenciado",
+            "assistant_volume_set_to" to "Volumen al %d%%",
+            "assistant_what_volume" to "Dime a qué nivel quieres el volumen",
+            "assistant_sleep_timer_set" to "Temporizador configurado para %d minutos",
+            "assistant_what_time" to "Dime en cuántos minutos quieres parar la música",
+            "assistant_timer_cancelled" to "Temporizador cancelado",
+            "assistant_shuffled" to "Lista mezclada",
+            "assistant_added_favorites" to "Añadido a favoritos: %s",
+            "assistant_song_saved" to "Canción guardada: %s",
+            "assistant_cannot_save" to "No se puede guardar esta canción",
+            "assistant_playlist_created" to "Playlist '%s' creada",
+            "assistant_what_playlist_name" to "Dime el nombre de la playlist",
+            "assistant_artist_info" to "Esta canción es de %s",
+            "assistant_album_info" to "Esta canción es del álbum %s",
+            "assistant_unknown_album" to "Álbum desconocido",
+            "assistant_duration_info" to "Vas por %s de %s",
+
+            // Nuevas descripciones de comandos
+            "assistant_volume_desc" to "Controlar el volumen",
+            "assistant_shuffle_desc" to "Mezclar la playlist",
+            "assistant_favorites_desc" to "Añadir a favoritos",
+            "assistant_who_sings_desc" to "Información del artista",
+            "assistant_sleep_timer_desc" to "Temporizador de sueño",
 
             // Assistant Triggers (palabras clave que activan cada comando)
             "assistant_triggers_help" to "ayuda|comandos|qué puedo decir|que puedo decir|qué puedes hacer|que puedes hacer|opciones",
@@ -284,10 +310,35 @@ object Translations {
             "assistant_triggers_pause" to "pausa|pausar|para|parar|detén|deten|detener|stop",
             "assistant_triggers_repeat" to "repetir|repite|repetición|repeticion|bucle|loop",
             "assistant_triggers_add_queue" to "añadir a la cola|agregar a la cola|añade a la cola|agrega a la cola|pon en la cola|meter en la cola|encolar",
-            "assistant_triggers_play" to "reproducir|reproduce|pon|ponme|toca|tocar|escuchar|escucha|play",
+            "assistant_triggers_play" to "reproducir|reproduce|pon|ponme|toca|tocar|escuchar|escucha|play|quiero escuchar|quiero oír|quiero oir",
             "assistant_triggers_resume" to "continuar|continua|reanudar|reanuda|sigue|seguir",
             "assistant_triggers_search" to "buscar|busca|encuentra|encontrar|búsqueda|busqueda",
             "assistant_triggers_settings" to "ajustes|configuración|configuracion|config|opciones de configuración",
+
+            // Nuevos triggers para volumen
+            "assistant_triggers_volume_up" to "sube el volumen|subir volumen|más volumen|mas volumen|más alto|mas alto|volumen arriba",
+            "assistant_triggers_volume_down" to "baja el volumen|bajar volumen|menos volumen|más bajo|mas bajo|volumen abajo",
+            "assistant_triggers_volume_set" to "volumen al|pon el volumen|volumen a",
+            "assistant_triggers_mute" to "silenciar|silencio|mute|mutear|calla",
+
+            // Nuevos triggers para información contextual
+            "assistant_triggers_who_sings" to "quién canta|quien canta|quién es el artista|quien es el artista|de quién es|de quien es|artista",
+            "assistant_triggers_what_album" to "de qué álbum|de que album|qué álbum|que album|álbum",
+            "assistant_triggers_how_long" to "cuánto dura|cuanto dura|duración|duracion|cuánto queda|cuanto queda|tiempo",
+
+            // Nuevos triggers para playlist
+            "assistant_triggers_shuffle" to "mezcla|mezclar|aleatorio|shuffle|random|baraja|barajar",
+            "assistant_triggers_add_favorites" to "añade a favoritos|agregar a favoritos|me gusta|guardar en favoritos|favorito",
+            "assistant_triggers_save_song" to "guarda esta canción|guardar canción|guarda esta|save",
+            "assistant_triggers_create_playlist" to "crea una playlist|crear playlist|nueva playlist|crea lista",
+
+            // Nuevos triggers para temporizador de sueño
+            "assistant_triggers_sleep_timer" to "para la música en|apágate en|apagar en|temporizador|para en|apagar en|para a las|apágate a las|apagate a las",
+            "assistant_triggers_cancel_timer" to "cancela el temporizador|cancelar temporizador|quita el temporizador|no te apagues",
+
+            // Nuevos triggers para comandos naturales
+            "assistant_triggers_play_genre" to "ponme algo de|pon algo de|música de|quiero",
+            "assistant_triggers_play_mood" to "algo alegre|algo triste|algo tranquilo|algo animado|algo relajante|música para",
 
             // Assistant Commands (para mostrar en ayuda)
             "assistant_cmd_play" to "play / reproducir",
@@ -300,6 +351,11 @@ object Translations {
             "assistant_cmd_repeat" to "repetir",
             "assistant_cmd_whats_playing" to "qué suena",
             "assistant_cmd_help" to "ayuda / comandos",
+            "assistant_cmd_volume" to "volumen",
+            "assistant_cmd_shuffle" to "mezclar",
+            "assistant_cmd_favorites" to "favoritos",
+            "assistant_cmd_who_sings" to "quién canta",
+            "assistant_cmd_sleep_timer" to "temporizador",
 
         ),
 
@@ -537,6 +593,32 @@ object Translations {
             "assistant_not_understand" to "I don't understand. Say 'help' to see available commands.",
             "assistant_error" to "Error executing action",
             "assistant_listening" to "Listening...",
+            "assistant_processing" to "Processing...",
+
+            // New assistant responses
+            "assistant_muted" to "Muted",
+            "assistant_volume_set_to" to "Volume at %d%%",
+            "assistant_what_volume" to "Tell me what volume level you want",
+            "assistant_sleep_timer_set" to "Sleep timer set for %d minutes",
+            "assistant_what_time" to "Tell me in how many minutes to stop the music",
+            "assistant_timer_cancelled" to "Timer cancelled",
+            "assistant_shuffled" to "Playlist shuffled",
+            "assistant_added_favorites" to "Added to favorites: %s",
+            "assistant_song_saved" to "Song saved: %s",
+            "assistant_cannot_save" to "Cannot save this song",
+            "assistant_playlist_created" to "Playlist '%s' created",
+            "assistant_what_playlist_name" to "Tell me the playlist name",
+            "assistant_artist_info" to "This song is by %s",
+            "assistant_album_info" to "This song is from the album %s",
+            "assistant_unknown_album" to "Unknown album",
+            "assistant_duration_info" to "You're at %s of %s",
+
+            // New command descriptions
+            "assistant_volume_desc" to "Control volume",
+            "assistant_shuffle_desc" to "Shuffle playlist",
+            "assistant_favorites_desc" to "Add to favorites",
+            "assistant_who_sings_desc" to "Artist info",
+            "assistant_sleep_timer_desc" to "Sleep timer",
 
             // Assistant Triggers (keywords that trigger each command)
             "assistant_triggers_help" to "help|commands|what can i say|what can you do|options|assist",
@@ -546,10 +628,35 @@ object Translations {
             "assistant_triggers_pause" to "pause|stop|halt|hold|freeze",
             "assistant_triggers_repeat" to "repeat|loop|repeat mode|toggle repeat|cycle repeat",
             "assistant_triggers_add_queue" to "add to queue|queue|add to the queue|enqueue|put in queue",
-            "assistant_triggers_play" to "play|start|begin|go",
+            "assistant_triggers_play" to "play|start|begin|go|i want to listen|i wanna hear|play me|put on",
             "assistant_triggers_resume" to "resume|continue|unpause|carry on",
             "assistant_triggers_search" to "search|search for|find|look for|look up",
             "assistant_triggers_settings" to "settings|config|configuration|preferences|options",
+
+            // New volume triggers
+            "assistant_triggers_volume_up" to "turn up the volume|volume up|louder|raise volume|increase volume",
+            "assistant_triggers_volume_down" to "turn down the volume|volume down|quieter|lower volume|decrease volume",
+            "assistant_triggers_volume_set" to "set volume to|volume to|volume at",
+            "assistant_triggers_mute" to "mute|silence|quiet|shut up",
+
+            // New contextual info triggers
+            "assistant_triggers_who_sings" to "who sings|who's the artist|who is the artist|who is this|artist|singer",
+            "assistant_triggers_what_album" to "what album|which album|album name|from what album",
+            "assistant_triggers_how_long" to "how long|duration|how much time|time left|how much is left",
+
+            // New playlist triggers
+            "assistant_triggers_shuffle" to "shuffle|mix|randomize|random|mix it up",
+            "assistant_triggers_add_favorites" to "add to favorites|like this|love this|save to favorites|favorite",
+            "assistant_triggers_save_song" to "save this song|save song|save this|save it",
+            "assistant_triggers_create_playlist" to "create a playlist|new playlist|make a playlist|create playlist",
+
+            // New sleep timer triggers
+            "assistant_triggers_sleep_timer" to "stop music in|turn off in|sleep timer|stop in|turn off at|stop at",
+            "assistant_triggers_cancel_timer" to "cancel timer|cancel the timer|remove timer|don't turn off",
+
+            // New natural command triggers
+            "assistant_triggers_play_genre" to "play me some|play some|i want|give me some",
+            "assistant_triggers_play_mood" to "something happy|something sad|something calm|something upbeat|something relaxing|music for",
 
             // Assistant Commands (for help display)
             "assistant_cmd_play" to "play",
@@ -797,19 +904,70 @@ object Translations {
             "assistant_not_understand" to "No entenc. Digues 'ajuda' per veure les comandes disponibles.",
             "assistant_error" to "Error al executar l'acció",
             "assistant_listening" to "Escoltant...",
+            "assistant_processing" to "Processant...",
+
+            // Noves respostes de l'assistent
+            "assistant_muted" to "Silenciat",
+            "assistant_volume_set_to" to "Volum al %d%%",
+            "assistant_what_volume" to "Digues a quin nivell vols el volum",
+            "assistant_sleep_timer_set" to "Temporitzador configurat per %d minuts",
+            "assistant_what_time" to "Digues en quants minuts vols aturar la música",
+            "assistant_timer_cancelled" to "Temporitzador cancel·lat",
+            "assistant_shuffled" to "Llista barrejada",
+            "assistant_added_favorites" to "Afegit a favorits: %s",
+            "assistant_song_saved" to "Cançó guardada: %s",
+            "assistant_cannot_save" to "No es pot guardar aquesta cançó",
+            "assistant_playlist_created" to "Playlist '%s' creada",
+            "assistant_what_playlist_name" to "Digues el nom de la playlist",
+            "assistant_artist_info" to "Aquesta cançó és de %s",
+            "assistant_album_info" to "Aquesta cançó és de l'àlbum %s",
+            "assistant_unknown_album" to "Àlbum desconegut",
+            "assistant_duration_info" to "Vas per %s de %s",
+
+            // Noves descripcions de comandes
+            "assistant_volume_desc" to "Controlar el volum",
+            "assistant_shuffle_desc" to "Barrejar la playlist",
+            "assistant_favorites_desc" to "Afegir a favorits",
+            "assistant_who_sings_desc" to "Informació de l'artista",
+            "assistant_sleep_timer_desc" to "Temporitzador de son",
 
             // Assistant Triggers (paraules clau que activen cada comanda)
             "assistant_triggers_help" to "ajuda|comandes|què puc dir|que puc dir|què pots fer|que pots fer|opcions",
-            "assistant_triggers_whats_playing" to "què sona|que sona|què està sonant|que esta sonant|quina cançó és|quina canco es|cançó actual|canco actual|què estic escoltant|que estic escoltant",
+            "assistant_triggers_whats_playing" to "què sona|que sona|què està sonant|que esta sonant|quina cançó és|quina canco es|cançó actual|canco actual|què estic escoltant|que estic escoltant|què reprodueix|que reprodueix",
             "assistant_triggers_next" to "següent|seguent|pròxima|proxima|següent cançó|seguent canco|passa|salta|saltar",
             "assistant_triggers_previous" to "anterior|enrere|cançó anterior|canco anterior|torna|retrocedeix",
             "assistant_triggers_pause" to "pausa|pausar|para|parar|atura|aturar|stop",
             "assistant_triggers_repeat" to "repetir|repeteix|repetició|repeticio|bucle|loop",
             "assistant_triggers_add_queue" to "afegir a la cua|afegeix a la cua|posa a la cua|ficar a la cua|encuar",
-            "assistant_triggers_play" to "reproduir|reprodueix|posa|posa'm|toca|tocar|escoltar|escolta|play",
+            "assistant_triggers_play" to "reproduir|reprodueix|posa|posa'm|toca|tocar|escoltar|escolta|play|vull escoltar|vull sentir|vull oir",
             "assistant_triggers_resume" to "continuar|continua|reprendre|reprèn|segueix|seguir",
             "assistant_triggers_search" to "cercar|cerca|buscar|busca|troba|trobar",
             "assistant_triggers_settings" to "ajustos|configuració|configuracio|config|opcions de configuració",
+
+            // Nous triggers per volum
+            "assistant_triggers_volume_up" to "puja el volum|pujar volum|més volum|mas volum|més alt|mas alt|volum amunt",
+            "assistant_triggers_volume_down" to "baixa el volum|baixar volum|menys volum|més baix|mas baix|volum avall",
+            "assistant_triggers_volume_set" to "volum al|posa el volum|volum a",
+            "assistant_triggers_mute" to "silencia|silenci|mutejar|calla",
+
+            // Nous triggers per informació contextual
+            "assistant_triggers_who_sings" to "qui canta|quien canta|quién és l'artista|quien es el artista|de qui és|de quien es|artista",
+            "assistant_triggers_what_album" to "de què àlbum|de que album|què àlbum|que album|àlbum",
+            "assistant_triggers_how_long" to "quant dura|cuanto dura|duració|duracion|quant queda|cuanto queda|temps",
+
+            // Nous triggers per playlist
+            "assistant_triggers_shuffle" to "barreja|barrejar|aleatori|shuffle|random|mescla|mesclar",
+            "assistant_triggers_add_favorites" to "afegeix a favorits|agregar a favoritos|m'agrada|guardar en favoritos|favorit",
+            "assistant_triggers_save_song" to "guarda aquesta cançó|guardar canción|guarda aquesta|save",
+            "assistant_triggers_create_playlist" to "crea una playlist|crear playlist|nova playlist|crea llista",
+
+            // Nous triggers per temporitzador de son
+            "assistant_triggers_sleep_timer" to "atura la música en|apaga't en|apagar en|temporitzador|atura en|apagar en|atura a les|apaga't a les|apagate a les",
+            "assistant_triggers_cancel_timer" to "cancela el temporitzador|cancel·lar temporitzador|treu el temporitzador|no t'apagues",
+
+            // Nous triggers per comandes naturals
+            "assistant_triggers_play_genre" to "posa'm alguna cosa de|pon algo de|música de|vull",
+            "assistant_triggers_play_mood" to "alguna cosa alegre|alguna cosa trista|alguna cosa tranquil·la|alguna cosa animada|alguna cosa relaxant|música per",
 
             // Assistant Commands (per mostrar a l'ajuda)
             "assistant_cmd_play" to "reprodueix / play",
@@ -822,6 +980,11 @@ object Translations {
             "assistant_cmd_repeat" to "repetir",
             "assistant_cmd_whats_playing" to "què sona",
             "assistant_cmd_help" to "ajuda / comandes",
+            "assistant_cmd_volume" to "volum",
+            "assistant_cmd_shuffle" to "barrejar",
+            "assistant_cmd_favorites" to "favorits",
+            "assistant_cmd_who_sings" to "qui canta",
+            "assistant_cmd_sleep_timer" to "temporitzador",
 
         ),
 
@@ -1077,6 +1240,7 @@ object Translations {
             "assistant_not_understand" to "理解できません。「ヘルプ」と言って利用可能なコマンドを確認してください。",
             "assistant_error" to "アクションの実行エラー",
             "assistant_listening" to "聞いています...",
+            "assistant_processing" to "処理中...",
 
             // Assistant Triggers (コマンドをトリガーするキーワード)
             "assistant_triggers_help" to "ヘルプ|コマンド|助けて|たすけて|何ができる|なにができる|オプション|使い方|つかいかた",

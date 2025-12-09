@@ -65,22 +65,6 @@ fun ConfigScreen(
     }
 
     val haptic = LocalHapticFeedback.current
-    // Estado y URL para compartir por NFC (mantenidos a nivel del screen)
-    val shareNfcUrl = "https://github.com/josemri/plyr/releases/download/latest/plyr.apk"
-    var nfcSharingEnabled by remember { mutableStateOf(false) }
-
-    // Asegurar que al salir de la pantalla se desactive el envío NFC si quedó activo
-    DisposableEffect(Unit) {
-        onDispose {
-            if (nfcSharingEnabled) {
-                try {
-                    com.plyr.utils.NfcShareHelper.disableNfcPush(context)
-                } catch (_: Exception) {
-                    // no critical
-                }
-            }
-        }
-    }
 
     // Handle back button
     BackHandler {
@@ -452,33 +436,6 @@ fun ConfigScreen(
             LastfmApiConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(30.dp))
-
-            // Botón para compartir por NFC con animación ASCII
-            AsciiWaveActionButton(
-                isActive = nfcSharingEnabled,
-                onToggle = {
-                    nfcSharingEnabled = !nfcSharingEnabled
-                    if (nfcSharingEnabled) {
-                        try {
-                            com.plyr.utils.NfcShareHelper.enableNfcPush(context, shareNfcUrl)
-                        } catch (e: Exception) {
-                            android.util.Log.e("ConfigScreen", "Error enabling NFC push: ${'$'}{e.message}")
-                            android.widget.Toast.makeText(context, "NFC error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                            // revertir el estado si falla
-                            nfcSharingEnabled = false
-                        }
-                    } else {
-                        try {
-                            com.plyr.utils.NfcShareHelper.disableNfcPush(context)
-                        } catch (e: Exception) {
-                            android.util.Log.e("ConfigScreen", "Error disabling NFC push: ${'$'}{e.message}")
-                            android.widget.Toast.makeText(context, "NFC error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                normalText = Translations.get(context, "share_with_NFC"),
-            )
         }
     }
 }

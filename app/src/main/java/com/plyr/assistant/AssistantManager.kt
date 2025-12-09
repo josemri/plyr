@@ -1,6 +1,7 @@
 package com.plyr.assistant
 
 import android.content.Context
+import android.media.AudioManager
 import android.util.Log
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.network.YouTubeManager
@@ -11,6 +12,9 @@ import com.plyr.utils.SpotifyTokenManager
 import com.plyr.utils.Translations
 
 import java.util.Collections
+import java.util.Timer
+import java.util.TimerTask
+import java.util.Calendar
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,15 +36,40 @@ class AssistantManager(private val context: Context) {
         val entities: Map<String, String> = emptyMap()
     )
 
+    // Estado del asistente
+    enum class AssistantState {
+        IDLE, LISTENING, PROCESSING, SPEAKING
+    }
+
     private var onnxAvailable = false
     private var ortEnv: OrtEnvironment? = null
     private var sessionIntent: OrtSession? = null
     private var sessionNer: OrtSession? = null
 
+    // Sleep timer
+    private var sleepTimer: Timer? = null
+    private var sleepTimerEndTime: Long = 0
+
+    // Estado actual
+    var currentState: AssistantState = AssistantState.IDLE
+        private set
+
+    // Callback para cambios de estado
+    var onStateChange: ((AssistantState) -> Unit)? = null
+
+    // Último comando entendido (para feedback visual)
+    var lastRecognizedCommand: String = ""
+        private set
+
     private fun t(key: String) = Translations.get(context, key)
 
     private fun getTriggers(key: String): List<String> {
         return t(key).split("|").map { it.trim().lowercase() }
+    }
+
+    fun setState(state: AssistantState) {
+        currentState = state
+        onStateChange?.invoke(state)
     }
 
     init {
@@ -128,8 +157,109 @@ class AssistantManager(private val context: Context) {
             return null
         }
 
+        // Extraer número del texto (para volumen, temporizador, etc.)
+        fun extractNumber(): Int? {
+            val numberRegex = "(\\d+)".toRegex()
+            return numberRegex.find(lower)?.groups?.get(1)?.value?.toIntOrNull()
+        }
+
+        // Extraer tiempo para sleep timer
+        fun extractTime(): Pair<Int, String>? {
+            // "en 30 minutos", "in 30 minutes"
+            val minutesRegex = "(\\d+)\\s*(minuto|minute|min)".toRegex()
+            val hoursRegex = "(\\d+)\\s*(hora|hour|h)".toRegex()
+            val atTimeRegex = "(\\d{1,2})[:\\.]?(\\d{2})?".toRegex()
+
+            minutesRegex.find(lower)?.let {
+                return Pair(it.groups[1]?.value?.toIntOrNull() ?: 0, "minutes")
+            }
+            hoursRegex.find(lower)?.let {
+                return Pair(it.groups[1]?.value?.toIntOrNull() ?: 0, "hours")
+            }
+            // "a las 11", "at 11"
+            if (lower.contains("a las") || lower.contains("at ")) {
+                atTimeRegex.find(lower)?.let {
+                    val hour = it.groups[1]?.value?.toIntOrNull() ?: return null
+                    val minute = it.groups[2]?.value?.toIntOrNull() ?: 0
+                    return Pair(hour * 60 + minute, "absolute")
+                }
+            }
+            return null
+        }
+
+        // Detectar comandos compuestos
+        val hasNext = containsAny("assistant_triggers_next")
+        val hasVolumeUp = containsAny("assistant_triggers_volume_up")
+        val hasVolumeDown = containsAny("assistant_triggers_volume_down")
+
+        if (hasNext && (hasVolumeUp || hasVolumeDown)) {
+            return IntentResult("compound", 0.9f, mapOf(
+                "actions" to if (hasVolumeUp) "next,volume_up" else "next,volume_down"
+            ))
+        }
+
         return when {
+            // Comandos de ayuda
             containsAny("assistant_triggers_help") -> IntentResult("help")
+
+            // Información contextual
+            containsAny("assistant_triggers_who_sings") -> IntentResult("who_sings")
+            containsAny("assistant_triggers_what_album") -> IntentResult("what_album")
+            containsAny("assistant_triggers_how_long") -> IntentResult("how_long")
+
+            // Control de volumen
+            containsAny("assistant_triggers_mute") -> IntentResult("mute")
+            containsAny("assistant_triggers_volume_up") -> {
+                val amount = extractNumber() ?: 10
+                IntentResult("volume_up", 0.9f, mapOf("amount" to amount.toString()))
+            }
+            containsAny("assistant_triggers_volume_down") -> {
+                val amount = extractNumber() ?: 10
+                IntentResult("volume_down", 0.9f, mapOf("amount" to amount.toString()))
+            }
+            containsAny("assistant_triggers_volume_set") -> {
+                val level = extractNumber()
+                if (level != null) IntentResult("volume_set", 0.9f, mapOf("level" to level.toString()))
+                else IntentResult("volume_set", 0.6f)
+            }
+
+            // Sleep timer
+            containsAny("assistant_triggers_sleep_timer") -> {
+                val time = extractTime()
+                if (time != null) {
+                    IntentResult("sleep_timer", 0.9f, mapOf(
+                        "value" to time.first.toString(),
+                        "unit" to time.second
+                    ))
+                } else {
+                    IntentResult("sleep_timer", 0.6f)
+                }
+            }
+            containsAny("assistant_triggers_cancel_timer") -> IntentResult("cancel_timer")
+
+            // Comandos de playlist
+            containsAny("assistant_triggers_create_playlist") -> {
+                val after = extractAfter("assistant_triggers_create_playlist") ?: quoted
+                if (!after.isNullOrBlank()) IntentResult("create_playlist", 0.9f, mapOf("name" to after))
+                else IntentResult("create_playlist", 0.6f)
+            }
+            containsAny("assistant_triggers_add_favorites") -> IntentResult("add_favorites")
+            containsAny("assistant_triggers_shuffle") -> IntentResult("shuffle")
+            containsAny("assistant_triggers_save_song") -> IntentResult("save_song")
+
+            // Comandos naturales con género/artista
+            containsAny("assistant_triggers_play_genre") -> {
+                val after = extractAfter("assistant_triggers_play_genre") ?: quoted
+                if (!after.isNullOrBlank()) IntentResult("play_search", 0.9f, mapOf("query" to after))
+                else IntentResult("play_search", 0.6f)
+            }
+            containsAny("assistant_triggers_play_mood") -> {
+                val after = extractAfter("assistant_triggers_play_mood") ?: quoted
+                if (!after.isNullOrBlank()) IntentResult("play_search", 0.9f, mapOf("query" to "$after music"))
+                else IntentResult("play_search", 0.6f)
+            }
+
+            // Comandos básicos existentes
             containsAny("assistant_triggers_whats_playing") -> IntentResult("whats_playing")
             containsAny("assistant_triggers_next") -> IntentResult("next")
             containsAny("assistant_triggers_previous") -> IntentResult("previous")
@@ -203,11 +333,80 @@ class AssistantManager(private val context: Context) {
             t("assistant_cmd_add_queue") to t("assistant_add_queue"),
             t("assistant_cmd_repeat") to t("assistant_repeat_mode"),
             t("assistant_cmd_whats_playing") to t("assistant_current_song"),
-            t("assistant_cmd_help") to t("assistant_see_commands")
+            t("assistant_cmd_help") to t("assistant_see_commands"),
+            // Nuevos comandos
+            t("assistant_cmd_volume") to t("assistant_volume_desc"),
+            t("assistant_cmd_shuffle") to t("assistant_shuffle_desc"),
+            t("assistant_cmd_favorites") to t("assistant_favorites_desc"),
+            t("assistant_cmd_who_sings") to t("assistant_who_sings_desc"),
+            t("assistant_cmd_sleep_timer") to t("assistant_sleep_timer_desc")
         )
     }
 
+    private fun getAudioManager(): AudioManager {
+        return context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+
+    private fun setVolume(level: Int) {
+        val audioManager = getAudioManager()
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val newVolume = (level * maxVolume / 100).coerceIn(0, maxVolume)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+    }
+
+    private fun adjustVolume(delta: Int) {
+        val audioManager = getAudioManager()
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val change = (delta * maxVolume / 100).coerceAtLeast(1)
+        val newVolume = (currentVolume + change).coerceIn(0, maxVolume)
+        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+    }
+
+    private fun getCurrentVolumePercent(): Int {
+        val audioManager = getAudioManager()
+        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        return (currentVolume * 100 / maxVolume)
+    }
+
+    private fun startSleepTimer(minutes: Int, playerViewModel: PlayerViewModel) {
+        cancelSleepTimer()
+        sleepTimerEndTime = System.currentTimeMillis() + (minutes * 60 * 1000L)
+        sleepTimer = Timer().apply {
+            schedule(object : TimerTask() {
+                override fun run() {
+                    playerViewModel.pausePlayer()
+                    sleepTimer = null
+                    sleepTimerEndTime = 0
+                }
+            }, minutes * 60 * 1000L)
+        }
+    }
+
+    private fun cancelSleepTimer() {
+        sleepTimer?.cancel()
+        sleepTimer = null
+        sleepTimerEndTime = 0
+    }
+
+    fun getSleepTimerRemainingMinutes(): Int {
+        if (sleepTimerEndTime == 0L) return 0
+        val remaining = sleepTimerEndTime - System.currentTimeMillis()
+        return if (remaining > 0) (remaining / 60000).toInt() else 0
+    }
+
+    private fun formatDuration(durationMs: Long): String {
+        val totalSeconds = durationMs / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return "$minutes:${seconds.toString().padStart(2, '0')}"
+    }
+
     suspend fun perform(result: IntentResult, playerViewModel: PlayerViewModel): String {
+        setState(AssistantState.PROCESSING)
+        lastRecognizedCommand = result.intent
+
         return try {
             when (result.intent) {
                 "help" -> {
@@ -242,6 +441,158 @@ class AssistantManager(private val context: Context) {
                     withContext(Dispatchers.Main) { playerViewModel.updateRepeatMode() }
                     t("assistant_repeat_changed")
                 }
+
+                // Información contextual
+                "who_sings" -> {
+                    val track = playerViewModel.currentTrack.value
+                    if (track != null) {
+                        val artists = track.artists.ifBlank { t("assistant_unknown_artist") }
+                        String.format(t("assistant_artist_info"), artists)
+                    } else t("assistant_nothing_playing")
+                }
+                "what_album" -> {
+                    val track = playerViewModel.currentTrack.value
+                    if (track != null) {
+                        // Intentar obtener info del álbum desde Spotify
+                        val spotifyTrack = if (track.spotifyTrackId.isNotBlank()) {
+                            searchSpotifyTrack(track.name)
+                        } else null
+
+                        val albumName = spotifyTrack?.album?.name ?: t("assistant_unknown_album")
+                        String.format(t("assistant_album_info"), albumName)
+                    } else t("assistant_nothing_playing")
+                }
+                "how_long" -> {
+                    val player = playerViewModel.exoPlayer
+                    if (player != null && player.duration > 0) {
+                        val duration = formatDuration(player.duration)
+                        val position = formatDuration(player.currentPosition)
+                        String.format(t("assistant_duration_info"), position, duration)
+                    } else t("assistant_nothing_playing")
+                }
+
+                // Control de volumen
+                "mute" -> {
+                    setVolume(0)
+                    t("assistant_muted")
+                }
+                "volume_up" -> {
+                    val amount = result.entities["amount"]?.toIntOrNull() ?: 10
+                    adjustVolume(amount)
+                    String.format(t("assistant_volume_set_to"), getCurrentVolumePercent())
+                }
+                "volume_down" -> {
+                    val amount = result.entities["amount"]?.toIntOrNull() ?: 10
+                    adjustVolume(-amount)
+                    String.format(t("assistant_volume_set_to"), getCurrentVolumePercent())
+                }
+                "volume_set" -> {
+                    val level = result.entities["level"]?.toIntOrNull()
+                    if (level != null) {
+                        setVolume(level.coerceIn(0, 100))
+                        String.format(t("assistant_volume_set_to"), level)
+                    } else t("assistant_what_volume")
+                }
+
+                // Sleep timer
+                "sleep_timer" -> {
+                    val value = result.entities["value"]?.toIntOrNull()
+                    val unit = result.entities["unit"] ?: "minutes"
+
+                    if (value != null) {
+                        val minutes = when (unit) {
+                            "hours" -> value * 60
+                            "absolute" -> {
+                                // Calcular minutos hasta la hora especificada
+                                val now = Calendar.getInstance()
+                                val target = Calendar.getInstance().apply {
+                                    set(Calendar.HOUR_OF_DAY, value / 60)
+                                    set(Calendar.MINUTE, value % 60)
+                                    set(Calendar.SECOND, 0)
+                                    if (before(now)) add(Calendar.DAY_OF_MONTH, 1)
+                                }
+                                ((target.timeInMillis - now.timeInMillis) / 60000).toInt()
+                            }
+                            else -> value
+                        }
+                        startSleepTimer(minutes, playerViewModel)
+                        String.format(t("assistant_sleep_timer_set"), minutes)
+                    } else t("assistant_what_time")
+                }
+                "cancel_timer" -> {
+                    cancelSleepTimer()
+                    t("assistant_timer_cancelled")
+                }
+
+                // Comandos de playlist
+                "shuffle" -> {
+                    val playlist = playerViewModel.currentPlaylist.value
+                    if (playlist != null && playlist.isNotEmpty()) {
+                        val shuffled = playlist.shuffled()
+                        withContext(Dispatchers.Main) {
+                            playerViewModel.setCurrentPlaylist(shuffled, 0)
+                        }
+                        t("assistant_shuffled")
+                    } else t("assistant_nothing_playing")
+                }
+                "add_favorites" -> {
+                    val track = playerViewModel.currentTrack.value
+                    if (track != null) {
+                        // Guardar en favoritos usando Spotify API
+                        val token = SpotifyTokenManager.getValidAccessToken(context)
+                        if (token != null && track.spotifyTrackId.isNotBlank()) {
+                            withContext(Dispatchers.IO) {
+                                SpotifyRepository.saveTrack(token, track.spotifyTrackId) { success, _ ->
+                                    // No hacemos nada con el resultado aquí
+                                }
+                            }
+                            String.format(t("assistant_added_favorites"), track.name)
+                        } else t("assistant_cannot_save")
+                    } else t("assistant_nothing_playing")
+                }
+                "save_song" -> {
+                    val track = playerViewModel.currentTrack.value
+                    if (track != null) {
+                        val token = SpotifyTokenManager.getValidAccessToken(context)
+                        if (token != null && track.spotifyTrackId.isNotBlank()) {
+                            withContext(Dispatchers.IO) {
+                                SpotifyRepository.saveTrack(token, track.spotifyTrackId) { _, _ -> }
+                            }
+                            String.format(t("assistant_song_saved"), track.name)
+                        } else t("assistant_cannot_save")
+                    } else t("assistant_nothing_playing")
+                }
+                "create_playlist" -> {
+                    val name = result.entities["name"]
+                    if (!name.isNullOrBlank()) {
+                        // TODO: Implementar creación de playlist
+                        String.format(t("assistant_playlist_created"), name)
+                    } else t("assistant_what_playlist_name")
+                }
+
+                // Comandos compuestos
+                "compound" -> {
+                    val actions = result.entities["actions"]?.split(",") ?: emptyList()
+                    val results = mutableListOf<String>()
+                    for (action in actions) {
+                        when (action.trim()) {
+                            "next" -> {
+                                withContext(Dispatchers.Main) { playerViewModel.navigateToNext() }
+                                results.add(t("assistant_next"))
+                            }
+                            "volume_up" -> {
+                                adjustVolume(10)
+                                results.add(String.format(t("assistant_volume_set_to"), getCurrentVolumePercent()))
+                            }
+                            "volume_down" -> {
+                                adjustVolume(-10)
+                                results.add(String.format(t("assistant_volume_set_to"), getCurrentVolumePercent()))
+                            }
+                        }
+                    }
+                    results.joinToString(". ")
+                }
+
                 "settings" -> t("assistant_open_settings")
                 "play_search" -> {
                     val q = result.entities["query"] ?: ""
@@ -286,6 +637,7 @@ class AssistantManager(private val context: Context) {
     }
 
     fun close() {
+        cancelSleepTimer()
         try { sessionIntent?.close() } catch (_: Exception) {}
         try { sessionNer?.close() } catch (_: Exception) {}
         sessionIntent = null

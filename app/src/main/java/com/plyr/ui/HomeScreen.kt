@@ -4,35 +4,30 @@ import android.content.Context
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.plyr.ui.components.*
@@ -69,19 +64,39 @@ fun HomeScreen(
     var pullOffset by remember { mutableStateOf(0f) }
     var overlayVisible by remember { mutableStateOf(false) }
     var isListening by remember { mutableStateOf(false) }
+    var isProcessing by remember { mutableStateOf(false) }
     var interimText by remember { mutableStateOf("") }
+    var recognizedCommand by remember { mutableStateOf("") }
 
-    // Notification state
-    var notificationText by remember { mutableStateOf("") }
-    var notificationVisible by remember { mutableStateOf(false) }
-    var notificationDismissOffset by remember { mutableStateOf(0f) }
+    // Assistant response with typewriter effect
+    var assistantResponse by remember { mutableStateOf("") }
+    var displayedResponse by remember { mutableStateOf("") }
+    var isTyping by remember { mutableStateOf(false) }
 
     val pullProgress = (pullOffset / maxPullPx).coerceIn(0f, 1f)
-    val animatedScale by animateFloatAsState(targetValue = 0.8f + 0.4f * pullProgress)
     val scope = rememberCoroutineScope()
     val assistantVoiceHelper = remember { AssistantVoiceHelper(context) }
     val assistantManager = remember { AssistantManager(context) }
     val assistantTTS = remember { AssistantTTSHelper(context) }
+
+    // Typewriter effect
+    LaunchedEffect(assistantResponse) {
+        if (assistantResponse.isNotEmpty()) {
+            isTyping = true
+            displayedResponse = ""
+            val responseToType = assistantResponse // Store local copy
+            for (i in responseToType.indices) {
+                // Check if response was cleared during typing
+                if (assistantResponse.isEmpty()) {
+                    displayedResponse = ""
+                    break
+                }
+                displayedResponse = responseToType.substring(0, i + 1)
+                delay(20) // velocidad de escritura
+            }
+            isTyping = false
+        }
+    }
 
     // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -91,11 +106,10 @@ fun HomeScreen(
         }
     }
 
-    // Function to dismiss notification and stop TTS
-    fun dismissNotification() {
-        notificationVisible = false
-        notificationText = ""
-        notificationDismissOffset = 0f
+    // Function to dismiss response
+    fun dismissResponse() {
+        assistantResponse = ""
+        displayedResponse = ""
         assistantTTS.stop()
     }
 
@@ -107,18 +121,36 @@ fun HomeScreen(
             }
             override fun onResult(text: String) {
                 isListening = false
+                isProcessing = true
                 interimText = ""
 
-                // analyze + perform and show as notification
+                // analyze + perform and show response
                 scope.launch {
                     val result = withContext(Dispatchers.Default) { assistantManager.analyze(text) }
+
+                    // Mostrar comando entendido
+                    recognizedCommand = when(result.intent) {
+                        "play" -> Translations.get(context, "assistant_cmd_play")
+                        "pause" -> Translations.get(context, "assistant_cmd_pause")
+                        "next" -> Translations.get(context, "assistant_cmd_next")
+                        "previous" -> Translations.get(context, "assistant_cmd_previous")
+                        "play_search" -> "${Translations.get(context, "assistant_cmd_play_song")}: ${result.entities["query"] ?: ""}"
+                        "volume_up" -> Translations.get(context, "assistant_cmd_volume") + " ↑"
+                        "volume_down" -> Translations.get(context, "assistant_cmd_volume") + " ↓"
+                        "shuffle" -> Translations.get(context, "assistant_cmd_shuffle")
+                        "sleep_timer" -> Translations.get(context, "assistant_cmd_sleep_timer")
+                        "who_sings" -> Translations.get(context, "assistant_cmd_who_sings")
+                        else -> result.intent
+                    }
+
                     val vm = playerViewModel ?: return@launch
                     val reply = withContext(Dispatchers.Default) { assistantManager.perform(result, vm) }
 
-                    // Show notification
-                    notificationText = reply
-                    notificationVisible = true
-                    notificationDismissOffset = 0f
+                    isProcessing = false
+                    recognizedCommand = ""
+
+                    // Show response with typewriter effect
+                    assistantResponse = reply
 
                     // Speak the response
                     assistantTTS.speak(reply)
@@ -126,7 +158,9 @@ fun HomeScreen(
             }
             override fun onError(errorCode: Int) {
                 isListening = false
+                isProcessing = false
                 interimText = ""
+                recognizedCommand = ""
             }
             override fun onReady() {}
         }
@@ -135,6 +169,7 @@ fun HomeScreen(
             assistantVoiceHelper.cancel()
             assistantVoiceHelper.destroy()
             assistantTTS.destroy()
+            assistantManager.close()
         }
     }
 
@@ -154,17 +189,13 @@ fun HomeScreen(
                             }
                         },
                         onVerticalDrag = { change, dragAmount ->
-                            // If notification is visible and user scrolls up, dismiss it
-                            if (notificationVisible && dragAmount < 0) {
-                                notificationDismissOffset += dragAmount
-                                if (notificationDismissOffset < -50f) {
-                                    dismissNotification()
-                                }
+                            // If response is visible and user scrolls up, dismiss it
+                            if (assistantResponse.isNotEmpty() && dragAmount < 0) {
+                                dismissResponse()
                                 return@detectVerticalDragGestures
                             }
 
                             if (!overlayVisible) return@detectVerticalDragGestures
-                            // Aplicar resistencia más fuerte: cuanto más se arrastra, más resistencia hay
                             val resistance = 0.3f - (pullOffset / maxPullPx) * 0.2f
                             val dampedDrag = dragAmount * resistance
                             pullOffset = (pullOffset + dampedDrag).coerceIn(0f, maxPullPx * 0.5f)
@@ -173,13 +204,8 @@ fun HomeScreen(
                             if (!overlayVisible) return@detectVerticalDragGestures
                             val pulledEnough = pullOffset >= activationPx
                             if (pulledEnough) {
-                                // Stop TTS if playing
                                 assistantTTS.stop()
-                                // Dismiss notification if showing
-                                if (notificationVisible) {
-                                    dismissNotification()
-                                }
-                                // Start voice
+                                dismissResponse()
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                                 } else {
@@ -187,7 +213,6 @@ fun HomeScreen(
                                     assistantVoiceHelper.startListening()
                                 }
                             }
-                            // reset
                             pullOffset = 0f
                             overlayVisible = false
                         },
@@ -309,6 +334,52 @@ fun HomeScreen(
                 }
             }
 
+            // Assistant response overlay (positioned at bottom, doesn't affect button layout)
+            if (displayedResponse.isNotEmpty() || isProcessing) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 140.dp)
+                        .padding(horizontal = 24.dp)
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            dismissResponse()
+                        }
+                ) {
+                    if (isProcessing) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = Translations.get(context, "assistant_processing"),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            if (recognizedCommand.isNotBlank()) {
+                                Text(
+                                    text = " → $recognizedCommand",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = displayedResponse + if (isTyping) "▌" else "",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
             // Overlay mic animation coming from top
             if (overlayVisible || isListening) {
                 Box(modifier = Modifier
@@ -333,10 +404,18 @@ fun HomeScreen(
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
+
                             if (interimText.isNotBlank()) {
-                                Text(interimText, style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    text = interimText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
                             } else {
-                                Text(Translations.get(context, "assistant_listening"), style = MaterialTheme.typography.bodySmall)
+                                Text(
+                                    text = Translations.get(context, "assistant_listening"),
+                                    style = MaterialTheme.typography.bodySmall
+                                )
                             }
                         } else {
                             Icon(
@@ -345,68 +424,6 @@ fun HomeScreen(
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
                             )
-                        }
-                    }
-                }
-            }
-
-            // Notification overlay at bottom
-            if (notificationVisible) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = notificationVisible,
-                    enter = slideInVertically(initialOffsetY = { it }),
-                    exit = slideOutVertically(targetOffsetY = { it }),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 140.dp)
-                ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        tonalElevation = 4.dp,
-                        shadowElevation = 4.dp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .pointerInput(Unit) {
-                                detectVerticalDragGestures(
-                                    onVerticalDrag = { _, dragAmount ->
-                                        if (dragAmount < 0) {
-                                            notificationDismissOffset += dragAmount
-                                            if (notificationDismissOffset < -50f) {
-                                                dismissNotification()
-                                            }
-                                        }
-                                    },
-                                    onDragEnd = {
-                                        if (notificationDismissOffset > -50f) {
-                                            notificationDismissOffset = 0f
-                                        }
-                                    }
-                                )
-                            }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = notificationText,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = { dismissNotification() },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    Icons.Filled.Close,
-                                    contentDescription = "Close",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
                         }
                     }
                 }
