@@ -1085,6 +1085,7 @@ fun AssistantConfigSection(context: Context) {
 fun SensorsConfigSection(context: Context) {
     var isExpanded by remember { mutableStateOf(false) }
     var selectedShakeAction by remember { mutableStateOf(Config.getShakeAction(context)) }
+    var selectedOrientationAction by remember { mutableStateOf(Config.getOrientationAction(context)) }
     val haptic = LocalHapticFeedback.current
 
     Column {
@@ -1109,14 +1110,14 @@ fun SensorsConfigSection(context: Context) {
             )
 
             Text(
-                text = if (selectedShakeAction != Config.SHAKE_ACTION_OFF)
+                text = if (selectedShakeAction != Config.SHAKE_ACTION_OFF || selectedOrientationAction != Config.ORIENTATION_ACTION_OFF)
                     Translations.get(context, "enabled")
                 else
                     Translations.get(context, "disabled"),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
-                    color = if (selectedShakeAction != Config.SHAKE_ACTION_OFF)
+                    color = if (selectedShakeAction != Config.SHAKE_ACTION_OFF || selectedOrientationAction != Config.ORIENTATION_ACTION_OFF)
                         MaterialTheme.colorScheme.primary
                     else
                         MaterialTheme.colorScheme.error
@@ -1168,6 +1169,43 @@ fun SensorsConfigSection(context: Context) {
                             else -> Config.SHAKE_ACTION_OFF
                         }
                         Config.setShakeAction(context, selectedShakeAction)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Selector de acción para orientación (knob)
+                Text(
+                    text = Translations.get(context, "orientation_for"),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "orientation_off"),
+                        Translations.get(context, "orientation_volume"),
+                        Translations.get(context, "orientation_skip")
+                    ),
+                    initialIndex = when (selectedOrientationAction) {
+                        Config.ORIENTATION_ACTION_OFF -> 0
+                        Config.ORIENTATION_ACTION_VOLUME -> 1
+                        Config.ORIENTATION_ACTION_SKIP -> 2
+                        else -> 0
+                    },
+                    onChange = { selectedIndex ->
+                        selectedOrientationAction = when (selectedIndex) {
+                            0 -> Config.ORIENTATION_ACTION_OFF
+                            1 -> Config.ORIENTATION_ACTION_VOLUME
+                            2 -> Config.ORIENTATION_ACTION_SKIP
+                            else -> Config.ORIENTATION_ACTION_OFF
+                        }
+                        Config.setOrientationAction(context, selectedOrientationAction)
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     }
                 )

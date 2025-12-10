@@ -50,12 +50,15 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
 import com.plyr.utils.AssistantActivationEvent
+import com.plyr.utils.OrientationDetector
+import android.media.AudioManager
 
 
 
 class MainActivity : ComponentActivity() {
     private var musicService: MusicService? = null
     private var shakeDetector: ShakeDetector? = null
+    private var orientationDetector: OrientationDetector? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -83,6 +86,9 @@ class MainActivity : ComponentActivity() {
 
         // Inicializar ShakeDetector
         initializeShakeDetector()
+
+        // Inicializar OrientationDetector
+        initializeOrientationDetector()
 
         Intent(this, MusicService::class.java).also {
             startService(it)
@@ -178,9 +184,47 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun initializeOrientationDetector() {
+        val playerViewModel = (application as PlyrApp).playerViewModel
+        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+
+        orientationDetector = OrientationDetector(
+            context = this,
+            onLeftAction = {
+                // Acción al girar a la IZQUIERDA
+                when (Config.getOrientationAction(this)) {
+                    OrientationDetector.ACTION_VOLUME -> {
+                        // Subir volumen 3 pasos
+                        repeat(3) {
+                            audioManager.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+                        }
+                    }
+                    OrientationDetector.ACTION_SKIP -> {
+                        playerViewModel.navigateToNext()
+                    }
+                }
+            },
+            onRightAction = {
+                // Acción al girar a la DERECHA
+                when (Config.getOrientationAction(this)) {
+                    OrientationDetector.ACTION_VOLUME -> {
+                        // Bajar volumen 3 pasos
+                        repeat(3) {
+                            audioManager.adjustVolume(AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                        }
+                    }
+                    OrientationDetector.ACTION_SKIP -> {
+                        playerViewModel.navigateToPrevious()
+                    }
+                }
+            }
+        )
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         shakeDetector?.stop()
+        orientationDetector?.stop()
         if (isFinishing) {
             (application as PlyrApp).playerViewModel.pausePlayer()
             stopService(Intent(this, MusicService::class.java))
@@ -194,6 +238,8 @@ class MainActivity : ComponentActivity() {
         NfcReader.startReading(this)
         // Iniciar detección de shake
         shakeDetector?.start()
+        // Iniciar detección de orientación
+        orientationDetector?.start()
     }
 
     override fun onPause() {
@@ -202,6 +248,8 @@ class MainActivity : ComponentActivity() {
         NfcReader.stopReading(this)
         // Detener detección de shake
         shakeDetector?.stop()
+        // Detener detección de orientación
+        orientationDetector?.stop()
     }
 
     override fun onNewIntent(intent: Intent) {
