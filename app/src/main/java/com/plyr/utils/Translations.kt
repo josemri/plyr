@@ -228,6 +228,17 @@ object Translations {
             "swipe_action_share" to "share",
             "swipe_action_download" to "down",
 
+            // Sensors Configuration
+            "sensors_section" to "> sensores",
+            "shake_for" to "    agitar para:",
+            "shake_off" to "off",
+            "shake_next" to "next",
+            "shake_previous" to "prev",
+            "shake_play_pause" to "play",
+            "shake_shuffle" to "shuf",
+            "shake_assistant" to "asst",
+            "sensors_description" to "      Agita el dispositivo para ejecutar una acción.\n      Funciona incluso con la pantalla apagada.",
+
             "error_fetching_track_info" to "Error obteniendo info del track",
             "spotify_token_unavailable" to "Token de Spotify no disponible",
             "error_generic" to "Error",
@@ -574,6 +585,17 @@ object Translations {
             "swipe_action_playlist" to "list",
             "swipe_action_share" to "share",
             "swipe_action_download" to "down",
+
+            // Sensors Configuration
+            "sensors_section" to "> sensors",
+            "shake_for" to "    shake for:",
+            "shake_off" to "off",
+            "shake_next" to "next",
+            "shake_previous" to "prev",
+            "shake_play_pause" to "play",
+            "shake_shuffle" to "shuf",
+            "shake_assistant" to "asst",
+            "sensors_description" to "      Shake the device to perform an action.\n      Works even with the screen off.",
 
             "error_fetching_track_info" to "Error fetching track info",
             "spotify_token_unavailable" to "Spotify token unavailable",
@@ -1001,6 +1023,19 @@ object Translations {
             "assistant_cmd_repeat" to "リピート",
             "assistant_cmd_whats_playing" to "今の曲",
             "assistant_cmd_help" to "ヘルプ / コマンド",
+
+            // Sensors Configuration (日本語)
+            "sensors_section" to "> センサー",
+            "shake_for" to "    振って:",
+            "shake_off" to "off",
+            "shake_next" to "次",
+            "shake_previous" to "前",
+            "shake_play_pause" to "再生",
+            "shake_shuffle" to "シャフ",
+            "shake_assistant" to "アシ",
+            "sensors_description" to "      デバイスを振ってアクションを実行します。\n      画面がオフでも動作します。",
+            "enabled" to "有効",
+            "disabled" to "無効",
 
         ),
 

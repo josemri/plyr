@@ -45,6 +45,9 @@ object Config {
     private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
 
+    // Clave para configuración de shake
+    private const val KEY_SHAKE_ACTION = "shake_action"
+
     // Nuevas claves para configuración del asistente
     private const val KEY_ASSISTANT_ENABLED = "assistant_enabled"
     private const val KEY_ASSISTANT_SAME_LANGUAGE = "assistant_same_language"
@@ -59,6 +62,7 @@ object Config {
     private const val DEFAULT_LANGUAGE = "english"
     private const val DEFAULT_SWIPE_LEFT_ACTION = "add_to_queue"
     private const val DEFAULT_SWIPE_RIGHT_ACTION = "add_to_liked_songs"
+    private const val DEFAULT_SHAKE_ACTION = "off"
     private const val DEFAULT_ASSISTANT_ENABLED = true
     private const val DEFAULT_ASSISTANT_SAME_LANGUAGE = true
     private const val DEFAULT_ASSISTANT_TTS_ENABLED = false
@@ -103,6 +107,15 @@ object Config {
     const val SWIPE_ACTION_ADD_TO_PLAYLIST = "add_to_playlist"
     const val SWIPE_ACTION_SHARE = "share"
     const val SWIPE_ACTION_DOWNLOAD = "download"
+
+    // === CONSTANTES PÚBLICAS DE ACCIONES DE SHAKE ===
+
+    /** Acciones de shake disponibles */
+    const val SHAKE_ACTION_OFF = "off"
+    const val SHAKE_ACTION_NEXT = "next"
+    const val SHAKE_ACTION_PREVIOUS = "previous"
+    const val SHAKE_ACTION_PLAY_PAUSE = "play_pause"
+    const val SHAKE_ACTION_ASSISTANT = "assistant"
 
     // === MÉTODOS PRIVADOS ===
     
@@ -461,6 +474,28 @@ object Config {
      */
     fun getSwipeRightAction(context: Context): String {
         return getPrefs(context).getString(KEY_SWIPE_RIGHT_ACTION, DEFAULT_SWIPE_RIGHT_ACTION) ?: DEFAULT_SWIPE_RIGHT_ACTION
+    }
+
+    // === GESTIÓN DE ACCIÓN DE SHAKE ===
+
+    /**
+     * Establece la acción para el gesto de shake.
+     * @param context Contexto de la aplicación
+     * @param action Acción a establecer ("off", "next", "previous", "play_pause", "shuffle", "assistant")
+     */
+    fun setShakeAction(context: Context, action: String) {
+        getPrefs(context).edit {
+            putString(KEY_SHAKE_ACTION, action)
+        }
+    }
+
+    /**
+     * Obtiene la acción configurada para el gesto de shake.
+     * @param context Contexto de la aplicación
+     * @return Acción actual (por defecto "off")
+     */
+    fun getShakeAction(context: Context): String {
+        return getPrefs(context).getString(KEY_SHAKE_ACTION, DEFAULT_SHAKE_ACTION) ?: DEFAULT_SHAKE_ACTION
     }
 
     // === GESTIÓN DE ACOUSTID API KEY ===

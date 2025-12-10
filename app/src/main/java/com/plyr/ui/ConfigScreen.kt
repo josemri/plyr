@@ -456,6 +456,10 @@ fun ConfigScreen(
 
             AssistantConfigSection(context = context)
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            SensorsConfigSection(context = context)
+
             Spacer(modifier = Modifier.height(30.dp))
 
             // Sección de compartir app
@@ -1074,6 +1078,114 @@ fun AssistantConfigSection(context: Context) {
             }
         }
 
+    }
+}
+
+@Composable
+fun SensorsConfigSection(context: Context) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var selectedShakeAction by remember { mutableStateOf(Config.getShakeAction(context)) }
+    val haptic = LocalHapticFeedback.current
+
+    Column {
+        // Campo principal de configuración de sensores
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = Translations.get(context, "sensors_section"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                ),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Text(
+                text = if (selectedShakeAction != Config.SHAKE_ACTION_OFF)
+                    Translations.get(context, "enabled")
+                else
+                    Translations.get(context, "disabled"),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = if (selectedShakeAction != Config.SHAKE_ACTION_OFF)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.error
+                )
+            )
+        }
+
+        // Desplegable con opciones de sensores
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp)
+            ) {
+                // Selector de acción para shake
+                Text(
+                    text = Translations.get(context, "shake_for"),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "shake_off"),
+                        Translations.get(context, "shake_next"),
+                        Translations.get(context, "shake_previous"),
+                        Translations.get(context, "shake_play_pause"),
+                        Translations.get(context, "shake_assistant")
+                    ),
+                    initialIndex = when (selectedShakeAction) {
+                        Config.SHAKE_ACTION_OFF -> 0
+                        Config.SHAKE_ACTION_NEXT -> 1
+                        Config.SHAKE_ACTION_PREVIOUS -> 2
+                        Config.SHAKE_ACTION_PLAY_PAUSE -> 3
+                        Config.SHAKE_ACTION_ASSISTANT -> 4
+                        else -> 0
+                    },
+                    onChange = { selectedIndex ->
+                        selectedShakeAction = when (selectedIndex) {
+                            0 -> Config.SHAKE_ACTION_OFF
+                            1 -> Config.SHAKE_ACTION_NEXT
+                            2 -> Config.SHAKE_ACTION_PREVIOUS
+                            3 -> Config.SHAKE_ACTION_PLAY_PAUSE
+                            4 -> Config.SHAKE_ACTION_ASSISTANT
+                            else -> Config.SHAKE_ACTION_OFF
+                        }
+                        Config.setShakeAction(context, selectedShakeAction)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Descripción
+                Text(
+                    text = Translations.get(context, "sensors_description"),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    ),
+                    lineHeight = 14.sp
+                )
+            }
+        }
     }
 }
 

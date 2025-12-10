@@ -33,6 +33,7 @@ import com.plyr.ui.theme.PlyrTheme
 import com.plyr.network.SpotifyRepository
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyAuthEvent
+import com.plyr.utils.ShakeDetector
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.Spring
@@ -48,11 +49,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
+import com.plyr.utils.AssistantActivationEvent
 
 
 
 class MainActivity : ComponentActivity() {
     private var musicService: MusicService? = null
+    private var shakeDetector: ShakeDetector? = null
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -77,6 +80,9 @@ class MainActivity : ComponentActivity() {
 
         handleSpotifyCallback(intent)
         enableEdgeToEdge()
+
+        // Inicializar ShakeDetector
+        initializeShakeDetector()
 
         Intent(this, MusicService::class.java).also {
             startService(it)
@@ -143,8 +149,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun initializeShakeDetector() {
+        val playerViewModel = (application as PlyrApp).playerViewModel
+
+        shakeDetector = ShakeDetector(this) { action ->
+            when (action) {
+                ShakeDetector.ACTION_NEXT -> {
+                    playerViewModel.navigateToNext()
+                }
+                ShakeDetector.ACTION_PREVIOUS -> {
+                    playerViewModel.navigateToPrevious()
+                }
+                ShakeDetector.ACTION_PLAY_PAUSE -> {
+                    val player = playerViewModel.exoPlayer
+                    if (player?.isPlaying == true) {
+                        playerViewModel.pausePlayer()
+                    } else {
+                        playerViewModel.playPlayer()
+                    }
+                }
+                ShakeDetector.ACTION_ASSISTANT -> {
+                    // Activar el asistente de voz (si está habilitado)
+                    if (Config.isAssistantEnabled(this)) {
+                        AssistantActivationEvent.requestActivation()
+                    }
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        shakeDetector?.stop()
         if (isFinishing) {
             (application as PlyrApp).playerViewModel.pausePlayer()
             stopService(Intent(this, MusicService::class.java))
@@ -156,12 +192,16 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Activar automáticamente la lectura de NFC cuando la app está en primer plano
         NfcReader.startReading(this)
+        // Iniciar detección de shake
+        shakeDetector?.start()
     }
 
     override fun onPause() {
         super.onPause()
         // Desactivar la lectura de NFC cuando la app no está en primer plano
         NfcReader.stopReading(this)
+        // Detener detección de shake
+        shakeDetector?.stop()
     }
 
     override fun onNewIntent(intent: Intent) {

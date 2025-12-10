@@ -42,6 +42,7 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.assistant.AssistantVoiceHelper
 import com.plyr.assistant.AssistantManager
 import kotlinx.coroutines.withContext
+import com.plyr.utils.AssistantActivationEvent
 
 @Composable
 fun HomeScreen(
@@ -137,6 +138,23 @@ fun HomeScreen(
         if (granted) {
             isListening = true
             assistantVoiceHelper.startListening()
+        }
+    }
+
+    // Escuchar evento de activación del asistente por shake
+    val assistantActivationRequested by AssistantActivationEvent.activationRequested.collectAsState()
+
+    LaunchedEffect(assistantActivationRequested) {
+        if (assistantActivationRequested) {
+            AssistantActivationEvent.consumeActivation()
+            // Activar el asistente de voz
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
+                assistantResponse = ""
+                displayedResponse = ""
+                isListening = true
+                assistantVoiceHelper.startListening()
+            }
         }
     }
 
