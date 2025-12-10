@@ -1,6 +1,7 @@
 package com.plyr.ui
 
 import android.content.Context
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -456,7 +457,57 @@ fun ConfigScreen(
             AssistantConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(30.dp))
+
+            // Sección de compartir app
+            ShareAppSection(context = context)
+
+            Spacer(modifier = Modifier.height(30.dp))
         }
+    }
+}
+
+/**
+ * Sección para compartir la app via QR Dialog
+ */
+@Composable
+fun ShareAppSection(context: Context) {
+    val haptic = LocalHapticFeedback.current
+    var showShareDialog by remember { mutableStateOf(false) }
+
+    // Mostrar el diálogo de compartir
+    if (showShareDialog) {
+        com.plyr.ui.components.ShareDialog(
+            item = com.plyr.ui.components.ShareableItem(
+                spotifyId = null,
+                spotifyUrl = null,
+                youtubeId = null,
+                title = "plyr",
+                artist = "",
+                type = com.plyr.ui.components.ShareType.APP
+            ),
+            onDismiss = { showShareDialog = false }
+        )
+    }
+
+    // Botón centrado
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = Translations.get(context, "share_me"),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    showShareDialog = true
+                }
+                .padding(vertical = 12.dp, horizontal = 16.dp)
+        )
     }
 }
 

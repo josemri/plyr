@@ -5,6 +5,8 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.nfc.NfcAdapter
+import android.nfc.Tag
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Build
@@ -44,6 +46,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.isSystemInDarkTheme
+import com.plyr.utils.NfcTagEvent
 
 
 
@@ -151,7 +154,33 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+
+        // Manejar NFC tag
+        handleNfcIntent(intent)
+
+        // Manejar Spotify callback
         handleSpotifyCallback(intent)
+    }
+
+    private fun handleNfcIntent(intent: Intent?) {
+        if (intent?.action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
+            intent?.action == NfcAdapter.ACTION_TAG_DISCOVERED ||
+            intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
+
+            val tag: Tag? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+            }
+
+            if (tag != null) {
+                android.util.Log.d("MainActivity", "🏷️ NFC Tag detected in onNewIntent: $tag")
+                NfcTagEvent.onTagDetected(tag)
+            } else {
+                android.util.Log.w("MainActivity", "⚠️ NFC intent received but tag is null")
+            }
+        }
     }
 
     private fun handleSpotifyCallback(intent: Intent?) {
