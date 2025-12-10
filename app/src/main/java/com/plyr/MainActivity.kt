@@ -51,6 +51,7 @@ import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
 import com.plyr.utils.AssistantActivationEvent
 import com.plyr.utils.OrientationDetector
+import com.plyr.utils.LightSensorDetector
 import android.media.AudioManager
 
 
@@ -59,6 +60,10 @@ class MainActivity : ComponentActivity() {
     private var musicService: MusicService? = null
     private var shakeDetector: ShakeDetector? = null
     private var orientationDetector: OrientationDetector? = null
+    private var lightSensorDetector: LightSensorDetector? = null
+
+    // Estado para el tema automático basado en luz
+    private var isAutoThemeDark = mutableStateOf(false)
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -90,6 +95,9 @@ class MainActivity : ComponentActivity() {
         // Inicializar OrientationDetector
         initializeOrientationDetector()
 
+        // Inicializar LightSensorDetector para tema automático
+        initializeLightSensorDetector()
+
         Intent(this, MusicService::class.java).also {
             startService(it)
             bindService(it, serviceConnection, BIND_AUTO_CREATE)
@@ -99,10 +107,14 @@ class MainActivity : ComponentActivity() {
             val playerViewModel = (application as PlyrApp).playerViewModel
             val theme = remember { mutableStateOf(Config.getTheme(this)) }
 
-            // Determinar el modo efectivo: 'dark', 'light' o seguir el sistema
+            // Estado para tema automático basado en sensor de luz
+            val autoThemeDark by isAutoThemeDark
+
+            // Determinar el modo efectivo: 'dark', 'light', 'system' o 'auto'
             val effectiveDark = when (theme.value) {
                 "dark" -> true
                 "light" -> false
+                "auto" -> autoThemeDark
                 "system" -> isSystemInDarkTheme()
                 else -> isSystemInDarkTheme()
             }
@@ -138,7 +150,15 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 },
-                                onThemeChanged = { theme.value = it },
+                                onThemeChanged = { newTheme ->
+                                    theme.value = newTheme
+                                    // Activar/desactivar sensor de luz según el tema
+                                    if (newTheme == "auto") {
+                                        lightSensorDetector?.start()
+                                    } else {
+                                        lightSensorDetector?.stop()
+                                    }
+                                },
                                 playerViewModel = playerViewModel
                             )
                         }
@@ -221,10 +241,18 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private fun initializeLightSensorDetector() {
+        lightSensorDetector = LightSensorDetector(this) { isDark ->
+            // Solo actualizar el estado interno, no cambiar el tema guardado
+            isAutoThemeDark.value = isDark
+        }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         shakeDetector?.stop()
         orientationDetector?.stop()
+        lightSensorDetector?.stop()
         if (isFinishing) {
             (application as PlyrApp).playerViewModel.pausePlayer()
             stopService(Intent(this, MusicService::class.java))
@@ -240,6 +268,10 @@ class MainActivity : ComponentActivity() {
         shakeDetector?.start()
         // Iniciar detección de orientación
         orientationDetector?.start()
+        // Iniciar detección del sensor de luz solo si el tema es "auto"
+        if (Config.getTheme(this) == "auto") {
+            lightSensorDetector?.start()
+        }
     }
 
     override fun onPause() {
@@ -250,6 +282,8 @@ class MainActivity : ComponentActivity() {
         shakeDetector?.stop()
         // Detener detección de orientación
         orientationDetector?.stop()
+        // Detener detección del sensor de luz
+        lightSensorDetector?.stop()
     }
 
     override fun onNewIntent(intent: Intent) {

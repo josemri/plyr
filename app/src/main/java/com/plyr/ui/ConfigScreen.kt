@@ -97,15 +97,19 @@ fun ConfigScreen(
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // Reemplazado BinaryToggle por TernaryToggle para soportar "system"
-            TernaryToggle(
-                option1 = Translations.get(context, "theme_system"),
-                option2 = Translations.get(context, "theme_dark"),
-                option3 = Translations.get(context, "theme_light"),
-                initialValue = when (selectedTheme) {
+            // Reemplazado BinaryToggle por MultiToggle para soportar 4 opciones de tema
+            MultiToggle(
+                options = listOf(
+                    Translations.get(context, "theme_system"),
+                    Translations.get(context, "theme_dark"),
+                    Translations.get(context, "theme_light"),
+                    Translations.get(context, "theme_auto")
+                ),
+                initialIndex = when (selectedTheme) {
                     "system" -> 0
                     "dark" -> 1
                     "light" -> 2
+                    "auto" -> 3
                     else -> 0
                 },
                 onChange = { selectedIndex ->
@@ -113,6 +117,7 @@ fun ConfigScreen(
                         0 -> "system"
                         1 -> "dark"
                         2 -> "light"
+                        3 -> "auto"
                         else -> "system"
                     }
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
