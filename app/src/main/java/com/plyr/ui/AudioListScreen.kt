@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
 import com.plyr.model.AudioItem
 import com.plyr.viewmodel.PlayerViewModel
+import com.plyr.utils.NfcScanEvent
 
 // Estados para navegación
 enum class Screen {
@@ -27,6 +28,17 @@ fun AudioListScreen(
     playerViewModel: PlayerViewModel? = null
 ) {
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
+
+    // Observar eventos de NFC para navegar al SearchScreen desde cualquier pantalla
+    val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
+
+    LaunchedEffect(nfcScanResult) {
+        if (nfcScanResult != null) {
+            android.util.Log.d("AudioListScreen", "🏷️ NFC detected, navigating to SearchScreen from ${currentScreen}")
+            // Navegar al SearchScreen cuando se detecta un NFC, desde cualquier pantalla
+            currentScreen = Screen.SEARCH
+        }
+    }
 
     BackHandler(enabled = currentScreen != Screen.HOME) {
         currentScreen = Screen.HOME

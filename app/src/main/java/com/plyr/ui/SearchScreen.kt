@@ -29,6 +29,7 @@ import com.plyr.model.AudioItem
 import com.plyr.network.*
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
+import com.plyr.utils.NfcScanEvent
 import com.plyr.database.TrackEntity
 import com.plyr.database.SearchHistoryEntity
 import com.plyr.database.PlaylistDatabase
@@ -107,6 +108,9 @@ fun SearchScreen(
 
     // Definir el estado en el composable principal
     var showQrScanner by remember { mutableStateOf(false) }
+
+    // Observar eventos de NFC (el LaunchedEffect se define más abajo, después de las funciones)
+    val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
 
     // Database for search history
     val database = remember { PlaylistDatabase.getDatabase(context) }
@@ -375,6 +379,87 @@ fun SearchScreen(
                 isLoadingArtistAlbums = false
                 error = "Error cargando álbumes del artista: ${e.message}"
             }
+        }
+    }
+
+    // LaunchedEffect para procesar eventos de NFC (debe estar después de las definiciones de funciones)
+    LaunchedEffect(nfcScanResult) {
+        val result = nfcScanResult ?: return@LaunchedEffect
+
+        android.util.Log.d("SearchScreen", "📥 NFC Result received - source: ${result.source}, type: ${result.type}, id: ${result.id}")
+
+        // Consumir el resultado para evitar procesarlo múltiples veces
+        NfcScanEvent.consumeResult()
+
+        try {
+            when (result.source) {
+                "spotify" -> {
+                    if (Config.isSpotifyConnected(context)) {
+                        val accessToken = Config.getSpotifyAccessToken(context)
+                        if (accessToken != null) {
+                            isLoading = true
+                            when (result.type) {
+                                "track" -> {
+                                    SpotifyRepository.getTrack(accessToken, result.id) { track, errorMsg ->
+                                        isLoading = false
+                                        if (track != null) {
+                                            searchQuery = "${track.name} ${track.getArtistNames()}"
+                                            coroutineScope.launch {
+                                                performSearch(searchQuery, false)
+                                            }
+                                        } else {
+                                            error = "${Translations.get(context, "search_error_getting_track")}: $errorMsg"
+                                        }
+                                    }
+                                }
+                                "playlist" -> {
+                                    SpotifyRepository.getPlaylist(accessToken, result.id) { playlist, errorMsg ->
+                                        isLoading = false
+                                        if (playlist != null) {
+                                            loadSpotifyPlaylistTracks(playlist)
+                                        } else {
+                                            error = "${Translations.get(context, "search_error_getting_playlist")}: $errorMsg"
+                                        }
+                                    }
+                                }
+                                "album" -> {
+                                    SpotifyRepository.getAlbum(accessToken, result.id) { album, errorMsg ->
+                                        isLoading = false
+                                        if (album != null) {
+                                            loadSpotifyAlbumTracks(album)
+                                        } else {
+                                            error = "${Translations.get(context, "search_error_getting_album")}: $errorMsg"
+                                        }
+                                    }
+                                }
+                                "artist" -> {
+                                    SpotifyRepository.getArtist(accessToken, result.id) { artist, errorMsg ->
+                                        isLoading = false
+                                        if (artist != null) {
+                                            loadArtistAlbums(artist)
+                                        } else {
+                                            error = "${Translations.get(context, "search_error_getting_artist")}: $errorMsg"
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            error = Translations.get(context, "search_token_not_available")
+                        }
+                    } else {
+                        error = Translations.get(context, "search_spotify_not_connected")
+                    }
+                }
+                "youtube" -> {
+                    // Buscar directamente el video ID en YouTube
+                    val videoUrl = "https://www.youtube.com/watch?v=${result.id}"
+                    searchQuery = videoUrl
+                    performSearch(videoUrl, false)
+                }
+            }
+        } catch (e: Exception) {
+            error = "${Translations.get(context, "search_error_processing_qr")}: ${e.message}"
+            isLoading = false
         }
     }
 

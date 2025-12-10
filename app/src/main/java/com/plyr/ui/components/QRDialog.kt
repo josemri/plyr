@@ -28,6 +28,7 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.set
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import com.plyr.utils.NfcReader
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.Translations
 import kotlinx.coroutines.delay
@@ -96,6 +97,9 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
         val adapter = nfcAdapter
 
         if (activity != null && adapter != null && nfcState == NfcWriteState.WAITING) {
+            // Detener NfcReader para evitar conflictos de foreground dispatch
+            NfcReader.stopReading(activity)
+
             val intent = Intent(context, activity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
             val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
@@ -111,6 +115,8 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                 try {
                     adapter.disableForegroundDispatch(activity)
                 } catch (_: Exception) {}
+                // Reactivar NfcReader cuando salimos del modo escritura
+                NfcReader.startReading(activity)
             }
         }
     }
@@ -226,6 +232,18 @@ fun NfcButton(
     var frameCounter by remember { mutableStateOf(0) }
     val width = 11
     val center = width / 2
+
+    // Activar/desactivar modo escritura global cuando cambia el estado
+    LaunchedEffect(state) {
+        NfcTagEvent.setWriteMode(state == NfcWriteState.WAITING)
+    }
+
+    // Asegurar que se desactiva el modo escritura cuando el componente se desmonta
+    DisposableEffect(Unit) {
+        onDispose {
+            NfcTagEvent.setWriteMode(false)
+        }
+    }
 
     LaunchedEffect(state) {
         if (state == NfcWriteState.WAITING) {
