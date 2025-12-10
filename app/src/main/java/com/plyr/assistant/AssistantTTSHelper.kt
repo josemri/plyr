@@ -1,5 +1,6 @@
 package com.plyr.assistant
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
@@ -9,7 +10,7 @@ import java.util.Locale
 /**
  * Helper wrapper around Android TextToSpeech for speaking assistant responses.
  */
-class AssistantTTSHelper(private val context: Context) {
+class AssistantTTSHelper private constructor(private val context: Context) {
     private var tts: TextToSpeech? = null
     private var isInitialized = false
     private var pendingText: String? = null
@@ -95,5 +96,47 @@ class AssistantTTSHelper(private val context: Context) {
         tts?.shutdown()
         tts = null
         isInitialized = false
+    }
+
+    companion object {
+        @SuppressLint("StaticFieldLeak")
+        @Volatile
+        private var INSTANCE: AssistantTTSHelper? = null
+
+        /** Initialize the singleton if not already created. Safe to call multiple times. */
+        fun initializeIfNeeded(context: Context) {
+            if (INSTANCE == null) {
+                synchronized(this) {
+                    if (INSTANCE == null) {
+                        // Store applicationContext to avoid leaking activities
+                        INSTANCE = AssistantTTSHelper(context.applicationContext)
+                    }
+                }
+            }
+        }
+
+        /** Shutdown and clear the singleton if present. */
+        fun shutdownIfNeeded() {
+            INSTANCE?.let {
+                it.destroy()
+                INSTANCE = null
+            }
+        }
+
+        /** Convenience to speak text if the TTS is initialized. Initializes if needed. */
+        fun speakIfReady(context: Context, text: String) {
+            initializeIfNeeded(context)
+            INSTANCE?.speak(text)
+        }
+
+        /** Stop the current TTS playback if instance exists. */
+        fun stopIfNeeded() {
+            INSTANCE?.stop()
+        }
+
+        /** Check whether the TTS is currently speaking. */
+        fun isSpeaking(): Boolean {
+            return INSTANCE?.isSpeaking() == true
+        }
     }
 }

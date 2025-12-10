@@ -45,6 +45,12 @@ object Config {
     private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
 
+    // Nuevas claves para configuración del asistente
+    private const val KEY_ASSISTANT_ENABLED = "assistant_enabled"
+    private const val KEY_ASSISTANT_SAME_LANGUAGE = "assistant_same_language"
+    private const val KEY_ASSISTANT_TTS_ENABLED = "assistant_tts_enabled"
+    private const val KEY_ASSISTANT_LANGUAGE = "assistant_language"
+
     // Valores por defecto
     private const val DEFAULT_THEME = "system" // Por defecto en nuevas instalaciones seguir el tema del sistema
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
@@ -53,6 +59,10 @@ object Config {
     private const val DEFAULT_LANGUAGE = "english"
     private const val DEFAULT_SWIPE_LEFT_ACTION = "add_to_queue"
     private const val DEFAULT_SWIPE_RIGHT_ACTION = "add_to_liked_songs"
+    private const val DEFAULT_ASSISTANT_ENABLED = true
+    private const val DEFAULT_ASSISTANT_SAME_LANGUAGE = true
+    private const val DEFAULT_ASSISTANT_TTS_ENABLED = false
+    private const val DEFAULT_ASSISTANT_LANGUAGE = DEFAULT_LANGUAGE
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
 
@@ -539,14 +549,53 @@ object Config {
         }
     }
 
-    /**
-     * Elimina el nombre de usuario de Spotify almacenado.
-     * @param context Contexto de la aplicación
-     */
+    /** Elimina el nombre de usuario de Spotify almacenado. */
     fun clearSpotifyUserName(context: Context) {
         getPrefs(context).edit {
             remove(KEY_SPOTIFY_USER_NAME)
         }
     }
 
-}
+    // === CONFIGURACIÓN DEL ASISTENTE ===
+
+    /** Comprueba si el asistente está habilitado. */
+    fun isAssistantEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_ASSISTANT_ENABLED, DEFAULT_ASSISTANT_ENABLED)
+    }
+
+    /** Activa o desactiva el asistente. */
+    fun setAssistantEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_ASSISTANT_ENABLED, enabled) }
+    }
+
+    /** Comprueba si el asistente debe usar el mismo idioma de la app. */
+    fun isAssistantSameLanguage(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_ASSISTANT_SAME_LANGUAGE, DEFAULT_ASSISTANT_SAME_LANGUAGE)
+    }
+
+    /** Establece si el asistente usa el mismo idioma que la app. */
+    fun setAssistantSameLanguage(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_ASSISTANT_SAME_LANGUAGE, enabled) }
+    }
+
+    /** Comprueba si TTS del asistente está habilitado. */
+    fun isAssistantTtsEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_ASSISTANT_TTS_ENABLED, DEFAULT_ASSISTANT_TTS_ENABLED)
+    }
+
+    /** Activa o desactiva TTS para el asistente. */
+    fun setAssistantTtsEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit { putBoolean(KEY_ASSISTANT_TTS_ENABLED, enabled) }
+    }
+
+    /** Obtiene el idioma específico del asistente (si se usa distinto del de la app). */
+    fun getAssistantLanguage(context: Context): String {
+        return getPrefs(context).getString(KEY_ASSISTANT_LANGUAGE, DEFAULT_ASSISTANT_LANGUAGE) ?: DEFAULT_ASSISTANT_LANGUAGE
+    }
+
+    /** Establece el idioma específico del asistente. */
+    fun setAssistantLanguage(context: Context, language: String) {
+        getPrefs(context).edit { putString(KEY_ASSISTANT_LANGUAGE, language) }
+    }
+
+ }

@@ -242,6 +242,15 @@ object Translations {
             "no_playlists_found" to "No se encontraron playlists",
 
             // Assistant
+            "assistant_settings" to "Asistente",
+            "enable_assistant" to "Habilitar asistente",
+            "assistant_same_language" to "Usar idioma de la app",
+            "enable_tts" to "Respuestas por voz (TTS)",
+            "auto_suggestions" to "Sugerencias automáticas",
+            "contextual_help" to "Ayuda contextual",
+            "assistant_description" to "El asistente te ayuda a navegar y usar la app. TTS lee las respuestas en voz alta.",
+            "enabled" to "Activo",
+            "disabled" to "Inactivo",
             "assistant_commands_available" to "Comandos disponibles:",
             "assistant_resume_playback" to "Reanudar la reproducción",
             "assistant_pause_playback" to "Pausar la reproducción",
@@ -362,6 +371,15 @@ object Translations {
         // ENGLISH
         "english" to mapOf(
             // Config Screen
+            "assistant_settings" to "Assistant",
+            "enable_assistant" to "Enable assistant",
+            "assistant_same_language" to "Use app language",
+            "enable_tts" to "Voice responses (TTS)",
+            "auto_suggestions" to "Auto suggestions",
+            "contextual_help" to "Contextual help",
+            "assistant_description" to "The assistant helps you navigate and use the app. TTS will read responses aloud.",
+            "enabled" to "Enabled",
+            "disabled" to "Disabled",
             "config_title" to "plyr_config",
             "theme" to "> theme",
             "theme_dark" to "dark",
@@ -560,6 +578,15 @@ object Translations {
             "no_playlists_found" to "No playlists found",
 
             // Assistant
+            "assistant_settings" to "Assistant",
+            "enable_assistant" to "Enable assistant",
+            "assistant_same_language" to "Use app language",
+            "enable_tts" to "Voice responses (TTS)",
+            "auto_suggestions" to "Auto suggestions",
+            "contextual_help" to "Contextual help",
+            "assistant_description" to "The assistant helps you navigate and use the app. TTS will read responses aloud.",
+            "enabled" to "Enabled",
+            "disabled" to "Disabled",
             "assistant_commands_available" to "Available commands:",
             "assistant_resume_playback" to "Resume playback",
             "assistant_pause_playback" to "Pause playback",
@@ -675,6 +702,15 @@ object Translations {
         // CATALÀ
         "català" to mapOf(
             // Config Screen
+            "assistant_settings" to "Assistent",
+            "enable_assistant" to "Habilitar assistent",
+            "assistant_same_language" to "Utilitzar idioma de l'app",
+            "enable_tts" to "Respostes per veu (TTS)",
+            "auto_suggestions" to "Suggeriments automàtics",
+            "contextual_help" to "Ajuda contextual",
+            "assistant_description" to "L'assistent t'ajuda a navegar i utilitzar l'app. TTS llegeix les respostes en veu alta.",
+            "enabled" to "Actiu",
+            "disabled" to "Inactiu",
             "config_title" to "plyr_configuració",
             "theme" to "> tema",
             "theme_dark" to "fosc",
@@ -864,13 +900,16 @@ object Translations {
             "track_added_successfully" to "Cançó afegida correctament!",
             "no_playlists_found" to "No s'han trobat playlists",
 
-            // Swipe Actions - Short versions for config screen
-            "swipe_action_queue" to "cua",
-            "swipe_action_liked" to "pref",
-            "swipe_action_playlist" to "llista",
-            "swipe_action_share" to "comprti",
-            "swipe_action_download" to "desc",
             // Assistant
+            "assistant_settings" to "Assistent",
+            "enable_assistant" to "Habilitar assistent",
+            "assistant_same_language" to "Utilitzar idioma de l'app",
+            "enable_tts" to "Respostes per veu (TTS)",
+            "auto_suggestions" to "Suggeriments automàtics",
+            "contextual_help" to "Ajuda contextual",
+            "assistant_description" to "L'assistent t'ajuda a navegar i utilitzar l'app. TTS llegeix les respostes en veu alta.",
+            "enabled" to "Actiu",
+            "disabled" to "Inactiu",
             "assistant_commands_available" to "Comandes disponibles:",
             "assistant_resume_playback" to "Reprendre la reproducció",
             "assistant_pause_playback" to "Pausar la reproducció",

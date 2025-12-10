@@ -111,7 +111,8 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val assistantVoiceHelper = remember { AssistantVoiceHelper(context) }
     val assistantManager = remember { AssistantManager(context) }
-    val assistantTTS = remember { AssistantTTSHelper(context) }
+    // Use the singleton helper methods instead of constructing AssistantTTSHelper directly
+    // (AssistantTTSHelper has a private constructor; use initializeIfNeeded / speakIfReady / stopIfNeeded / shutdownIfNeeded)
 
     // Typewriter effect
     LaunchedEffect(assistantResponse) {
@@ -144,7 +145,7 @@ fun HomeScreen(
     fun dismissResponse() {
         assistantResponse = ""
         displayedResponse = ""
-        assistantTTS.stop()
+        com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
     }
 
     // Voice listener setup
@@ -165,7 +166,7 @@ fun HomeScreen(
 
                     isProcessing = false
                     assistantResponse = reply
-                    assistantTTS.speak(reply)
+                    com.plyr.assistant.AssistantTTSHelper.speakIfReady(context, reply)
                 }
             }
             override fun onError(errorCode: Int) {
@@ -181,7 +182,7 @@ fun HomeScreen(
         onDispose {
             assistantVoiceHelper.cancel()
             assistantVoiceHelper.destroy()
-            assistantTTS.destroy()
+            com.plyr.assistant.AssistantTTSHelper.shutdownIfNeeded()
             assistantManager.close()
         }
     }
@@ -217,7 +218,7 @@ fun HomeScreen(
                             val pulledEnough = pullOffset >= activationPx
                             if (pulledEnough) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                assistantTTS.stop()
+                                com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
                                 dismissResponse()
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                                     permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)

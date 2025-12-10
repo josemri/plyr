@@ -27,6 +27,8 @@ import com.plyr.ui.components.Titulo
 import com.plyr.ui.components.AsciiWaveActionButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
+import com.plyr.assistant.AssistantTTSHelper
+
 
 
 @Composable
@@ -420,6 +422,20 @@ fun ConfigScreen(
                             }
                         }
                 )
+
+                // Mostrar mensaje de conexión si existe
+                if (connectionMessage.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = connectionMessage,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(30.dp))
@@ -434,6 +450,10 @@ fun ConfigScreen(
             Spacer(modifier = Modifier.height(10.dp))
 
             LastfmApiConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            AssistantConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(30.dp))
         }
@@ -823,5 +843,230 @@ fun LastfmApiConfigSection(context: Context) {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun AssistantConfigSection(context: Context) {
+    var isExpanded by remember { mutableStateOf(false) }
+    var assistantEnabled by remember { mutableStateOf(Config.isAssistantEnabled(context)) }
+    var useSameLanguage by remember { mutableStateOf(Config.isAssistantSameLanguage(context)) }
+    var ttsEnabled by remember { mutableStateOf(Config.isAssistantTtsEnabled(context)) }
+    // assistant-specific language (only used when useSameLanguage == false)
+    var assistantLanguage by remember { mutableStateOf(Config.getAssistantLanguage(context)) }
+    val haptic = LocalHapticFeedback.current
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = Translations.get(context, "assistant_settings"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                ),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Text(
+                text = if (assistantEnabled) Translations.get(context, "enabled") else Translations.get(context, "disabled"),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = if (assistantEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+            )
+        }
+
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp)
+            ) {
+                CheckboxOption(
+                    label = Translations.get(context, "enable_assistant"),
+                    checked = assistantEnabled,
+                    onCheckedChange = {
+                        assistantEnabled = it
+                        Config.setAssistantEnabled(context, it)
+                        // When disabling assistant, force it to use app language
+                        if (!it) {
+                            useSameLanguage = true
+                            Config.setAssistantSameLanguage(context, true)
+                            // sync assistant language to app language
+                            val appLang = Config.getLanguage(context)
+                            assistantLanguage = appLang
+                            Config.setAssistantLanguage(context, appLang)
+                        }
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                CheckboxOption(
+                    label = Translations.get(context, "assistant_same_language"),
+                    checked = useSameLanguage,
+                    enabled = assistantEnabled,
+                    onCheckedChange = {
+                        useSameLanguage = it
+                        Config.setAssistantSameLanguage(context, it)
+                        // if now using same language, sync assistant language to app language
+                        if (it) {
+                            val appLang = Config.getLanguage(context)
+                            assistantLanguage = appLang
+                            Config.setAssistantLanguage(context, appLang)
+                        }
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                CheckboxOption(
+                    label = Translations.get(context, "enable_tts"),
+                    checked = ttsEnabled,
+                    enabled = assistantEnabled,
+                    onCheckedChange = {
+                        ttsEnabled = it
+                        Config.setAssistantTtsEnabled(context, it)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        // Optionally start/stop TTS engine
+                        if (it) {
+                            AssistantTTSHelper.initializeIfNeeded(context)
+                        } else {
+                            AssistantTTSHelper.shutdownIfNeeded()
+                        }
+                    }
+                )
+
+                // If not using app language, show a language selector identical to the main one
+                if (assistantEnabled && !useSameLanguage) {
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = Translations.get(context, "language"),
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                        ),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    // Map current assistantLanguage to an index
+                    var assistantLangIndex by remember {
+                        mutableStateOf(
+                            when (assistantLanguage) {
+                                Config.LANGUAGE_SPANISH -> 0
+                                Config.LANGUAGE_ENGLISH -> 1
+                                Config.LANGUAGE_CATALAN -> 2
+                                Config.LANGUAGE_JAPANESE -> 3
+                                else -> 0
+                            }
+                        )
+                    }
+
+                    MultiToggle(
+                        options = listOf(
+                            Translations.get(context, "lang_spanish"),
+                            Translations.get(context, "lang_english"),
+                            Translations.get(context, "lang_catalan"),
+                            Translations.get(context, "lang_japanese")
+                        ),
+                        initialIndex = assistantLangIndex,
+                        onChange = { selectedIndex ->
+                            assistantLangIndex = selectedIndex
+                            val newLang = when (selectedIndex) {
+                                0 -> Config.LANGUAGE_SPANISH
+                                1 -> Config.LANGUAGE_ENGLISH
+                                2 -> Config.LANGUAGE_CATALAN
+                                3 -> Config.LANGUAGE_JAPANESE
+                                else -> Config.LANGUAGE_SPANISH
+                            }
+                            assistantLanguage = newLang
+                            Config.setAssistantLanguage(context, newLang)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                    )
+                }
+
+                // Keep description
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = Translations.get(context, "assistant_description"),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    ),
+                    lineHeight = 14.sp
+                )
+            }
+        }
+
+        // Ensure assistant language stays synced to app language when using same language
+        LaunchedEffect(key1 = Config.getLanguage(context), key2 = useSameLanguage) {
+            if (useSameLanguage) {
+                val appLang = Config.getLanguage(context)
+                assistantLanguage = appLang
+                Config.setAssistantLanguage(context, appLang)
+            }
+        }
+
+    }
+}
+
+@Composable
+fun CheckboxOption(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (checked) "[x]" else "[ ]",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                color = if (enabled) {
+                    if (checked) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onBackground
+                } else {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                }
+            )
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onBackground
+                } else {
+                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
+                }
+            )
+        )
     }
 }
