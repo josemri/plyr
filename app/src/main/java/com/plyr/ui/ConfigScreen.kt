@@ -1058,19 +1058,6 @@ fun AssistantConfigSection(context: Context) {
                         }
                     )
                 }
-
-                // Keep description
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = Translations.get(context, "assistant_description"),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    ),
-                    lineHeight = 14.sp
-                )
             }
         }
 
@@ -1213,19 +1200,6 @@ fun SensorsConfigSection(context: Context) {
                         Config.setOrientationAction(context, selectedOrientationAction)
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     }
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Descripción
-                Text(
-                    text = Translations.get(context, "sensors_description"),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    ),
-                    lineHeight = 14.sp
                 )
             }
         }

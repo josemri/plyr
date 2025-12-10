@@ -240,10 +240,8 @@ object Translations {
             "sensors_description" to "      Agita el dispositivo para ejecutar una acción.\n      Funciona incluso con la pantalla apagada.",
             "orientation_for" to "    orientar para:",
             "orientation_off" to "off",
-            "orientation_volume_up" to "vol+",
-            "orientation_volume_down" to "vol-",
-            "orientation_next" to "next",
-            "orientation_previous" to "prev",
+            "orientation_skip" to "saltar",
+            "orientation_volume" to "volumen",
             "orientation_description" to "      Apunta el teléfono en una dirección cardinal\n      para ejecutar la acción seleccionada.",
 
             "error_fetching_track_info" to "Error obteniendo info del track",
@@ -383,17 +381,7 @@ object Translations {
             "assistant_cmd_favorites" to "favoritos",
             "assistant_cmd_who_sings" to "quién canta",
             "assistant_cmd_sleep_timer" to "temporizador",
-
-            // NFC & Share
-            "share_app" to "> compartir_app",
-            "share_me" to "< share me! >",
-            "share_via" to "Compartir vía",
-            "share_app_description" to "      Comparte plyr con tus amigos.\n      'compartir' abre el menú de compartir.\n      '<nfc>' escribe la URL en una tarjeta NFC.",
-            "nfc_no_url" to "No hay URL para escribir",
-            "nfc_not_available" to "NFC no disponible en este dispositivo",
-            "nfc_disabled" to "NFC está desactivado. Actívalo en ajustes.",
-            "nfc_write_success" to "¡URL escrita correctamente en la tarjeta NFC!",
-            "nfc_write_failed" to "Error al escribir en la tarjeta NFC",
+            "share_me" to "< ¡compárteme! >"
 
         ),
 
@@ -462,6 +450,11 @@ object Translations {
             "similar_songs" to "> recommendations",
             "loading_recommendations" to "<generating recommendations...>",
             "share_with_NFC" to "<share with NFC>",
+            "orientation_skip" to "skip",
+            "orientation_volume" to "volume",
+            "orientation_off" to "off",
+            "orientation_for" to "    orientation for:",
+            "share_me" to "< share me! >",
 
             // AcoustID Configuration
             "acoustid_api_key" to "    ● acoustid_api_key:",
@@ -817,9 +810,9 @@ object Translations {
             "lastfm_info" to "      Last.fm és un servei de música per obtenir recomanacions.\n      Com obtenir la teva API Key:\n      1. Ves a https://www.last.fm/api/account/create\n      2. Crea un compte o inicia sessió\n      3. Omple les dades de l'aplicació (nom: 'plyr')\n      4. Copia la teva API Key i enganxa-la a dalt\n      5. Aquesta key et permet obtenir recomanacions d'artistes",
 
             // Swipe Actions Configuration
-            "swipe_actions" to "> swipe_actions",
-            "swipe_left" to "swipe left",
-            "swipe_right" to "swipe right",
+            "swipe_actions" to "> accions_de_lliscament",
+            "swipe_left" to "lliscar esquerra",
+            "swipe_right" to "lliscar dreta",
 
             // Main Screen
             "plyr_title" to "$ plyr",
@@ -836,13 +829,395 @@ object Translations {
             "exit_message" to "Prem de nou per sortir",
 
             // Search Screen
-            "search_title" to "plyr_搜索",
+            "search_title" to "plyr_cercar",
+            "search_placeholder" to "cercar música...",
+            "search_loading" to "carregant...",
+            "search_no_results" to "no s'han trobat resultats",
+            "search_error" to "error",
+            "search_spotify_not_connected" to "Spotify no està connectat",
+            "search_token_not_available" to "Token de Spotify no disponible",
+            "search_engine_not_recognized" to "Motor de cerca no reconegut",
+            "search_error_loading_tracks" to "Error carregant cançons",
+            "search_loading_tracks" to "carregant cançons...",
+            "search_tracks" to "cançons",
+            "search_albums" to "àlbums",
+            "search_artists" to "artistes",
+            "search_playlists" to "llistes",
+            "search_videos" to "vídeos",
+            "search_youtube_playlists" to "llistes youtube",
+            "search_start" to "iniciar",
+            "search_random" to "aleatori",
+            "search_save" to "guardar",
+            "search_share" to "compartir",
+            "search_saved" to "guardat",
+            "search_error_saving" to "error en guardar",
+            "search_followers" to "seguidors",
+            "search_monthly_listeners" to "oients mensuals",
+            "search_scan_qr" to "qr",
+            "playlist_cover" to "Portada de la playlist",
+            "artist_image" to "Imatge de l'artista",
+            "search_query_empty_after_prefix" to "Consulta buida després del prefix",
+            "album_cover" to "Portada de l'àlbum",
+            "search_youtube_results" to "resultats de youtube",
+            "search_load_more" to "carregar més",
+            "colored by used engine" to "colorat segons el motor usat",
+
+            // Search Screen - Additional translations
+            "search_select_playlist" to "Seleccionar playlist",
+            "search_cancel" to "Cancel·lar",
+            "search_removing" to "eliminant...",
+            "search_removed" to "eliminat!",
+            "search_saving_status" to "guardant...",
+            "search_error_no_token" to "error: no hi ha token",
+            "search_unsave" to "desguardar",
+            "search_error_getting_track" to "Error obtenint track",
+            "search_error_getting_playlist" to "Error obtenint playlist",
+            "search_error_getting_album" to "Error obtenint àlbum",
+            "search_error_getting_artist" to "Error obtenint artista",
+            "search_error_processing_qr" to "Error processant QR",
+            "search_adding_to_playlist" to "afegint cançó a la playlist",
+
+            // Player
+            "now_playing" to "reproduint ara",
+            "play" to "reproduir",
+            "pause" to "pausa",
+            "next" to "següent",
+            "previous" to "anterior",
+            "repeat" to "repetir",
+            "shuffle" to "barrejar",
+
+            // Playlist / Form labels
+            "playlist_name" to "Nom de la playlist",
+            "description" to "Descripció",
+            "description_optional" to "Descripció (opcional)",
+            "search_tracks_label" to "Cercar cançons",
+            "create_playlist" to "Crear playlist",
+            "playlist_name_placeholder" to "Nom de la playlist",
+
+            // Local Screen
+            "plyr_local" to "plyr_local",
+            "unknown error" to "error desconegut",
+            "No tracks downloaded" to "Cap cançó descarregada",
+            "delete track" to "eliminar cançó",
+            "Song {{track_name}} will be removed permanently" to "La cançó {{track_name}} s'eliminarà permanentment",
+            "delete" to "eliminar",
+            "cancel" to "cancel·lar",
+
+            // Queue Screen
+            "plyr_queue" to "plyr_cua",
+            "No tracks loaded" to "Cap llista carregada",
+            "Play a track to start a playlist" to "Reprodueix una cançó per iniciar una llista",
+            "player_not_available" to "reproductor_no_disponible",
+
+            // Playlists Screen
+            "plyr_lists" to "plyr_llistes",
+            "<syncing...>" to "<sincronitzant...>",
+            "<sync>" to "<sincronitzar>",
+            "<new>" to "<crear>",
+            "Spotify not connected" to "Spotify no connectat",
+            "Loading tracks..." to "Carregant cançons...",
+
+            // ADDITIONAL KEYS (CATALÀ)
+            "connected_successfully" to "connectat correctament",
+            "token_exchange_failed" to "intercanvi de token fallat",
+            "cancelled_by_user" to "cancel·lat per l'usuari",
+            "error_obtaining_audio" to "No s'ha pogut obtenir àudio",
+            "error_prefix" to "Error: ",
+
+            // Playlist actions and dialogs
+            "btn_start" to "<start>",
+            "btn_stop" to "<stop>",
+            "btn_rand" to "<rand>",
+            "btn_share" to "<share>",
+            "btn_save" to "<save>",
+            "btn_edit" to "<edit>",
+            "btn_delete" to "<delete>",
+            "creating" to "<creant...>",
+            "create" to "<crear>",
+            "btn_nfc" to "<nfc>",
+            "delete_playlist_title" to "Eliminar playlist",
+            "delete_playlist_confirm" to "Estàs segur que vols eliminar '%s'? Aquesta acció no es pot desfer.",
+            "unsaved_changes_title" to "Canvis sense guardar",
+            "unsaved_changes_text" to "Tens canvis sense guardar. Estàs segur que vols sortir?",
+            "exit_label" to "Sortir",
+            "cancel_label" to "Cancel·lar",
+            "delete_label" to "Eliminar",
+
+            // SongListItem
+            "add_to_playlist" to "afegir a playlist",
+            "add_to_queue" to "afegir a cua",
+            "share" to "compartir",
+            "add_to_liked_songs" to "afegir a favorits",
+            "remove_from_liked_songs" to "treure de favorits",
+            "download" to "descarregar",
+
+            // Swipe Actions - Short versions for config screen
+            "swipe_action_queue" to "cua",
+            "swipe_action_liked" to "fav",
+            "swipe_action_playlist" to "llista",
+            "swipe_action_share" to "share",
+            "swipe_action_download" to "down",
+
+            // Sensors Configuration
+            "sensors_section" to "> sensors",
+            "shake_for" to "    sacsejar per:",
+            "shake_off" to "off",
+            "shake_next" to "next",
+            "shake_previous" to "prev",
+            "shake_play_pause" to "play",
+            "shake_assistant" to "asst",
+            "sensors_description" to "      Sacseja el dispositiu per executar una acció.\n      Funciona fins i tot amb la pantalla apagada.",
+            "orientation_for" to "    orientar per:",
+            "orientation_off" to "off",
+            "orientation_skip" to "saltar",
+            "orientation_volume" to "volum",
+            "orientation_description" to "      Apunta el telèfon en una direcció cardinal\n      per executar l'acció seleccionada.",
+
+            "error_fetching_track_info" to "Error obtenint info del track",
+            "spotify_token_unavailable" to "Token de Spotify no disponible",
+            "error_generic" to "Error",
+            "album_colon" to "Àlbum: %s",
+            "release_colon" to "Llançament: %s",
+            "duration_colon" to "Durada: %s",
+            "not_available" to "N/A",
+            "error_loading_playlists" to "Error carregant playlists",
+            "track_already_downloaded" to "Track ja descarregat",
+            "loading_playlists" to "carregant playlists...",
+            "track_added_successfully" to "Cançó afegida correctament!",
+            "no_playlists_found" to "No s'han trobat playlists",
+
+            // Assistant
+            "assistant_commands_available" to "Comandes disponibles:",
+            "assistant_resume_playback" to "Reprendre la reproducció",
+            "assistant_pause_playback" to "Pausar la reproducció",
+            "assistant_next_song" to "Següent cançó",
+            "assistant_previous_song" to "Cançó anterior",
+            "assistant_search_play" to "Cercar i reproduir una cançó",
+            "assistant_search_song" to "Cercar una cançó",
+            "assistant_add_queue" to "Afegir cançó a la cua",
+            "assistant_repeat_mode" to "Canviar mode de repetició",
+            "assistant_current_song" to "Veure cançó actual",
+            "assistant_see_commands" to "Veure totes les comandes",
+            "assistant_playing" to "Reproduint",
+            "assistant_paused" to "Pausat",
+            "assistant_next" to "Següent cançó",
+            "assistant_previous" to "Cançó anterior",
+            "assistant_repeat_changed" to "Mode de repetició canviat",
+            "assistant_open_settings" to "Per obrir ajustos, prem la icona de configuració",
+            "assistant_what_play" to "Digues-me què vols reproduir",
+            "assistant_what_search" to "Digues-me què vols cercar",
+            "assistant_what_add" to "Digues-me què vols afegir a la cua",
+            "assistant_no_results" to "No he trobat resultats per a: %s",
+            "assistant_error_play" to "Error en reproduir: %s",
+            "assistant_playing_song" to "Reproduint: %s de %s",
+            "assistant_playing_song_no_artist" to "Reproduint: %s",
+            "assistant_found" to "Trobat: %s de %s",
+            "assistant_added_queue" to "Afegit a la cua: %s de %s",
+            "assistant_added_queue_no_artist" to "Afegit a la cua: %s",
+            "assistant_now_playing" to "Reproduint: %s de %s",
+            "assistant_unknown_artist" to "Artista desconegut",
+            "assistant_nothing_playing" to "No hi ha cap cançó en reproducció",
+            "assistant_not_understand" to "No entenc. Digues 'ajuda' per veure les comandes disponibles.",
+            "assistant_error" to "Error en executar l'acció",
+            "assistant_listening" to "Escoltant...",
+            "assistant_processing" to "Processant...",
+
+            // Noves respostes de l'assistent
+            "assistant_muted" to "Silenciat",
+            "assistant_volume_set_to" to "Volum al %d%%",
+            "assistant_what_volume" to "Digues-me a quin nivell vols el volum",
+            "assistant_sleep_timer_set" to "Temporitzador configurat per a %d minuts",
+            "assistant_what_time" to "Digues-me en quants minuts vols parar la música",
+            "assistant_timer_cancelled" to "Temporitzador cancel·lat",
+            "assistant_shuffled" to "Llista barrejada",
+            "assistant_added_favorites" to "Afegit a favorits: %s",
+            "assistant_song_saved" to "Cançó guardada: %s",
+            "assistant_cannot_save" to "No es pot guardar aquesta cançó",
+            "assistant_playlist_created" to "Playlist '%s' creada",
+            "assistant_what_playlist_name" to "Digues-me el nom de la playlist",
+            "assistant_artist_info" to "Aquesta cançó és de %s",
+            "assistant_album_info" to "Aquesta cançó és de l'àlbum %s",
+            "assistant_unknown_album" to "Àlbum desconegut",
+            "assistant_duration_info" to "Vas per %s de %s",
+
+            // Noves descripcions de comandes
+            "assistant_volume_desc" to "Controlar el volum",
+            "assistant_shuffle_desc" to "Barrejar la playlist",
+            "assistant_favorites_desc" to "Afegir a favorits",
+            "assistant_who_sings_desc" to "Informació de l'artista",
+            "assistant_sleep_timer_desc" to "Temporitzador de son",
+
+            // Assistant Triggers (paraules clau que activen cada comanda)
+            "assistant_triggers_help" to "ajuda|comandes|què puc dir|que puc dir|què pots fer|que pots fer|opcions",
+            "assistant_triggers_whats_playing" to "què sona|que sona|què està sonant|que esta sonant|quina cançó és|quina canco es|cançó actual|canco actual|què estic escoltant|que estic escoltant|què reprodueix|que reprodueix",
+            "assistant_triggers_next" to "següent|seguent|pròxima|proxima|següent cançó|seguent canco|passa|salta|saltar",
+            "assistant_triggers_previous" to "anterior|enrere|cançó anterior|canco anterior|torna|retrocedeix",
+            "assistant_triggers_pause" to "pausa|pausar|para|parar|atura|aturar|stop",
+            "assistant_triggers_repeat" to "repetir|repeteix|repetició|repeticio|bucle|loop",
+            "assistant_triggers_add_queue" to "afegir a la cua|afegeix a la cua|posa a la cua|ficar a la cua|encuar",
+            "assistant_triggers_play" to "reproduir|reproduce|posa|posa'm|toca|tocar|escoltar|escolta|play|vull escoltar|vull sentir",
+            "assistant_triggers_resume" to "continuar|continua|reprendre|reprèn|segueix|seguir",
+            "assistant_triggers_search" to "cercar|cerca|trobar|troba|cerca",
+            "assistant_triggers_settings" to "ajustos|configuració|configuracio|config|opcions de configuració",
+
+            // Nous triggers per volum
+            "assistant_triggers_volume_up" to "puja el volum|pujar volum|més volum|mes volum|més alt|mes alt|volum amunt",
+            "assistant_triggers_volume_down" to "baixa el volum|baixar volum|menys volum|més baix|mes baix|volum avall",
+            "assistant_triggers_volume_set" to "volum al|posa el volum|volum a",
+            "assistant_triggers_mute" to "silenciar|silenci|mute|mutejar|calla",
+
+            // Nous triggers per informació contextual
+            "assistant_triggers_who_sings" to "qui canta|qui és l'artista|qui es l artista|de qui és|de qui es|artista",
+            "assistant_triggers_what_album" to "de quin àlbum|de quin album|quin àlbum|quin album|àlbum",
+            "assistant_triggers_how_long" to "quant dura|durada|quant queda|temps",
+
+            // Nous triggers per playlist
+            "assistant_triggers_shuffle" to "barreja|barrejar|aleatori|shuffle|random",
+            "assistant_triggers_add_favorites" to "afegeix a favorits|agregar a favorits|m'agrada|guardar a favorits|favorit",
+            "assistant_triggers_save_song" to "guarda aquesta cançó|guardar cançó|guarda aquesta|save",
+            "assistant_triggers_create_playlist" to "crea una playlist|crear playlist|nova playlist|crea llista",
+
+            // Nous triggers per temporitzador de son
+            "assistant_triggers_sleep_timer" to "para la música en|apaga't en|apagar en|temporitzador|para en|apagar en|para a les|apaga't a les|apagate a les",
+            "assistant_triggers_cancel_timer" to "cancel·la el temporitzador|cancelar temporitzador|treu el temporitzador|no t'apaguis",
+
+            // Nous triggers per comandes naturals
+            "assistant_triggers_play_genre" to "posa'm alguna cosa de|posa alguna cosa de|música de|vull",
+            "assistant_triggers_play_mood" to "alguna cosa alegre|alguna cosa trista|alguna cosa tranquil·la|alguna cosa animada|alguna cosa relaxant|música per",
+
+            // Assistant Commands (per mostrar a l'ajuda)
+            "assistant_cmd_play" to "play / reproduir",
+            "assistant_cmd_pause" to "pausa / stop",
+            "assistant_cmd_next" to "següent / salta",
+            "assistant_cmd_previous" to "anterior / enrere",
+            "assistant_cmd_play_song" to "posa <cançó>",
+            "assistant_cmd_search" to "cercar <cançó>",
+            "assistant_cmd_add_queue" to "afegir a la cua <cançó>",
+            "assistant_cmd_repeat" to "repetir",
+            "assistant_cmd_whats_playing" to "què sona",
+            "assistant_cmd_help" to "ajuda / comandes",
+
+            // NFC & Share
+            "share_app" to "> compartir_app",
+            "share_me" to "< Comparteix-me! >",
+            "share_via" to "Compartir via",
+            "share_app_description" to "      Comparteix plyr amb els teus amics.\n      'compartir' obre el menú de compartir.\n      '<nfc>' escriu la URL a una targeta NFC.",
+            "nfc_no_url" to "No hi ha URL per escriure",
+            "nfc_not_available" to "NFC no disponible en aquest dispositiu",
+            "nfc_disabled" to "NFC està desactivat. Activa'l a ajustos.",
+            "nfc_write_success" to "URL escrita correctament a la targeta NFC!",
+            "nfc_write_failed" to "Error en escriure a la targeta NFC",
+
+        ),
+
+        // 日本語 (JAPONÉS)
+        "日本語" to mapOf(
+            // Config Screen
+            "assistant_settings" to "アシスタント",
+            "enable_assistant" to "アシスタントを有効にする",
+            "assistant_same_language" to "アプリの言語を使用",
+            "enable_tts" to "音声応答 (TTS)",
+            "auto_suggestions" to "自動提案",
+            "contextual_help" to "コンテキストヘルプ",
+            "assistant_description" to "アシスタントはアプリのナビゲーションと使用を手助けします。TTSは応答を読み上げます。",
+            "enabled" to "有効",
+            "disabled" to "無効",
+            "config_title" to "plyr_設定",
+            "theme" to "> テーマ",
+            "theme_dark" to "ダーク",
+            "theme_light" to "ライト",
+            "theme_system" to "システム",
+            "theme_auto" to "自動",
+            "search_engine" to "> 検索エンジン",
+            "search_spotify" to "spotify",
+            "search_youtube" to "youtube",
+            "audio_quality" to "> 音質",
+            "quality_low" to "低",
+            "quality_med" to "中",
+            "quality_high" to "高",
+            "language" to "> 言語",
+            "lang_spanish" to "es",
+            "lang_english" to "en",
+            "lang_catalan" to "ca",
+            "lang_japanese" to "ja",
+            "info" to "> 情報",
+            "info_text" to "    ● 音楽の海賊行為はやめよう!\n    ● エンジン切替: yt: / sp:",
+            "spotify_status" to "> sptfy_ステータス",
+            "acoustid_status" to "> acoustid_ステータス",
+            "login" to "<ログイン>",
+            "client" to "    ● クライアント:",
+            "api" to "    ● api:",
+            "connected" to "接続済み",
+            "disconnected" to "未接続",
+            "configured" to "設定済み",
+            "not_configured" to "未設定",
+            "credentials_required" to "認証情報が必要です",
+            "configure_credentials_first" to "先に認証情報を設定してください",
+            "opening_browser" to "ブラウザを開いています...",
+            "check_browser" to "ブラウザを確認",
+            "error_starting_oauth" to "oauth開始エラー",
+            "client_id" to "      client_id:",
+            "client_secret" to "      client_secret:",
+            "enter_client_id" to "spotify client idを入力",
+            "enter_client_secret" to "spotify client secretを入力",
+            "how_to_get_credentials" to "      > spotify api認証情報の取得方法:",
+            "instruction_1" to "1. https://developer.spotify.com/dashboard にアクセス",
+            "instruction_2" to "2. spotifyアカウントでログイン",
+            "instruction_3" to "3. 'create app'をクリック",
+            "instruction_4" to "4. アプリ名を入力 (例: 'plyr mobile')",
+            "instruction_5" to "5. redirect uriを設定: 'plyr://spotify/callback'",
+            "instruction_6" to "6. 'mobile'と'web api'を選択",
+            "instruction_7" to "7. 'save'をクリック",
+            "instruction_8" to "8. client idとclient secretをコピー",
+            "instruction_9" to "9. 上のフィールドに貼り付け",
+            "note_local_storage" to "      注: これらの認証情報はローカルに保存されます",
+            "albums" to "> アルバム",
+            "similar_songs" to "> おすすめ",
+            "loading_recommendations" to "<おすすめを生成中...>",
+            "share_with_NFC" to "<NFCで共有>",
+            "orientation_skip" to "スキップ",
+            "orientation_volume" to "音量",
+            "orientation_off" to "オフ",
+            "share_me" to "< 私を共有！ >",
+
+            // AcoustID Configuration
+            "acoustid_api_key" to "    ● acoustid_api_key:",
+            "enter_acoustid_api_key" to "acoustid api keyを入力",
+            "acoustid_info" to "      AcoustIDは音楽識別のための無料サービスです。\n      API Keyの取得方法:\n      1. https://acoustid.org/new-application にアクセス\n      2. アカウントを作成またはログイン\n      3. 新しいアプリケーションを作成 (名前: 'plyr')\n      4. API Keyをコピーして上に貼り付け\n      5. このkeyでアプリから曲を識別できます",
+
+            // Last.fm Configuration
+            "lastfm_status" to "> lastfm_ステータス",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
+            "enter_lastfm_api_key" to "last.fm api keyを入力",
+            "lastfm_info" to "      Last.fmはおすすめを取得するための音楽サービスです。\n      API Keyの取得方法:\n      1. https://www.last.fm/api/account/create にアクセス\n      2. アカウントを作成またはログイン\n      3. アプリケーション情報を入力 (名前: 'plyr')\n      4. API Keyをコピーして上に貼り付け\n      5. このkeyでアーティストのおすすめを取得できます",
+
+            // Swipe Actions Configuration
+            "swipe_actions" to "> スワイプアクション",
+            "swipe_left" to "左スワイプ",
+            "swipe_right" to "右スワイプ",
+
+            // Main Screen
+            "plyr_title" to "$ plyr",
+            "search_hint" to "検索...",
+            "no_results" to "結果が見つかりません",
+            "loading" to "読み込み中...",
+
+            // Home Screen
+            "home_search" to "検索",
+            "home_playlists" to "リスト",
+            "home_queue" to "キュー",
+            "home_local" to "ローカル",
+            "home_settings" to "設定",
+            "exit_message" to "もう一度押すと終了します",
+
+            // Search Screen
+            "search_title" to "plyr_検索",
             "search_placeholder" to "音楽を検索...",
             "search_loading" to "読み込み中...",
             "search_no_results" to "結果が見つかりません",
             "search_error" to "エラー",
-            "search_spotify_not_connected" to "Spotify が接続されていません",
-            "search_token_not_available" to "Spotify トークンが利用できません",
+            "search_spotify_not_connected" to "Spotifyが接続されていません",
+            "search_token_not_available" to "Spotifyトークンが利用できません",
             "search_engine_not_recognized" to "検索エンジンが認識されません",
             "search_error_loading_tracks" to "曲の読み込みエラー",
             "search_loading_tracks" to "曲を読み込み中...",
@@ -851,7 +1226,7 @@ object Translations {
             "search_artists" to "アーティスト",
             "search_playlists" to "プレイリスト",
             "search_videos" to "動画",
-            "search_youtube_playlists" to "YouTube プレイリスト",
+            "search_youtube_playlists" to "YouTubeプレイリスト",
             "search_start" to "開始",
             "search_random" to "ランダム",
             "search_save" to "保存",
@@ -865,7 +1240,7 @@ object Translations {
             "artist_image" to "アーティスト画像",
             "search_query_empty_after_prefix" to "プレフィックス後のクエリが空です",
             "album_cover" to "アルバムカバー",
-            "search_youtube_results" to "YouTube の結果",
+            "search_youtube_results" to "YouTubeの結果",
             "search_load_more" to "もっと読み込む",
             "colored by used engine" to "検索エンジン別の色",
 
@@ -881,7 +1256,7 @@ object Translations {
             "search_error_getting_playlist" to "プレイリストの取得エラー",
             "search_error_getting_album" to "アルバムの取得エラー",
             "search_error_getting_artist" to "アーティストの取得エラー",
-            "search_error_processing_qr" to "QR の処理中にエラー",
+            "search_error_processing_qr" to "QRの処理中にエラー",
             "search_adding_to_playlist" to "プレイリストに曲を追加中...",
 
             // Player
@@ -893,31 +1268,13 @@ object Translations {
             "repeat" to "リピート",
             "shuffle" to "シャッフル",
 
-            // Playlist actions and dialogs
-            "btn_start" to "<開始>",
-            "btn_stop" to "<停止>",
-            "btn_rand" to "<ランダム>",
-            "btn_share" to "<共有>",
-            "btn_save" to "<保存>",
-            "btn_edit" to "<編集>",
-            "btn_delete" to "<削除>",
-            "creating" to "<作成中...>",
-            "create" to "<作成>",
-            "btn_nfc" to "<nfc>",
-            "delete_playlist_title" to "プレイリストを削除",
-            "delete_playlist_confirm" to "「%s」を削除してもよろしいですか？この操作は元に戻せません。",
-            "unsaved_changes_title" to "未保存の変更",
-            "unsaved_changes_text" to "未保存の変更があります。本当に終了しますか？",
-            "exit_label" to "終了",
-            "cancel_label" to "キャンセル",
-            "delete_label" to "削除",
-
-            // Additional
-            "connected_successfully" to "正常に接続されました",
-            "token_exchange_failed" to "トークンの交換に失敗しました",
-            "cancelled_by_user" to "ユーザーによりキャンセルされました",
-            "error_obtaining_audio" to "音声を取得できませんでした",
-            "error_prefix" to "エラー: ",
+            // Playlist / Form labels
+            "playlist_name" to "プレイリスト名",
+            "description" to "説明",
+            "description_optional" to "説明 (任意)",
+            "search_tracks_label" to "曲を検索",
+            "create_playlist" to "プレイリストを作成",
+            "playlist_name_placeholder" to "プレイリスト名",
 
             // Local Screen
             "plyr_local" to "plyr_ローカル",
@@ -939,8 +1296,34 @@ object Translations {
             "<syncing...>" to "<同期中...>",
             "<sync>" to "<同期>",
             "<new>" to "<新規作成>",
-            "Spotify not connected" to "Spotify が接続されていません",
+            "Spotify not connected" to "Spotifyが接続されていません",
             "Loading tracks..." to "曲を読み込み中...",
+
+            // ADDITIONAL KEYS (JAPONÉS)
+            "connected_successfully" to "正常に接続されました",
+            "token_exchange_failed" to "トークンの交換に失敗しました",
+            "cancelled_by_user" to "ユーザーによりキャンセルされました",
+            "error_obtaining_audio" to "音声を取得できませんでした",
+            "error_prefix" to "エラー: ",
+
+            // Playlist actions and dialogs
+            "btn_start" to "<開始>",
+            "btn_stop" to "<停止>",
+            "btn_rand" to "<ランダム>",
+            "btn_share" to "<共有>",
+            "btn_save" to "<保存>",
+            "btn_edit" to "<編集>",
+            "btn_delete" to "<削除>",
+            "creating" to "<作成中...>",
+            "create" to "<作成>",
+            "btn_nfc" to "<nfc>",
+            "delete_playlist_title" to "プレイリストを削除",
+            "delete_playlist_confirm" to "「%s」を削除してもよろしいですか？この操作は元に戻せません。",
+            "unsaved_changes_title" to "未保存の変更",
+            "unsaved_changes_text" to "未保存の変更があります。本当に終了しますか？",
+            "exit_label" to "終了",
+            "cancel_label" to "キャンセル",
+            "delete_label" to "削除",
 
             // SongListItem
             "add_to_playlist" to "プレイリストに追加",
@@ -950,16 +1333,29 @@ object Translations {
             "remove_from_liked_songs" to "お気に入りから削除",
             "download" to "ダウンロード",
 
+            // Swipe Actions - Short versions for config screen
+            "swipe_action_queue" to "キュー",
+            "swipe_action_liked" to "お気に",
+            "swipe_action_playlist" to "リスト",
+            "swipe_action_share" to "共有",
+            "swipe_action_download" to "ダウン",
 
-			// Swipe Actions - Short versions for config screen (Japanese)
-			"swipe_action_queue" to "キュー",       // queue
-			"swipe_action_liked" to "お気に",       // fav (abreviado de お気に入り)
-			"swipe_action_playlist" to "リスト",    // list
-			"swipe_action_share" to "共有",        // share
-			"swipe_action_download" to "ダウン",    // down (abreviado de ダウンロード)
+            // Sensors Configuration
+            "sensors_section" to "> センサー",
+            "shake_for" to "    振って:",
+            "shake_off" to "off",
+            "shake_next" to "次",
+            "shake_previous" to "前",
+            "shake_play_pause" to "再生",
+            "shake_assistant" to "アシ",
+            "sensors_description" to "      デバイスを振ってアクションを実行します。\n      画面がオフでも動作します。",
+            "orientation_for" to "    向けて:",
+            "orientation_skip" to "スキップ",
+            "orientation_volume" to "音量",
+            "orientation_description" to "      電話を基本方向に向けて\n      選択したアクションを実行します。",
 
             "error_fetching_track_info" to "トラック情報の取得エラー",
-            "spotify_token_unavailable" to "Spotify トークンが利用できません",
+            "spotify_token_unavailable" to "Spotifyトークンが利用できません",
             "error_generic" to "エラー",
             "album_colon" to "アルバム: %s",
             "release_colon" to "リリース: %s",
@@ -1020,6 +1416,31 @@ object Translations {
             "assistant_triggers_search" to "検索|けんさく|探す|さがす|見つける|みつける",
             "assistant_triggers_settings" to "設定|せってい|コンフィグ|オプション|環境設定|かんきょうせってい",
 
+            // New volume triggers
+            "assistant_triggers_volume_up" to "音量上げて|音量を上げて|大きくして|もっと大きく|ボリュームアップ",
+            "assistant_triggers_volume_down" to "音量下げて|音量を下げて|小さくして|もっと小さく|ボリュームダウン",
+            "assistant_triggers_volume_set" to "音量を|ボリュームを|音量",
+            "assistant_triggers_mute" to "ミュート|消音|静かに|黙って",
+
+            // New contextual info triggers
+            "assistant_triggers_who_sings" to "誰が歌ってる|だれがうたってる|アーティストは|誰の曲|だれのきょく|歌手",
+            "assistant_triggers_what_album" to "何のアルバム|なんのアルバム|アルバム名|どのアルバム",
+            "assistant_triggers_how_long" to "どのくらい|長さ|再生時間|あと何分|あとなんぷん",
+
+            // New playlist triggers
+            "assistant_triggers_shuffle" to "シャッフル|混ぜて|ランダム|ランダムに|バラバラに",
+            "assistant_triggers_add_favorites" to "お気に入りに追加|好き|いいね|お気に入り",
+            "assistant_triggers_save_song" to "この曲を保存|曲を保存|保存して|セーブ",
+            "assistant_triggers_create_playlist" to "プレイリスト作成|新しいプレイリスト|プレイリストを作って|リストを作成",
+
+            // New sleep timer triggers
+            "assistant_triggers_sleep_timer" to "分後に止めて|後に止めて|スリープタイマー|タイマー|分後に停止",
+            "assistant_triggers_cancel_timer" to "タイマーをキャンセル|タイマー解除|タイマーを消して|止めないで",
+
+            // New natural command triggers
+            "assistant_triggers_play_genre" to "何か再生|何かかけて|音楽をかけて|",
+            "assistant_triggers_play_mood" to "楽しい曲|悲しい曲|静かな曲|元気な曲|リラックスできる曲|曲を",
+
             // Assistant Commands (ヘルプ表示用)
             "assistant_cmd_play" to "再生 / プレイ",
             "assistant_cmd_pause" to "一時停止 / ストップ",
@@ -1032,21 +1453,17 @@ object Translations {
             "assistant_cmd_whats_playing" to "今の曲",
             "assistant_cmd_help" to "ヘルプ / コマンド",
 
-            // Sensors Configuration (日本語)
-            "sensors_section" to "> センサー",
-            "shake_for" to "    振って:",
-            "shake_off" to "off",
-            "shake_next" to "次",
-            "shake_previous" to "前",
-            "shake_play_pause" to "再生",
-            "shake_assistant" to "アシ",
-            "sensors_description" to "      デバイスを振ってアクションを実行します。\n      画面がオフでも動作します。",
-            "enabled" to "有効",
-            "disabled" to "無効",
-
+            // NFC & Share
+            "share_app" to "> アプリを共有",
+            "share_via" to "共有方法",
+            "share_app_description" to "      plyrを友達と共有しよう。\n      '共有'で共有メニューを開きます。\n      '<nfc>'でNFCタグにURLを書き込みます。",
+            "nfc_no_url" to "書き込むURLがありません",
+            "nfc_not_available" to "このデバイスではNFCが利用できません",
+            "nfc_disabled" to "NFCが無効です。設定で有効にしてください。",
+            "nfc_write_success" to "NFCタグにURLを書き込みました！",
+            "nfc_write_failed" to "NFCタグへの書き込みに失敗しました",
         ),
-
-        )
+    )
     /**
      * Obtiene una traducción para una clave específica según el idioma actual
      * @param context Contexto de la aplicación
