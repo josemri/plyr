@@ -1,7 +1,6 @@
 package com.plyr.ui
 
 import android.content.Context
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,6 +14,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.utils.Config
@@ -25,7 +25,7 @@ import com.plyr.ui.components.BinaryToggle
 import com.plyr.ui.components.TernaryToggle
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
-import com.plyr.ui.components.AsciiWaveActionButton
+import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
 import com.plyr.assistant.AssistantTTSHelper
@@ -69,6 +69,9 @@ fun ConfigScreen(
 
     val haptic = LocalHapticFeedback.current
 
+    // Dimensiones responsivas
+    val dimensions = calculateResponsiveDimensionsFallback()
+
     // Handle back button
     BackHandler {
         onBack()
@@ -80,21 +83,23 @@ fun ConfigScreen(
             Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(dimensions.screenPadding)
         ) {
             // Header
             Titulo(Translations.get(context, "config_title"))
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
             // Selector de tema
             Text(
                 text = Translations.get(context, "theme"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
+                    fontSize = dimensions.bodySize,
                 ),
-                modifier = Modifier.padding(bottom = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
             )
 
             // Reemplazado BinaryToggle por MultiToggle para soportar 4 opciones de tema
@@ -124,16 +129,18 @@ fun ConfigScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Selector de motor de búsqueda
             Text(
                 text = Translations.get(context, "search_engine"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
+                    fontSize = dimensions.bodySize,
                 ),
-                modifier = Modifier.padding(bottom = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
             )
 
             BinaryToggle(
@@ -146,16 +153,18 @@ fun ConfigScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Selector de calidad de audio
             Text(
                 text = Translations.get(context, "audio_quality"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
+                    fontSize = dimensions.bodySize,
                 ),
-                modifier = Modifier.padding(bottom = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
             )
 
             var selectedAudioQuality by remember { mutableStateOf(Config.getAudioQuality(context)) }
@@ -185,16 +194,18 @@ fun ConfigScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Selector de idioma
             Text(
                 text = Translations.get(context, "language"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
+                    fontSize = dimensions.bodySize,
                 ),
-                modifier = Modifier.padding(bottom = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
             )
 
             MultiToggle(
@@ -225,16 +236,18 @@ fun ConfigScreen(
             )
 
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Configuración de acciones de swipe
             Text(
                 text = Translations.get(context, "swipe_actions"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
+                    fontSize = dimensions.bodySize,
                 ),
-                modifier = Modifier.padding(bottom = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
             )
 
             // Selector de acción para swipe izquierdo
@@ -248,9 +261,11 @@ fun ConfigScreen(
                 text = "    ${Translations.get(context, "swipe_left")}:",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
+                    fontSize = dimensions.captionSize,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
 
@@ -284,7 +299,7 @@ fun ConfigScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
             // Selector de acción para swipe derecho
             var selectedSwipeRightAction by remember { mutableStateOf(Config.getSwipeRightAction(context)) }
@@ -297,9 +312,11 @@ fun ConfigScreen(
                 text = "    ${Translations.get(context, "swipe_right")}:",
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
+                    fontSize = dimensions.captionSize,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
 
@@ -333,7 +350,7 @@ fun ConfigScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Información de uso
             Column {
@@ -341,23 +358,25 @@ fun ConfigScreen(
                     text = Translations.get(context, "info"),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp,
+                        fontSize = dimensions.bodySize,
                     ),
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = dimensions.itemSpacing)
                 )
 
                 Text(
                     text = Translations.get(context, "info_text"),
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
+                        fontSize = dimensions.captionSize,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                     ),
-                    lineHeight = 18.sp
+                    lineHeight = dimensions.bodySize * 1.3f
                 )
             }
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Escuchar eventos de autenticación de Spotify
             LaunchedEffect(Unit) {
@@ -391,13 +410,15 @@ fun ConfigScreen(
                     },
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
+                        fontSize = dimensions.captionSize,
                         color = when {
                             isSpotifyConnected && Config.hasSpotifyCredentials(context) -> MaterialTheme.colorScheme.primary
                             else -> MaterialTheme.colorScheme.error
                         }
                     ),
                     textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
@@ -436,41 +457,43 @@ fun ConfigScreen(
                         text = connectionMessage,
                         style = MaterialTheme.typography.bodySmall.copy(
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 11.sp,
+                            fontSize = dimensions.captionSize,
                             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                         ),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Configuración de API de Spotify
             SpotifyApiConfigSection(context = context)
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
             AcoustidApiConfigSection(context = context)
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
             LastfmApiConfigSection(context = context)
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
             AssistantConfigSection(context = context)
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
             SensorsConfigSection(context = context)
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Sección de compartir app
             ShareAppSection(context = context)
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
         }
     }
 }
@@ -481,6 +504,7 @@ fun ConfigScreen(
 @Composable
 fun ShareAppSection(context: Context) {
     val haptic = LocalHapticFeedback.current
+    val dimensions = calculateResponsiveDimensionsFallback()
     var showShareDialog by remember { mutableStateOf(false) }
 
     // Mostrar el diálogo de compartir
@@ -507,15 +531,17 @@ fun ShareAppSection(context: Context) {
             text = Translations.get(context, "share_me"),
             style = MaterialTheme.typography.bodyMedium.copy(
                 fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
+                fontSize = dimensions.bodySize,
                 color = MaterialTheme.colorScheme.primary
             ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     showShareDialog = true
                 }
-                .padding(vertical = 12.dp, horizontal = 16.dp)
+                .padding(vertical = dimensions.itemSpacing, horizontal = dimensions.contentPadding)
         )
     }
 }
@@ -527,6 +553,7 @@ fun SpotifyApiConfigSection(context: Context) {
     var clientId by remember { mutableStateOf(Config.getSpotifyClientId(context) ?: "") }
     var clientSecret by remember { mutableStateOf(Config.getSpotifyClientSecret(context) ?: "") }
     val haptic = LocalHapticFeedback.current
+    val dimensions = calculateResponsiveDimensionsFallback()
 
     Column {
         // Campo principal de API - similar al formato del cliente
@@ -544,16 +571,20 @@ fun SpotifyApiConfigSection(context: Context) {
                 text = Translations.get(context, "spotify_status"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
+                    fontSize = dimensions.bodySize,
                 ),
-                modifier = Modifier.padding(bottom = 8.dp)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(bottom = dimensions.itemSpacing)
             )
 
             Text(
                 text = if (Config.hasSpotifyCredentials(context)) Translations.get(context, "configured") else Translations.get(context, "not_configured"),
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp,
+                    fontSize = dimensions.captionSize,
                     color = if (Config.hasSpotifyCredentials(context)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 )
             )
@@ -1024,7 +1055,7 @@ fun AssistantConfigSection(context: Context) {
 
                     // Map current assistantLanguage to an index
                     var assistantLangIndex by remember {
-                        mutableStateOf(
+                        mutableIntStateOf(
                             when (assistantLanguage) {
                                 Config.LANGUAGE_SPANISH -> 0
                                 Config.LANGUAGE_ENGLISH -> 1
