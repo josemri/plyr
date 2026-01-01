@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -36,16 +37,6 @@ import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.utils.ShakeDetector
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.launch
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
@@ -119,11 +110,13 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
 
+            // Calcular dimensiones responsivas para layouts
+            val dimensions = calculateResponsiveDimensionsFallback()
+
             PlyrTheme(darkTheme = effectiveDark) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    ReachabilityScaffold {
                     Box(Modifier.fillMaxSize().statusBarsPadding()) {
-                        Box(Modifier.fillMaxSize().padding(bottom = 140.dp)) {
+                        Box(Modifier.fillMaxSize().padding(bottom = dimensions.contentBottomPadding)) {
                             AudioListScreen(
                                 context = this@MainActivity,
                                 onVideoSelectedFromSearch = { _, _, results, index ->
@@ -166,9 +159,8 @@ class MainActivity : ComponentActivity() {
                         FloatingMusicControls(
                             playerViewModel = playerViewModel,
                             modifier = Modifier.align(Alignment.BottomCenter)
-                                .padding(bottom = 48.dp)
+                                .padding(bottom = dimensions.floatingControlsBottomPadding)
                         )
-                    }
                     }
                 }
             }
@@ -379,37 +371,4 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-    @Composable
-    fun ReachabilityScaffold(content: @Composable () -> Unit) {
-        var lowered by remember { mutableStateOf(false) }
-        val density = LocalDensity.current
-        val targetOffsetDp = with(density) { (if (lowered) 400f else 0f).toDp() }
-        val animatedOffsetDp by animateDpAsState(targetValue = targetOffsetDp)
-
-        Box(Modifier.fillMaxSize()) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .offset(y = animatedOffsetDp)
-            ) {
-                content()
-            }
-
-            // Zona sensible en la parte baja
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .align(Alignment.BottomCenter)
-                    .pointerInput(Unit) {
-                        detectVerticalDragGestures { _, dragAmount ->
-                            if (dragAmount > 50) lowered = true
-                            if (dragAmount < -50) lowered = false
-                        }
-                    }
-            )
-        }
-    }
-
-
 }

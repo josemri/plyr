@@ -4,7 +4,6 @@ import android.content.Context
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -23,12 +22,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.plyr.ui.components.*
+import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import com.plyr.utils.Translations
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
@@ -50,6 +51,9 @@ fun HomeScreen(
     playerViewModel: PlayerViewModel? = null,
     onNavigateToScreen: (Screen) -> Unit
 ) {
+    // Dimensiones responsivas basadas en el tamaño de pantalla
+    val dimensions = calculateResponsiveDimensionsFallback()
+
     var showExitMessage by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
@@ -206,72 +210,9 @@ fun HomeScreen(
 
     PlyrScreenContainer {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectVerticalDragGestures(
-                        onDragStart = { offset: Offset ->
-                            pullOffset = 0f
-                            val screenHeight = size.height.toFloat()
-                            if (offset.y > (screenHeight - bottomExclusionPx)) {
-                                // ignore - in bottom exclusion zone
-                            } else {
-                                overlayVisible = true
-                            }
-                        },
-                        onVerticalDrag = { _, dragAmount ->
-                            if (assistantResponse.isNotEmpty() && dragAmount < 0) {
-                                dismissResponse()
-                                return@detectVerticalDragGestures
-                            }
-
-                            if (!overlayVisible) return@detectVerticalDragGestures
-                            val resistance = 0.3f - (pullOffset / maxPullPx) * 0.2f
-                            val dampedDrag = dragAmount * resistance
-                            pullOffset = (pullOffset + dampedDrag).coerceIn(0f, maxPullPx * 0.5f)
-                        },
-                        onDragEnd = {
-                            if (!overlayVisible) return@detectVerticalDragGestures
-                            val pulledEnough = pullOffset >= activationPx
-                            if (pulledEnough) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
-                                dismissResponse()
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                } else {
-                                    isListening = true
-                                    assistantVoiceHelper.startListening()
-                                }
-                            }
-                            pullOffset = 0f
-                            overlayVisible = false
-                        },
-                        onDragCancel = {
-                            pullOffset = 0f
-                            overlayVisible = false
-                        }
-                    )
-                }
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Top-right settings icon
-            IconButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onNavigateToScreen(Screen.CONFIG)
-                },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = Translations.get(context, "settings"),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            // ASCII arts list
+            // ASCII arts list - definido aquí para usar en ambos layouts
             val asciiResIds = remember {
                 val ids = mutableListOf<Int>()
                 for (i in 1..50) {
@@ -285,83 +226,228 @@ fun HomeScreen(
                 if (asciiResIds.isNotEmpty()) asciiResIds.random() else 0
             }
 
-            // Main content column centered in the screen
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // ASCII image
-                if (selectedRes != 0) {
-                    val painter = painterResource(id = selectedRes)
-                    val intrinsic = painter.intrinsicSize
-                    var imgModifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                    if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
-                        imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
+            // ActionButtonsGroup - definido antes para usarlo en ambos layouts
+            val buttons = listOf(
+                ActionButtonData(
+                    text = "< ${Translations.get(context, "home_search")} >",
+                    color = MaterialTheme.colorScheme.primary,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToScreen(Screen.SEARCH)
                     }
-                    Image(
-                        painter = painter,
-                        contentDescription = Translations.get(context, "app_logo"),
-                        contentScale = ContentScale.Fit,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                        modifier = imgModifier
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
+                ),
+                ActionButtonData(
+                    text = "< ${Translations.get(context, "home_playlists")} >",
+                    color = MaterialTheme.colorScheme.primary,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToScreen(Screen.PLAYLISTS)
+                    }
+                ),
+                ActionButtonData(
+                    text = "< ${Translations.get(context, "home_queue")} >",
+                    color = MaterialTheme.colorScheme.primary,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToScreen(Screen.QUEUE)
+                    }
+                ),
+                ActionButtonData(
+                    text = "< ${Translations.get(context, "home_local")} >",
+                    color = MaterialTheme.colorScheme.primary,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToScreen(Screen.LOCAL)
+                    }
+                )
+            )
+
+            // Main content - responsivo según orientación y tamaño de pantalla
+            if (dimensions.showSideBySideLayout) {
+                // Layout horizontal para landscape en pantallas grandes
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = dimensions.screenPadding)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragStart = { offset: Offset ->
+                                    pullOffset = 0f
+                                    val screenHeight = size.height.toFloat()
+                                    if (offset.y > (screenHeight - bottomExclusionPx)) {
+                                        // ignore - in bottom exclusion zone
+                                    } else {
+                                        overlayVisible = true
+                                    }
+                                },
+                                onVerticalDrag = { _, dragAmount ->
+                                    if (assistantResponse.isNotEmpty() && dragAmount < 0) {
+                                        dismissResponse()
+                                        return@detectVerticalDragGestures
+                                    }
+
+                                    if (!overlayVisible) return@detectVerticalDragGestures
+                                    val resistance = 0.3f - (pullOffset / maxPullPx) * 0.2f
+                                    val dampedDrag = dragAmount * resistance
+                                    pullOffset = (pullOffset + dampedDrag).coerceIn(0f, maxPullPx * 0.5f)
+                                },
+                                onDragEnd = {
+                                    if (!overlayVisible) return@detectVerticalDragGestures
+                                    val pulledEnough = pullOffset >= activationPx
+                                    if (pulledEnough) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
+                                        dismissResponse()
+                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        } else {
+                                            isListening = true
+                                            assistantVoiceHelper.startListening()
+                                        }
+                                    }
+                                    pullOffset = 0f
+                                    overlayVisible = false
+                                },
+                                onDragCancel = {
+                                    pullOffset = 0f
+                                    overlayVisible = false
+                                }
+                            )
+                        },
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // ASCII image en un lado
+                    if (selectedRes != 0) {
+                        val painter = painterResource(id = selectedRes)
+                        val intrinsic = painter.intrinsicSize
+                        var imgModifier = Modifier
+                            .widthIn(max = dimensions.imageMaxWidth)
+                            .heightIn(max = dimensions.imageMaxHeight)
+                            .padding(end = dimensions.sectionSpacing)
+                        if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
+                            imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
+                        }
+                        Image(
+                            painter = painter,
+                            contentDescription = Translations.get(context, "app_logo"),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                            modifier = imgModifier
+                        )
+                    }
+
+                    // Botones en el otro lado
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(dimensions.itemSpacing),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        ActionButtonsGroup(
+                            buttons = buttons,
+                            isHorizontal = false,
+                            spacing = dimensions.itemSpacing,
+                            modifier = Modifier.wrapContentWidth()
+                        )
+
+                        if (showExitMessage) {
+                            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+                            PlyrErrorText(
+                                text = Translations.get(context, "exit_message"),
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            )
+                        }
+                    }
                 }
+            } else {
+                // Layout vertical SIN scroll para evitar conflicto con gestos del asistente
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = dimensions.screenPadding)
+                        .pointerInput(Unit) {
+                            detectVerticalDragGestures(
+                                onDragStart = { offset: Offset ->
+                                    pullOffset = 0f
+                                    val screenHeight = size.height.toFloat()
+                                    if (offset.y > (screenHeight - bottomExclusionPx)) {
+                                        // ignore - in bottom exclusion zone
+                                    } else {
+                                        overlayVisible = true
+                                    }
+                                },
+                                onVerticalDrag = { _, dragAmount ->
+                                    if (assistantResponse.isNotEmpty() && dragAmount < 0) {
+                                        dismissResponse()
+                                        return@detectVerticalDragGestures
+                                    }
 
-                // ActionButtonsGroup
-                val buttons = listOf(
-                    ActionButtonData(
-                        text = "< ${Translations.get(context, "home_search")} >",
-                        color = MaterialTheme.colorScheme.primary,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(Screen.SEARCH)
+                                    if (!overlayVisible) return@detectVerticalDragGestures
+                                    val resistance = 0.3f - (pullOffset / maxPullPx) * 0.2f
+                                    val dampedDrag = dragAmount * resistance
+                                    pullOffset = (pullOffset + dampedDrag).coerceIn(0f, maxPullPx * 0.5f)
+                                },
+                                onDragEnd = {
+                                    if (!overlayVisible) return@detectVerticalDragGestures
+                                    val pulledEnough = pullOffset >= activationPx
+                                    if (pulledEnough) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
+                                        dismissResponse()
+                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                            permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                        } else {
+                                            isListening = true
+                                            assistantVoiceHelper.startListening()
+                                        }
+                                    }
+                                    pullOffset = 0f
+                                    overlayVisible = false
+                                },
+                                onDragCancel = {
+                                    pullOffset = 0f
+                                    overlayVisible = false
+                                }
+                            )
+                        },
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // ASCII image
+                    if (selectedRes != 0) {
+                        val painter = painterResource(id = selectedRes)
+                        val intrinsic = painter.intrinsicSize
+                        var imgModifier = Modifier
+                            .widthIn(max = dimensions.imageMaxWidth)
+                            .heightIn(max = dimensions.imageMaxHeight)
+                            .padding(horizontal = dimensions.contentPadding)
+                        if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
+                            imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
                         }
-                    ),
-                    ActionButtonData(
-                        text = "< ${Translations.get(context, "home_playlists")} >",
-                        color = MaterialTheme.colorScheme.primary,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(Screen.PLAYLISTS)
-                        }
-                    ),
-                    ActionButtonData(
-                        text = "< ${Translations.get(context, "home_queue")} >",
-                        color = MaterialTheme.colorScheme.primary,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(Screen.QUEUE)
-                        }
-                    ),
-                    ActionButtonData(
-                        text = "< ${Translations.get(context, "home_local")} >",
-                        color = MaterialTheme.colorScheme.primary,
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(Screen.LOCAL)
-                        }
+                        Image(
+                            painter = painter,
+                            contentDescription = Translations.get(context, "app_logo"),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                            modifier = imgModifier
+                        )
+                        Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+                    }
+
+                    // ActionButtonsGroup
+                    ActionButtonsGroup(
+                        buttons = buttons,
+                        isHorizontal = false,
+                        spacing = dimensions.itemSpacing,
+                        modifier = Modifier.wrapContentWidth()
                     )
-                )
 
-                ActionButtonsGroup(
-                    buttons = buttons,
-                    isHorizontal = false,
-                    spacing = 12.dp,
-                    modifier = Modifier.wrapContentWidth()
-                )
-
-                if (showExitMessage) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    PlyrErrorText(
-                        text = Translations.get(context, "exit_message"),
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
+                    if (showExitMessage) {
+                        Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+                        PlyrErrorText(
+                            text = Translations.get(context, "exit_message"),
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
+                    }
                 }
             }
 
@@ -373,14 +459,16 @@ fun HomeScreen(
                     exit = fadeOut(),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(bottom = 100.dp)
-                        .padding(horizontal = 24.dp)
+                        .padding(bottom = if (dimensions.isLandscape) 60.dp else 100.dp)
+                        .padding(horizontal = dimensions.screenPadding)
                 ) {
                     Text(
                         text = if (isProcessing) animationFrames[animationFrame]
                                else displayedResponse + if (isTyping) "▌" else "",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
+                        maxLines = if (dimensions.isLandscape) 2 else 4,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             dismissResponse()
@@ -448,6 +536,23 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
+
+            // Top-right settings icon - FUERA del contenido con gestos para recibir clics correctamente
+            IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNavigateToScreen(Screen.CONFIG)
+                },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = Translations.get(context, "settings"),
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }

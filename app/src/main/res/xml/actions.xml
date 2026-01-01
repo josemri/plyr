@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actions>
+    <!-- Capability para que Google Assistant reconozca esta app como reproductor de música -->
+    <action intentName="actions.intent.PLAY_MUSIC">
+        <fulfillment urlTemplate="plyr://play?query={song.name}">
+            <parameter-mapping intentParameter="song.name" urlParameter="query" />
+        </fulfillment>
+    </action>
+
+    <!-- Map Assistant MEDIA_SEARCH to app deep link -->
+    <action intentName="actions.intent.MEDIA_SEARCH">
+        <fulfillment urlTemplate="plyr://search?query={query}&amp;type={filter.mediaType}">
+            <parameter-mapping intentParameter="query" urlParameter="query" />
+            <parameter-mapping intentParameter="filter.mediaType" urlParameter="type" />
+        </fulfillment>
+    </action>
+
+    <!-- Fallback: generic SEARCH intent -->
+    <action intentName="actions.intent.SEARCH">
+        <fulfillment urlTemplate="plyr://search?query={query}">
+            <parameter-mapping intentParameter="query" urlParameter="query" />
+        </fulfillment>
+    </action>
+
+    <!-- Play media intent: reproduce directamente -->
+    <action intentName="actions.intent.PLAY_MEDIA">
+        <fulfillment urlTemplate="plyr://play?query={query}&amp;type={filter.mediaType}">
+            <parameter-mapping intentParameter="query" urlParameter="query" />
+            <parameter-mapping intentParameter="filter.mediaType" urlParameter="type" />
+        </fulfillment>
+    </action>
+
+    <!-- OPEN_APP_FEATURE para música -->
+    <action intentName="actions.intent.OPEN_APP_FEATURE">
+        <parameter name="feature">
+            <entity-set-reference entitySetId="MusicFeature" />
+        </parameter>
+        <fulfillment urlTemplate="plyr://play" />
+    </action>
+</actions>
