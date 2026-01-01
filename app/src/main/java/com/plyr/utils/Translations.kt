@@ -229,14 +229,17 @@ object Translations {
             "swipe_action_share" to "share",
             "swipe_action_download" to "down",
 
-            // Sensors Configuration
-            "sensors_section" to "> sensores",
+            // Gestures Configuration
+            "gestures_section" to "> gestos",
+            "sensors_section" to "> gestos",
             "shake_for" to "    agitar para:",
             "shake_off" to "off",
             "shake_next" to "next",
             "shake_previous" to "prev",
             "shake_play_pause" to "play",
             "shake_assistant" to "asst",
+            "swipe_song_left" to "    swipe canción izquierda:",
+            "swipe_song_right" to "    swipe canción derecha:",
             "sensors_description" to "      Agita el dispositivo para ejecutar una acción.\n      Funciona incluso con la pantalla apagada.",
             "orientation_for" to "    orientar para:",
             "orientation_off" to "off",
@@ -587,14 +590,17 @@ object Translations {
             "swipe_action_share" to "share",
             "swipe_action_download" to "down",
 
-            // Sensors Configuration
-            "sensors_section" to "> sensors",
+            // Gestures Configuration
+            "gestures_section" to "> gestures",
+            "sensors_section" to "> gestures",
             "shake_for" to "    shake for:",
             "shake_off" to "off",
             "shake_next" to "next",
             "shake_previous" to "prev",
             "shake_play_pause" to "play",
             "shake_assistant" to "asst",
+            "swipe_song_left" to "    swipe song left:",
+            "swipe_song_right" to "    swipe song right:",
             "sensors_description" to "      Shake the device to perform an action.\n      Works even with the screen off.",
 
             "error_fetching_track_info" to "Error fetching track info",
@@ -958,14 +964,17 @@ object Translations {
             "swipe_action_share" to "share",
             "swipe_action_download" to "down",
 
-            // Sensors Configuration
-            "sensors_section" to "> sensors",
+            // Gestures Configuration
+            "gestures_section" to "> gestos",
+            "sensors_section" to "> gestos",
             "shake_for" to "    sacsejar per:",
             "shake_off" to "off",
             "shake_next" to "next",
             "shake_previous" to "prev",
             "shake_play_pause" to "play",
             "shake_assistant" to "asst",
+            "swipe_song_left" to "    swipe cançó esquerra:",
+            "swipe_song_right" to "    swipe cançó dreta:",
             "sensors_description" to "      Sacseja el dispositiu per executar una acció.\n      Funciona fins i tot amb la pantalla apagada.",
             "orientation_for" to "    orientar per:",
             "orientation_off" to "off",
@@ -1340,14 +1349,17 @@ object Translations {
             "swipe_action_share" to "共有",
             "swipe_action_download" to "ダウン",
 
-            // Sensors Configuration
-            "sensors_section" to "> センサー",
+            // Gestures Configuration
+            "gestures_section" to "> ジェスチャー",
+            "sensors_section" to "> ジェスチャー",
             "shake_for" to "    振って:",
             "shake_off" to "off",
             "shake_next" to "次",
             "shake_previous" to "前",
             "shake_play_pause" to "再生",
             "shake_assistant" to "アシ",
+            "swipe_song_left" to "    左にスワイプ:",
+            "swipe_song_right" to "    右にスワイプ:",
             "sensors_description" to "      デバイスを振ってアクションを実行します。\n      画面がオフでも動作します。",
             "orientation_for" to "    向けて:",
             "orientation_skip" to "スキップ",

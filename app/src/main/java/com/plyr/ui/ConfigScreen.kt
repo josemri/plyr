@@ -238,119 +238,6 @@ fun ConfigScreen(
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            // Configuración de acciones de swipe
-            Text(
-                text = Translations.get(context, "swipe_actions"),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = dimensions.bodySize,
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
-            )
-
-            // Selector de acción para swipe izquierdo
-            var selectedSwipeLeftAction by remember { mutableStateOf(Config.getSwipeLeftAction(context)) }
-
-            LaunchedEffect(selectedSwipeLeftAction) {
-                Config.setSwipeLeftAction(context, selectedSwipeLeftAction)
-            }
-
-            Text(
-                text = "    ${Translations.get(context, "swipe_left")}:",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = dimensions.captionSize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-
-            MultiToggle(
-                options = listOf(
-                    Translations.get(context, "swipe_action_queue"),
-                    Translations.get(context, "swipe_action_liked"),
-                    Translations.get(context, "swipe_action_playlist"),
-                    Translations.get(context, "swipe_action_share"),
-                    Translations.get(context, "swipe_action_download")
-                ),
-                initialIndex = when (selectedSwipeLeftAction) {
-                    Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
-                    Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
-                    Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
-                    Config.SWIPE_ACTION_SHARE -> 3
-                    Config.SWIPE_ACTION_DOWNLOAD -> 4
-                    else -> 0
-                },
-                onChange = { selectedIndex ->
-                    selectedSwipeLeftAction = when (selectedIndex) {
-                        0 -> Config.SWIPE_ACTION_ADD_TO_QUEUE
-                        1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
-                        2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
-                        3 -> Config.SWIPE_ACTION_SHARE
-                        4 -> Config.SWIPE_ACTION_DOWNLOAD
-                        else -> Config.SWIPE_ACTION_ADD_TO_QUEUE
-                    }
-                    Config.setSwipeLeftAction(context, selectedSwipeLeftAction)
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-            // Selector de acción para swipe derecho
-            var selectedSwipeRightAction by remember { mutableStateOf(Config.getSwipeRightAction(context)) }
-
-            LaunchedEffect(selectedSwipeRightAction) {
-                Config.setSwipeRightAction(context, selectedSwipeRightAction)
-            }
-
-            Text(
-                text = "    ${Translations.get(context, "swipe_right")}:",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = dimensions.captionSize,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-
-            MultiToggle(
-                options = listOf(
-                    Translations.get(context, "swipe_action_queue"),
-                    Translations.get(context, "swipe_action_liked"),
-                    Translations.get(context, "swipe_action_playlist"),
-                    Translations.get(context, "swipe_action_share"),
-                    Translations.get(context, "swipe_action_download")
-                ),
-                initialIndex = when (selectedSwipeRightAction) {
-                    Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
-                    Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
-                    Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
-                    Config.SWIPE_ACTION_SHARE -> 3
-                    Config.SWIPE_ACTION_DOWNLOAD -> 4
-                    else -> 1
-                },
-                onChange = { selectedIndex ->
-                    selectedSwipeRightAction = when (selectedIndex) {
-                        0 -> Config.SWIPE_ACTION_ADD_TO_QUEUE
-                        1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
-                        2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
-                        3 -> Config.SWIPE_ACTION_SHARE
-                        4 -> Config.SWIPE_ACTION_DOWNLOAD
-                        else -> Config.SWIPE_ACTION_ADD_TO_LIKED
-                    }
-                    Config.setSwipeRightAction(context, selectedSwipeRightAction)
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Información de uso
             Column {
@@ -486,7 +373,7 @@ fun ConfigScreen(
 
             Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
-            SensorsConfigSection(context = context)
+            GesturesConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -1105,14 +992,16 @@ fun AssistantConfigSection(context: Context) {
 }
 
 @Composable
-fun SensorsConfigSection(context: Context) {
+fun GesturesConfigSection(context: Context) {
     var isExpanded by remember { mutableStateOf(false) }
     var selectedShakeAction by remember { mutableStateOf(Config.getShakeAction(context)) }
+    var selectedSwipeLeftAction by remember { mutableStateOf(Config.getSwipeLeftAction(context)) }
+    var selectedSwipeRightAction by remember { mutableStateOf(Config.getSwipeRightAction(context)) }
     var selectedOrientationAction by remember { mutableStateOf(Config.getOrientationAction(context)) }
     val haptic = LocalHapticFeedback.current
 
     Column {
-        // Campo principal de configuración de sensores
+        // Campo principal de configuración de gestos
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1124,7 +1013,7 @@ fun SensorsConfigSection(context: Context) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = Translations.get(context, "sensors_section"),
+                text = Translations.get(context, "gestures_section"),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 16.sp,
@@ -1148,7 +1037,7 @@ fun SensorsConfigSection(context: Context) {
             )
         }
 
-        // Desplegable con opciones de sensores
+        // Desplegable con opciones de gestos
         if (isExpanded) {
             Column(
                 modifier = Modifier
@@ -1192,6 +1081,92 @@ fun SensorsConfigSection(context: Context) {
                             else -> Config.SHAKE_ACTION_OFF
                         }
                         Config.setShakeAction(context, selectedShakeAction)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Selector de acción para swipe izquierdo (swipe song left)
+                Text(
+                    text = Translations.get(context, "swipe_song_left"),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "swipe_action_queue"),
+                        Translations.get(context, "swipe_action_liked"),
+                        Translations.get(context, "swipe_action_playlist"),
+                        Translations.get(context, "swipe_action_share"),
+                        Translations.get(context, "swipe_action_download")
+                    ),
+                    initialIndex = when (selectedSwipeLeftAction) {
+                        Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
+                        Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
+                        Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
+                        Config.SWIPE_ACTION_SHARE -> 3
+                        Config.SWIPE_ACTION_DOWNLOAD -> 4
+                        else -> 0
+                    },
+                    onChange = { selectedIndex ->
+                        selectedSwipeLeftAction = when (selectedIndex) {
+                            0 -> Config.SWIPE_ACTION_ADD_TO_QUEUE
+                            1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
+                            2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
+                            3 -> Config.SWIPE_ACTION_SHARE
+                            4 -> Config.SWIPE_ACTION_DOWNLOAD
+                            else -> Config.SWIPE_ACTION_ADD_TO_QUEUE
+                        }
+                        Config.setSwipeLeftAction(context, selectedSwipeLeftAction)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Selector de acción para swipe derecho (swipe song right)
+                Text(
+                    text = Translations.get(context, "swipe_song_right"),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "swipe_action_queue"),
+                        Translations.get(context, "swipe_action_liked"),
+                        Translations.get(context, "swipe_action_playlist"),
+                        Translations.get(context, "swipe_action_share"),
+                        Translations.get(context, "swipe_action_download")
+                    ),
+                    initialIndex = when (selectedSwipeRightAction) {
+                        Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
+                        Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
+                        Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
+                        Config.SWIPE_ACTION_SHARE -> 3
+                        Config.SWIPE_ACTION_DOWNLOAD -> 4
+                        else -> 1
+                    },
+                    onChange = { selectedIndex ->
+                        selectedSwipeRightAction = when (selectedIndex) {
+                            0 -> Config.SWIPE_ACTION_ADD_TO_QUEUE
+                            1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
+                            2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
+                            3 -> Config.SWIPE_ACTION_SHARE
+                            4 -> Config.SWIPE_ACTION_DOWNLOAD
+                            else -> Config.SWIPE_ACTION_ADD_TO_LIKED
+                        }
+                        Config.setSwipeRightAction(context, selectedSwipeRightAction)
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     }
                 )

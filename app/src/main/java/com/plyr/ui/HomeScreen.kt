@@ -2,6 +2,7 @@ package com.plyr.ui
 
 import android.content.Context
 import android.Manifest
+import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.fadeIn
@@ -42,9 +43,11 @@ import androidx.compose.material.icons.filled.Close
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.assistant.AssistantVoiceHelper
 import com.plyr.assistant.AssistantManager
+import com.plyr.utils.Config
 import kotlinx.coroutines.withContext
 import com.plyr.utils.AssistantActivationEvent
 
+@SuppressLint("DiscouragedApi")
 @Composable
 fun HomeScreen(
     context: Context,
@@ -63,7 +66,7 @@ fun HomeScreen(
     val maxPullPx = with(density) { 200.dp.toPx() }
     val activationPx = with(density) { 60.dp.toPx() }
 
-    var pullOffset by remember { mutableStateOf(0f) }
+    var pullOffset by remember { mutableFloatStateOf(0f) }
     var overlayVisible by remember { mutableStateOf(false) }
     var isListening by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
@@ -89,7 +92,7 @@ fun HomeScreen(
         "▁▇▅█▂▃▄",
         "▇▃█▂▆▁▅"
     )
-    var animationFrame by remember { mutableStateOf(0) }
+    var animationFrame by remember { mutableIntStateOf(0) }
 
     // Animar durante escucha o procesamiento
     LaunchedEffect(isListening, isProcessing) {
@@ -130,7 +133,7 @@ fun HomeScreen(
                     displayedResponse = ""
                     break
                 }
-                displayedResponse = responseToType.substring(0, i + 1)
+                displayedResponse = responseToType.take(i + 1)
                 delay(20)
             }
             isTyping = false
@@ -151,6 +154,10 @@ fun HomeScreen(
     LaunchedEffect(assistantActivationRequested) {
         if (assistantActivationRequested) {
             AssistantActivationEvent.consumeActivation()
+            // Verificar si el asistente está habilitado
+            if (!Config.isAssistantEnabled(context)) {
+                return@LaunchedEffect
+            }
             // Activar el asistente de voz
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
@@ -294,7 +301,8 @@ fun HomeScreen(
                                 onDragEnd = {
                                     if (!overlayVisible) return@detectVerticalDragGestures
                                     val pulledEnough = pullOffset >= activationPx
-                                    if (pulledEnough) {
+                                    // Verificar si el asistente está habilitado
+                                    if (pulledEnough && Config.isAssistantEnabled(context)) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
                                         dismissResponse()
@@ -389,7 +397,8 @@ fun HomeScreen(
                                 onDragEnd = {
                                     if (!overlayVisible) return@detectVerticalDragGestures
                                     val pulledEnough = pullOffset >= activationPx
-                                    if (pulledEnough) {
+                                    // Verificar si el asistente está habilitado
+                                    if (pulledEnough && Config.isAssistantEnabled(context)) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         com.plyr.assistant.AssistantTTSHelper.stopIfNeeded()
                                         dismissResponse()

@@ -23,10 +23,16 @@ class AssistantTTSHelper private constructor(private val context: Context) {
     }
 
     /**
-     * Convierte el idioma de la app al Locale para TTS
+      * Convierte el idioma del asistente al Locale para TTS
+     * Usa el idioma específico del asistente o el de la app según configuración
      */
     private fun getLocaleFromConfig(): Locale {
-        return when (Config.getLanguage(context)) {
+        val language = if (Config.isAssistantSameLanguage(context)) {
+            Config.getLanguage(context)
+        } else {
+            Config.getAssistantLanguage(context)
+        }
+        return when (language) {
             "español" -> Locale("es", "ES")
             "english" -> Locale.US
             "català" -> Locale("ca", "ES")
@@ -123,8 +129,12 @@ class AssistantTTSHelper private constructor(private val context: Context) {
             }
         }
 
-        /** Convenience to speak text if the TTS is initialized. Initializes if needed. */
+        /** Convenience to speak text if the TTS is initialized and enabled. */
         fun speakIfReady(context: Context, text: String) {
+            // Verificar si el asistente y TTS están habilitados
+            if (!Config.isAssistantEnabled(context) || !Config.isAssistantTtsEnabled(context)) {
+                return
+            }
             initializeIfNeeded(context)
             INSTANCE?.speak(text)
         }

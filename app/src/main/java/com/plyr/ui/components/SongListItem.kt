@@ -99,6 +99,34 @@ fun SongListItem(
     val (rightIcon, rightColor) = getSwipeIconAndColor(swipeRightAction)
     val (leftIcon, leftColor) = getSwipeIconAndColor(swipeLeftAction)
 
+    // Cargar playlists cuando se abre el diálogo (ya sea desde swipe o desde popup)
+    LaunchedEffect(showPlaylistDialog) {
+        if (showPlaylistDialog && !isLoadingPlaylists) {
+            Log.d("SongListItem", "📋 Loading user playlists for dialog...")
+            isLoadingPlaylists = true
+            addToPlaylistError = null
+            addToPlaylistSuccess = false
+
+            val accessToken = Config.getSpotifyAccessToken(context)
+            if (accessToken != null) {
+                SpotifyRepository.getUserPlaylists(accessToken) { playlists, error ->
+                    isLoadingPlaylists = false
+                    if (playlists != null) {
+                        userPlaylists = playlists
+                        Log.d("SongListItem", "✓ Loaded ${playlists.size} playlists")
+                    } else {
+                        addToPlaylistError = error ?: "Error cargando playlists"
+                        Log.e("SongListItem", "✗ Error loading playlists: $error")
+                    }
+                }
+            } else {
+                isLoadingPlaylists = false
+                addToPlaylistError = "Token de Spotify no disponible"
+                Log.e("SongListItem", "✗ No Spotify access token available")
+            }
+        }
+    }
+
     // Swipe gesture state
     val offsetX = remember { Animatable(0f) }
     val density = LocalDensity.current
