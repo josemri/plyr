@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.background
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -54,6 +53,9 @@ import com.plyr.utils.Translations
 import com.plyr.ui.components.*
 import androidx.compose.ui.graphics.Brush
 import com.plyr.network.getRecommendations
+import com.plyr.ui.components.ActionButton
+import com.plyr.ui.components.ActionButtonData
+import com.plyr.ui.components.ActionButtonsGroup
 
 @OptIn(DelicateCoroutinesApi::class)
 @Composable
@@ -80,7 +82,7 @@ fun PlaylistsScreen(
     val likedSongsPlaylist by localRepository.getTracksByPlaylistLiveData("liked_songs")
         .asFlow()
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    var likedSongsCount by remember { mutableStateOf(0) }
+    var likedSongsCount by remember { mutableIntStateOf(0) }
 
     // Actualizar contador de Liked Songs
     LaunchedEffect(likedSongsPlaylist) {
@@ -90,12 +92,12 @@ fun PlaylistsScreen(
     // Estado para álbumes guardados
     var savedAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
     var isLoadingSavedAlbums by remember { mutableStateOf(false) }
-    var savedAlbumsCount by remember { mutableStateOf(0) }
+    var savedAlbumsCount by remember { mutableIntStateOf(0) }
 
     // Estado para artistas seguidos
     var followedArtists by remember { mutableStateOf<List<SpotifyArtistFull>>(emptyList()) }
     var isLoadingFollowedArtists by remember { mutableStateOf(false) }
-    var followedArtistsCount by remember { mutableStateOf(0) }
+    var followedArtistsCount by remember { mutableIntStateOf(0) }
 
     // Estados para detectar cambios en modo edición (movidos aquí para ser accesibles globalmente)
     var showExitEditDialog by remember { mutableStateOf(false) }
@@ -122,7 +124,28 @@ fun PlaylistsScreen(
     var selectedArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) }
     var artistAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
     var isLoadingArtistAlbums by remember { mutableStateOf(false) }
+    var isFollowingArtist by remember { mutableStateOf<Boolean?>(null) }
+    var isFollowActionLoading by remember { mutableStateOf(false) }
     var isViewingAlbumFromArtist by remember { mutableStateOf(false) }
+
+    // Verificar si seguimos al artista cuando se selecciona uno
+    LaunchedEffect(selectedArtist) {
+        if (selectedArtist != null) {
+            val accessToken = Config.getSpotifyAccessToken(context)
+            if (accessToken != null) {
+                SpotifyRepository.checkIfFollowingArtist(accessToken, selectedArtist!!.id) { isFollowing, errorMsg ->
+                    if (errorMsg == null) {
+                        isFollowingArtist = isFollowing
+                    } else {
+                        Log.e("PlaylistScreen", "Error checking if following artist: $errorMsg")
+                        isFollowingArtist = null
+                    }
+                }
+            }
+        } else {
+            isFollowingArtist = null
+        }
+    }
 
     // Estado para manejar navegación pendiente cuando hay cambios sin guardar
     var pendingPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
@@ -495,236 +518,268 @@ fun PlaylistsScreen(
                     }
                     Column {
                         // Botones de control
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
+                        var showDeleteDialog by remember { mutableStateOf(false) }
+
+                        val buttons = buildList {
                             if (!isEditing) {
-                                // Botones visibles solo cuando NO está en modo edición
-
-                                // Botón <start>
-                                Text(
+                                // Botón start
+                                add(ActionButtonData(
                                     text = if (isStarting) "//" else ">",
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 16.sp,
-                                        color = if (isStarting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                                    ),
-                                    modifier = Modifier
-                                        .clickable {
-                                            if (isStarting) {
-                                                stopAllPlayback()
-                                            } else {
-                                                startOrderedPlayback()
-                                            }
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    color = if (isStarting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                    onClick = {
+                                        if (isStarting) {
+                                            stopAllPlayback()
+                                        } else {
+                                            startOrderedPlayback()
                                         }
-                                        .padding(8.dp)
-                                )
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                ))
 
-                                // Botón <rand>
-                                Text(
+                                // Botón rand
+                                add(ActionButtonData(
                                     text = if (isRandomizing) "<stop>" else "<rnd>",
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 16.sp,
-                                        color = if (isRandomizing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary
-                                    ),
-                                    modifier = Modifier
-                                        .clickable {
-                                            if (isRandomizing) {
-                                                stopAllPlayback()
-                                            } else {
-                                                startRandomizing()
-                                            }
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    color = if (isRandomizing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+                                    onClick = {
+                                        if (isRandomizing) {
+                                            stopAllPlayback()
+                                        } else {
+                                            startRandomizing()
                                         }
-                                        .padding(8.dp)
-                                )
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                ))
 
-                                // Botón <share>
-                                Text(
+                                // Botón share
+                                add(ActionButtonData(
                                     text = "<share>",
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 16.sp,
-                                        color = MaterialTheme.colorScheme.error
-                                    ),
-                                    modifier = Modifier
-                                        .clickable {
-                                            showShareDialog = true
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                        .padding(8.dp)
-                                )
-                            }
+                                    color = MaterialTheme.colorScheme.error,
+                                    onClick = {
+                                        showShareDialog = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                ))
 
-                            // Botón <edit> o <save> — solo mostrar si la playlist es editable (es mía)
-                            if (canEdit) {
-                                Text(
-                                    text = if (isEditing) "<save>" else "<edit>",
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 16.sp,
-                                        color = if (isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    modifier = Modifier
-                                        .clickable {
-                                            if (isEditing) {
-                                                // Al hacer clic en save, verificar si hay cambios sin guardar
-                                                if (hasUnsavedChanges) {
-                                                    // Guardar cambios en Spotify
-                                                    val accessToken = Config.getSpotifyAccessToken(context)
-                                                    if (accessToken != null && selectedPlaylist != null) {
-                                                        // Mostrar indicador de carga
-                                                        isLoadingTracks = true
-
-                                                        SpotifyRepository.updatePlaylistDetails(
-                                                            accessToken = accessToken,
-                                                            playlistId = selectedPlaylist!!.id,
-                                                            name = if (newTitle != originalTitle) newTitle else null,
-                                                            description = if (newDesc != originalDesc) newDesc else null
-                                                        ) { success, errorMsg ->
-                                                            if (success) {
-                                                                // Sincronizar playlists después de EDITAR
-                                                                coroutineScope.launch {
-                                                                    localRepository.syncPlaylistsFromSpotify()
-                                                                    // Esperar a que termine la sincronización
-                                                                    kotlinx.coroutines.delay(500)
-                                                                    isLoadingTracks = false
-                                                                    // Salir del modo edición y volver al listado
-                                                                    isEditing = false
-                                                                    hasUnsavedChanges = false
-                                                                    selectedPlaylist = null
-                                                                    playlistTracks = emptyList()
+                                // Botón follow/unfollow - solo para artistas
+                                if (selectedArtist != null) {
+                                    add(ActionButtonData(
+                                        text = if (isFollowActionLoading) {
+                                            "<...>"
+                                        } else if (isFollowingArtist == true) {
+                                            "<unfollow>"
+                                        } else {
+                                            "<follow>"
+                                        },
+                                        color = if (isFollowingArtist == true) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        },
+                                        enabled = !isFollowActionLoading,
+                                        onClick = {
+                                            val accessToken = Config.getSpotifyAccessToken(context)
+                                            if (accessToken != null && selectedArtist != null) {
+                                                isFollowActionLoading = true
+                                                if (isFollowingArtist == true) {
+                                                    SpotifyRepository.unfollowArtist(accessToken, selectedArtist!!.id) { success, errorMsg ->
+                                                        isFollowActionLoading = false
+                                                        if (success) {
+                                                            isFollowingArtist = false
+                                                            // Recargar la lista de artistas seguidos
+                                                            coroutineScope.launch {
+                                                                val token = Config.getSpotifyAccessToken(context)
+                                                                if (token != null) {
+                                                                    SpotifyRepository.getUserFollowedArtists(token) { artists, _ ->
+                                                                        if (artists != null) {
+                                                                            followedArtists = artists
+                                                                        }
+                                                                    }
                                                                 }
-                                                            } else {
-                                                                isLoadingTracks = false
-                                                                // Mostrar error
-                                                                Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
                                                             }
+                                                        } else {
+                                                            Log.e("PlaylistScreen", "Error unfollowing artist: $errorMsg")
                                                         }
-                                                    } else {
-                                                        // Si no hay token, solo resetear el flag y salir
-                                                        hasUnsavedChanges = false
-                                                        isEditing = false
                                                     }
                                                 } else {
-                                                    // Si no hay cambios, solo salir del modo edición
+                                                    SpotifyRepository.followArtist(accessToken, selectedArtist!!.id) { success, errorMsg ->
+                                                        isFollowActionLoading = false
+                                                        if (success) {
+                                                            isFollowingArtist = true
+                                                            // Recargar la lista de artistas seguidos
+                                                            coroutineScope.launch {
+                                                                val token = Config.getSpotifyAccessToken(context)
+                                                                if (token != null) {
+                                                                    SpotifyRepository.getUserFollowedArtists(token) { artists, _ ->
+                                                                        if (artists != null) {
+                                                                            followedArtists = artists
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        } else {
+                                                            Log.e("PlaylistScreen", "Error following artist: $errorMsg")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                    ))
+                                }
+                            }
+
+                            // Botón edit/save
+                            if (canEdit) {
+                                add(ActionButtonData(
+                                    text = if (isEditing) "<save>" else "<edit>",
+                                    color = if (isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    onClick = {
+                                        if (isEditing) {
+                                            // Al hacer clic en save, verificar si hay cambios sin guardar
+                                            if (hasUnsavedChanges) {
+                                                // Guardar cambios en Spotify
+                                                val accessToken = Config.getSpotifyAccessToken(context)
+                                                if (accessToken != null && selectedPlaylist != null) {
+                                                    // Mostrar indicador de carga
+                                                    isLoadingTracks = true
+
+                                                    SpotifyRepository.updatePlaylistDetails(
+                                                        accessToken = accessToken,
+                                                        playlistId = selectedPlaylist!!.id,
+                                                        name = if (newTitle != originalTitle) newTitle else null,
+                                                        description = if (newDesc != originalDesc) newDesc else null
+                                                    ) { success, errorMsg ->
+                                                        if (success) {
+                                                            // Sincronizar playlists después de EDITAR
+                                                            coroutineScope.launch {
+                                                                localRepository.syncPlaylistsFromSpotify()
+                                                                // Esperar a que termine la sincronización
+                                                                kotlinx.coroutines.delay(500)
+                                                                isLoadingTracks = false
+                                                                // Salir del modo edición y volver al listado
+                                                                isEditing = false
+                                                                hasUnsavedChanges = false
+                                                                selectedPlaylist = null
+                                                                playlistTracks = emptyList()
+                                                            }
+                                                        } else {
+                                                            isLoadingTracks = false
+                                                            // Mostrar error
+                                                            Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Si no hay token, solo resetear el flag y salir
+                                                    hasUnsavedChanges = false
                                                     isEditing = false
                                                 }
                                             } else {
-                                                // Al entrar al modo edición, guardar valores originales e inicializar campos
-                                                originalTitle = selectedPlaylist?.name ?: ""
-                                                originalDesc = selectedPlaylist?.description ?: ""
-                                                newTitle = originalTitle
-                                                newDesc = originalDesc
-                                                hasUnsavedChanges = false
-                                                isEditing = true
+                                                // Si no hay cambios, solo salir del modo edición
+                                                isEditing = false
                                             }
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        } else {
+                                            // Al entrar al modo edición, guardar valores originales e inicializar campos
+                                            originalTitle = selectedPlaylist?.name ?: ""
+                                            originalDesc = selectedPlaylist?.description ?: ""
+                                            newTitle = originalTitle
+                                            newDesc = originalDesc
+                                            hasUnsavedChanges = false
+                                            isEditing = true
                                         }
-                                        .padding(8.dp)
-                                )
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                ))
                             }
 
-                            // Botón <delete> - solo visible en modo edición y cuando es editable
+                            // Botón delete
                             if (canEdit && isEditing) {
-                                 var showDeleteDialog by remember { mutableStateOf(false) }
+                                add(ActionButtonData(
+                                    text = "<delete>",
+                                    color = MaterialTheme.colorScheme.error,
+                                    onClick = {
+                                        showDeleteDialog = true
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    }
+                                ))
+                            }
+                        }
 
-                                 Text(
-                                     text = "<delete>",
-                                     style = MaterialTheme.typography.bodyLarge.copy(
-                                         fontFamily = FontFamily.Monospace,
-                                         fontSize = 16.sp,
-                                         color = MaterialTheme.colorScheme.error
-                                     ),
-                                     modifier = Modifier
-                                         .clickable {
-                                             showDeleteDialog = true
-                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                         }
-                                         .padding(8.dp)
-                                 )
+                        ActionButtonsGroup(buttons = buttons)
 
-                                 // Diálogo de confirmación para eliminar playlist
-                                 if (showDeleteDialog) {
-                                     AlertDialog(
-                                         onDismissRequest = { showDeleteDialog = false },
-                                         title = {
-                                             Text(
-                                                 "Delete playlist",
-                                                 style = MaterialTheme.typography.titleMedium.copy(
-                                                     fontFamily = FontFamily.Monospace,
-                                                     color = MaterialTheme.colorScheme.primary
-                                                 )
-                                             )
-                                         },
-                                         text = {
-                                             Text(
-                                                 "Are you sure you want to delete '${selectedPlaylist?.name}'? This action cannot be undone.",
-                                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                                     fontFamily = FontFamily.Monospace
-                                                 )
-                                             )
-                                         },
-                                         confirmButton = {
-                                             TextButton(
-                                                 onClick = {
-                                                     showDeleteDialog = false
-                                                     // Eliminar la playlist
-                                                     val accessToken = Config.getSpotifyAccessToken(context)
-                                                     if (accessToken != null && selectedPlaylist != null) {
-                                                         coroutineScope.launch {
-                                                             SpotifyRepository.unfollowPlaylist(
-                                                                 accessToken,
-                                                                 selectedPlaylist!!.id
-                                                             ) { success: Boolean, errorMsg: String? ->
-                                                                 if (success) {
-                                                                     // Sincronizar playlists después de eliminar
-                                                                     coroutineScope.launch {
-                                                                         localRepository.syncPlaylistsFromSpotify()
-                                                                     }
-                                                                     // Salir del modo edición y volver a la lista
-                                                                     isEditing = false
-                                                                     hasUnsavedChanges = false
-                                                                     selectedPlaylist = null
-                                                                     playlistTracks = emptyList()
-                                                                     // Recargar la lista de playlists
-                                                                     loadPlaylists()
-                                                                 }
-                                                             }
-                                                         }
-                                                     }
-                                                 }
-                                             ) {
-                                                 Text(
-                                                     "Delete",
-                                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                                         fontFamily = FontFamily.Monospace,
-                                                         color = MaterialTheme.colorScheme.error
-                                                     )
-                                                 )
-                                             }
-                                         },
-                                         dismissButton = {
-                                             TextButton(
-                                                 onClick = { showDeleteDialog = false }
-                                             ) {
-                                                 Text(
-                                                     "Cancel",
-                                                     style = MaterialTheme.typography.bodyMedium.copy(
-                                                         fontFamily = FontFamily.Monospace,
-                                                         color = MaterialTheme.colorScheme.primary
-                                                     )
-                                                 )
-                                             }
-                                         }
-                                     )
-                                 }
-                             }
+                        // Diálogo de confirmación para eliminar playlist
+                        if (showDeleteDialog) {
+                            AlertDialog(
+                                onDismissRequest = { showDeleteDialog = false },
+                                title = {
+                                    Text(
+                                        "Delete playlist",
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    )
+                                },
+                                text = {
+                                    Text(
+                                        "Are you sure you want to delete '${selectedPlaylist?.name}'? This action cannot be undone.",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    )
+                                },
+                                confirmButton = {
+                                    TextButton(
+                                        onClick = {
+                                            showDeleteDialog = false
+                                            // Eliminar la playlist
+                                            val accessToken = Config.getSpotifyAccessToken(context)
+                                            if (accessToken != null && selectedPlaylist != null) {
+                                                coroutineScope.launch {
+                                                    SpotifyRepository.unfollowPlaylist(
+                                                        accessToken,
+                                                        selectedPlaylist!!.id
+                                                    ) { success: Boolean, errorMsg: String? ->
+                                                        if (success) {
+                                                            // Sincronizar playlists después de eliminar
+                                                            coroutineScope.launch {
+                                                                localRepository.syncPlaylistsFromSpotify()
+                                                            }
+                                                            // Salir del modo edición y volver a la lista
+                                                            isEditing = false
+                                                            hasUnsavedChanges = false
+                                                            selectedPlaylist = null
+                                                            playlistTracks = emptyList()
+                                                            // Recargar la lista de playlists
+                                                            loadPlaylists()
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Text(
+                                            "Delete",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        )
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(
+                                        onClick = { showDeleteDialog = false }
+                                    ) {
+                                        Text(
+                                            "Cancel",
+                                            style = MaterialTheme.typography.bodyMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        )
+                                    }
+                                }
+                            )
                         }
                         if (isEditing) {
                             // Estados para el buscador de canciones en edición
@@ -998,7 +1053,7 @@ fun PlaylistsScreen(
                         // Lista de tracks (solo visible cuando NO está en modo edición)
                         if (!isEditing) {
                             // Estado para recomendaciones
-                            var recommendedSongs by remember { mutableStateOf<List<com.plyr.network.SpotifyTrack>>(emptyList()) }
+                            var recommendedSongs by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
                             var isLoadingRecommendations by remember { mutableStateOf(false) }
                             var recommendationError by remember { mutableStateOf<String?>(null) }
 
@@ -1048,9 +1103,7 @@ fun PlaylistsScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 // Prepara trackEntities - si no hay en DB, crear temporales
-                                val trackEntitiesList = if (tracksFromDB.isNotEmpty()) {
-                                    tracksFromDB
-                                } else {
+                                val trackEntitiesList = tracksFromDB.ifEmpty {
                                     // Crear TrackEntities temporales para álbumes u otras fuentes sin BD
                                     playlistTracks.mapIndexed { trackIndex, track ->
                                         TrackEntity(
@@ -1857,15 +1910,12 @@ fun CreateSpotifyPlaylistScreen(
         }
 
         Spacer(Modifier.height(16.dp))
-        Text(
-            text = if (isLoading) "<creating...>" else "<create>",
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                color = if (isLoading) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
-            ),
-            modifier = Modifier
-                .clickable(enabled = !isLoading && playlistName.isNotBlank()) {
+        ActionButton(
+            data = ActionButtonData(
+                text = if (isLoading) "<creating...>" else "<create>",
+                color = if (isLoading) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                enabled = !isLoading && playlistName.isNotBlank(),
+                onClick = {
                     // Acción de crear playlist con las canciones seleccionadas
                     isLoading = true
                     error = null
@@ -1895,7 +1945,7 @@ fun CreateSpotifyPlaylistScreen(
                         error = "Spotify not connected"
                     }
                 }
-                .padding(8.dp)
+            )
         )
         error?.let {
             Spacer(Modifier.height(8.dp))

@@ -83,7 +83,7 @@ fun LocalScreen(
     var importTrackName by remember { mutableStateOf("") }
     var importArtistName by remember { mutableStateOf("") }
     var isImporting by remember { mutableStateOf(false) }
-    var importProgress by remember { mutableStateOf(0) }
+    var importProgress by remember { mutableIntStateOf(0) }
     var importError by remember { mutableStateOf<String?>(null) }
     var isDetecting by remember { mutableStateOf(false) }
     var detectionStatus by remember { mutableStateOf<String?>(null) }
@@ -884,7 +884,7 @@ fun LocalScreen(
             "▁▇▅█▂▃▄",
             "▇▃█▂▆▁▅"
         )
-        var loadingFrame by remember { mutableStateOf(0) }
+        var loadingFrame by remember { mutableIntStateOf(0) }
 
         // Animar el frame de carga
         LaunchedEffect(isDetecting) {

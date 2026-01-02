@@ -58,7 +58,7 @@ plyr/
 - [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
 - [ ] **Now Playing Indicator** - Highlight current track with color change in playlists
 - [x] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
-- [ ] **Fix accesibility** - Control bar sometimes does not detect clicks because of this
+- [x] **Fix accesibility** - Control bar sometimes does not detect clicks because of this
 
 
 ## License
