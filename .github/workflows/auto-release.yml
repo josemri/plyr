@@ -3,9 +3,13 @@ name: Auto Release
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -13,23 +17,42 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
-          java-version: "17"
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Get next version tag
+      - name: Find APK file
+        id: find_apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "❌ APK not found"
+            exit 1
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          
+          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
+          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+
+      - name: Get version and changelog
         id: version
         run: |
-          LAST_TAG=$(git tag --sort=-creatordate | grep -vi latest | head -n 1)
-
+          # Obtener el commit del último release (excluyendo 'latest')
+          LAST_RELEASE_COMMIT=$(gh release list --limit 100 --json tagName,targetCommitish | \
+            jq -r '.[] | select(.tagName != "latest" and .tagName != "Latest") | .targetCommitish' | head -n 1)
+          
+          # Calcular siguiente versión basada en tags existentes
+          LAST_TAG=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n 1)
+          
           if [ -z "$LAST_TAG" ]; then
             NEXT_TAG="v1.0.0"
           else
@@ -38,24 +61,31 @@ jobs:
             PATCH=$((PATCH + 1))
             NEXT_TAG="v$MAJOR.$MINOR.$PATCH"
           fi
-
-          echo "Último tag: $LAST_TAG"
-          echo "Nuevo tag: $NEXT_TAG"
+          
           echo "tag=$NEXT_TAG" >> $GITHUB_OUTPUT
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          LAST_TAG=$(git tag --sort=-creatordate | grep -vi latest | head -n 1)
-          if [ -z "$LAST_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s")
+          
+          # Generar changelog desde el último release
+          if [ -z "$LAST_RELEASE_COMMIT" ]; then
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges | head -n 30)
           else
-            COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"- %s")
+            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges ${LAST_RELEASE_COMMIT}..HEAD)
           fi
-
+          
+          # Si no hay commits nuevos
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- No new changes since last release"
+          fi
+          
+          # Contar commits
+          COMMIT_COUNT=$(echo "$COMMITS" | wc -l)
+          
           echo "commits<<EOF" >> $GITHUB_OUTPUT
           echo "$COMMITS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+          echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ github.token }}
+
 
       - name: Create versioned release
         uses: softprops/action-gh-release@v2
@@ -63,20 +93,46 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "Release ${{ steps.version.outputs.tag }}"
           body: |
-            ## Changes since last release
-            ${{ steps.changelog.outputs.commits }}
-          files: app/build/outputs/apk/release/plyr.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+            ## 🚀 plyr ${{ steps.version.outputs.tag }}
+            
+            **APK Size:** ${{ steps.find_apk.outputs.apk_size }}
+            **Commits:** ${{ steps.version.outputs.commit_count }}
+            
+            ### 📝 Changelog
+            ${{ steps.version.outputs.commits }}
+            
+            ---
+            
+            ### 📥 Installation
+            Download `plyr.apk` and install on your Android device.
+            You may need to enable "Install from unknown sources".
+          files: ${{ steps.find_apk.outputs.apk_path }}
+          draft: false
+          prerelease: false
 
-      - name: Create/Update 'latest' release
+      - name: Update 'latest' release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
           name: "Latest Release"
           body: |
-            ## Changes from ${{ steps.version.outputs.tag }}
-            ${{ steps.changelog.outputs.commits }}
-          files: app/build/outputs/apk/release/plyr.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+            ## 🔄 Latest Release (Auto-updated)
+            
+            **Current version:** ${{ steps.version.outputs.tag }}
+            **APK Size:** ${{ steps.find_apk.outputs.apk_size }}
+            **Commits:** ${{ steps.version.outputs.commit_count }}
+            
+            ### 📝 Recent changes
+            ${{ steps.version.outputs.commits }}
+          files: ${{ steps.find_apk.outputs.apk_path }}
+          draft: false
+          prerelease: false
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "## 🎉 Release ${{ steps.version.outputs.tag }} created!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 **APK Size:** ${{ steps.find_apk.outputs.apk_size }}" >> $GITHUB_STEP_SUMMARY
+          echo "📝 **Commits:** ${{ steps.version.outputs.commit_count }}" >> $GITHUB_STEP_SUMMARY
+
