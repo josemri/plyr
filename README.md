@@ -81,6 +81,4 @@ This project uses:
 
 <div align="center">
   <b>Made with ♫ by <a href="https://github.com/josemri">josemri</a></b>
-  <br><br>
-  <sub>If you find this useful, give it a ⭐️</sub>
 </div>
