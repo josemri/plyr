@@ -1,21 +1,37 @@
 <div align="center">
   <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" alt="Plyr" width="192"/>
+  
+  # plyr
+  
+  **A minimalist, terminal-inspired music player for Android**
+  
+  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+  [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://www.android.com)
+  [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
+  
 </div>
 
-Android music plyr built with Kotlin and Jetpack Compose. Stream music from YouTube, organize playlists, and control playback.
+Built this music player because I wanted something simple with a terminal aesthetic. Streams from YouTube and Spotify, supports voice commands, has gesture controls for quick actions, and works with local files too. The UI is ASCII-inspired with monospace fonts everywhere. Also throws in auto theme switching based on your phone's light sensor.
 
-## Build
+---
 
-Made a small shell script to simplify the build process:
+<div align="center">
+  <img src="screenshots/home_screen.jpeg" width="270" />
+  <img src="screenshots/playlist_screen.jpeg" width="270" />
+  <img src="screenshots/search_screen.jpeg" width="270" />
+</div>
 
+---
+
+## Build from Source
+
+There is a bash script in case you want to build from source please take a pick at the `run.sh` file for more details.
 ```bash
-# Clone the repository
 git clone https://github.com/josemri/plyr.git
 cd plyr
-
-# Run the build script
-./run.sh
+./run.sh  # APK will be in app/release/plyr.apk
 ```
+
 
 ## Project Structure
 
@@ -24,31 +40,29 @@ plyr/
 ├── app/src/main/java/com/plyr/
 │   ├── assistant/     # Voice assistant integration
 │   ├── database/      # Room entities
-│   ├── network/       # API integration
-│   ├── ui/            # Compose screens
+│   ├── network/       # API clients (Spotify, YouTube, AcoustID, Last.fm)
+│   ├── ui/            # Compose screens & components
 │   ├── viewmodel/     # State management
-│   ├── service/       # Background services
-│   ├── reciebers/     # Broadcast receivers
-│   ├── model/         # Data models
+│   ├── service/       # Background playback service
 │   └── utils/         # Utilities
 ├── gradle/            # Dependencies
-├── run.sh
-└── README.md
+└── run.sh             # Build script
 ```
+
 
 ## Permissions
 
 ```xml
-<uses-permission android:name="android.permission.INTERNET" />
-<uses-permission android:name="android.permission.RECORD_AUDIO" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:ignore="ForegroundServicesPolicy" />
-<uses-permission android:name="android.permission.WAKE_LOCK" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-<uses-permission android:name="android.permission.CAMERA" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
-<uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+INTERNET              # Stream music and fetch metadata
+RECORD_AUDIO          # Voice assistant and song recognition
+FOREGROUND_SERVICE    # Background playback
+WAKE_LOCK             # Keep playing when screen off
+POST_NOTIFICATIONS    # Playback controls
+CAMERA                # QR code sharing
+READ_EXTERNAL_STORAGE # Save and load local songs
+READ_MEDIA_AUDIO      # Local music files
 ```
+
 
 ## Roadmap
 
@@ -60,18 +74,28 @@ plyr/
 - [x] **Fix accesibility** - Control bar sometimes does not detect clicks because of this
 - [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
 - [ ] **Fix loop and repeat** - Loop and repeat buttons don't as expected
+- [ ] **Lyrics Support** - Show lyrics for current song if available
+- [ ] **Sleep Timer** - Stop playback after a set time
+- [ ] **Widget Support** - Home screen widget for playback controls
+- [ ] **Android Auto** - Support for Android Auto interface
+
 
 
 ## License
 
-[![GNU GPLv3 Image](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.en.html)
+[![GNU GPLv3](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-_plyr is Free Software: You can use, study, share, and improve it at will. Specifically you can redistribute and/or modify it under the terms of the [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.en.html) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+**_plyr** is Free Software: You can use, study, share, and improve it at will. Specifically you can redistribute and/or modify it under the terms of the [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.en.html) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+This project uses:
 
-This project uses [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor), originally created by [Team NewPipe](https://github.com/TeamNewPipe), licensed under GPL-3.0.
+- [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor), originally created by [Team NewPipe](https://github.com/TeamNewPipe), licensed under GPL-3.0.
+- [AcoustID](https://acoustid.org/) by [Lukáš Lalinský](https://oxygene.sk/), uses Chromaprint (LGPL-2.1+) and the AcoustID web service (terms of use apply).
+- [Last.fm](https://www.last.fm/) API by [Last.fm](https://www.last.fm/), subject to their [API Terms of Service](https://www.last.fm/api/tos).
 
-----
+---
 
 <div align="center">
-  <b>Made with ♫ by josemri</b>
+  <b>Made with ♫ by <a href="https://github.com/josemri">josemri</a></b>
+  <br><br>
+  <sub>If you find this useful, give it a ⭐️</sub>
 </div>
