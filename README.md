@@ -13,7 +13,6 @@
 
 Built this music player because I wanted something simple with a terminal aesthetic. Streams from YouTube and Spotify, supports voice commands, has gesture controls for quick actions, and works with local files too. The UI is ASCII-inspired with monospace fonts everywhere. Also throws in auto theme switching based on your phone's light sensor.
 
----
 
 <div align="center">
   <img src="screenshots/home_screen.jpeg" width="270" />
@@ -21,7 +20,6 @@ Built this music player because I wanted something simple with a terminal aesthe
   <img src="screenshots/search_screen.jpeg" width="270" />
 </div>
 
----
 
 ## Build from Source
 
