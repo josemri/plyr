@@ -8,7 +8,15 @@
 
 Built this music player because I wanted something simple with a terminal aesthetic. Streams from YouTube and Spotify, supports voice commands, has gesture controls for quick actions, and works with local files too. The UI is ASCII-inspired with monospace fonts everywhere.
 
-## Build from Source
+## screenshots
+
+<div align="center">
+  <img src="screenshots/home_screen.jpeg" width="270" />
+  <img src="screenshots/playlist_screen.jpeg" width="270" />
+  <img src="screenshots/search_screen.jpeg" width="270" />
+</div>
+
+## build from source
 
 There is a bash script in case you want to build from source please take a pick at the `run.sh` file for more details.
 ```bash
@@ -18,7 +26,7 @@ cd plyr
 ```
 
 
-## Project Structure
+## project structure
 
 ```
 plyr/
@@ -35,7 +43,7 @@ plyr/
 ```
 
 
-## Permissions
+## permissions
 
 ```xml
 INTERNET              # Stream music and fetch metadata
@@ -49,7 +57,7 @@ READ_MEDIA_AUDIO      # Local music files
 ```
 
 
-## Roadmap
+## roadmap
 
 - [x] **Smart Recommendations** - Playlist recommendations based on your music taste
 - [x] **Fix dark Mode** - Some screens have white background or not enough contrast
@@ -66,7 +74,7 @@ READ_MEDIA_AUDIO      # Local music files
 
 
 
-## License
+## license
 
 [![GNU GPLv3](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
