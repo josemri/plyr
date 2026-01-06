@@ -1,24 +1,12 @@
-<div align="center">
-  <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" alt="Plyr" width="192"/>
-  
-  # plyr
-  
-  **A minimalist, terminal-inspired music player for Android**
-  
-  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-  [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://www.android.com)
-  [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
-  
-</div>
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" width="192" align="left" style="margin-right:16px;"/>
+
+**A minimalist, terminal-inspired music player for Android**
+
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://www.android.com)
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
 
 Built this music player because I wanted something simple with a terminal aesthetic. Streams from YouTube and Spotify, supports voice commands, has gesture controls for quick actions, and works with local files too. The UI is ASCII-inspired with monospace fonts everywhere. Also throws in auto theme switching based on your phone's light sensor.
-
-
-<div align="center">
-  <img src="screenshots/home_screen.jpeg" width="270" />
-  <img src="screenshots/playlist_screen.jpeg" width="270" />
-  <img src="screenshots/search_screen.jpeg" width="270" />
-</div>
 
 
 ## Build from Source
