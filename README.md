@@ -55,10 +55,11 @@ plyr/
 - [x] **Smart Recommendations** - Playlist recommendations based on your music taste
 - [x] **Fix dark Mode** - Some screens have white background or not enough contrast
 - [x] **assistant integration** - User will be able to ask my assistant to play songs, albums etc...
-- [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
 - [x] **Now Playing Indicator** - Highlight current track with color change in playlists
 - [x] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
 - [x] **Fix accesibility** - Control bar sometimes does not detect clicks because of this
+- [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
+- [ ] **Fix loop and repeat** - Loop and repeat buttons don't as expected
 
 
 ## License
