@@ -21,8 +21,6 @@ import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.network.SpotifyRepository
-import com.plyr.ui.components.BinaryToggle
-import com.plyr.ui.components.TernaryToggle
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
@@ -90,154 +88,96 @@ fun ConfigScreen(
 
             Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
-            // Selector de tema
-            Text(
-                text = Translations.get(context, "theme"),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = dimensions.bodySize,
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
-            )
-
-            // Reemplazado BinaryToggle por MultiToggle para soportar 4 opciones de tema
-            MultiToggle(
-                options = listOf(
-                    Translations.get(context, "theme_system"),
-                    Translations.get(context, "theme_dark"),
-                    Translations.get(context, "theme_light"),
-                    Translations.get(context, "theme_auto")
-                ),
-                initialIndex = when (selectedTheme) {
-                    "system" -> 0
-                    "dark" -> 1
-                    "light" -> 2
-                    "auto" -> 3
-                    else -> 0
-                },
-                onChange = { selectedIndex ->
-                    selectedTheme = when (selectedIndex) {
-                        0 -> "system"
-                        1 -> "dark"
-                        2 -> "light"
-                        3 -> "auto"
-                        else -> "system"
-                    }
+            // Selector de tema - Desplegable
+            ThemeConfigSection(
+                context = context,
+                selectedTheme = selectedTheme,
+                onThemeChanged = { newTheme ->
+                    selectedTheme = newTheme
+                    onThemeChanged(newTheme)
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            // Selector de motor de búsqueda
-            Text(
-                text = Translations.get(context, "search_engine"),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = dimensions.bodySize,
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
-            )
-
-            BinaryToggle(
-                option1 = Translations.get(context, "search_spotify"),
-                option2 = Translations.get(context, "search_youtube"),
-                initialValue = selectedSearchEngine == "spotify",
-                onChange = { isSpotify ->
-                    selectedSearchEngine = if (isSpotify) "spotify" else "youtube"
+            // Selector de motor de búsqueda - Desplegable
+            SearchEngineConfigSection(
+                context = context,
+                selectedSearchEngine = selectedSearchEngine,
+                onSearchEngineChanged = { newEngine ->
+                    selectedSearchEngine = newEngine
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            // Selector de calidad de audio
-            Text(
-                text = Translations.get(context, "audio_quality"),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = dimensions.bodySize,
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
-            )
-
+            // Selector de calidad de audio - Desplegable
             var selectedAudioQuality by remember { mutableStateOf(Config.getAudioQuality(context)) }
 
             LaunchedEffect(selectedAudioQuality) {
                 Config.setAudioQuality(context, selectedAudioQuality)
             }
 
-            TernaryToggle(
-                option1 = Translations.get(context, "quality_low"),
-                option2 = Translations.get(context, "quality_med"),
-                option3 = Translations.get(context, "quality_high"),
-                initialValue = when (selectedAudioQuality) {
-                    Config.AUDIO_QUALITY_WORST -> 0
-                    Config.AUDIO_QUALITY_MEDIUM -> 1
-                    Config.AUDIO_QUALITY_BEST -> 2
-                    else -> 1
-                },
-                onChange = { selectedIndex ->
-                    selectedAudioQuality = when (selectedIndex) {
-                        0 -> Config.AUDIO_QUALITY_WORST
-                        1 -> Config.AUDIO_QUALITY_MEDIUM
-                        2 -> Config.AUDIO_QUALITY_BEST
-                        else -> Config.AUDIO_QUALITY_MEDIUM
-                    }
+            AudioQualityConfigSection(
+                context = context,
+                selectedAudioQuality = selectedAudioQuality,
+                onAudioQualityChanged = { newQuality ->
+                    selectedAudioQuality = newQuality
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            // Selector de idioma
-            Text(
-                text = Translations.get(context, "language"),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = dimensions.bodySize,
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(bottom = dimensions.itemSpacing)
-            )
-
-            MultiToggle(
-                options = listOf(
-                    Translations.get(context, "lang_spanish"),
-                    Translations.get(context, "lang_english"),
-                    Translations.get(context, "lang_catalan"),
-                    Translations.get(context, "lang_japanese")
-                ),
-                initialIndex = when (selectedLanguage) {
-                    Config.LANGUAGE_SPANISH -> 0
-                    Config.LANGUAGE_ENGLISH -> 1
-                    Config.LANGUAGE_CATALAN -> 2
-                    Config.LANGUAGE_JAPANESE -> 3
-                    else -> 0
-                },
-                onChange = { selectedIndex ->
-                    selectedLanguage = when (selectedIndex) {
-                        0 -> Config.LANGUAGE_SPANISH
-                        1 -> Config.LANGUAGE_ENGLISH
-                        2 -> Config.LANGUAGE_CATALAN
-                        3 -> Config.LANGUAGE_JAPANESE
-                        else -> Config.LANGUAGE_SPANISH
-                    }
-                    Config.setLanguage(context, selectedLanguage)
+            // Selector de idioma - Desplegable
+            LanguageConfigSection(
+                context = context,
+                selectedLanguage = selectedLanguage,
+                onLanguageChanged = { newLanguage ->
+                    selectedLanguage = newLanguage
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
 
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+            AssistantConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
+            GesturesConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+            // Escuchar eventos de autenticación de Spotify
+            LaunchedEffect(Unit) {
+                SpotifyAuthEvent.setAuthCallback { success, message ->
+                    isSpotifyConnected = success
+                    connectionMessage = message ?: if (success) Translations.get(context, "connected") else "error"
+                }
+            }
+
+            // Limpiar callback al salir
+            DisposableEffect(Unit) {
+                onDispose {
+                    SpotifyAuthEvent.clearCallback()
+                }
+            }
+
+            // Configuración de API de Spotify
+            SpotifyApiConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+            AcoustidApiConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+            LastfmApiConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Información de uso
             Column {
@@ -262,118 +202,6 @@ fun ConfigScreen(
                     lineHeight = dimensions.bodySize * 1.3f
                 )
             }
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Escuchar eventos de autenticación de Spotify
-            LaunchedEffect(Unit) {
-                SpotifyAuthEvent.setAuthCallback { success, message ->
-                    isSpotifyConnected = success
-                    connectionMessage = message ?: if (success) Translations.get(context, "connected") else "error"
-                }
-            }
-
-            // Limpiar callback al salir
-            DisposableEffect(Unit) {
-                onDispose {
-                    SpotifyAuthEvent.clearCallback()
-                }
-            }
-
-            // Status unificado de plyr y Spotify
-            Column {
-                // Botón de Spotify Login/Logout
-                Text(
-                    text = when {
-                        isSpotifyConnected && Config.hasSpotifyCredentials(context) -> {
-                            val userName = Config.getSpotifyUserName(context)
-                            if (!userName.isNullOrBlank()) {
-                                "Hello $userName!"
-                            } else {
-                                Translations.get(context, "configured")
-                            }
-                        }
-                        else -> Translations.get(context, "login")
-                    },
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = dimensions.captionSize,
-                        color = when {
-                            isSpotifyConnected && Config.hasSpotifyCredentials(context) -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.error
-                        }
-                    ),
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            if (isSpotifyConnected) {
-                                // Desconectar Spotify
-                                Config.clearSpotifyTokens(context)
-                                Config.clearSpotifyUserName(context)
-                                isSpotifyConnected = false
-                                connectionMessage = Translations.get(context, "disconnected")
-                            } else {
-                                // Verificar que las credenciales estén configuradas
-                                if (!Config.hasSpotifyCredentials(context)) {
-                                    connectionMessage = "credentials_required"
-                                } else {
-                                    // Conectar con Spotify
-                                    connectionMessage = Translations.get(context, "opening_browser")
-                                    try {
-                                        val success = SpotifyRepository.startOAuthFlow(context)
-                                        connectionMessage = if (success) {
-                                            Translations.get(context, "check_browser")
-                                        } else {
-                                            Translations.get(context, "error_starting_oauth")
-                                        }
-                                    } catch (e: Exception) {
-                                        connectionMessage = "error: ${e.message}"
-                                    }
-                                }
-                            }
-                        }
-                )
-
-                // Mostrar mensaje de conexión si existe
-                if (connectionMessage.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = connectionMessage,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = dimensions.captionSize,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                        ),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Configuración de API de Spotify
-            SpotifyApiConfigSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-            AcoustidApiConfigSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-            LastfmApiConfigSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-            AssistantConfigSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-            GesturesConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -614,6 +442,55 @@ fun SpotifyApiConfigSection(context: Context) {
                         )
                     )
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Botón de Spotify Login/Logout
+                Text(
+                    text = when {
+                        Config.hasSpotifyCredentials(context) -> {
+                            val userName = Config.getSpotifyUserName(context)
+                            if (!userName.isNullOrBlank()) {
+                                "Hello $userName!"
+                            } else {
+                                Translations.get(context, "configured")
+                            }
+                        }
+                        else -> Translations.get(context, "login")
+                    },
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp,
+                        color = when {
+                            Config.hasSpotifyCredentials(context) -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.error
+                        }
+                    ),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            if (Config.hasSpotifyCredentials(context)) {
+                                // Desconectar Spotify
+                                Config.clearSpotifyTokens(context)
+                                Config.clearSpotifyUserName(context)
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            } else {
+                                // Conectar con Spotify
+                                try {
+                                    val success = SpotifyRepository.startOAuthFlow(context)
+                                    if (success) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                } catch (e: Exception) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                }
+                            }
+                        }
+                        .padding(vertical = 8.dp)
+                )
             }
         }
     }
@@ -1254,5 +1131,345 @@ fun CheckboxOption(
                 }
             )
         )
+    }
+}
+
+@Composable
+fun ThemeConfigSection(
+    context: Context,
+    selectedTheme: String,
+    onThemeChanged: (String) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    val themeOptions = listOf(
+        Pair("system", Translations.get(context, "theme_system")),
+        Pair("dark", Translations.get(context, "theme_dark")),
+        Pair("light", Translations.get(context, "theme_light")),
+        Pair("auto", Translations.get(context, "theme_auto"))
+    )
+
+    val currentThemeLabel = themeOptions.find { it.first == selectedTheme }?.second ?: Translations.get(context, "theme_system")
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = Translations.get(context, "theme"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+
+            Text(
+                text = currentThemeLabel,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp, bottom = 16.dp)
+            ) {
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "theme_system"),
+                        Translations.get(context, "theme_dark"),
+                        Translations.get(context, "theme_light"),
+                        Translations.get(context, "theme_auto")
+                    ),
+                    initialIndex = when (selectedTheme) {
+                        "system" -> 0
+                        "dark" -> 1
+                        "light" -> 2
+                        "auto" -> 3
+                        else -> 0
+                    },
+                    onChange = { selectedIndex ->
+                        val newTheme = when (selectedIndex) {
+                            0 -> "system"
+                            1 -> "dark"
+                            2 -> "light"
+                            3 -> "auto"
+                            else -> "system"
+                        }
+                        onThemeChanged(newTheme)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchEngineConfigSection(
+    context: Context,
+    selectedSearchEngine: String,
+    onSearchEngineChanged: (String) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    val engineOptions = listOf(
+        Pair("spotify", Translations.get(context, "search_spotify")),
+        Pair("youtube", Translations.get(context, "search_youtube"))
+    )
+
+    val currentEngineLabel = engineOptions.find { it.first == selectedSearchEngine }?.second ?: Translations.get(context, "search_spotify")
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = Translations.get(context, "search_engine"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+
+            Text(
+                text = currentEngineLabel,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp, bottom = 16.dp)
+            ) {
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "search_spotify"),
+                        Translations.get(context, "search_youtube")
+                    ),
+                    initialIndex = if (selectedSearchEngine == "spotify") 0 else 1,
+                    onChange = { selectedIndex ->
+                        val newEngine = if (selectedIndex == 0) "spotify" else "youtube"
+                        onSearchEngineChanged(newEngine)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun AudioQualityConfigSection(
+    context: Context,
+    selectedAudioQuality: String,
+    onAudioQualityChanged: (String) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    val qualityOptions = listOf(
+        Pair(Config.AUDIO_QUALITY_WORST, Translations.get(context, "quality_low")),
+        Pair(Config.AUDIO_QUALITY_MEDIUM, Translations.get(context, "quality_med")),
+        Pair(Config.AUDIO_QUALITY_BEST, Translations.get(context, "quality_high"))
+    )
+
+    val currentQualityLabel = qualityOptions.find { it.first == selectedAudioQuality }?.second ?: Translations.get(context, "quality_med")
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = Translations.get(context, "audio_quality"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+
+            Text(
+                text = currentQualityLabel,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp, bottom = 16.dp)
+            ) {
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "quality_low"),
+                        Translations.get(context, "quality_med"),
+                        Translations.get(context, "quality_high")
+                    ),
+                    initialIndex = when (selectedAudioQuality) {
+                        Config.AUDIO_QUALITY_WORST -> 0
+                        Config.AUDIO_QUALITY_MEDIUM -> 1
+                        Config.AUDIO_QUALITY_BEST -> 2
+                        else -> 1
+                    },
+                    onChange = { selectedIndex ->
+                        val newQuality = when (selectedIndex) {
+                            0 -> Config.AUDIO_QUALITY_WORST
+                            1 -> Config.AUDIO_QUALITY_MEDIUM
+                            2 -> Config.AUDIO_QUALITY_BEST
+                            else -> Config.AUDIO_QUALITY_MEDIUM
+                        }
+                        onAudioQualityChanged(newQuality)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LanguageConfigSection(
+    context: Context,
+    selectedLanguage: String,
+    onLanguageChanged: (String) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
+
+    val languageOptions = listOf(
+        Pair(Config.LANGUAGE_SPANISH, Translations.get(context, "lang_spanish")),
+        Pair(Config.LANGUAGE_ENGLISH, Translations.get(context, "lang_english")),
+        Pair(Config.LANGUAGE_CATALAN, Translations.get(context, "lang_catalan")),
+        Pair(Config.LANGUAGE_JAPANESE, Translations.get(context, "lang_japanese"))
+    )
+
+    val currentLanguageLabel = languageOptions.find { it.first == selectedLanguage }?.second ?: Translations.get(context, "lang_spanish")
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    isExpanded = !isExpanded
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = Translations.get(context, "language"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+
+            Text(
+                text = currentLanguageLabel,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        if (isExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 8.dp, bottom = 16.dp)
+            ) {
+                MultiToggle(
+                    options = listOf(
+                        Translations.get(context, "lang_spanish"),
+                        Translations.get(context, "lang_english"),
+                        Translations.get(context, "lang_catalan"),
+                        Translations.get(context, "lang_japanese")
+                    ),
+                    initialIndex = when (selectedLanguage) {
+                        Config.LANGUAGE_SPANISH -> 0
+                        Config.LANGUAGE_ENGLISH -> 1
+                        Config.LANGUAGE_CATALAN -> 2
+                        Config.LANGUAGE_JAPANESE -> 3
+                        else -> 0
+                    },
+                    onChange = { selectedIndex ->
+                        val newLanguage = when (selectedIndex) {
+                            0 -> Config.LANGUAGE_SPANISH
+                            1 -> Config.LANGUAGE_ENGLISH
+                            2 -> Config.LANGUAGE_CATALAN
+                            3 -> Config.LANGUAGE_JAPANESE
+                            else -> Config.LANGUAGE_SPANISH
+                        }
+                        onLanguageChanged(newLanguage)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                )
+            }
+        }
     }
 }

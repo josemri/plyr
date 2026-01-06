@@ -261,7 +261,7 @@ object Translations {
             "no_playlists_found" to "No se encontraron playlists",
 
             // Assistant
-            "assistant_settings" to "Asistente",
+            "assistant_settings" to "> asistente",
             "enable_assistant" to "Habilitar asistente",
             "assistant_same_language" to "Usar idioma de la app",
             "enable_tts" to "Respuestas por voz (TTS)",
@@ -391,7 +391,7 @@ object Translations {
         // ENGLISH
         "english" to mapOf(
             // Config Screen
-            "assistant_settings" to "Assistant",
+            "assistant_settings" to "> assistant",
             "enable_assistant" to "Enable assistant",
             "assistant_same_language" to "Use app language",
             "enable_tts" to "Voice responses (TTS)",
@@ -617,7 +617,7 @@ object Translations {
             "no_playlists_found" to "No playlists found",
 
             // Assistant
-            "assistant_settings" to "Assistant",
+            "assistant_settings" to "> assistant",
             "enable_assistant" to "Enable assistant",
             "assistant_same_language" to "Use app language",
             "enable_tts" to "Voice responses (TTS)",
@@ -741,7 +741,7 @@ object Translations {
         // CATALÀ
         "català" to mapOf(
             // Config Screen
-            "assistant_settings" to "Assistent",
+            "assistant_settings" to "> assistent",
             "enable_assistant" to "Habilitar assistent",
             "assistant_same_language" to "Utilitzar idioma de l'app",
             "enable_tts" to "Respostes per veu (TTS)",
@@ -1122,7 +1122,7 @@ object Translations {
         // 日本語 (JAPONÉS)
         "日本語" to mapOf(
             // Config Screen
-            "assistant_settings" to "アシスタント",
+            "assistant_settings" to "> アシスタント",
             "enable_assistant" to "アシスタントを有効にする",
             "assistant_same_language" to "アプリの言語を使用",
             "enable_tts" to "音声応答 (TTS)",
