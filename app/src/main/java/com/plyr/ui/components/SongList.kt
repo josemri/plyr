@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,9 @@ fun SongList(
         }
     }
 
+    // Obtener el track actual que está sonando
+    val currentTrack = playerViewModel?.currentTrack?.observeAsState()?.value
+
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(bottom = 16.dp)
@@ -50,6 +54,10 @@ fun SongList(
                 spotifyId = track.id,
                 spotifyUrl = "https://open.spotify.com/track/${track.id}"
             )
+
+            // Verificar si esta canción es la que está sonando actualmente
+            val isPlaying = currentTrack?.spotifyTrackId == track.id
+
             SongListItem(
                 song = song,
                 trackEntities = entities,
@@ -57,6 +65,7 @@ fun SongList(
                 playerViewModel = playerViewModel,
                 coroutineScope = coroutineScope,
                 modifier = Modifier.fillMaxWidth(),
+                isCurrentlyPlaying = isPlaying
             )
         }
     }

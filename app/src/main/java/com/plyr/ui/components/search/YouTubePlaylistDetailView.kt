@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.runtime.livedata.observeAsState
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.PlyrErrorText
@@ -40,6 +41,9 @@ fun YouTubePlaylistDetailView(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
     var showShareDialog by remember { mutableStateOf(false) }
+
+    // Observar el track actual para actualización reactiva
+    val currentTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
 
     val context = LocalContext.current
 
@@ -164,14 +168,15 @@ fun YouTubePlaylistDetailView(
                             youtubeId = v.videoId,
                             spotifyUrl = "https://www.youtube.com/watch?v=${v.videoId}"
                         )
-                        val isSelected = playerViewModel?.currentTrack?.value?.id == trackEntities.getOrNull(idx)?.id
+                        val isPlaying = currentTrack?.youtubeVideoId == v.videoId ||
+                                       currentTrack?.id == trackEntities.getOrNull(idx)?.id
                         SongListItem(
                             song = song,
                             trackEntities = trackEntities,
                             index = idx,
                             playerViewModel = playerViewModel,
                             coroutineScope = coroutineScope,
-                            isSelected = isSelected // duration removed to show action button
+                            isCurrentlyPlaying = isPlaying
                         )
                     }
                 }

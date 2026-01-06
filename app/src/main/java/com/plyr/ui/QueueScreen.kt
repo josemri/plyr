@@ -72,7 +72,7 @@ fun QueueScreen(
                             index = index,
                             playerViewModel = playerViewModel,
                             coroutineScope = coroutineScope,
-                            isSelected = isCurrentTrack,
+                            isCurrentlyPlaying = isCurrentTrack,
                             modifier = Modifier.padding(vertical = 2.dp)
                         )
                     }

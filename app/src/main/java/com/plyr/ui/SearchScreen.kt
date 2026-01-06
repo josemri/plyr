@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -105,6 +106,9 @@ fun SearchScreen(
     // YouTube search manager para búsquedas locales
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
+
+    // Observar el track actual para actualización reactiva del indicador de reproducción
+    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
 
     // Definir el estado en el composable principal
     var showQrScanner by remember { mutableStateOf(false) }
@@ -843,13 +847,15 @@ fun SearchScreen(
                                     spotifyId = track.id,
                                     spotifyUrl = "https://open.spotify.com/track/${track.id}"
                                 )
+                                val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
                                 SongListItem(
                                     song = song,
                                     trackEntities = trackEntities,
                                     index = index,
                                     playerViewModel = playerViewModel,
                                     coroutineScope = coroutineScope,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    isCurrentlyPlaying = isPlaying
                                 )
                             }
                         }
@@ -1348,6 +1354,9 @@ fun CollapsibleSpotifySearchResultsView(
     var playlistsExpanded by remember { mutableStateOf(false) }
     var artistsExpanded by remember { mutableStateOf(false) }
 
+    // Observar el track actual para actualización reactiva del indicador de reproducción
+    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
+
     // Labels localizados
     val tracksLabel = Translations.get(context, "search_tracks")
     val albumsLabel = Translations.get(context, "search_albums")
@@ -1397,13 +1406,15 @@ fun CollapsibleSpotifySearchResultsView(
                             spotifyId = track.id,
                             spotifyUrl = "https://open.spotify.com/track/${track.id}"
                         )
+                        val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
                         SongListItem(
                             song = song,
                             trackEntities = trackEntities,
                             index = index,
                             playerViewModel = playerViewModel,
                             coroutineScope = coroutineScope,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            isCurrentlyPlaying = isPlaying
                         )
                     }
                 }
@@ -1589,6 +1600,9 @@ fun CollapsibleYouTubeSearchResultsView(
 ) {
     var videosExpanded by remember { mutableStateOf(true) }
 
+    // Observar el track actual para actualización reactiva del indicador de reproducción
+    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
+
     // Labels localizados
     val youtubeLabel = Translations.get(context, "search_youtube_results")
     val loadMoreLabel = Translations.get(context, "search_load_more")
@@ -1635,13 +1649,15 @@ fun CollapsibleYouTubeSearchResultsView(
                         youtubeId = item.videoId,
                         spotifyUrl = "https://www.youtube.com/watch?v=${item.videoId}"
                     )
+                    val isPlaying = currentPlayingTrack?.youtubeVideoId == item.videoId
                     SongListItem(
                         song = song,
                         trackEntities = trackEntities,
                         index = index,
                         playerViewModel = playerViewModel,
                         coroutineScope = coroutineScope,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        isCurrentlyPlaying = isPlaying
                     )
                 }
 

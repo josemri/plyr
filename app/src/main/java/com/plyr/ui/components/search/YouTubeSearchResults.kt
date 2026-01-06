@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -191,6 +192,10 @@ private fun YouTubeVideosList(
     coroutineScope: CoroutineScope
 ) {
     val playlistId = remember(videos) { "youtube_search_${System.currentTimeMillis()}" }
+
+    // Observar el track actual de forma reactiva
+    val currentTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
+
     // Crear TrackEntity list reutilizable
     val trackEntities = remember(videos) {
         videos.mapIndexed { index, video ->
@@ -209,7 +214,8 @@ private fun YouTubeVideosList(
     }
     Column(verticalArrangement = Arrangement.spacedBy(PlyrSpacing.xs)) {
         videos.forEachIndexed { index, video ->
-            val isSelected = playerViewModel?.currentTrack?.value?.id == trackEntities[index].id
+            val isPlaying = currentTrack?.youtubeVideoId == video.videoId ||
+                           currentTrack?.id == trackEntities[index].id
             SongListItem(
                 song = Song(
                     number = index + 1,
@@ -223,7 +229,7 @@ private fun YouTubeVideosList(
                 playerViewModel = playerViewModel,
                 coroutineScope = coroutineScope,
                 modifier = Modifier.fillMaxWidth(),
-                isSelected = isSelected
+                isCurrentlyPlaying = isPlaying
             )
         }
     }

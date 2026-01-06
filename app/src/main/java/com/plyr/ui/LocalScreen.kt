@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +50,9 @@ fun LocalScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    // Observar el track actual para actualización reactiva del indicador de reproducción
+    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
 
     var downloadedTracks by remember { mutableStateOf<List<DownloadedTrackEntity>>(emptyList()) }
     var localPlaylists by remember { mutableStateOf<List<LocalPlaylistEntity>>(emptyList()) }
@@ -285,6 +289,8 @@ fun LocalScreen(
                                 spotifyId = track.spotifyTrackId,
                                 youtubeId = track.youtubeVideoId
                             )
+                            val isPlaying = currentPlayingTrack?.id == track.id ||
+                                           currentPlayingTrack?.youtubeVideoId == track.youtubeVideoId
 
                             SongListItem(
                                 song = song,
@@ -303,6 +309,7 @@ fun LocalScreen(
                                 index = index,
                                 playerViewModel = playerViewModel,
                                 coroutineScope = coroutineScope,
+                                isCurrentlyPlaying = isPlaying,
                                 customButtonIcon = "x",
                                 customButtonAction = {
                                     trackToDelete = track

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.livedata.observeAsState
 import coil.compose.AsyncImage
 import com.plyr.database.*
 import com.plyr.network.SpotifyPlaylist
@@ -70,6 +71,9 @@ fun PlaylistsScreen(
     val localRepository = remember { PlaylistLocalRepository(context) }
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
+
+    // Observar el track actual para actualización reactiva del indicador de reproducción
+    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
 
     // Estado para las playlists y autenticación
     val playlistsFromDB by localRepository.getAllPlaylistsLiveData().asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
@@ -936,6 +940,7 @@ fun PlaylistsScreen(
 
                                     items(searchResults.take(10).size) { index ->
                                         val track = searchResults[index]
+                                        val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
                                         SongListItem(
                                             song = Song(
                                                 number = index + 1,
@@ -948,6 +953,7 @@ fun PlaylistsScreen(
                                             index = index,
                                             playerViewModel = playerViewModel,
                                             coroutineScope = coroutineScope,
+                                            isCurrentlyPlaying = isPlaying,
                                             customButtonIcon = "+",
                                             customButtonAction = {
                                                 // Añadir canción a la playlist
@@ -1005,6 +1011,7 @@ fun PlaylistsScreen(
 
                                     items(playlistTracks.size) { index ->
                                         val track = playlistTracks[index]
+                                        val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
                                         SongListItem(
                                             song = Song(
                                                 number = index + 1,
@@ -1017,6 +1024,7 @@ fun PlaylistsScreen(
                                             index = index,
                                             playerViewModel = playerViewModel,
                                             coroutineScope = coroutineScope,
+                                            isCurrentlyPlaying = isPlaying,
                                             customButtonIcon = "x",
                                             customButtonAction = {
                                                 // Eliminar canción de la playlist
@@ -1129,6 +1137,7 @@ fun PlaylistsScreen(
                                         spotifyId = track.id,
                                         spotifyUrl = "https://open.spotify.com/track/${track.id}"
                                     )
+                                    val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
                                     SongListItem(
                                         song = song,
                                         trackEntities = trackEntitiesList,
@@ -1136,6 +1145,7 @@ fun PlaylistsScreen(
                                         playerViewModel = playerViewModel,
                                         coroutineScope = coroutineScope,
                                         modifier = Modifier.fillMaxWidth(),
+                                        isCurrentlyPlaying = isPlaying,
                                         onLikedStatusChanged = {
                                             // Recargar las Liked Songs cuando se modifica el estado
                                             loadLikedSongs()
@@ -1261,6 +1271,7 @@ fun PlaylistsScreen(
                                             spotifyId = t.id,
                                             spotifyUrl = "https://open.spotify.com/track/${t.id}"
                                         )
+                                        val isPlaying = currentPlayingTrack?.spotifyTrackId == t.id
 
                                         SongListItem(
                                             song = songListItem,
@@ -1269,6 +1280,7 @@ fun PlaylistsScreen(
                                             playerViewModel = playerViewModel,
                                             coroutineScope = coroutineScope,
                                             modifier = Modifier.fillMaxWidth(),
+                                            isCurrentlyPlaying = isPlaying,
                                             onLikedStatusChanged = {
                                                 // si se modifica liked desde aquí, recargar liked songs
                                                 loadLikedSongs()
@@ -1733,6 +1745,9 @@ fun CreateSpotifyPlaylistScreen(
     val coroutineScope = rememberCoroutineScope()
     val localRepository = remember { PlaylistLocalRepository(context) }
 
+    // Observar el track actual para actualización reactiva del indicador de reproducción
+    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
+
     BackHandler {
         onBack()
     }
@@ -1836,6 +1851,7 @@ fun CreateSpotifyPlaylistScreen(
             }
 
             searchResults.take(10).forEachIndexed { index, track ->
+                val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
                 SongListItem(
                     song = Song(
                         number = index + 1,
@@ -1848,6 +1864,7 @@ fun CreateSpotifyPlaylistScreen(
                     index = index,
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope,
+                    isCurrentlyPlaying = isPlaying,
                     isSelected = selectedTracks.contains(track),
                     customButtonIcon = "+",
                     customButtonAction = {
@@ -1887,6 +1904,7 @@ fun CreateSpotifyPlaylistScreen(
             }
 
             selectedTracks.forEachIndexed { index, track ->
+                val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
                 SongListItem(
                     song = Song(
                         number = index + 1,
@@ -1899,6 +1917,7 @@ fun CreateSpotifyPlaylistScreen(
                     index = index,
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope,
+                    isCurrentlyPlaying = isPlaying,
                     isSelected = true,
                     customButtonIcon = "x",
                     customButtonAction = {

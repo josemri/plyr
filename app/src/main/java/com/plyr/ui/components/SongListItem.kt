@@ -75,6 +75,7 @@ fun SongListItem(
     coroutineScope: CoroutineScope,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
+    isCurrentlyPlaying: Boolean = false, // Indica si esta canción está sonando actualmente
     onLikedStatusChanged: (() -> Unit)? = null,
     customButtonIcon: String? = null, // Nueva: Icono personalizado para el botón (ej: "+")
     customButtonAction: (() -> Unit)? = null // Nueva: Acción personalizada para el botón
@@ -102,7 +103,6 @@ fun SongListItem(
     // Cargar playlists cuando se abre el diálogo (ya sea desde swipe o desde popup)
     LaunchedEffect(showPlaylistDialog) {
         if (showPlaylistDialog && !isLoadingPlaylists) {
-            Log.d("SongListItem", "📋 Loading user playlists for dialog...")
             isLoadingPlaylists = true
             addToPlaylistError = null
             addToPlaylistSuccess = false
@@ -113,16 +113,13 @@ fun SongListItem(
                     isLoadingPlaylists = false
                     if (playlists != null) {
                         userPlaylists = playlists
-                        Log.d("SongListItem", "✓ Loaded ${playlists.size} playlists")
                     } else {
                         addToPlaylistError = error ?: "Error cargando playlists"
-                        Log.e("SongListItem", "✗ Error loading playlists: $error")
                     }
                 }
             } else {
                 isLoadingPlaylists = false
                 addToPlaylistError = "Token de Spotify no disponible"
-                Log.e("SongListItem", "✗ No Spotify access token available")
             }
         }
     }
@@ -191,13 +188,10 @@ fun SongListItem(
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
-                            Log.d("SongListItem", "onDragEnd - offsetX.value = ${offsetX.value}, swipeThreshold = $swipeThreshold")
                             coroutineScope.launch {
                                 when {
                                     offsetX.value > swipeThreshold -> {
-                                        // Complete right swipe - Execute configured action
                                         val action = Config.getSwipeRightAction(context)
-                                        Log.d("SongListItem", "🎵 RIGHT SWIPE DETECTED - Action: $action")
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         executeSwipeAction(
                                             action = action,
@@ -214,9 +208,7 @@ fun SongListItem(
                                         resetSwipe()
                                     }
                                     offsetX.value < -swipeThreshold -> {
-                                        // Complete left swipe - Execute configured action
                                         val action = Config.getSwipeLeftAction(context)
-                                        Log.d("SongListItem", "🎵 LEFT SWIPE DETECTED - Action: $action")
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         executeSwipeAction(
                                             action = action,
@@ -234,7 +226,6 @@ fun SongListItem(
                                     }
                                     else -> {
                                         // Return to center
-                                        Log.d("SongListItem", "Swipe not enough, returning to center")
                                         resetSwipe()
                                     }
                                 }
@@ -253,25 +244,14 @@ fun SongListItem(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         playerViewModel?.let { viewModel ->
                             if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
-                                // Limpiar estado previo del reproductor
                                 viewModel.clearPlayerState()
 
                                 viewModel.setCurrentPlaylist(trackEntities, index)
                                 val selectedTrackEntity = trackEntities[index]
-
-                                Log.d("SongListItem", "═══════════════════════════════════")
-                                Log.d("SongListItem", "🎵 REPRODUCIR TRACK")
-                                Log.d("SongListItem", "═══════════════════════════════════")
-                                Log.d("SongListItem", "Track: ${selectedTrackEntity.name}")
-                                Log.d("SongListItem", "AudioUrl: ${selectedTrackEntity.audioUrl}")
-                                Log.d("SongListItem", "Es archivo local: ${selectedTrackEntity.audioUrl?.startsWith("/") == true}")
-
                                 coroutineScope.launch {
                                     try {
                                         viewModel.loadAudioFromTrack(selectedTrackEntity)
-                                        Log.d("SongListItem", "✓ loadAudioFromTrack llamado exitosamente")
-                                    } catch (e: Exception) {
-                                        Log.e("SongListItem", "✗ Error al reproducir track", e)
+                                    } catch (_: Exception) {
                                     }
                                 }
                             }
@@ -298,16 +278,25 @@ fun SongListItem(
             ) {
                 Text(
                     text = song.title,
-                    style = if (isSelected)
-                        PlyrTextStyles.selectableOption(true)
-                    else
-                        PlyrTextStyles.trackTitle(),
+                    style = when {
+                        isCurrentlyPlaying -> PlyrTextStyles.trackTitle().copy(
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        isSelected -> PlyrTextStyles.selectableOption(true)
+                        else -> PlyrTextStyles.trackTitle()
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = song.artist,
-                    style = PlyrTextStyles.trackArtist(),
+                    style = if (isCurrentlyPlaying)
+                        PlyrTextStyles.trackArtist().copy(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                        )
+                    else
+                        PlyrTextStyles.trackArtist(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 0.dp)
