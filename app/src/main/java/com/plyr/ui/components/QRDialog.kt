@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -56,7 +55,7 @@ enum class NfcWriteState {
 @Composable
 fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     val shareUrl = item.spotifyUrl ?: when {
         item.type == ShareType.APP -> "https://github.com/josemri/plyr/releases/download/latest/plyr.apk"
@@ -229,7 +228,7 @@ fun NfcButton(
 ) {
     val context = LocalContext.current
     val rings = remember { mutableStateListOf<Int>() }
-    var frameCounter by remember { mutableStateOf(0) }
+    var frameCounter by remember { mutableIntStateOf(0) }
     val width = 11
     val center = width / 2
 
@@ -259,7 +258,6 @@ fun NfcButton(
             rings.clear()
         } else {
             rings.clear()
-            frameCounter = 0
         }
     }
 

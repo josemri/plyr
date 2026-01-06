@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -101,6 +102,14 @@ class MainActivity : ComponentActivity() {
             // Estado para tema automático basado en sensor de luz
             val autoThemeDark by isAutoThemeDark
 
+            // Observar si hay contenido cargado para mostrar los controles
+            val currentTitle by playerViewModel.currentTitle.observeAsState()
+            val isLoading by playerViewModel.isLoading.observeAsState(false)
+            val error by playerViewModel.error.observeAsState()
+
+            // Determinar si los controles flotantes están visibles
+            val isControlsVisible = currentTitle != null || isLoading || error != null
+
             // Determinar el modo efectivo: 'dark', 'light', 'system' o 'auto'
             val effectiveDark = when (theme.value) {
                 "dark" -> true
@@ -116,7 +125,11 @@ class MainActivity : ComponentActivity() {
             PlyrTheme(darkTheme = effectiveDark) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Box(Modifier.fillMaxSize().statusBarsPadding()) {
-                        Box(Modifier.fillMaxSize().padding(bottom = dimensions.contentBottomPadding)) {
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .padding(bottom = if (isControlsVisible) dimensions.contentBottomPadding else 0.dp)
+                        ) {
                             AudioListScreen(
                                 context = this@MainActivity,
                                 onVideoSelectedFromSearch = { _, _, results, index ->
@@ -353,7 +366,7 @@ class MainActivity : ComponentActivity() {
                             Config.setSpotifyTokens(this, tokens.accessToken, tokens.refreshToken, tokens.expiresIn)
 
                             // Obtener el perfil del usuario y guardar el nombre de usuario
-                            SpotifyRepository.getUserProfile(tokens.accessToken) { userProfile, profileError ->
+                            SpotifyRepository.getUserProfile(tokens.accessToken) { userProfile, _ ->
                                 if (userProfile != null && !userProfile.displayName.isNullOrBlank()) {
                                     Config.setSpotifyUserName(this, userProfile.displayName)
                                     android.util.Log.d("MainActivity", "✓ Nombre de usuario guardado: ${userProfile.displayName}")

@@ -1774,11 +1774,10 @@ fun CreateSpotifyPlaylistScreen(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
-        BinaryToggle(
-            option1 = "public",
-            option2 = "private",
-            initialValue = isPublic,
-            onChange = { isPublic = it }
+        MultiToggle(
+            options = listOf("public", "private"),
+            initialIndex = if (isPublic) 0 else 1,
+            onChange = { index -> isPublic = (index == 0) }
         )
         // Campo de búsqueda
         OutlinedTextField(

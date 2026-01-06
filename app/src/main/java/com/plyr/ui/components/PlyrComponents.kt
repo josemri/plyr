@@ -11,35 +11,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.plyr.ui.theme.*
-
-@Composable
-fun PlyrMenuOption(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true
-) {
-    val haptic = LocalHapticFeedback.current
-
-    Text(
-        text = "${PlyrSymbols.PROMPT}$text",
-        style = PlyrTextStyles.menuOption().copy(textAlign = TextAlign.Center),
-        modifier = modifier
-            .clickable(enabled = enabled) {
-                if (enabled) {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onClick()
-                }
-            }
-            .padding(PlyrSpacing.xs)
-    )
-}
 
 @Composable
 fun PlyrErrorText(

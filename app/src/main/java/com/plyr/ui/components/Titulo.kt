@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,3 +35,21 @@ fun Titulo(titulo: String) {
         )
     }
 }
+
+@Composable
+fun Subtitulo(subtitulo: String) {
+
+    Text(
+        text = "[ ${subtitulo.uppercase()} ]",
+        style = MaterialTheme.typography.titleMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.primary
+        ),
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 16.dp)
+    )
+}
+

@@ -19,7 +19,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.foundation.border
 import androidx.compose.animation.core.*
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
@@ -303,13 +302,11 @@ private fun ProgressBar(
                 trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
             )
         } else {
-            // Slider interactivo estilo Spotify/YouTube
-            Box(
+            // Barra de progreso minimalista - solo barra, sin indicador circular
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                     .pointerInput(Unit) {
                         detectDragGestures(
                             onDragStart = { offset ->
@@ -332,31 +329,22 @@ private fun ProgressBar(
                         )
                     }
             ) {
-                // Barra de progreso visual
+                // Barra de progreso (parte llena)
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .fillMaxWidth(displayProgress)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.primary)
                 )
-
-                val density = LocalDensity.current
-                // Indicador circular de posición
+                // Barra vacía (parte restante)
                 Box(
                     modifier = Modifier
-                        .size(if (isDragging) 16.dp else 12.dp) // Más grande al arrastrar
-                        .background(
-                            MaterialTheme.colorScheme.primary,
-                            androidx.compose.foundation.shape.CircleShape
-                        )
-                        .border(
-                            1.dp,
-                            MaterialTheme.colorScheme.surface,
-                            androidx.compose.foundation.shape.CircleShape
-                        )
-                        .offset(x = (displayProgress * density.run {
-                            (300.dp - 12.dp).toPx()
-                        } / density.density).dp))
+                        .fillMaxHeight()
+                        .weight(1f)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                )
             }
         }
     }
