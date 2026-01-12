@@ -424,7 +424,7 @@ fun RecommendButton(
 ) {
     val context = LocalContext.current
     val text = when (state) {
-        RecommendationState.IDLE -> "[+ ${Translations.get(context, "add_recommendation")}]"
+        RecommendationState.IDLE -> "<${Translations.get(context, "add_recommendation")}>"
         RecommendationState.ADDING -> "..."
         RecommendationState.SUCCESS -> "✓"
         RecommendationState.ERROR -> "✗"
