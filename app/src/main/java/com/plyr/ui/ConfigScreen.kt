@@ -47,11 +47,22 @@ fun ConfigScreen(
     var spotifyUserName by remember { mutableStateOf(Config.getSpotifyUserName(context)) }
     var connectionMessage by remember { mutableStateOf("") }
 
+    // Update checker state
+    var updateInfo by remember { mutableStateOf<com.plyr.utils.UpdateChecker.UpdateInfo?>(null) }
+
     // Actualizar el estado de Spotify cuando la pantalla es visible
     LaunchedEffect(Unit) {
         isSpotifyConnected = Config.isSpotifyConnected(context)
         spotifyUserName = Config.getSpotifyUserName(context)
         android.util.Log.d("ConfigScreen", "🔄 Estado actualizado - Conectado: $isSpotifyConnected, Usuario: $spotifyUserName")
+
+        // Check for updates
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val info = com.plyr.utils.UpdateChecker.checkForUpdate(context)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                updateInfo = info
+            }
+        }
     }
 
     LaunchedEffect(selectedTheme) {
@@ -204,8 +215,24 @@ fun ConfigScreen(
                     modifier = Modifier.padding(bottom = dimensions.itemSpacing)
                 )
 
+                // Texto de información con estado de actualización
+                val infoText = Translations.get(context, "info_text")
+                val currentVersion = try {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
+                } catch (e: Exception) {
+                    "1.0"
+                }
+
+                val updateStatus = updateInfo?.let { info ->
+                    if (info.isUpdateAvailable) {
+                        "\n    ● new update available! (v${info.latestVersion})"
+                    } else {
+                        "\n    ● using latest version (v${currentVersion})"
+                    }
+                } ?: ""
+
                 Text(
-                    text = Translations.get(context, "info_text"),
+                    text = infoText + updateStatus,
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = dimensions.captionSize,
