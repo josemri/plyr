@@ -164,6 +164,11 @@ fun ConfigScreen(
 
             Subtitulo("SYSTEM")
 
+            // Sección de nombre de usuario
+            UserNicknameConfigSection(context = context)
+
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
             AssistantConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
@@ -1155,6 +1160,67 @@ fun LanguageConfigSection(
                 onLanguageChanged(newLanguage)
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             }
+        )
+    }
+}
+
+@Composable
+fun UserNicknameConfigSection(context: Context) {
+    var nickname by remember { mutableStateOf(Config.getUserNickname(context) ?: "") }
+    val haptic = LocalHapticFeedback.current
+
+    val hasNickname = !nickname.isBlank()
+    val statusText = if (hasNickname) nickname else Translations.get(context, "not_configured")
+    val statusColor = if (hasNickname) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+
+    CollapsibleSection(
+        title = Translations.get(context, "user_nickname"),
+        statusText = statusText,
+        statusColor = statusColor
+    ) {
+        Text(
+            text = Translations.get(context, "nickname_description"),
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            ),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        OutlinedTextField(
+            value = nickname,
+            onValueChange = {
+                nickname = it
+                Config.setUserNickname(context, it)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            textStyle = TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onBackground
+            ),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            ),
+            placeholder = {
+                Text(
+                    text = Translations.get(context, "enter_nickname"),
+                    style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    )
+                )
+            },
+            singleLine = true
         )
     }
 }

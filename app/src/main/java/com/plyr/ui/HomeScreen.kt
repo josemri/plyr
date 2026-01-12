@@ -266,6 +266,14 @@ fun HomeScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onNavigateToScreen(Screen.LOCAL)
                     }
+                ),
+                ActionButtonData(
+                    text = "< ${Translations.get(context, "home_feed")} >",
+                    color = MaterialTheme.colorScheme.secondary,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToScreen(Screen.FEED)
+                    }
                 )
             )
 

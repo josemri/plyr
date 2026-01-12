@@ -15,7 +15,8 @@ enum class Screen {
     QUEUE,
     CONFIG,
     PLAYLISTS,
-    LOCAL
+    LOCAL,
+    FEED
 }
 
 @Stable
@@ -75,6 +76,12 @@ fun AudioListScreen(
         )
         Screen.LOCAL -> LocalScreen(
             onBack = { currentScreen = Screen.HOME.name },
+            playerViewModel = playerViewModel
+        )
+        Screen.FEED -> FeedScreen(
+            context = context,
+            onBack = { currentScreen = Screen.HOME.name },
+            onNavigateToSearch = { currentScreen = Screen.SEARCH.name },
             playerViewModel = playerViewModel
         )
     }

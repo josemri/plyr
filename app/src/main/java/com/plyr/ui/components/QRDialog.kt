@@ -18,7 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,10 +29,13 @@ import androidx.core.graphics.createBitmap
 import androidx.core.graphics.set
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import com.plyr.model.Group
+import com.plyr.network.SupabaseClient
 import com.plyr.utils.NfcReader
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.Translations
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 data class ShareableItem(
     val spotifyId: String?,
@@ -52,22 +57,89 @@ enum class NfcWriteState {
     ERROR
 }
 
+enum class RecommendationState {
+    IDLE,
+    ADDING,
+    SUCCESS,
+    ERROR
+}
+
+// Helper functions defined before usage
+private fun writeNdefMessageToTag(tag: Tag, message: NdefMessage): Boolean {
+    return try {
+        val ndef = Ndef.get(tag)
+        if (ndef != null) {
+            ndef.connect()
+            if (!ndef.isWritable || ndef.maxSize < message.toByteArray().size) {
+                ndef.close()
+                return false
+            }
+            ndef.writeNdefMessage(message)
+            ndef.close()
+            true
+        } else {
+            val format = NdefFormatable.get(tag) ?: return false
+            format.connect()
+            format.format(message)
+            format.close()
+            true
+        }
+    } catch (_: Exception) {
+        false
+    }
+}
+
+fun generateQrBitmap(content: String): Bitmap? {
+    return try {
+        val size = 512
+        val bits = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+        val bmp = createBitmap(size, size, Bitmap.Config.RGB_565)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bmp[x, y] = if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+            }
+        }
+        bmp
+    } catch (_: Exception) {
+        null
+    }
+}
+
 @Composable
 fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
 
     val shareUrl = item.spotifyUrl ?: when {
         item.type == ShareType.APP -> "https://github.com/josemri/plyr/releases/download/latest/plyr.apk"
         item.spotifyId != null -> "https://open.spotify.com/${item.type.name.lowercase()}/${item.spotifyId}"
-        item.youtubeId != null -> "https://www.youtube.com/watch?v=${item.youtubeId}"
+        item.youtubeId != null -> {
+            // Detectar si es un ID de playlist (empieza con PL, UU, FL, RD)
+            if (item.youtubeId.startsWith("PL") ||
+                item.youtubeId.startsWith("UU") ||
+                item.youtubeId.startsWith("FL") ||
+                item.youtubeId.startsWith("RD")) {
+                "https://www.youtube.com/playlist?list=${item.youtubeId}"
+            } else {
+                "https://www.youtube.com/watch?v=${item.youtubeId}"
+            }
+        }
         else -> null
     }
 
     var nfcState by remember { mutableStateOf(NfcWriteState.IDLE) }
     var nfcAdapter by remember { mutableStateOf<NfcAdapter?>(null) }
+    var groups by remember { mutableStateOf<List<Group>>(emptyList()) }
+    var recommendationState by remember { mutableStateOf<RecommendationState>(RecommendationState.IDLE) }
 
     val detectedTag by NfcTagEvent.detectedTag.collectAsState()
+
+    // Load groups on start
+    LaunchedEffect(Unit) {
+        groups = SupabaseClient.getGroups()
+    }
 
     // Procesar el tag cuando se detecte
     LaunchedEffect(detectedTag) {
@@ -125,6 +197,14 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
         if (nfcState == NfcWriteState.SUCCESS || nfcState == NfcWriteState.ERROR) {
             delay(2000)
             nfcState = NfcWriteState.IDLE
+        }
+    }
+
+    // Resetear estado de recomendación después de éxito/error
+    LaunchedEffect(recommendationState) {
+        if (recommendationState == RecommendationState.SUCCESS || recommendationState == RecommendationState.ERROR) {
+            delay(2000)
+            recommendationState = RecommendationState.IDLE
         }
     }
 
@@ -216,6 +296,44 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                         )
                     }
                 }
+
+                // Recommend button in a new row
+                if (shareUrl != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RecommendButton(
+                            state = recommendationState,
+                            onClick = {
+                                if (recommendationState == RecommendationState.IDLE) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    recommendationState = RecommendationState.ADDING
+                                    scope.launch {
+                                        val nickname = com.plyr.utils.Config.getUserNickname(context)
+                                        val generalGroup = groups.find { it.groupType == "general" }
+                                        if (!nickname.isNullOrBlank() && generalGroup != null) {
+                                            val result = SupabaseClient.createRecommendation(
+                                                groupId = generalGroup.id,
+                                                nickname = nickname,
+                                                url = shareUrl,
+                                                comment = null
+                                            )
+                                            recommendationState = if (result != null) {
+                                                RecommendationState.SUCCESS
+                                            } else {
+                                                RecommendationState.ERROR
+                                            }
+                                        } else {
+                                            recommendationState = RecommendationState.ERROR
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }
@@ -299,42 +417,35 @@ fun NfcButton(
     )
 }
 
-private fun writeNdefMessageToTag(tag: Tag, message: NdefMessage): Boolean {
-    return try {
-        val ndef = Ndef.get(tag)
-        if (ndef != null) {
-            ndef.connect()
-            if (!ndef.isWritable || ndef.maxSize < message.toByteArray().size) {
-                ndef.close()
-                return false
-            }
-            ndef.writeNdefMessage(message)
-            ndef.close()
-            true
-        } else {
-            val format = NdefFormatable.get(tag) ?: return false
-            format.connect()
-            format.format(message)
-            format.close()
-            true
-        }
-    } catch (_: Exception) {
-        false
+@Composable
+fun RecommendButton(
+    state: RecommendationState,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val text = when (state) {
+        RecommendationState.IDLE -> "[+ ${Translations.get(context, "add_recommendation")}]"
+        RecommendationState.ADDING -> "..."
+        RecommendationState.SUCCESS -> "✓"
+        RecommendationState.ERROR -> "✗"
     }
-}
 
-fun generateQrBitmap(content: String): Bitmap? {
-    return try {
-        val size = 512
-        val bits = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
-        val bmp = createBitmap(size, size, Bitmap.Config.RGB_565)
-        for (x in 0 until size) {
-            for (y in 0 until size) {
-                bmp[x, y] = if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-            }
-        }
-        bmp
-    } catch (_: Exception) {
-        null
+    val color = when (state) {
+        RecommendationState.IDLE -> MaterialTheme.colorScheme.secondary
+        RecommendationState.ADDING -> MaterialTheme.colorScheme.primary
+        RecommendationState.SUCCESS -> Color(0xFF4CAF50)
+        RecommendationState.ERROR -> Color(0xFFFF5252)
     }
+
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 16.sp,
+            color = color
+        ),
+        modifier = Modifier
+            .clickable(enabled = state == RecommendationState.IDLE) { onClick() }
+            .padding(8.dp)
+    )
 }

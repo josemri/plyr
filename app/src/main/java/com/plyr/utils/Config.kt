@@ -57,6 +57,9 @@ object Config {
     private const val KEY_ASSISTANT_TTS_ENABLED = "assistant_tts_enabled"
     private const val KEY_ASSISTANT_LANGUAGE = "assistant_language"
 
+    // Clave para el nickname del usuario en Feed
+    private const val KEY_USER_NICKNAME = "user_nickname"
+
     // Valores por defecto
     private const val DEFAULT_THEME = "system" // Por defecto en nuevas instalaciones seguir el tema del sistema
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
@@ -664,6 +667,38 @@ object Config {
     /** Establece el idioma específico del asistente. */
     fun setAssistantLanguage(context: Context, language: String) {
         getPrefs(context).edit { putString(KEY_ASSISTANT_LANGUAGE, language) }
+    }
+
+    // === GESTIÓN DE NICKNAME DEL USUARIO PARA FEED ===
+
+    /**
+     * Obtiene el nickname del usuario para el sistema de recomendaciones.
+     * @param context Contexto de la aplicación
+     * @return Nickname del usuario o null si no está configurado
+     */
+    fun getUserNickname(context: Context): String? {
+        return getPrefs(context).getString(KEY_USER_NICKNAME, null)
+    }
+
+    /**
+     * Establece el nickname del usuario para el sistema de recomendaciones.
+     * @param context Contexto de la aplicación
+     * @param nickname Nickname del usuario
+     */
+    fun setUserNickname(context: Context, nickname: String) {
+        getPrefs(context).edit {
+            putString(KEY_USER_NICKNAME, nickname.trim())
+        }
+    }
+
+    /**
+     * Verifica si el usuario tiene un nickname configurado.
+     * @param context Contexto de la aplicación
+     * @return true si tiene nickname configurado, false en caso contrario
+     */
+    fun hasUserNickname(context: Context): Boolean {
+        val nickname = getPrefs(context).getString(KEY_USER_NICKNAME, null)
+        return !nickname.isNullOrBlank()
     }
 
  }

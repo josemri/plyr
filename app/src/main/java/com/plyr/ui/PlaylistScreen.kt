@@ -1396,14 +1396,37 @@ fun PlaylistsScreen(
                     // Diálogo de compartir - debe estar dentro del mismo scope que showShareDialog
                     if (showShareDialog) {
                         ShareDialog(
-                            item = ShareableItem(
-                                spotifyId = selectedPlaylist!!.id,
-                                spotifyUrl = "https://open.spotify.com/playlist/${selectedPlaylist!!.id}",
-                                youtubeId = null,
-                                title = selectedPlaylist!!.name,
-                                artist = "Playlist", //selectedPlaylist!!.owner?.display_name ?: "Playlist",
-                                type = ShareType.PLAYLIST
-                            ),
+                            item = if (isViewingAlbumFromArtist && selectedPlaylist != null) {
+                                // Es un álbum visto desde un artista
+                                ShareableItem(
+                                    spotifyId = selectedPlaylist!!.id,
+                                    spotifyUrl = "https://open.spotify.com/album/${selectedPlaylist!!.id}",
+                                    youtubeId = null,
+                                    title = selectedPlaylist!!.name,
+                                    artist = selectedPlaylist!!.description ?: "Album",
+                                    type = ShareType.ALBUM
+                                )
+                            } else if (selectedArtist != null) {
+                                // Es un artista
+                                ShareableItem(
+                                    spotifyId = selectedArtist!!.id,
+                                    spotifyUrl = "https://open.spotify.com/artist/${selectedArtist!!.id}",
+                                    youtubeId = null,
+                                    title = selectedArtist!!.name,
+                                    artist = selectedArtist!!.genres?.joinToString(", ") ?: "Artist",
+                                    type = ShareType.ARTIST
+                                )
+                            } else {
+                                // Es una playlist
+                                ShareableItem(
+                                    spotifyId = selectedPlaylist!!.id,
+                                    spotifyUrl = "https://open.spotify.com/playlist/${selectedPlaylist!!.id}",
+                                    youtubeId = null,
+                                    title = selectedPlaylist!!.name,
+                                    artist = "Playlist",
+                                    type = ShareType.PLAYLIST
+                                )
+                            },
                             onDismiss = { showShareDialog = false }
                         )
                     }
