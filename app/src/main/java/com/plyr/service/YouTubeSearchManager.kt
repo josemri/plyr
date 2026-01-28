@@ -49,7 +49,7 @@ class YouTubeSearchManager(private val context: Context) {
         if (isInitialized) return
         
         try {
-            val downloader = SimpleDownloader()
+            val downloader = SimpleDownloader.getInstance()
             val localization = org.schabi.newpipe.extractor.localization.Localization("en", "US")
             org.schabi.newpipe.extractor.NewPipe.init(downloader, localization)
             isInitialized = true

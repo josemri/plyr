@@ -97,7 +97,7 @@ dependencies {
     implementation(libs.gson)
 
     // NewPipe Extractor
-    implementation(libs.newpipeextractor)
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.25.1")
 
     // Coroutines (si no las tienes ya)
     implementation(libs.kotlinx.coroutines.android)

@@ -33,7 +33,7 @@ object MediaMetadataExtractor {
     private fun ensureInitialized() {
         if (isInitialized) return
         try {
-            NewPipe.init(com.plyr.network.SimpleDownloader(), Localization("en", "US"))
+            NewPipe.init(com.plyr.network.SimpleDownloader.getInstance(), Localization("es", "ES"))
             isInitialized = true
         } catch (_: Exception) {
             // Already initialized

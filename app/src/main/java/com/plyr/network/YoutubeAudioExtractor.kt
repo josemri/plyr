@@ -13,7 +13,7 @@ object YouTubeAudioExtractor {
     private fun initialize() {
         if (!isInitialized) {
             try {
-                val downloader = SimpleDownloader()
+                val downloader = SimpleDownloader.getInstance()
                 val localization = Localization("en", "US")
                 NewPipe.init(downloader, localization)
                 isInitialized = true

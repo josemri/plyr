@@ -115,7 +115,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 val videoId = track.youtubeVideoId ?: YouTubeManager.searchVideoId("${track.name} ${track.artists}")
                 videoId?.let { YouTubeManager.getAudioUrl(it) }
             }
-
             if (audioUrl == null) {
                 _isLoading.postValue(false)
                 _error.postValue(com.plyr.utils.Translations.get(getApplication(), "error_obtaining_audio"))
