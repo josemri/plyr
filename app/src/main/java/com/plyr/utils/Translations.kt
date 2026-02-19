@@ -13,6 +13,8 @@ object Translations {
         // ESPAÑOL
         "español" to mapOf(
             // Config Screen
+            "user_nickname" to "> nombre_feed",
+            "username_description" to "tu nombre o apodo para mostrar en el feed",
             "config_title" to "plyr_ajustes",
             "theme" to "> tema",
             "theme_dark" to "oscuro",
@@ -115,8 +117,6 @@ object Translations {
             "join" to "unirse",
             "comment" to "comentario (opcional)",
             "add" to "añadir",
-            "user_nickname" to "apodo de usuario",
-            "nickname_description" to "tu apodo se usará en grupos y recomendaciones",
             "enter_nickname" to "introduce tu apodo...",
             "nickname_required_error" to "⚠️ configura tu apodo en ajustes primero",
             "join_group_error" to "error al unirse al grupo",
@@ -416,6 +416,8 @@ object Translations {
         // ENGLISH
         "english" to mapOf(
             // Config Screen
+            "user_nickname" to "> nickname_feed",
+            "username_description" to "your name or nickname to show in the feed",
             "assistant_settings" to "> assistant",
             "enable_assistant" to "Enable assistant",
             "assistant_same_language" to "Use app language",
@@ -785,6 +787,8 @@ object Translations {
         // CATALÀ
         "català" to mapOf(
             // Config Screen
+            "user_nickname" to "> nom_feed",
+            "username_description" to "el teu nom o sobrenom per mostrar al feed",
             "assistant_settings" to "> assistent",
             "enable_assistant" to "Habilitar assistent",
             "assistant_same_language" to "Utilitzar idioma de l'app",
@@ -1168,6 +1172,8 @@ object Translations {
         // 日本語 (JAPONÉS)
         "日本語" to mapOf(
             // Config Screen
+            "user_nickname" to "> ユーザーネーム/ニックネーム",
+            "username_description" to "フィードに表示するあなたの名前やニックネーム",
             "assistant_settings" to "> アシスタント",
             "enable_assistant" to "アシスタントを有効にする",
             "assistant_same_language" to "アプリの言語を使用",

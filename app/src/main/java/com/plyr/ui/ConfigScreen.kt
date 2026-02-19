@@ -74,9 +74,8 @@ fun ConfigScreen(
         Config.setSearchEngine(context, selectedSearchEngine)
     }
 
-    LaunchedEffect(selectedLanguage) {
-        Config.setLanguage(context, selectedLanguage)
-    }
+    // El idioma se guarda inmediatamente en onLanguageChanged para que Translations.get() 
+    // tenga el valor correcto antes de la recomposición
 
     val haptic = LocalHapticFeedback.current
 
@@ -122,6 +121,8 @@ fun ConfigScreen(
                 context = context,
                 selectedLanguage = selectedLanguage,
                 onLanguageChanged = { newLanguage ->
+                    // Guardar primero para que Translations.get() tenga el valor correcto
+                    Config.setLanguage(context, newLanguage)
                     selectedLanguage = newLanguage
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
