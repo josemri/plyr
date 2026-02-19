@@ -60,6 +60,9 @@ object Config {
     // Clave para el nickname del usuario en Feed
     private const val KEY_USER_NICKNAME = "user_nickname"
 
+    // Clave para el modo de API keys (automatic/manual)
+    private const val KEY_API_KEY_MODE = "api_key_mode"
+
     // Valores por defecto
     private const val DEFAULT_THEME = "system" // Por defecto en nuevas instalaciones seguir el tema del sistema
     private const val DEFAULT_SEARCH_ENGINE = "spotify"
@@ -74,6 +77,9 @@ object Config {
     private const val DEFAULT_ASSISTANT_SAME_LANGUAGE = true
     private const val DEFAULT_ASSISTANT_TTS_ENABLED = false
     private const val DEFAULT_ASSISTANT_LANGUAGE = DEFAULT_LANGUAGE
+
+    // Valor por defecto para modo de API keys
+    private const val DEFAULT_API_KEY_MODE = "automatic"
 
     // === CONSTANTES PÚBLICAS DE SPOTIFY ===
 
@@ -699,6 +705,44 @@ object Config {
     fun hasUserNickname(context: Context): Boolean {
         val nickname = getPrefs(context).getString(KEY_USER_NICKNAME, null)
         return !nickname.isNullOrBlank()
+    }
+
+    // === GESTIÓN DE MODO DE API KEYS ===
+
+    /**
+     * Obtiene el modo actual de API keys (automatic/manual).
+     * @param context Contexto de la aplicación
+     * @return Modo actual (por defecto "manual")
+     */
+    fun getApiKeyMode(context: Context): String {
+        return getPrefs(context).getString(KEY_API_KEY_MODE, DEFAULT_API_KEY_MODE) ?: DEFAULT_API_KEY_MODE
+    }
+
+    /**
+     * Establece el modo de API keys.
+     * @param context Contexto de la aplicación
+     * @param mode Modo a establecer ("automatic" o "manual")
+     */
+    fun setApiKeyMode(context: Context, mode: String) {
+        getPrefs(context).edit {
+            putString(KEY_API_KEY_MODE, mode)
+        }
+    }
+
+    /**
+     * Limpia todas las API keys almacenadas (Spotify, AcoustID, Last.fm).
+     * @param context Contexto de la aplicación
+     */
+    fun clearAllApiKeys(context: Context) {
+        getPrefs(context).edit {
+            remove(KEY_SPOTIFY_CLIENT_ID)
+            remove(KEY_SPOTIFY_CLIENT_SECRET)
+            remove(KEY_ACOUSTID_API_KEY)
+            remove(KEY_LASTFM_API_KEY)
+        }
+        // También limpiar tokens de Spotify
+        clearSpotifyTokens(context)
+        clearSpotifyUserName(context)
     }
 
  }

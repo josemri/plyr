@@ -337,4 +337,51 @@ object SupabaseClient {
     fun generateInviteCode(): String {
         return UUID.randomUUID().toString().substring(0, 8).uppercase()
     }
+
+    /**
+     * Obtiene las API keys automáticas desde la tabla 'automatic'.
+     * @return Map con los pares name -> key, vacío si hay error
+     */
+    suspend fun getAutomaticKeys(): Map<String, String> = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "🔄 Fetching automatic keys from Supabase...")
+            val url = URL("$SUPABASE_URL/rest/v1/automatic?select=name,key")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
+            connection.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
+
+            val responseCode = connection.responseCode
+            Log.d(TAG, "📡 Response code: $responseCode")
+
+            if (responseCode != 200) {
+                val errorStream = connection.errorStream
+                val errorResponse = errorStream?.bufferedReader()?.use { it.readText() } ?: "No error details"
+                Log.e(TAG, "❌ HTTP $responseCode Error response: $errorResponse")
+                return@withContext emptyMap()
+            }
+
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            Log.d(TAG, "📦 Raw response: $response")
+
+            val jsonArray = JSONArray(response)
+            val keys = mutableMapOf<String, String>()
+            
+            for (i in 0 until jsonArray.length()) {
+                val json = jsonArray.getJSONObject(i)
+                val name = json.optString("name", "")
+                val key = json.optString("key", "")
+                if (name.isNotBlank() && key.isNotBlank()) {
+                    keys[name] = key
+                    Log.d(TAG, "  ✅ Key loaded: $name")
+                }
+            }
+            
+            Log.d(TAG, "✨ Total keys loaded: ${keys.size}")
+            keys
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error fetching automatic keys: ${e.message}", e)
+            emptyMap()
+        }
+    }
 }

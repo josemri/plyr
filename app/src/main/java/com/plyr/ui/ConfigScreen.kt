@@ -21,6 +21,7 @@ import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.network.SpotifyRepository
+import com.plyr.network.SupabaseClient
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.components.Subtitulo
@@ -29,8 +30,7 @@ import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
 import com.plyr.assistant.AssistantTTSHelper
-
-
+import kotlinx.coroutines.launch
 
 @Composable
 fun ConfigScreen(
@@ -194,18 +194,152 @@ fun ConfigScreen(
 
             Subtitulo("SERVICES")
 
-            // Configuración de API de Spotify
-            SpotifyApiConfigSection(context = context)
+            // Toggle Automatic/Manual para API Keys
+            var apiKeyMode by remember { mutableStateOf(Config.getApiKeyMode(context)) }
+            var isLoadingKeys by remember { mutableStateOf(false) }
+            val coroutineScope = rememberCoroutineScope()
+
+            // Estado del botón de login - declarado antes para poder actualizarlo
+            var hasSpotifyCredentials by remember { mutableStateOf(Config.hasSpotifyCredentials(context)) }
+            var spotifyUserNameLocal by remember { mutableStateOf(Config.getSpotifyUserName(context)) }
+            
+            // Cargar keys automáticas al inicio SOLO si está en modo automatic y no tiene credenciales guardadas
+            LaunchedEffect(Unit) {
+                if (apiKeyMode == "automatic" && !Config.hasSpotifyCredentials(context)) {
+                    isLoadingKeys = true
+                    val keys = SupabaseClient.getAutomaticKeys()
+                    if (keys.isNotEmpty()) {
+                        // Mapear nombres de Supabase a nombres de Config
+                        keys["client_id"]?.let { Config.setSpotifyClientId(context, it) }
+                        keys["client_secret"]?.let { Config.setSpotifyClientSecret(context, it) }
+                        keys["acust_id"]?.let { Config.setAcoustidApiKey(context, it) }
+                        keys["lastfm"]?.let { Config.setLastfmApiKey(context, it) }
+                        // Actualizar el estado del botón después de cargar las credenciales
+                        hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
+                        android.util.Log.d("ConfigScreen", "✅ Keys cargadas automáticamente, hasSpotifyCredentials: $hasSpotifyCredentials")
+                    }
+                    isLoadingKeys = false
+                }
+            }
+            MultiToggle(
+                options = listOf("Automatic", "Manual"),
+                initialIndex = if (apiKeyMode == "automatic") 0 else 1,
+                onChange = { index ->
+                    val newMode = if (index == 0) "automatic" else "manual"
+                    
+                    if (newMode == "automatic" && apiKeyMode == "manual") {
+                        // Solo cargar keys cuando se cambia de manual a automatic
+                        isLoadingKeys = true
+                        coroutineScope.launch {
+                            val keys = SupabaseClient.getAutomaticKeys()
+                            if (keys.isNotEmpty()) {
+                                // Mapear nombres de Supabase a nombres de Config
+                                keys["client_id"]?.let { Config.setSpotifyClientId(context, it) }
+                                keys["client_secret"]?.let { Config.setSpotifyClientSecret(context, it) }
+                                keys["acust_id"]?.let { Config.setAcoustidApiKey(context, it) }
+                                keys["lastfm"]?.let { Config.setLastfmApiKey(context, it) }
+                                // Actualizar el estado del botón después de cargar las credenciales
+                                hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
+                                android.util.Log.d("ConfigScreen", "✅ Keys cargadas al cambiar a automatic, hasSpotifyCredentials: $hasSpotifyCredentials")
+                            }
+                            isLoadingKeys = false
+                        }
+                    } else if (apiKeyMode == "automatic" && newMode == "manual") {
+                        // Cambio de automatic a manual: limpiar keys
+                        Config.clearAllApiKeys(context)
+                        hasSpotifyCredentials = false
+                    }
+                    
+                    apiKeyMode = newMode
+                    Config.setApiKeyMode(context, newMode)
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                }
+            )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            AcoustidApiConfigSection(context = context)
+            // Botón de Login/Logout de Spotify
+            // Actualizar estado cuando cambian las keys o se termina de cargar
+            LaunchedEffect(apiKeyMode, isLoadingKeys) {
+                hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
+                spotifyUserNameLocal = Config.getSpotifyUserName(context)
+            }
+            
+            Text(
+                text = when {
+                    hasSpotifyCredentials -> {
+                        if (!spotifyUserNameLocal.isNullOrBlank()) {
+                            "Hello $spotifyUserNameLocal!"
+                        } else {
+                            Translations.get(context, "login")
+                        }
+                    }
+                    else -> Translations.get(context, "login")
+                },
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 16.sp,
+                    color = if (hasSpotifyCredentials && !spotifyUserNameLocal.isNullOrBlank()) 
+                        MaterialTheme.colorScheme.primary 
+                    else 
+                        MaterialTheme.colorScheme.error
+                ),
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        android.util.Log.d("ConfigScreen", "🔘 Login button clicked!")
+                        android.util.Log.d("ConfigScreen", "   hasSpotifyCredentials: $hasSpotifyCredentials")
+                        android.util.Log.d("ConfigScreen", "   spotifyUserNameLocal: $spotifyUserNameLocal")
+                        android.util.Log.d("ConfigScreen", "   Config.hasSpotifyCredentials: ${Config.hasSpotifyCredentials(context)}")
+                        android.util.Log.d("ConfigScreen", "   Config.getSpotifyClientId: ${Config.getSpotifyClientId(context)}")
+                        android.util.Log.d("ConfigScreen", "   Config.getSpotifyClientSecret: ${Config.getSpotifyClientSecret(context)?.take(5)}...")
+                        
+                        if (hasSpotifyCredentials && !spotifyUserNameLocal.isNullOrBlank()) {
+                            // Ya está logueado, hacer logout
+                            android.util.Log.d("ConfigScreen", "   ➡️ Doing LOGOUT")
+                            Config.clearSpotifyTokens(context)
+                            Config.clearSpotifyUserName(context)
+                            spotifyUserNameLocal = null
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        } else if (hasSpotifyCredentials) {
+                            // Tiene credenciales pero no está logueado, iniciar login
+                            android.util.Log.d("ConfigScreen", "   ➡️ Starting OAuth LOGIN flow")
+                            try {
+                                val success = SpotifyRepository.startOAuthFlow(context)
+                                android.util.Log.d("ConfigScreen", "   OAuth flow started: $success")
+                                if (success) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("ConfigScreen", "   ❌ OAuth flow error: ${e.message}", e)
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                        } else {
+                            android.util.Log.d("ConfigScreen", "   ⚠️ No credentials - button click ignored")
+                        }
+                    }
+                    .padding(vertical = 8.dp)
+            )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            LastfmApiConfigSection(context = context)
+            // Configuración de API (solo en modo manual)
+            if (apiKeyMode == "manual") {
+                SpotifyApiConfigSection(context = context)
 
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+                Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+                AcoustidApiConfigSection(context = context)
+
+                Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+                LastfmApiConfigSection(context = context)
+
+                Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+            }
 
             // Información de uso
             Column {
@@ -450,50 +584,6 @@ fun SpotifyApiConfigSection(context: Context) {
                 )
             )
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Login/Logout button
-        Text(
-            text = when {
-                hasCredentials -> {
-                    val userName = Config.getSpotifyUserName(context)
-                    if (!userName.isNullOrBlank()) {
-                        "Hello $userName!"
-                    } else {
-                        Translations.get(context, "configured")
-                    }
-                }
-                else -> Translations.get(context, "login")
-            },
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 16.sp,
-                color = if (hasCredentials) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-            ),
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    if (hasCredentials) {
-                        Config.clearSpotifyTokens(context)
-                        Config.clearSpotifyUserName(context)
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    } else {
-                        try {
-                            val success = SpotifyRepository.startOAuthFlow(context)
-                            if (success) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            }
-                        } catch (e: Exception) {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        }
-                    }
-                }
-                .padding(vertical = 8.dp)
-        )
     }
 }
 
