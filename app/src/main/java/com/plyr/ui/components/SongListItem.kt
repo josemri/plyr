@@ -1024,6 +1024,6 @@ fun executeSwipeAction(
 }
 
 // Helper para validar si el spotifyId es real (no un placeholder generado localmente)
-fun isRealSpotifyId(sId: String?): Boolean {
+private fun isRealSpotifyId(sId: String?): Boolean {
     return sId != null && sId.isNotBlank() && !sId.startsWith("recommended_") && !sId.startsWith("temp_")
 }

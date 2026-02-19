@@ -24,6 +24,8 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.utils.Config
 import com.plyr.database.TrackEntity
+import com.plyr.ui.components.SongMenuData
+import com.plyr.ui.components.SongMenuDialog
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.material3.LinearProgressIndicator
@@ -184,7 +186,8 @@ fun FloatingMusicControls(
                 PlaybackControls(
                     isLoading = isLoading,
                     isPlaying = isPlaying,
-                    playerViewModel = playerViewModel
+                    playerViewModel = playerViewModel,
+                    currentTrack = currentTrack
                 )
             }
         }
@@ -357,25 +360,52 @@ private fun ProgressBar(
 private fun PlaybackControls(
     isLoading: Boolean,
     isPlaying: Boolean,
-    playerViewModel: PlayerViewModel
+    playerViewModel: PlayerViewModel,
+    currentTrack: TrackEntity?
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var currentRepeatMode by remember { mutableStateOf(Config.getRepeatMode(context)) }
+    var showSongMenu by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 6.dp)
     ) {
-        // Botones principales centrados
+        // Layout con el botón * centrado entre borde izquierdo y los controles centrales
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.Center),
-            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Botón anterior
+            // Espacio izquierdo con el botón * centrado
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "*",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 16.sp
+                    ),
+                    color = if (!isLoading && currentTrack != null) MaterialTheme.colorScheme.primary 
+                            else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier
+                        .offset(y = (-2).dp) // Ajuste vertical para centrar el asterisco
+                        .clickable(enabled = !isLoading && currentTrack != null) { showSongMenu = true }
+                        .padding(6.dp)
+                )
+            }
+
+            // Botones principales centrados
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Botón anterior
             PlaybackButton(
                 text = "<<",
                 fontSize = 16.sp,
@@ -405,19 +435,41 @@ private fun PlaybackControls(
                 isEnabled = !isLoading,
                 onClick = { playerViewModel.navigateToNext() }
             )
-        }
+            }
 
-        // Botón de repetición en la esquina inferior derecha
-        RepeatButton(
-            currentMode = currentRepeatMode,
-            isEnabled = !isLoading,
-            onClick = {
-                val nextMode = Config.getNextRepeatMode(currentRepeatMode)
-                currentRepeatMode = nextMode
-                Config.setRepeatMode(context, nextMode)
-                playerViewModel.updateRepeatMode()
-            },
-            modifier = Modifier.align(Alignment.BottomEnd)
+            // Espacio derecho con el botón de repetición centrado
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                RepeatButton(
+                    currentMode = currentRepeatMode,
+                    isEnabled = !isLoading,
+                    onClick = {
+                        val nextMode = Config.getNextRepeatMode(currentRepeatMode)
+                        currentRepeatMode = nextMode
+                        Config.setRepeatMode(context, nextMode)
+                        playerViewModel.updateRepeatMode()
+                    }
+                )
+            }
+        }
+    }
+
+    // Popup del menú de canción usando el componente reutilizable
+    if (showSongMenu && currentTrack != null) {
+        SongMenuDialog(
+            context = context,
+            songData = SongMenuData(
+                title = currentTrack.name,
+                artist = currentTrack.artists,
+                spotifyId = currentTrack.spotifyTrackId,
+                youtubeId = currentTrack.youtubeVideoId,
+                trackEntity = currentTrack
+            ),
+            playerViewModel = playerViewModel,
+            coroutineScope = coroutineScope,
+            onDismiss = { showSongMenu = false }
         )
     }
 }
