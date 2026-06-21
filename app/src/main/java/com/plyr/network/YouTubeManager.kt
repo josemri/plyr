@@ -3,6 +3,7 @@ package com.plyr.network
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.localization.Localization
+import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
 
 /**
  * Gestor unificado de YouTube - Maneja búsqueda y extracción de audio
@@ -53,7 +54,10 @@ object YouTubeManager {
             android.util.Log.d("YouTubeManager", "🔗 URL del video: $videoUrl")
 
             val extractor = ServiceList.YouTube.getStreamExtractor(videoUrl)
-            android.util.Log.d("YouTubeManager", "📡 StreamExtractor creado, fetching page...")
+            android.util.Log.d("YouTubeManager", "📡 StreamExtractor creado, enabling iOS client...")
+
+            YoutubeStreamExtractor.setFetchIosClient(true)
+            android.util.Log.d("YouTubeManager", "📡 iOS client enabled, fetching page...")
 
             extractor.fetchPage()
             android.util.Log.d("YouTubeManager", "✅ Página fetched exitosamente")

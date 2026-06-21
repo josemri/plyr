@@ -7,7 +7,7 @@ set -e
 
 # === CONFIGURACIÓN ===
 SDK_PATH="$HOME/.local/Android/Sdk"
-JAVA_PATH="/usr/lib/jvm/java-17-openjdk-amd64"
+JAVA_PATH="/usr/lib/jvm/java-21-openjdk-amd64"
 PACKAGE_NAME="com.plyr"
 SHOW_LOGS=false
 TMUX_SPLIT=""

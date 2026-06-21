@@ -4,6 +4,7 @@ import android.util.Log
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.localization.Localization
+import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
 
 object YouTubeAudioExtractor {
 
@@ -39,13 +40,15 @@ object YouTubeAudioExtractor {
 
             val videoUrl = "https://www.youtube.com/watch?v=$videoId"
             val extractor = ServiceList.YouTube.getStreamExtractor(videoUrl)
+
+            YoutubeStreamExtractor.setFetchIosClient(true)
             extractor.fetchPage()
 
             Log.d(TAG, "📹 Video: ${extractor.name}")
 
             val audioStreams = extractor.audioStreams
             if (audioStreams.isNotEmpty()) {
-                val audioUrl = audioStreams[0].url
+                val audioUrl = audioStreams[0].content
                 Log.d(TAG, "✅ URL extraída exitosamente")
                 audioUrl
             } else {
