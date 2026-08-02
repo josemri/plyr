@@ -156,23 +156,18 @@ fun SearchScreen(
                         return@launch
                     }
 
-                    // Guardar búsqueda en el historial (solo si no es paginación y no es duplicada)
+                    // Guardar búsqueda en el historial (solo si no es paginación)
                     if (!isLoadMore) {
                         try {
-                            // Obtener la última búsqueda para verificar duplicados
-                            val lastSearch = searchHistoryDao.getLastSearch()
-
-                            // Solo insertar si no es igual a la última búsqueda
-                            if (lastSearch == null ||
-                                lastSearch.query != finalQuery ||
-                                lastSearch.searchEngine != finalSearchEngine) {
-                                searchHistoryDao.insertSearch(
-                                    SearchHistoryEntity(
-                                        query = finalQuery,
-                                        searchEngine = finalSearchEngine
-                                    )
+                            // Eliminar instancias previas de la misma búsqueda (mismo texto y motor)
+                            // para que quede solo la más reciente y aparezca la primera
+                            searchHistoryDao.deleteSearchByQuery(finalQuery, finalSearchEngine)
+                            searchHistoryDao.insertSearch(
+                                SearchHistoryEntity(
+                                    query = finalQuery,
+                                    searchEngine = finalSearchEngine
                                 )
-                            }
+                            )
                         } catch (_: Exception) {
                             // Silently fail if history insert fails
                         }

@@ -31,6 +31,7 @@ object Config {
     // Claves para SharedPreferences
     private const val KEY_THEME = "theme"
     private const val KEY_SEARCH_ENGINE = "search_engine"
+    private const val KEY_SEARCH_ENGINE_MIGRATED = "search_engine_migrated"
     private const val KEY_AUDIO_QUALITY = "audio_quality"
     private const val KEY_REPEAT_MODE = "repeat_mode"
     private const val KEY_LANGUAGE = "language"
@@ -65,7 +66,7 @@ object Config {
 
     // Valores por defecto
     private const val DEFAULT_THEME = "system" // Por defecto en nuevas instalaciones seguir el tema del sistema
-    private const val DEFAULT_SEARCH_ENGINE = "spotify"
+    private const val DEFAULT_SEARCH_ENGINE = "youtube"
     private const val DEFAULT_AUDIO_QUALITY = "high"
     private const val DEFAULT_REPEAT_MODE = "off"
     private const val DEFAULT_LANGUAGE = "english"
@@ -340,10 +341,21 @@ object Config {
     /**
      * Obtiene el motor de búsqueda actual de la aplicación.
      * @param context Contexto de la aplicación
-     * @return Motor de búsqueda actual (por defecto "spotify")
+     * @return Motor de búsqueda actual (por defecto "youtube")
      */
     fun getSearchEngine(context: Context): String {
-        return getPrefs(context).getString(KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE) ?: DEFAULT_SEARCH_ENGINE
+        val prefs = getPrefs(context)
+        if (!prefs.getBoolean(KEY_SEARCH_ENGINE_MIGRATED, false)) {
+            // Migración única: el motor por defecto pasó de "spotify" a "youtube"
+            val stored = prefs.getString(KEY_SEARCH_ENGINE, null)
+            val migrated = if (stored == null || stored == "spotify") "youtube" else stored
+            prefs.edit {
+                putString(KEY_SEARCH_ENGINE, migrated)
+                putBoolean(KEY_SEARCH_ENGINE_MIGRATED, true)
+            }
+            return migrated
+        }
+        return prefs.getString(KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE) ?: DEFAULT_SEARCH_ENGINE
     }
 
     // === GESTIÓN DE CALIDAD DE AUDIO ===

@@ -38,8 +38,9 @@ interface SearchHistoryDao {
     suspend fun deleteSearch(searchId: Long)
 
     /**
-     * Obtiene la última búsqueda realizada (para verificar duplicados)
+     * Elimina todas las instancias de una búsqueda con el mismo texto y motor
+     * (para que al repetir una búsqueda no queden duplicados en el historial)
      */
-    @Query("SELECT * FROM search_history ORDER BY timestamp DESC LIMIT 1")
-    suspend fun getLastSearch(): SearchHistoryEntity?
+    @Query("DELETE FROM search_history WHERE query = :query AND searchEngine = :engine")
+    suspend fun deleteSearchByQuery(query: String, engine: String)
 }
