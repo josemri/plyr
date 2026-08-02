@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -57,6 +58,18 @@ import com.plyr.network.getRecommendations
 import com.plyr.ui.components.ActionButton
 import com.plyr.ui.components.ActionButtonData
 import com.plyr.ui.components.ActionButtonsGroup
+
+private fun getYouTubeChannelName(playlistEntity: PlaylistEntity?): String? {
+    return playlistEntity?.description
+        ?.removePrefix("YouTube Playlist by ")
+        ?.takeIf { it.isNotBlank() }
+}
+
+private fun youtubeThumbTo16to9(url: String?): String? {
+    if (url == null) return null
+    val regex = Regex("""(https?://(img\.youtube\.com|i\.ytimg\.com)/vi/[^/]+/)[^/]+\.jpg""")
+    return regex.replace(url) { "${it.groupValues[1]}mqdefault.jpg" }
+}
 
 @OptIn(DelicateCoroutinesApi::class)
 @Composable
@@ -190,10 +203,19 @@ fun PlaylistsScreen(
         if (selectedPlaylistEntity == null) {
             isLoadingTracks = false
         } else {
-            // Usar corrutina para operaciones asíncronas
-            coroutineScope.launch {
-                localRepository.getTracksWithAutoSync(playlist.id)
-                isLoadingTracks = false
+            if (playlist.id.startsWith("youtube_")) {
+                // Para playlists de YouTube, los tracks ya están en la DB
+                // Forzar lectura para que el observer de tracksFromDB se active
+                coroutineScope.launch {
+                    localRepository.getTracksWithAutoSync(playlist.id)
+                    isLoadingTracks = false
+                }
+            } else {
+                // Usar corrutina para operaciones asíncronas (Spotify playlists)
+                coroutineScope.launch {
+                    localRepository.getTracksWithAutoSync(playlist.id)
+                    isLoadingTracks = false
+                }
             }
         }
     }
@@ -402,19 +424,89 @@ fun PlaylistsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        when { // Estado no conectado
-            !isSpotifyConnected -> {
-			Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-			    Text(
-                        text = Translations.get(context, "Spotify not connected"),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+        when { // Estado no conectado - pero mostrar playlists de YouTube si existen
+            !isSpotifyConnected && selectedPlaylist == null -> {
+                // Mostrar playlists de YouTube guardadas aunque no haya Spotify
+                val youtubePlaylists = playlistsFromDB
+                    .filter { it.spotifyId.startsWith("youtube_") }
+                    .map { it.toSpotifyPlaylist() }
+
+                if (youtubePlaylists.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = Translations.get(context, "Spotify not connected"),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
-                    )
+                    }
+                } else {
+                    // Mostrar solo playlists de YouTube
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 150.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(youtubePlaylists.size) { index ->
+                            val playlist = youtubePlaylists[index]
+                            val playlistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
+                            val channelName = getYouTubeChannelName(playlistEntity)
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        isEditing = false
+                                        hasUnsavedChanges = false
+                                        selectedPlaylist = playlist
+                                        loadPlaylistTracks(playlist)
+                                    },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
+                                AsyncImage(
+                                    model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
+                                    contentDescription = "Portada de ${playlist.name}",
+                                    modifier = Modifier
+                                        .size(150.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop,
+                                    placeholder = null,
+                                    error = null,
+                                    fallback = null
+                                )
+                                Text(
+                                    text = playlist.name,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.onBackground
+                                    ),
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                if (channelName != null) {
+                                    Text(
+                                        text = channelName,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        ),
+                                        modifier = Modifier.padding(top = 2.dp),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -442,7 +534,8 @@ fun PlaylistsScreen(
                     var showShareDialog by remember { mutableStateOf(false) }
 
                     // Determinar si la playlist seleccionada es editable (es 'mía')
-                    val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs"
+                    val isYouTubePlaylistView = selectedPlaylist?.id?.startsWith("youtube_") == true
+                    val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs" && !isYouTubePlaylistView
 
  // Función para parar todas las reproducciones
                      fun stopAllPlayback() {
@@ -1544,17 +1637,16 @@ fun PlaylistsScreen(
                             items(playlists.size) { index ->
                                 val playlist = playlists[index]
                                 val playlistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
+                                val isYouTubePlaylist = playlist.id.startsWith("youtube_")
 
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            // Verificar si hay cambios sin guardar antes de cambiar de playlist
                                             if (isEditing && hasUnsavedChanges) {
                                                 pendingPlaylist = playlist
                                                 showExitEditDialog = true
                                             } else {
-                                                // Resetear modo edición al cambiar de playlist
                                                 isEditing = false
                                                 hasUnsavedChanges = false
                                                 selectedPlaylist = playlist
@@ -1565,11 +1657,12 @@ fun PlaylistsScreen(
                                 ) {
                                     // Portada de la playlist
                                     AsyncImage(
-                                        model = playlistEntity?.imageUrl,
+                                        model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
                                         contentDescription = "Portada de ${playlist.name}",
                                         modifier = Modifier
                                             .size(150.dp)
                                             .clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop,
                                         placeholder = null,
                                         error = null,
                                         fallback = null
@@ -1587,6 +1680,22 @@ fun PlaylistsScreen(
                                         overflow = TextOverflow.Ellipsis,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
+                                    if (isYouTubePlaylist) {
+                                        val channelName = getYouTubeChannelName(playlistEntity)
+                                        if (channelName != null) {
+                                            Text(
+                                                text = channelName,
+                                                style = MaterialTheme.typography.labelSmall.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                ),
+                                                modifier = Modifier.padding(top = 2.dp),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+                                        }
+                                    }
                                 }
                             }
 

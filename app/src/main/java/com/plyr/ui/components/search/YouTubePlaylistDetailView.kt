@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.runtime.livedata.observeAsState
+import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.PlyrErrorText
@@ -42,10 +43,20 @@ fun YouTubePlaylistDetailView(
     var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
     var showShareDialog by remember { mutableStateOf(false) }
 
+    // Estado para guardado de playlist
+    val context = LocalContext.current
+    val localRepository = remember { PlaylistLocalRepository(context) }
+    var isSaved by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
+    var saveMessage by remember { mutableStateOf<String?>(null) }
+
     // Observar el track actual para actualización reactiva
     val currentTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
 
-    val context = LocalContext.current
+    // Verificar si la playlist ya está guardada
+    LaunchedEffect(playlist.playlistId) {
+        isSaved = localRepository.isYouTubePlaylistSaved(playlist.playlistId)
+    }
 
     LaunchedEffect(playlist.playlistId) {
         try {
@@ -58,7 +69,7 @@ fun YouTubePlaylistDetailView(
             trackEntities = playlistVideos.mapIndexed { index, video ->
                 TrackEntity(
                     id = "ytpl_${playlist.playlistId}_${video.videoId}_$index",
-                    playlistId = playlist.playlistId,
+                    playlistId = "youtube_${playlist.playlistId}",
                     spotifyTrackId = video.videoId,
                     name = video.title,
                     artists = video.uploader,
@@ -130,12 +141,46 @@ fun YouTubePlaylistDetailView(
                 }
             )
             Text(
-                text = "<save>",
+                text = if (isSaved) "<saved>" else "<save>",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF7FB069)
+                    color = if (isSaved) Color(0xFFFFD93D) else Color(0xFF7FB069)
                 ),
-                modifier = Modifier.clickable { /* futuro guardado */ }
+                modifier = Modifier.clickable(enabled = !isSaving && videos.isNotEmpty()) {
+                    if (isSaved) {
+                        // Eliminar playlist guardada
+                        coroutineScope.launch {
+                            localRepository.deleteYouTubePlaylist(playlist.playlistId)
+                            isSaved = false
+                            saveMessage = null
+                        }
+                    } else {
+                        // Guardar playlist
+                        isSaving = true
+                        saveMessage = null
+                        coroutineScope.launch {
+                            val savedTracks = trackEntities.map { it.copy(playlistId = "youtube_${playlist.playlistId}") }
+                            val coverUrl = videos.firstOrNull()?.thumbnailUrl
+                                ?: trackEntities.firstOrNull()?.youtubeVideoId?.let { "https://img.youtube.com/vi/$it/mqdefault.jpg" }
+                            val success = localRepository.saveYouTubePlaylist(
+                                playlistId = playlist.playlistId,
+                                title = playlist.title,
+                                description = playlist.description,
+                                uploader = playlist.uploader,
+                                videoCount = playlist.videoCount,
+                                imageUrl = coverUrl,
+                                tracks = savedTracks
+                            )
+                            isSaving = false
+                            if (success) {
+                                isSaved = true
+                                saveMessage = null
+                            } else {
+                                saveMessage = "Error saving playlist"
+                            }
+                        }
+                    }
+                }
             )
             Text(
                 text = "<share>",
@@ -147,6 +192,18 @@ fun YouTubePlaylistDetailView(
             )
         }
         PlyrMediumSpacer()
+
+        // Mensaje de estado del guardado
+        saveMessage?.let { msg ->
+            Text(
+                text = msg,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.error
+                )
+            )
+            PlyrSmallSpacer()
+        }
 
         when {
             isLoading -> PlyrLoadingIndicator("loading playlist")

@@ -541,7 +541,7 @@ class YouTubeSearchManager(private val context: Context) {
      * Genera URL de thumbnail para un video de YouTube
      */
     private fun getThumbnailUrl(videoId: String): String {
-        return "https://img.youtube.com/vi/$videoId/hqdefault.jpg"
+        return "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
     }
 
     /**

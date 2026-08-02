@@ -168,8 +168,12 @@ class PlaylistLocalRepository(context: Context) {
                         val localPlaylists = playlistDao.getAllPlaylistsSync()
 
                         // Encontrar playlists que están en local pero no en Spotify
+                        // (excluir liked_songs, álbumes y playlists de YouTube)
                         val playlistsToDelete = localPlaylists.filter { localPlaylist ->
-                            localPlaylist.spotifyId !in spotifyPlaylistIds
+                            localPlaylist.spotifyId !in spotifyPlaylistIds &&
+                            !localPlaylist.spotifyId.startsWith("album_") &&
+                            !localPlaylist.spotifyId.startsWith("youtube_") &&
+                            localPlaylist.spotifyId != "liked_songs"
                         }
 
                         // Eliminar playlists que ya no existen en Spotify
@@ -651,8 +655,8 @@ class PlaylistLocalRepository(context: Context) {
             var allTracksSuccess = true
 
             for (playlist in playlists) {
-                // Saltar liked_songs y álbumes ya que se sincronizaron arriba
-                if (playlist.spotifyId == "liked_songs" || playlist.spotifyId.startsWith("album_")) continue
+                // Saltar liked_songs, álbumes y playlists de YouTube
+                if (playlist.spotifyId == "liked_songs" || playlist.spotifyId.startsWith("album_") || playlist.spotifyId.startsWith("youtube_")) continue
 
                 val tracksSuccess = syncTracksFromSpotify(playlist.spotifyId)
                 if (!tracksSuccess) {
@@ -666,4 +670,87 @@ class PlaylistLocalRepository(context: Context) {
         return@withContext false
     }
 
+    // === MÉTODOS PÚBLICOS - PLAYLISTS DE YOUTUBE ===
+
+    /**
+     * Guarda una playlist de YouTube en la base de datos local.
+     * Usa el prefijo "youtube_" para diferenciar de playlists de Spotify.
+     *
+     * @param playlistId ID de la playlist de YouTube
+     * @param title Título de la playlist
+     * @param description Descripción de la playlist
+     * @param uploader Nombre del creador de la playlist
+     * @param videoCount Número de videos
+     * @param imageUrl URL de la portada de la playlist
+     * @param tracks Lista de tracks (videos) a guardar
+     * @return true si se guardó correctamente, false en caso contrario
+     */
+    suspend fun saveYouTubePlaylist(
+        playlistId: String,
+        title: String,
+        description: String?,
+        uploader: String,
+        videoCount: Int,
+        imageUrl: String?,
+        tracks: List<TrackEntity>
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val localPlaylistId = "youtube_$playlistId"
+
+            // Crear la playlist entity
+            val playlistEntity = PlaylistEntity(
+                spotifyId = localPlaylistId,
+                name = title,
+                description = "YouTube Playlist by $uploader",
+                trackCount = tracks.size,
+                imageUrl = imageUrl,
+                lastSyncTime = System.currentTimeMillis()
+            )
+
+            // Guardar playlist y tracks
+            playlistDao.insertPlaylist(playlistEntity)
+            trackDao.deleteTracksByPlaylist(localPlaylistId)
+            trackDao.insertTracks(tracks)
+
+            Log.d(TAG, "✅ YouTube playlist guardada: $title (${tracks.size} tracks)")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error guardando YouTube playlist: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Verifica si una playlist de YouTube ya está guardada.
+     *
+     * @param youtubePlaylistId ID de la playlist de YouTube (sin prefijo)
+     * @return true si ya está guardada, false en caso contrario
+     */
+    suspend fun isYouTubePlaylistSaved(youtubePlaylistId: String): Boolean = withContext(Dispatchers.IO) {
+        val localPlaylistId = "youtube_$youtubePlaylistId"
+        val existing = playlistDao.getPlaylistById(localPlaylistId)
+        existing != null
+    }
+
+    /**
+     * Elimina una playlist de YouTube guardada.
+     *
+     * @param youtubePlaylistId ID de la playlist de YouTube (sin prefijo)
+     */
+    suspend fun deleteYouTubePlaylist(youtubePlaylistId: String) = withContext(Dispatchers.IO) {
+        val localPlaylistId = "youtube_$youtubePlaylistId"
+        trackDao.deleteTracksByPlaylist(localPlaylistId)
+        playlistDao.deletePlaylistById(localPlaylistId)
+        Log.d(TAG, "YouTube playlist eliminada: $localPlaylistId")
+    }
+
+    /**
+     * Obtiene todas las playlists de YouTube guardadas.
+     *
+     * @return Lista de PlaylistEntity de YouTube
+     */
+    suspend fun getYouTubePlaylists(): List<PlaylistEntity> = withContext(Dispatchers.IO) {
+        val allPlaylists = playlistDao.getAllPlaylistsSync()
+        allPlaylists.filter { it.spotifyId.startsWith("youtube_") }
+    }
 }
