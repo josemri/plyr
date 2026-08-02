@@ -29,6 +29,7 @@ SHOW_LOGS=false
 TMUX_SPLIT=""
 LOG_TAGS=""
 APK_PATH=""
+TEST_DEVICE=false
 
 usage() {
     cat <<'EOF'
@@ -44,6 +45,9 @@ Comandos:
                          Para aplicarlas:  eval "$(./run.sh env)"
   build [debug|release]  Compila el APK (por defecto: debug). No lo instala.
   run   [debug|release]  Compila, instala en el dispositivo y lanza la app.
+  test  [debug|release]  Ejecuta los tests unitarios (por defecto: debug).
+  test  device [debug|release]
+                         Ejecuta los tests instrumentados en el dispositivo.
   -stop | stop           Detiene la app en el dispositivo.
   help                   Muestra esta ayuda.
 
@@ -59,6 +63,8 @@ Ejemplos:
   ./run.sh build release --clean
   ./run.sh install target release
   ./run.sh run debug -log -tags PlaylistScreen
+  ./run.sh test
+  ./run.sh test device
   ./run.sh -stop
 EOF
 }
@@ -90,6 +96,16 @@ parse_args() {
                     env)                CMD="env" ;;
                     build)              CMD="build" ;;
                     run)                CMD="run" ;;
+                    test)               CMD="test" ;;
+                    device)
+                        if [ "$CMD" = "test" ]; then
+                            TEST_DEVICE=true
+                        else
+                            echo "ERROR: 'device' solo se usa como 'test device'" >&2
+                            usage
+                            exit 1
+                        fi
+                        ;;
                     stop|-stop)         CMD="stop" ;;
                     help|-h|--help)     CMD="help" ;;
                     debug)              BUILD_TYPE="debug" ;;
@@ -374,6 +390,32 @@ cmd_run() {
     echo "=============================================================="
 }
 
+# === TEST ===
+
+cmd_test() {
+    resolve_env
+    cd "$SCRIPT_DIR"
+
+    local task
+    if [ "$TEST_DEVICE" = true ]; then
+        check_device
+        echo "=============================================================="
+        echo "  EJECUTANDO TESTS INSTRUMENTADOS EN EL DISPOSITIVO ($BUILD_TYPE)"
+        echo "=============================================================="
+        task="connected${BUILD_TYPE^}AndroidTest"
+    else
+        echo "=============================================================="
+        echo "  EJECUTANDO TESTS UNITARIOS ($BUILD_TYPE)"
+        echo "=============================================================="
+        task="test${BUILD_TYPE^}UnitTest"
+    fi
+
+    ./gradlew "$task"
+
+    echo ""
+    echo "TESTS COMPLETADOS."
+}
+
 # === STOP ===
 
 cmd_stop() {
@@ -398,6 +440,7 @@ case "$CMD" in
     env)     cmd_env ;;
     build)   cmd_build ;;
     run)     cmd_run ;;
+    test)    cmd_test ;;
     stop)    cmd_stop ;;
     install)
         if [ "$INSTALL_SUB" = "target" ]; then
