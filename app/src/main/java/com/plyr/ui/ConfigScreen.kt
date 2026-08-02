@@ -39,7 +39,6 @@ fun ConfigScreen(
     onThemeChanged: (String) -> Unit = {}
 ) {
     var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
-    var selectedSearchEngine by remember { mutableStateOf(Config.getSearchEngine(context)) }
     var selectedLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
 
     // Estado para Spotify - se actualiza cada vez que se abre la pantalla
@@ -68,10 +67,6 @@ fun ConfigScreen(
     LaunchedEffect(selectedTheme) {
         Config.setTheme(context, selectedTheme)
         onThemeChanged(selectedTheme)
-    }
-
-    LaunchedEffect(selectedSearchEngine) {
-        Config.setSearchEngine(context, selectedSearchEngine)
     }
 
     // El idioma se guarda inmediatamente en onLanguageChanged para que Translations.get() 
@@ -128,38 +123,6 @@ fun ConfigScreen(
                 }
             )
 
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            Subtitulo("PLAYBACK")
-
-            // Selector de motor de búsqueda - Desplegable
-            SearchEngineConfigSection(
-                context = context,
-                selectedSearchEngine = selectedSearchEngine,
-                onSearchEngineChanged = { newEngine ->
-                    selectedSearchEngine = newEngine
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Selector de calidad de audio - Desplegable
-            var selectedAudioQuality by remember { mutableStateOf(Config.getAudioQuality(context)) }
-
-            LaunchedEffect(selectedAudioQuality) {
-                Config.setAudioQuality(context, selectedAudioQuality)
-            }
-
-            AudioQualityConfigSection(
-                context = context,
-                selectedAudioQuality = selectedAudioQuality,
-                onAudioQualityChanged = { newQuality ->
-                    selectedAudioQuality = newQuality
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-            )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -1119,86 +1082,6 @@ fun ThemeConfigSection(
                     else -> "system"
                 }
                 onThemeChanged(newTheme)
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
-        )
-    }
-}
-
-@Composable
-fun SearchEngineConfigSection(
-    context: Context,
-    selectedSearchEngine: String,
-    onSearchEngineChanged: (String) -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-
-    val engineOptions = listOf(
-        Pair("spotify", Translations.get(context, "search_spotify")),
-        Pair("youtube", Translations.get(context, "search_youtube"))
-    )
-
-    val currentEngineLabel = engineOptions.find { it.first == selectedSearchEngine }?.second ?: Translations.get(context, "search_spotify")
-
-    CollapsibleSection(
-        title = Translations.get(context, "search_engine"),
-        statusText = currentEngineLabel
-    ) {
-        MultiToggle(
-            options = listOf(
-                Translations.get(context, "search_spotify"),
-                Translations.get(context, "search_youtube")
-            ),
-            initialIndex = if (selectedSearchEngine == "spotify") 0 else 1,
-            onChange = { selectedIndex ->
-                val newEngine = if (selectedIndex == 0) "spotify" else "youtube"
-                onSearchEngineChanged(newEngine)
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
-        )
-    }
-}
-
-@Composable
-fun AudioQualityConfigSection(
-    context: Context,
-    selectedAudioQuality: String,
-    onAudioQualityChanged: (String) -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-
-    val qualityOptions = listOf(
-        Pair(Config.AUDIO_QUALITY_WORST, Translations.get(context, "quality_low")),
-        Pair(Config.AUDIO_QUALITY_MEDIUM, Translations.get(context, "quality_med")),
-        Pair(Config.AUDIO_QUALITY_BEST, Translations.get(context, "quality_high"))
-    )
-
-    val currentQualityLabel = qualityOptions.find { it.first == selectedAudioQuality }?.second ?: Translations.get(context, "quality_med")
-
-    CollapsibleSection(
-        title = Translations.get(context, "audio_quality"),
-        statusText = currentQualityLabel
-    ) {
-        MultiToggle(
-            options = listOf(
-                Translations.get(context, "quality_low"),
-                Translations.get(context, "quality_med"),
-                Translations.get(context, "quality_high")
-            ),
-            initialIndex = when (selectedAudioQuality) {
-                Config.AUDIO_QUALITY_WORST -> 0
-                Config.AUDIO_QUALITY_MEDIUM -> 1
-                Config.AUDIO_QUALITY_BEST -> 2
-                else -> 1
-            },
-            onChange = { selectedIndex ->
-                val newQuality = when (selectedIndex) {
-                    0 -> Config.AUDIO_QUALITY_WORST
-                    1 -> Config.AUDIO_QUALITY_MEDIUM
-                    2 -> Config.AUDIO_QUALITY_BEST
-                    else -> Config.AUDIO_QUALITY_MEDIUM
-                }
-                onAudioQualityChanged(newQuality)
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             }
         )

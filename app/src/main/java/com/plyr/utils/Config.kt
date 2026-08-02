@@ -32,7 +32,6 @@ object Config {
     private const val KEY_THEME = "theme"
     private const val KEY_SEARCH_ENGINE = "search_engine"
     private const val KEY_SEARCH_ENGINE_MIGRATED = "search_engine_migrated"
-    private const val KEY_AUDIO_QUALITY = "audio_quality"
     private const val KEY_REPEAT_MODE = "repeat_mode"
     private const val KEY_LANGUAGE = "language"
     private const val KEY_SPOTIFY_ACCESS_TOKEN = "spotify_access_token"
@@ -67,7 +66,6 @@ object Config {
     // Valores por defecto
     private const val DEFAULT_THEME = "system" // Por defecto en nuevas instalaciones seguir el tema del sistema
     private const val DEFAULT_SEARCH_ENGINE = "youtube"
-    private const val DEFAULT_AUDIO_QUALITY = "high"
     private const val DEFAULT_REPEAT_MODE = "off"
     private const val DEFAULT_LANGUAGE = "english"
     private const val DEFAULT_SWIPE_LEFT_ACTION = "add_to_queue"
@@ -89,13 +87,6 @@ object Config {
     
     /** Permisos solicitados a Spotify */
     const val SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative playlist-modify-public playlist-modify-private user-library-modify user-library-read user-follow-modify user-follow-read user-read-private"
-
-    // === CONSTANTES PÚBLICAS DE CALIDAD DE AUDIO ===
-
-    /** Calidades de audio disponibles */
-    const val AUDIO_QUALITY_WORST = "worst"
-    const val AUDIO_QUALITY_MEDIUM = "medium"
-    const val AUDIO_QUALITY_BEST = "best"
 
     // === CONSTANTES PÚBLICAS DE MODO DE REPETICIÓN ===
 
@@ -356,28 +347,6 @@ object Config {
             return migrated
         }
         return prefs.getString(KEY_SEARCH_ENGINE, DEFAULT_SEARCH_ENGINE) ?: DEFAULT_SEARCH_ENGINE
-    }
-
-    // === GESTIÓN DE CALIDAD DE AUDIO ===
-
-    /**
-     * Establece la calidad de audio predeterminada.
-     * @param context Contexto de la aplicación
-     * @param quality Calidad de audio a establecer ("worst", "medium", "best")
-     */
-    fun setAudioQuality(context: Context, quality: String) {
-        getPrefs(context).edit {
-            putString(KEY_AUDIO_QUALITY, quality)
-        }
-    }
-
-    /**
-     * Obtiene la calidad de audio actual de la aplicación.
-     * @param context Contexto de la aplicación
-     * @return Calidad de audio actual (por defecto "medium")
-     */
-    fun getAudioQuality(context: Context): String {
-        return getPrefs(context).getString(KEY_AUDIO_QUALITY, DEFAULT_AUDIO_QUALITY) ?: DEFAULT_AUDIO_QUALITY
     }
 
     // === GESTIÓN DE MODO DE REPETICIÓN ===
