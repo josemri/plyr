@@ -15,7 +15,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 - **Duplicación resuelta al 100%**: los 7 focos (D1-D7) han sido eliminados; quedan solo patrones menores aislados (joinToString de artistas inline, `images?.firstOrNull()?.url?.let`).
 - **Monolitos de UI** (PlaylistScreen con 2.189 líneas, SearchScreen con 1.675).
 - **6 dependencias declaradas sin usar** y 2 archivos vacíos.
-- **124 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
+- **139 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
 
 **Prioridades claras:** (1) seguridad de credenciales, (2) los 4 bugs críticos (B1-B4), (3) arquitectura por pantallas, (4) bugs medios/bajos restantes.
 
@@ -30,7 +30,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 | Archivo más grande | `ui/PlaylistScreen.kt` (2.189) |
 | versionCode / versionName | 5 / 1.0.6 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
-| Tests unitarios | **124** (0 fallos; antes 76) |
+| Tests unitarios | **139** (0 fallos; antes 76) |
 | Tests instrumentados útiles | 0 |
 | Dependencias declaradas sin uso | 6 |
 | Focos de duplicación | 7 → **0 pendientes** (todos resueltos) |
@@ -184,7 +184,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 | `assistant/AssistantTTSHelper.kt:62` | Override del `onError(utteranceId)` deprecado (mantiene el nuevo, bien). |
 
 ### Tests
-- **124 unit tests en verde** (`./run.sh test`, 0 fallos): Translations (5), SpotifyModels (12), DatabaseMappings (3), YouTubeFormatting (8), Utils (30), SupabaseClient (7), ModelDefaults (7), UrlParser (33), NewPipeHolder (3), YouTubePlaylistCreator (15), ExampleUnitTest (1).
+- **139 unit tests en verde** (`./run.sh test`, 0 fallos): Translations (5), SpotifyModels (12), DatabaseMappings (3), YouTubeFormatting (8), Utils (30), SupabaseClient (7), ModelDefaults (7), UrlParser (33), NewPipeHolder (3), YouTubePlaylistCreator (15), CoverCropMath (15), ExampleUnitTest (1).
 - **Cambios aplicados en esta ronda:** eliminado `UrlExtractorTest` (usaba reflexión sobre funciones privadas de FeedScreen ya borradas) → sustituido por `UrlParserTest` (33 casos directos). `UtilsTest` creció de 24 a 30 (formatTimestamp, formatDurationMs, formatDurationSeconds). Añadidos `NewPipeHolderTest` (3) y tests directos de las extensiones `firstImageUrl`/`artistNames` en `SpotifyModelsTest` (12). Añadido `SpotifyToYouTubeConverterTest` (10) para la nueva capa de conversión `SpotifyToYouTubeConverter` (ver §12).
 - **Solo 1 test instrumentado de plantilla** (`app/src/androidTest/.../ExampleInstrumentedTest.kt`, verifica el package). No hay instrumentación real de los flujos críticos (login/callback, persistencia de tokens, permisos runtime, escáner QR).
 
@@ -240,7 +240,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 | **Rendimiento** | 5.0 / 10 | Leak de threads + cámara encendida tras cerrar el escáner (Alta), cache O(n²) en Feed, OkHttpClient recreado, LazyLists sin key, Feed no lazy. |
 | **Arquitectura / Mantenibilidad** | 5.0 / 10 | Siguen los monolitos y el God object `Config`, pero la **duplicación está resuelta al 100%** (D1-D7 con `UrlParser`, `formatDuration*`, `ScanResult`, `NewPipeHolder`, extensiones de Spotify y `trackMetadataSection`; código muerto eliminado). |
 | **Seguridad** | 3.5 / 10 | Sin cambios. Secretos distribuibles vía anon key (S1), OAuth con client secret (S2), tokens planos con backup (S4), sin minify (S3). Lo único sólido: sin WebView, .gitignore correcto, permisos runtime. |
-| **Cobertura de tests** | 6.0 / 10 | 124 unit tests en verde (+48). URL parsing, duración, inicialización NewPipe, extensiones de modelos y la creación de playlists de YouTube (con buscador inyectado) testeados de forma directa y sin reflexión; pero sigue habiendo 0 instrumentados y nada de flujos críticos. |
+| **Cobertura de tests** | 6.0 / 10 | 139 unit tests en verde (+59). URL parsing, duración, inicialización NewPipe, extensiones de modelos y la creación de playlists de YouTube (con buscador inyectado) testeados de forma directa y sin reflexión; pero sigue habiendo 0 instrumentados y nada de flujos críticos. |
 | **Limpieza / Estilo** | 6.0 / 10 | Código legible y comentado en general; lastrado por 2 archivos vacíos, 14 comentarios obsoletos, `println`, strings hardcodeadas y 6 deps sin usar. |
 
 ### Nota global
@@ -249,7 +249,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 
 | Estado | Interpretación |
 |---|---|
-| ✅ **Estable y funcional** | Compila, instala, reproduce música, los 124 unit tests pasan. Apto para uso personal diario. |
+| ✅ **Estable y funcional** | Compila, instala, reproduce música, los 139 unit tests pasan. Apto para uso personal diario. |
 | ⚠️ **Riesgo de seguridad real** | Credenciales de Spotify son recuperables por cualquiera (Supabase anon + APK sin ofuscar) y los tokens viajan en prefs planas con backup. **Esto es lo más urgente.** |
 | ⚠️ **Riesgo de crash puntual** | ExoPlayer desde Timer y red en main thread (B3, B4). |
 | 🟡 **Deuda de mantenimiento** | Monolitos y los 3 focos de duplicación restantes (D3/D5/D7) hacen cada cambio lento y propenso a regresiones. |
@@ -266,7 +266,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 
 ## 11. CAMBIOS APLICADOS (refactor de duplicación)
 
-Estado del repo tras la revisión 2026-08-06 (compila y 124 tests en verde):
+Estado del repo tras la revisión 2026-08-06 (compila y 139 tests en verde):
 
 ### D1 — Extracción de URLs centralizada
 - **Nuevo `utils/UrlParser.kt`** (110 líneas, sin dependencias Android): `extractYoutubeVideoId` (watch?v=, youtu.be/, /watch/, /shorts/, fallback), `extractYoutubePlaylistId` (list=, /playlist/), `extractSpotifyId`, `parseScanText` (incluye formato legacy `plyr_source:type:id`), `getUrlType`, `isPlayableUrl`, `youtubeThumbnailUrl`, `normalizeYoutubeThumb`.
@@ -330,7 +330,7 @@ Ante el objetivo de *"crear playlists exactamente iguales que las de Spotify per
 ### Tests — `YouTubePlaylistCreatorTest` (15)
 A los 9 originales se añaden: `buildSourceTracks_mapsNameArtistsAndSpotifyId`, `buildSourceTracks_reindexesPositions`, `buildSourceTracks_emptyListProducesEmptyTracks`, `buildFromSpotifyTracks_resolvesSamePlaylistEndToEnd`, `build_usesResolvedVideoIdsWithoutSearching`, `build_resolvedVideoIdsOverridesSearchOnlyForKnownIds`.
 
-**Total de tests: 124, 0 fallos.**
+**Total de tests: 139, 0 fallos.**
 
 ### Nota de uso
 El botón `<new>` de Playlists **siempre es visible** (ya no depende de la conexión a Spotify; `<sync>` sigue siendo solo Spotify). En la pantalla de crear, con el selector en **youtube**, el buscador usa la integración existente de YouTube (`YouTubeSearchManager.searchYouTubeAll`), así que **no necesitas Spotify** para crear playlists de YouTube ni añadirles contenido; los tracks añadidos vía esa búsqueda conservan su `videoId` exacto (no se re-buscan).
@@ -341,5 +341,24 @@ Las playlists `youtube_` también se **editan sin Spotify**: `<edit>` permite re
 Probar en el dispositivo (`./run.sh run debug`): crear playlist con tipo "youtube", verificar que aparece en la lista, que `<edit>` permite renombrar/añadir/quitar vídeos y que reproduce con audio de YouTube.
 
 ---
+
+## 13. PORTADAS DE PLAYLISTS (recorte cuadrado + subida local, estilo Spotify)
+
+Para **playlists locales `youtube_`** (decisión de alcance: solo locales; las de Spotify necesitarían el scope `ugc-image-upload` y re-autenticación, fuera de alcance):
+
+- **`service/CoverCropMath.kt`** — matemática pura del recorte (testeada en JVM, 15 tests):
+  - `baseScale` (center-crop: cubre el marco cuadrado), `maxOffset` (límite de arrastre por eje), `clampState` (zoom ≥ 1 y offsets limitados) y `sourceRect` (cuadrado visible en píxeles de la imagen original; siempre cuadrado y dentro de la imagen).
+- **`service/CoverImageManager.kt`** — decode de un Uri con downsampling (máx. 2048), `crop` del rectángulo calculado, `resizeToSquare` (máx. 1024) y `save` a `filesDir/covers/playlist_<rawId>.jpg` devolviendo una URI `file://` que Coil entiende (se guarda en `PlaylistEntity.imageUrl`).
+- **`ui/components/CoverCropDialog.kt`** — editor tipo Spotify: marco cuadrado, pinch-zoom y arrastre (gestos `detectTransformGestures`, siempre clampados), scrims alrededor y botones `<cancel>`/`<save>`. Recorta y entrega el Bitmap final.
+- **`PlaylistLocalRepository.updatePlaylistImage(localPlaylistId, imageUrl)`** — guarda la nueva portada en local; al ser LiveData, el grid se actualiza solo.
+- **`PlaylistScreen`**: en modo edición de una `youtube_` aparece `> change_cover` (preview 64dp + `<pick>`), que abre el **Photo Picker** (`PickVisualMedia`, con fallback a ACTION_OPEN_DOCUMENT en dispositivos viejos); al confirmar el recorte se guarda y se refresca la entidad. `normalizeYoutubeThumb` deja pasar las rutas locales (`file://`) sin tocar.
+
+**Total de tests: 139, 0 fallos.**
+
+### Nota de uso
+Dentro de `<edit>` de una playlist `youtube_`: sección `> change_cover` → `<pick>` → elegir imagen de la galería → encuadrar (pinch-zoom + arrastre) → `<save>`. La portada se guarda en el almacenamiento interno de la app (no depende de red ni de Spotify) y aparece en el grid al momento.
+
+### Siguiente paso
+Probar en el dispositivo (`./run.sh run debug`): editar una playlist `youtube_`, cambiar su portada con `<pick>`, recortarla y verificar que aparece tanto en el grid como en la preview del modo edición.
 
 *Generado a partir de auditoría estática. Todos los hallazgos críticos están verificados contra el código. Los números de línea corresponden al estado actual del repo (commit working tree de 2026-08-02).*

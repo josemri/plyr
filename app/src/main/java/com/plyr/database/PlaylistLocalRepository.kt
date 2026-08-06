@@ -790,6 +790,34 @@ class PlaylistLocalRepository(context: Context) {
     }
 
     /**
+     * Actualiza la portada de una playlist local (YouTube).
+     *
+     * @param localPlaylistId ID local de la playlist (con prefijo "youtube_")
+     * @param imageUrl Nueva URL/archivo de la portada (ruta file:// guardada en disco)
+     * @return true si se actualizó correctamente, false en caso contrario
+     */
+    suspend fun updatePlaylistImage(
+        localPlaylistId: String,
+        imageUrl: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val playlist = playlistDao.getPlaylistById(localPlaylistId)
+                ?: return@withContext false
+            playlistDao.updatePlaylist(
+                playlist.copy(
+                    imageUrl = imageUrl,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            )
+            Log.d(TAG, "Portada actualizada para playlist local: $localPlaylistId")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error actualizando portada de playlist local: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
      * Obtiene todas las playlists de YouTube guardadas.
      *
      * @return Lista de PlaylistEntity de YouTube

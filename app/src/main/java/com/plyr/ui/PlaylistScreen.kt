@@ -32,6 +32,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.Bitmap
+import android.net.Uri
 import coil.compose.AsyncImage
 import com.plyr.database.*
 import com.plyr.network.SpotifyPlaylist
@@ -44,6 +49,7 @@ import com.plyr.utils.Config
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.service.YouTubePlaylistCreator
+import com.plyr.service.CoverImageManager
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
 import com.plyr.ui.components.ShareDialog
@@ -138,6 +144,14 @@ fun PlaylistsScreen(
     var playlistTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
     var showCreatePlaylistScreen by remember { mutableStateOf(false) }
+
+    // Estado y lanzador para cambiar la portada de una playlist (solo locales youtube_)
+    var coverPickUri by remember { mutableStateOf<Uri?>(null) }
+    val coverImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) coverPickUri = uri
+    }
 
     // Estado para los álbumes del artista seleccionado
     var selectedArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) }
@@ -828,7 +842,12 @@ fun PlaylistsScreen(
                             }
                         }
 
-                        ActionButtonsGroup(buttons = buttons)
+                        ActionButtonsGroup(
+                            buttons = buttons,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp)
+                        )
 
                         // Diálogo de confirmación para eliminar playlist
                         if (showDeleteDialog) {
@@ -934,54 +953,69 @@ fun PlaylistsScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f),
-                                contentPadding = PaddingValues(vertical = 8.dp)
+                                contentPadding = PaddingValues(bottom = 8.dp)
                             ) {
-                                // Título de la sección
-                                item {
-                                    Text(
-                                        text = "> edit_playlist",
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 16.sp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        ),
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                }
-
-                                // Cambiar nombre
-                                item {
-                                    OutlinedTextField(
-                                        value = newTitle,
-                                        onValueChange = { newTitle = it },
-                                        label = { Text(Translations.get(context, "playlist_name")) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                }
-
-                                // Cambiar descripción
-                                item {
-                                    OutlinedTextField(
-                                        value = newDesc,
-                                        onValueChange = { newDesc = it },
-                                        label = { Text(Translations.get(context, "description")) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(Modifier.height(16.dp))
-                                }
-
-                                // Sección de buscador de canciones
-                                item {
-                                    Text(
-                                        text = "> add_tracks",
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 16.sp,
-                                            color = MaterialTheme.colorScheme.primary
-                                        ),
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
+                                // Nombre y descripción, con la portada a la izquierda
+                                // (la propia portada es el botón para cambiarla)
+                                if (isYouTubePlaylistView) {
+                                    item {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            AsyncImage(
+                                                model = youtubeThumbTo16to9(selectedPlaylistEntity?.imageUrl),
+                                                contentDescription = "Portada actual (pulsar para cambiar)",
+                                                modifier = Modifier
+                                                    .size(120.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        coverImagePickerLauncher.launch(
+                                                            PickVisualMediaRequest(
+                                                                ActivityResultContracts.PickVisualMedia.ImageOnly
+                                                            )
+                                                        )
+                                                    },
+                                                contentScale = ContentScale.Crop,
+                                                placeholder = null,
+                                                error = null,
+                                                fallback = null
+                                            )
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                OutlinedTextField(
+                                                    value = newTitle,
+                                                    onValueChange = { newTitle = it },
+                                                    label = { Text(Translations.get(context, "playlist_name")) },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                                Spacer(Modifier.height(8.dp))
+                                                OutlinedTextField(
+                                                    value = newDesc,
+                                                    onValueChange = { newDesc = it },
+                                                    label = { Text(Translations.get(context, "description")) },
+                                                    modifier = Modifier.fillMaxWidth()
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(16.dp))
+                                    }
+                                } else {
+                                    item {
+                                        OutlinedTextField(
+                                            value = newTitle,
+                                            onValueChange = { newTitle = it },
+                                            label = { Text(Translations.get(context, "playlist_name")) },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                    }
+                                    item {
+                                        OutlinedTextField(
+                                            value = newDesc,
+                                            onValueChange = { newDesc = it },
+                                            label = { Text(Translations.get(context, "description")) },
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Spacer(Modifier.height(16.dp))
+                                    }
                                 }
 
                                 // Campo de búsqueda
@@ -1952,6 +1986,32 @@ fun PlaylistsScreen(
                             }
                         }
                     }
+            }
+        }
+
+        // Diálogo de recorte de portada (solo playlists locales youtube_ en modo edición)
+        coverPickUri?.let { uri ->
+            val entity = selectedPlaylistEntity
+            if (entity != null && isEditing && entity.spotifyId.startsWith("youtube_")) {
+                CoverCropDialog(
+                    uri = uri,
+                    onDismiss = { coverPickUri = null },
+                    onConfirm = { cropped ->
+                        coverPickUri = null
+                        coroutineScope.launch {
+                            val path = CoverImageManager.save(
+                                context,
+                                entity.spotifyId.removePrefix("youtube_"),
+                                cropped
+                            )
+                            if (path != null) {
+                                localRepository.updatePlaylistImage(entity.spotifyId, path)
+                                // Refrescar la entidad para que la preview en modo edición se actualice
+                                selectedPlaylistEntity = entity.copy(imageUrl = path)
+                            }
+                        }
+                    }
+                )
             }
         }
     }
