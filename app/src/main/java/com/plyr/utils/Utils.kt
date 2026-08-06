@@ -90,3 +90,57 @@ fun formatTime(ms: Long): String {
     return String.format("%02d:%02d", minutes, seconds)
 }
 
+/**
+ * Formatea una duración en milisegundos a "M:SS" (minutos sin cero a la izquierda).
+ * Sustituye a los formateadores inline de AssistantManager, SongListItem y SongMenuDialog.
+ *
+ * @param ms Duración en milisegundos
+ * @return Duración formateada como "M:SS" (ej: "3:45")
+ */
+fun formatDurationMs(ms: Number): String {
+    val totalSeconds = ms.toLong() / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "$minutes:${seconds.toString().padStart(2, '0')}"
+}
+
+/**
+ * Formatea una duración en segundos a "MM:SS" o "HH:MM:SS". Sustituye a
+ * getFormattedDuration de YouTubeSearchManager.
+ *
+ * @param totalSeconds Duración en segundos
+ * @return Duración formateada, o "En vivo" si es <= 0
+ */
+fun formatDurationSeconds(totalSeconds: Long): String {
+    if (totalSeconds <= 0) return "En vivo"
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%d:%02d".format(minutes, seconds)
+    }
+}
+
+/**
+ * Formatea un timestamp a tiempo relativo ("now", "5m", "3h", "2d").
+ *
+ * @param timestamp Timestamp en milisegundos
+ * @return Tiempo relativo en formato corto
+ */
+fun formatTimestamp(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    val diff = now - timestamp
+    val minutes = diff / (1000 * 60)
+    val hours = diff / (1000 * 60 * 60)
+    val days = diff / (1000 * 60 * 60 * 24)
+
+    return when {
+        minutes < 1 -> "now"
+        minutes < 60 -> "${minutes}m"
+        hours < 24 -> "${hours}h"
+        else -> "${days}d"
+    }
+}
+

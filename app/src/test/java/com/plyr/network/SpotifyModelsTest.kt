@@ -89,4 +89,17 @@ class SpotifyModelsTest {
         val artist = SpotifyArtistFull(id = "id", name = "name", images = null, followers = null, genres = null)
         assertEquals("", artist.getImageUrl())
     }
+
+    @Test
+    fun extension_firstImageUrl_returnsFirstOrEmpty() {
+        assertEquals("http://img1", listOf(SpotifyImage("http://img1", 1, 1), SpotifyImage("http://img2", 1, 1)).firstImageUrl())
+        assertEquals("", (null as List<SpotifyImage>?).firstImageUrl())
+        assertEquals("", emptyList<SpotifyImage>().firstImageUrl())
+    }
+
+    @Test
+    fun extension_artistNames_joinsWithComma() {
+        assertEquals("A, B", listOf(SpotifyArtist("A"), SpotifyArtist("B")).artistNames())
+        assertEquals("", emptyList<SpotifyArtist>().artistNames())
+    }
 }

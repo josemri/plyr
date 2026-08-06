@@ -1430,7 +1430,7 @@ data class SpotifyPlaylist(
 ) {
 
     fun getImageUrl(): String {
-        return images?.firstOrNull()?.url ?: ""
+        return images.firstImageUrl()
     }
 }
 
@@ -1445,6 +1445,17 @@ data class SpotifyImage(
     val width: Int?
 )
 
+/**
+ * Primera URL de imagen disponible de una lista nullable de imágenes.
+ * Extensiones compartidas para eliminar la duplicación de getImageUrl/getArtistNames.
+ */
+fun List<SpotifyImage>?.firstImageUrl(): String = this?.firstOrNull()?.url ?: ""
+
+/**
+ * Nombres de artistas unidos por ", ".
+ */
+fun List<SpotifyArtist>.artistNames(): String = joinToString(", ") { it.name }
+
 data class SpotifyTrack(
     val id: String,
     val name: String,
@@ -1453,7 +1464,7 @@ data class SpotifyTrack(
     val album: SpotifyAlbumSimple? = null
 ) {
     fun getArtistNames(): String {
-        return artists.joinToString(", ") { it.name }
+        return artists.artistNames()
     }
     
     fun getDisplayName(): String {
@@ -1518,11 +1529,11 @@ data class SpotifyAlbum(
     @SerializedName("total_tracks") val totaltracks: Int? = null
 ) {
     fun getArtistNames(): String {
-        return artists.joinToString(", ") { it.name }
+        return artists.artistNames()
     }
 
     fun getImageUrl(): String {
-        return images?.firstOrNull()?.url ?: ""
+        return images.firstImageUrl()
     }
 }
 
@@ -1534,7 +1545,7 @@ data class SpotifyArtistFull(
     val genres: List<String>?
 ) {
     fun getImageUrl(): String {
-        return images?.firstOrNull()?.url ?: ""
+        return images.firstImageUrl()
     }
 
 }

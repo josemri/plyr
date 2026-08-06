@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.plyr.database.TrackEntity
 import com.plyr.model.Recommendation
+import com.plyr.model.ScanResult
 import com.plyr.network.SupabaseClient
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
@@ -28,8 +29,9 @@ import com.plyr.utils.MediaMetadata
 import com.plyr.utils.MediaMetadataExtractor
 import com.plyr.utils.MediaType
 import com.plyr.utils.NfcScanEvent
-import com.plyr.utils.NfcScanResult
 import com.plyr.utils.Translations
+import com.plyr.utils.UrlParser
+import com.plyr.utils.formatTimestamp
 import com.plyr.viewmodel.PlayerViewModel
 import kotlinx.coroutines.launch
 
@@ -146,9 +148,9 @@ private suspend fun handleRecommendationClick(
         }
         MediaType.YOUTUBE_PLAYLIST -> {
             // Navegar a SearchScreen para playlists de YouTube
-            val playlistId = extractYoutubePlaylistId(url)
+            val playlistId = UrlParser.extractYoutubePlaylistId(url)
             if (playlistId != null) {
-                NfcScanEvent.onNfcScanned(NfcScanResult("youtube", "playlist", playlistId))
+                NfcScanEvent.onNfcScanned(ScanResult("youtube", "playlist", playlistId))
                 onNavigateToSearch()
             }
         }
@@ -157,29 +159,29 @@ private suspend fun handleRecommendationClick(
             playSpotifyTrack(recommendation, metadata, playerViewModel)
         }
         MediaType.SPOTIFY_PLAYLIST -> {
-            val spotifyId = extractSpotifyId(url)
+            val spotifyId = UrlParser.extractSpotifyId(url)
             if (spotifyId != null) {
-                NfcScanEvent.onNfcScanned(NfcScanResult("spotify", "playlist", spotifyId))
+                NfcScanEvent.onNfcScanned(ScanResult("spotify", "playlist", spotifyId))
                 onNavigateToSearch()
             }
         }
         MediaType.SPOTIFY_ALBUM -> {
-            val spotifyId = extractSpotifyId(url)
+            val spotifyId = UrlParser.extractSpotifyId(url)
             if (spotifyId != null) {
-                NfcScanEvent.onNfcScanned(NfcScanResult("spotify", "album", spotifyId))
+                NfcScanEvent.onNfcScanned(ScanResult("spotify", "album", spotifyId))
                 onNavigateToSearch()
             }
         }
         MediaType.SPOTIFY_ARTIST -> {
-            val spotifyId = extractSpotifyId(url)
+            val spotifyId = UrlParser.extractSpotifyId(url)
             if (spotifyId != null) {
-                NfcScanEvent.onNfcScanned(NfcScanResult("spotify", "artist", spotifyId))
+                NfcScanEvent.onNfcScanned(ScanResult("spotify", "artist", spotifyId))
                 onNavigateToSearch()
             }
         }
         MediaType.UNKNOWN -> {
             // Intentar como video de YouTube
-            val videoId = extractYoutubeVideoId(url)
+            val videoId = UrlParser.extractYoutubeVideoId(url)
             if (videoId != null) {
                 playYoutubeVideo(recommendation, metadata, playerViewModel)
             }
@@ -193,7 +195,7 @@ private suspend fun playYoutubeVideo(
     playerViewModel: PlayerViewModel?
 ) {
     if (playerViewModel == null) return
-    val videoId = extractYoutubeVideoId(recommendation.url) ?: return
+    val videoId = UrlParser.extractYoutubeVideoId(recommendation.url) ?: return
 
     val track = TrackEntity(
         id = "feed_${recommendation.id}",
@@ -220,7 +222,7 @@ private suspend fun playSpotifyTrack(
     val track = TrackEntity(
         id = "feed_${recommendation.id}",
         playlistId = "feed_recommendations",
-        spotifyTrackId = extractSpotifyId(recommendation.url) ?: "",
+        spotifyTrackId = UrlParser.extractSpotifyId(recommendation.url) ?: "",
         name = metadata?.title ?: recommendation.url,
         artists = metadata?.author ?: "",
         youtubeVideoId = null, // Se buscará dinámicamente
@@ -231,28 +233,6 @@ private suspend fun playSpotifyTrack(
     playerViewModel.setCurrentPlaylist(listOf(track), 0)
     playerViewModel.loadAudioFromTrack(track)
 }
-
-private fun extractYoutubeVideoId(url: String): String? = runCatching {
-    when {
-        url.contains("watch?v=") -> url.substringAfter("watch?v=").substringBefore("&")
-        url.contains("youtu.be/") -> url.substringAfter("youtu.be/").substringBefore("?")
-        url.contains("/watch/") -> url.substringAfter("/watch/").substringBefore("?")
-        url.contains("/shorts/") -> url.substringAfter("/shorts/").substringBefore("?")
-        else -> null
-    }
-}.getOrNull()
-
-private fun extractYoutubePlaylistId(url: String): String? = runCatching {
-    when {
-        url.contains("list=") -> url.substringAfter("list=").substringBefore("&")
-        url.contains("/playlist/") -> url.substringAfterLast("/playlist/").substringBefore("?")
-        else -> null
-    }
-}.getOrNull()
-
-private fun extractSpotifyId(url: String): String? = runCatching {
-    url.substringAfterLast("/").substringBefore("?")
-}.getOrNull()
 
 @Composable
 private fun RecommendationItem(
@@ -340,20 +320,5 @@ private fun RecommendationItem(
             modifier = Modifier.padding(top = 8.dp),
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
         )
-    }
-}
-
-private fun formatTimestamp(timestamp: Long): String {
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
-    val minutes = diff / (1000 * 60)
-    val hours = diff / (1000 * 60 * 60)
-    val days = diff / (1000 * 60 * 60 * 24)
-
-    return when {
-        minutes < 1 -> "now"
-        minutes < 60 -> "${minutes}m"
-        hours < 24 -> "${hours}h"
-        else -> "${days}d"
     }
 }

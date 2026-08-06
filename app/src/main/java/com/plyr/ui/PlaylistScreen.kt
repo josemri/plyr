@@ -52,6 +52,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import com.plyr.utils.Translations
+import com.plyr.utils.UrlParser
 import com.plyr.ui.components.*
 import androidx.compose.ui.graphics.Brush
 import com.plyr.network.getRecommendations
@@ -65,11 +66,7 @@ private fun getYouTubeChannelName(playlistEntity: PlaylistEntity?): String? {
         ?.takeIf { it.isNotBlank() }
 }
 
-private fun youtubeThumbTo16to9(url: String?): String? {
-    if (url == null) return null
-    val regex = Regex("""(https?://(img\.youtube\.com|i\.ytimg\.com)/vi/[^/]+/)[^/]+\.jpg""")
-    return regex.replace(url) { "${it.groupValues[1]}mqdefault.jpg" }
-}
+private fun youtubeThumbTo16to9(url: String?): String? = UrlParser.normalizeYoutubeThumb(url)
 
 @OptIn(DelicateCoroutinesApi::class)
 @Composable

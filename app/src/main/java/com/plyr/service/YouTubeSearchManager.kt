@@ -4,11 +4,12 @@ import android.content.Context
 import android.util.Log
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
-import com.plyr.network.SimpleDownloader
+import com.plyr.utils.NewPipeHolder
+import com.plyr.utils.UrlParser
+import com.plyr.utils.formatDurationSeconds
 import kotlinx.coroutines.*
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
-import androidx.core.net.toUri
 
 /**
  * Gestor de búsquedas de YouTube usando NewPipe Extractor
@@ -28,7 +29,6 @@ class YouTubeSearchManager(private val context: Context) {
     
     // === STATE ===
     private var searchJob: Job? = null
-    private var isInitialized = false
     
     // === CONSTANTS ===
     companion object {
@@ -46,18 +46,8 @@ class YouTubeSearchManager(private val context: Context) {
      * @throws Exception Si falla la inicialización de NewPipe
      */
     private fun initialize() {
-        if (isInitialized) return
-        
-        try {
-            val downloader = SimpleDownloader.getInstance()
-            val localization = org.schabi.newpipe.extractor.localization.Localization("en", "US")
-            org.schabi.newpipe.extractor.NewPipe.init(downloader, localization)
-            isInitialized = true
-            Log.d(TAG, "✅ NewPipe inicializado correctamente")
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Error al inicializar NewPipe", e)
-            throw e
-        }
+        NewPipeHolder.ensureInitialized()
+        Log.d(TAG, "✅ NewPipe inicializado correctamente")
     }
     
     // === CORE FUNCTIONALITY ===
@@ -230,19 +220,7 @@ class YouTubeSearchManager(private val context: Context) {
         /**
          * Duración formateada en formato MM:SS o HH:MM:SS
          */
-        fun getFormattedDuration(): String {
-            if (duration <= 0) return "En vivo"
-            
-            val hours = duration / 3600
-            val minutes = (duration % 3600) / 60
-            val seconds = duration % 60
-            
-            return if (hours > 0) {
-                "%d:%02d:%02d".format(hours, minutes, seconds)
-            } else {
-                "%d:%02d".format(minutes, seconds)
-            }
-        }
+        fun getFormattedDuration(): String = formatDurationSeconds(duration)
 
     }
 
@@ -319,7 +297,7 @@ class YouTubeSearchManager(private val context: Context) {
                 when (item) {
                     is StreamInfoItem -> {
                         if (videos.size < maxVideos) {
-                            val videoId = extractVideoIdFromUrl(item.url)
+                            val videoId = UrlParser.extractYoutubeVideoId(item.url)
                             if (videoId != null && videoId.length == 11) {
                                 videos.add(YouTubeVideoInfo(
                                     videoId = videoId,
@@ -334,7 +312,7 @@ class YouTubeSearchManager(private val context: Context) {
                     }
                     is org.schabi.newpipe.extractor.playlist.PlaylistInfoItem -> {
                         if (playlists.size < maxPlaylists) {
-                            val playlistId = extractPlaylistIdFromUrl(item.url)
+                            val playlistId = UrlParser.extractYoutubePlaylistId(item.url)
                             if (playlistId != null) {
                                 playlists.add(YouTubePlaylistInfo(
                                     playlistId = playlistId,
@@ -388,7 +366,7 @@ class YouTubeSearchManager(private val context: Context) {
 
             for (item in items.take(maxVideos)) {
                 if (item is StreamInfoItem) {
-                    val videoId = extractVideoIdFromUrl(item.url)
+                    val videoId = UrlParser.extractYoutubeVideoId(item.url)
                     if (videoId != null && videoId.length == 11) {
                         videos.add(YouTubeVideoInfo(
                             videoId = videoId,
@@ -412,65 +390,6 @@ class YouTubeSearchManager(private val context: Context) {
     }
 
     // === MÉTODOS UTILITARIOS PRIVADOS ADICIONALES ===
-
-    /**
-     * Extraer ID de video de una URL de YouTube
-     */
-    private fun extractVideoIdFromUrl(url: String): String? {
-        return try {
-            when {
-                url.contains("watch?v=") -> {
-                    url.substringAfter("watch?v=").substringBefore("&")
-                }
-                url.contains("youtu.be/") -> {
-                    url.substringAfter("youtu.be/").substringBefore("?")
-                }
-                url.contains("/watch/") -> {
-                    url.substringAfter("/watch/").substringBefore("?")
-                }
-                else -> {
-                    // Fallback: usar el método anterior
-                    val uri = url.toUri()
-                    uri.getQueryParameter("v") ?: run {
-                        val segments = uri.pathSegments
-                        if (segments.isNotEmpty() && segments.last().length == 11) {
-                            segments.last()
-                        } else {
-                            Log.w(TAG, "Formato de URL no reconocido: $url")
-                            null
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error extrayendo video ID de URL: $url", e)
-            null
-        }
-    }
-
-    /**
-     * Extraer ID de playlist de una URL de YouTube
-     */
-    private fun extractPlaylistIdFromUrl(url: String): String? {
-        return try {
-            when {
-                url.contains("list=") -> {
-                    url.substringAfter("list=").substringBefore("&")
-                }
-                url.contains("/playlist?") -> {
-                    val uri = url.toUri()
-                    uri.getQueryParameter("list")
-                }
-                else -> {
-                    Log.w(TAG, "Formato de URL de playlist no reconocido: $url")
-                    null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error extrayendo playlist ID de URL: $url", e)
-            null
-        }
-    }
 
     /**
      * Cancelar búsquedas en curso
@@ -510,7 +429,7 @@ class YouTubeSearchManager(private val context: Context) {
             
             for (item in items.take(maxResults)) {
                 if (item is StreamInfoItem) {
-                    val videoId = extractVideoIdFromUrl(item.url)
+                    val videoId = UrlParser.extractYoutubeVideoId(item.url)
                     if (videoId != null && videoId.length == 11) {
                         videoIds.add(videoId)
                     }
@@ -540,9 +459,8 @@ class YouTubeSearchManager(private val context: Context) {
     /**
      * Genera URL de thumbnail para un video de YouTube
      */
-    private fun getThumbnailUrl(videoId: String): String {
-        return "https://img.youtube.com/vi/$videoId/mqdefault.jpg"
-    }
+    private fun getThumbnailUrl(videoId: String): String =
+        UrlParser.youtubeThumbnailUrl(videoId) ?: ""
 
     /**
      * Genera URL de thumbnail para una playlist de YouTube

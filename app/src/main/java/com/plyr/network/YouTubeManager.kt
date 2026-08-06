@@ -1,32 +1,20 @@
 package com.plyr.network
 
-import org.schabi.newpipe.extractor.NewPipe
+import com.plyr.utils.NewPipeHolder
+import com.plyr.utils.UrlParser
 import org.schabi.newpipe.extractor.ServiceList
-import org.schabi.newpipe.extractor.localization.Localization
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
 
 /**
  * Gestor unificado de YouTube - Maneja búsqueda y extracción de audio
  */
 object YouTubeManager {
-    private var isInitialized = false
-
-    private fun ensureInitialized() {
-        if (isInitialized) return
-        try {
-            NewPipe.init(SimpleDownloader.getInstance(), Localization("es", "ES"))
-            isInitialized = true
-        } catch (e: Exception) {
-            throw e
-        }
-    }
-
     /**
      * Busca un video en YouTube y devuelve su ID
      */
     fun searchVideoId(query: String): String? {
         return try {
-            ensureInitialized()
+            NewPipeHolder.ensureInitialized()
 
             val searchExtractor = ServiceList.YouTube.getSearchExtractor(query)
             searchExtractor.fetchPage()
@@ -34,8 +22,7 @@ object YouTubeManager {
             searchExtractor.initialPage.items
                 .filterIsInstance<org.schabi.newpipe.extractor.stream.StreamInfoItem>()
                 .firstOrNull()?.url
-                ?.substringAfterLast("=")
-                ?.substringBefore("&")
+                ?.let { UrlParser.extractYoutubeVideoId(it) }
         } catch (_: Exception) {
             null
         }
@@ -47,7 +34,7 @@ object YouTubeManager {
     fun getAudioUrl(videoId: String): String? {
         android.util.Log.d("YouTubeManager", "🎵 Iniciando extracción de audio para video ID: $videoId")
         return try {
-            ensureInitialized()
+            NewPipeHolder.ensureInitialized()
             android.util.Log.d("YouTubeManager", "✅ NewPipe inicializado correctamente")
 
             val videoUrl = "https://www.youtube.com/watch?v=$videoId"

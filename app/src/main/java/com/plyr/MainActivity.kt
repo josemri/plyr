@@ -44,6 +44,7 @@ import com.plyr.utils.NfcReader
 import com.plyr.utils.AssistantActivationEvent
 import com.plyr.utils.OrientationDetector
 import com.plyr.utils.LightSensorDetector
+import com.plyr.utils.UrlParser
 import android.media.AudioManager
 
 
@@ -317,7 +318,7 @@ class MainActivity : ComponentActivity() {
 
         val url = NfcReader.processNfcIntent(intent)
         if (url != null) {
-            val urlType = NfcReader.getUrlType(url)
+            val urlType = UrlParser.getUrlType(url)
             android.util.Log.d("MainActivity", "═══════════════════════════════════════")
             android.util.Log.d("MainActivity", "🏷️ NFC URL READ SUCCESS!")
             android.util.Log.d("MainActivity", "📍 URL: $url")

@@ -16,6 +16,7 @@ import androidx.compose.runtime.livedata.observeAsState
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
+import com.plyr.utils.UrlParser
 import com.plyr.ui.components.PlyrErrorText
 import com.plyr.ui.components.PlyrInfoText
 import com.plyr.ui.components.PlyrLoadingIndicator
@@ -161,7 +162,7 @@ fun YouTubePlaylistDetailView(
                         coroutineScope.launch {
                             val savedTracks = trackEntities.map { it.copy(playlistId = "youtube_${playlist.playlistId}") }
                             val coverUrl = videos.firstOrNull()?.thumbnailUrl
-                                ?: trackEntities.firstOrNull()?.youtubeVideoId?.let { "https://img.youtube.com/vi/$it/mqdefault.jpg" }
+                                ?: trackEntities.firstOrNull()?.youtubeVideoId?.let { UrlParser.youtubeThumbnailUrl(it) }
                             val success = localRepository.saveYouTubePlaylist(
                                 playlistId = playlist.playlistId,
                                 title = playlist.title,

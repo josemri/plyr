@@ -10,6 +10,7 @@ import com.plyr.network.SpotifyTrack
 import com.plyr.database.TrackEntity
 import com.plyr.utils.SpotifyTokenManager
 import com.plyr.utils.Translations
+import com.plyr.utils.formatDurationMs
 
 import java.util.Collections
 import java.util.Timer
@@ -739,13 +740,6 @@ class AssistantManager(private val context: Context) {
         return if (remaining > 0) (remaining / 60000).toInt() else 0
     }
 
-    private fun formatDuration(durationMs: Long): String {
-        val totalSeconds = durationMs / 1000
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        return "$minutes:${seconds.toString().padStart(2, '0')}"
-    }
-
     suspend fun perform(result: IntentResult, playerViewModel: PlayerViewModel): String {
         setState(AssistantState.PROCESSING)
         lastRecognizedCommand = result.intent
@@ -808,8 +802,8 @@ class AssistantManager(private val context: Context) {
                 "how_long" -> {
                     val player = playerViewModel.exoPlayer
                     if (player != null && player.duration > 0) {
-                        val duration = formatDuration(player.duration)
-                        val position = formatDuration(player.currentPosition)
+                        val duration = formatDurationMs(player.duration)
+                        val position = formatDurationMs(player.currentPosition)
                         String.format(t("assistant_duration_info"), position, duration)
                     } else t("assistant_nothing_playing")
                 }

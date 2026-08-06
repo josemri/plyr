@@ -4,9 +4,7 @@ import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.ServiceList
-import org.schabi.newpipe.extractor.localization.Localization
 import com.plyr.network.SpotifyRepository
 import kotlin.coroutines.resume
 
@@ -28,16 +26,8 @@ enum class MediaType {
 }
 
 object MediaMetadataExtractor {
-    private var isInitialized = false
-
     private fun ensureInitialized() {
-        if (isInitialized) return
-        try {
-            NewPipe.init(com.plyr.network.SimpleDownloader.getInstance(), Localization("es", "ES"))
-            isInitialized = true
-        } catch (_: Exception) {
-            // Already initialized
-        }
+        NewPipeHolder.ensureInitialized()
     }
 
     suspend fun extractMetadata(url: String, context: Context? = null): MediaMetadata = withContext(Dispatchers.IO) {
@@ -131,7 +121,7 @@ object MediaMetadataExtractor {
 
             when {
                 url.contains("/track/") -> {
-                    val trackId = extractSpotifyId(url)
+                    val trackId = UrlParser.extractSpotifyId(url).orEmpty()
                     suspendCancellableCoroutine { continuation ->
                         SpotifyRepository.getTrack(accessToken, trackId) { track, error ->
                             if (track != null) {
@@ -150,7 +140,7 @@ object MediaMetadataExtractor {
                     }
                 }
                 url.contains("/playlist/") -> {
-                    val playlistId = extractSpotifyId(url)
+                    val playlistId = UrlParser.extractSpotifyId(url).orEmpty()
                     suspendCancellableCoroutine { continuation ->
                         SpotifyRepository.getPlaylist(accessToken, playlistId) { playlist, error ->
                             if (playlist != null) {
@@ -169,7 +159,7 @@ object MediaMetadataExtractor {
                     }
                 }
                 url.contains("/album/") -> {
-                    val albumId = extractSpotifyId(url)
+                    val albumId = UrlParser.extractSpotifyId(url).orEmpty()
                     suspendCancellableCoroutine { continuation ->
                         SpotifyRepository.getAlbum(accessToken, albumId) { album, error ->
                             if (album != null) {
@@ -188,7 +178,7 @@ object MediaMetadataExtractor {
                     }
                 }
                 url.contains("/artist/") -> {
-                    val artistId = extractSpotifyId(url)
+                    val artistId = UrlParser.extractSpotifyId(url).orEmpty()
                     suspendCancellableCoroutine { continuation ->
                         SpotifyRepository.getArtist(accessToken, artistId) { artist, error ->
                             if (artist != null) {
@@ -236,16 +226,5 @@ object MediaMetadataExtractor {
             thumbnailUrl = null,
             type = type
         )
-    }
-
-    private fun extractSpotifyId(url: String): String {
-        // Extract ID from URLs like: https://open.spotify.com/track/ID?si=...
-        return when {
-            url.contains("/track/") -> url.substringAfter("/track/").substringBefore("?").substringBefore("/")
-            url.contains("/playlist/") -> url.substringAfter("/playlist/").substringBefore("?").substringBefore("/")
-            url.contains("/album/") -> url.substringAfter("/album/").substringBefore("?").substringBefore("/")
-            url.contains("/artist/") -> url.substringAfter("/artist/").substringBefore("?").substringBefore("/")
-            else -> ""
-        }
     }
 }

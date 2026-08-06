@@ -11,19 +11,10 @@ import android.nfc.Tag
 import android.nfc.tech.Ndef
 import android.os.Build
 import android.util.Log
-import androidx.core.net.toUri
+import com.plyr.model.ScanResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-
-/**
- * Resultado del escaneo NFC, compatible con QrScanResult
- */
-data class NfcScanResult(
-    val source: String, // "spotify" or "youtube"
-    val type: String,   // "track", "playlist", "album", "artist"
-    val id: String
-)
 
 /**
  * Helper para leer URLs de tags NFC (YouTube y Spotify)
@@ -37,8 +28,8 @@ object NfcReader {
     private val _lastReadUrl = MutableStateFlow<String?>(null)
     val lastReadUrl: StateFlow<String?> = _lastReadUrl.asStateFlow()
 
-    private val _lastScanResult = MutableStateFlow<NfcScanResult?>(null)
-    val lastScanResult: StateFlow<NfcScanResult?> = _lastScanResult.asStateFlow()
+    private val _lastScanResult = MutableStateFlow<ScanResult?>(null)
+    val lastScanResult: StateFlow<ScanResult?> = _lastScanResult.asStateFlow()
 
     private var nfcAdapter: NfcAdapter? = null
     private var pendingIntent: PendingIntent? = null
@@ -131,10 +122,10 @@ object NfcReader {
                 val ndefMessage = rawMessage as? NdefMessage ?: continue
                 for (record in ndefMessage.records) {
                     val url = extractUrlFromRecord(record)
-                    if (url != null && isValidUrl(url)) {
+                    if (url != null && UrlParser.isPlayableUrl(url)) {
                         Log.d(TAG, "✅ URL encontrada en NDEF: $url")
                         _lastReadUrl.value = url
-                        _lastScanResult.value = parseNfcUrl(url)
+                        _lastScanResult.value = UrlParser.parseScanText(url)
                         return url
                     }
                 }
@@ -154,62 +145,13 @@ object NfcReader {
             if (url != null) {
                 Log.d(TAG, "✅ URL leída del tag: $url")
                 _lastReadUrl.value = url
-                _lastScanResult.value = parseNfcUrl(url)
+                _lastScanResult.value = UrlParser.parseScanText(url)
                 return url
             }
         }
 
         Log.w(TAG, "⚠️ No se encontró URL válida en el tag")
         return null
-    }
-
-    /**
-     * Parsea una URL de NFC y extrae source, type e id (compatible con QrScanResult)
-     */
-    fun parseNfcUrl(url: String): NfcScanResult? {
-        return try {
-            // URL de Spotify directa
-            if (url.contains("open.spotify.com/") || url.contains("spotify.com/")) {
-                val uri = url.toUri()
-                val pathSegments = uri.pathSegments
-                if (pathSegments.size >= 2) {
-                    val type = pathSegments[0] // "track", "playlist", "album", "artist"
-                    val id = pathSegments[1].split("?").firstOrNull() ?: pathSegments[1]
-                    Log.d(TAG, "🎵 Spotify parsed - type: $type, id: $id")
-                    return NfcScanResult("spotify", type, id)
-                }
-            }
-
-            // URL de YouTube
-            if (url.contains("youtube.com") || url.contains("youtu.be")) {
-                val videoId = if (url.contains("youtube.com")) {
-                    url.toUri().getQueryParameter("v")
-                } else {
-                    // youtu.be/VIDEO_ID
-                    url.substringAfterLast("/").split("?").firstOrNull()
-                }
-                if (videoId != null) {
-                    Log.d(TAG, "📺 YouTube parsed - videoId: $videoId")
-                    return NfcScanResult("youtube", "track", videoId)
-                }
-            }
-
-            // Formato legacy: "plyr_spotify:track:1234567890"
-            if (url.startsWith("plyr_spotify:") || url.startsWith("plyr_youtube:")) {
-                val parts = url.split(":")
-                if (parts.size >= 3) {
-                    val source = parts[0].removePrefix("plyr_")
-                    val type = parts[1]
-                    val id = parts[2]
-                    return NfcScanResult(source, type, id)
-                }
-            }
-
-            null
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parseando URL: $url", e)
-            null
-        }
     }
 
     /**
@@ -226,7 +168,7 @@ object NfcReader {
             if (ndefMessage != null) {
                 for (record in ndefMessage.records) {
                     val url = extractUrlFromRecord(record)
-                    if (url != null && isValidUrl(url)) {
+                    if (url != null && UrlParser.isPlayableUrl(url)) {
                         return url
                     }
                 }
@@ -301,43 +243,15 @@ object NfcReader {
     /**
      * Verifica si la URL es de YouTube o Spotify
      */
-    private fun isValidUrl(url: String): Boolean {
-        val lowerUrl = url.lowercase()
-        return lowerUrl.contains("youtube.com") ||
-               lowerUrl.contains("youtu.be") ||
-               lowerUrl.contains("spotify.com") ||
-               lowerUrl.contains("open.spotify.com") ||
-               lowerUrl.startsWith("http://") ||
-               lowerUrl.startsWith("https://")
-    }
-
-    /**
-     * Identifica el tipo de URL
-     */
-    fun getUrlType(url: String): UrlType {
-        val lowerUrl = url.lowercase()
-        return when {
-            lowerUrl.contains("youtube.com") || lowerUrl.contains("youtu.be") -> UrlType.YOUTUBE
-            lowerUrl.contains("spotify.com") || lowerUrl.contains("open.spotify.com") -> UrlType.SPOTIFY
-            else -> UrlType.UNKNOWN
-        }
-    }
-
     fun clearLastUrl() {
         _lastReadUrl.value = null
         _lastScanResult.value = null
     }
 
-    fun consumeScanResult(): NfcScanResult? {
+    fun consumeScanResult(): ScanResult? {
         val result = _lastScanResult.value
         _lastScanResult.value = null
         return result
-    }
-
-    enum class UrlType {
-        YOUTUBE,
-        SPOTIFY,
-        UNKNOWN
     }
 
     // Prefijos URI según NFC Forum RTD URI

@@ -392,28 +392,135 @@ cmd_run() {
 
 # === TEST ===
 
+print_test_summary() {
+    local dir="$1"
+    if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+        echo "   (no se encontraron resultados de tests en: $dir)"
+        return 0
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "   (python3 no disponible; los resultados XML están en: $dir)"
+        return 0
+    fi
+    python3 - "$dir" <<'PY'
+import os, sys, xml.etree.ElementTree as ET
+
+root_dir = sys.argv[1]
+files = sorted(
+    os.path.join(dp, f)
+    for dp, _, fns in os.walk(root_dir)
+    for f in fns
+    if f.startswith("TEST-") and f.endswith(".xml")
+)
+if not files:
+    print("   (no se encontraron ficheros de resultados TEST-*.xml)")
+    sys.exit(0)
+
+grand_total = grand_pass = grand_fail = grand_error = grand_skip = 0
+for path in files:
+    try:
+        tree = ET.parse(path)
+    except ET.ParseError:
+        print(f"   [XML inválido] {path}")
+        continue
+    root = tree.getroot()
+    suites = root.findall("testsuite") or [root]
+    for ts in suites:
+        name = ts.get("name") or os.path.basename(path)
+        total = int(ts.get("tests", 0))
+        fail = int(ts.get("failures", 0))
+        err = int(ts.get("errors", 0))
+        skip = int(ts.get("skipped", 0))
+        grand_total += total
+        grand_pass += total - fail - err - skip
+        grand_fail += fail
+        grand_error += err
+        grand_skip += skip
+        print(f"\n  ┌─ {name}")
+        for tc in ts.findall("testcase"):
+            tcname = tc.get("name", "?")
+            if tc.find("failure") is not None:
+                print(f"  │   ✖ {tcname}")
+            elif tc.find("error") is not None:
+                print(f"  │   ✖ {tcname} (error)")
+            elif tc.find("skipped") is not None:
+                print(f"  │   – {tcname} (omitido)")
+            else:
+                print(f"  │   ✔ {tcname}")
+        for tc in ts.findall("testcase"):
+            for kind in ("failure", "error"):
+                el = tc.find(kind)
+                if el is not None:
+                    msg = (el.get("message") or "").strip().replace("\n", " ")[:140]
+                    print(f"  │   └ {kind.upper()}: {tc.get('classname','')}.{tc.get('name','')}: {msg}")
+        print(f"  └── {total} tests ({fail} fallos, {err} errores, {skip} omitidos)")
+
+print(f"\n  RESUMEN GLOBAL: {grand_total} tests | ✔ {grand_pass} | ✖ {grand_fail} | errores {grand_error} | omitidos {grand_skip}")
+PY
+}
+
 cmd_test() {
     resolve_env
     cd "$SCRIPT_DIR"
 
-    local task
+    local task results_dir gradle_rc=0
+
     if [ "$TEST_DEVICE" = true ]; then
         check_device
+        if [ "$BUILD_TYPE" != "debug" ]; then
+            echo "NOTA: no existen tareas de test instrumentadas para '$BUILD_TYPE'"
+            echo "      (solo se genera connectedDebugAndroidTest). Se usará el build debug."
+            BUILD_TYPE="debug"
+        fi
         echo "=============================================================="
-        echo "  EJECUTANDO TESTS INSTRUMENTADOS EN EL DISPOSITIVO ($BUILD_TYPE)"
+        echo "  TESTS INSTRUMENTADOS EN DISPOSITIVO (build debug)"
         echo "=============================================================="
-        task="connected${BUILD_TYPE^}AndroidTest"
+        task="connectedDebugAndroidTest"
+        results_dir="$SCRIPT_DIR/app/build/outputs/androidTest-results/connected"
+        echo ""
+        echo "  Clases de test que se ejecutarán:"
+        local i=0
+        while IFS= read -r f; do
+            i=$((i+1))
+            echo "    $i. ${f#"$SCRIPT_DIR"/app/src/androidTest/}"
+        done < <(find "$SCRIPT_DIR/app/src/androidTest" -name '*.kt' | sort)
     else
+        if [ "$BUILD_TYPE" != "debug" ]; then
+            echo "NOTA: no existen tareas de test unitario para '$BUILD_TYPE'"
+            echo "      (solo se genera testDebugUnitTest). Se usará el build debug."
+            BUILD_TYPE="debug"
+        fi
         echo "=============================================================="
-        echo "  EJECUTANDO TESTS UNITARIOS ($BUILD_TYPE)"
+        echo "  TESTS UNITARIOS (build debug)"
         echo "=============================================================="
-        task="test${BUILD_TYPE^}UnitTest"
+        task="testDebugUnitTest"
+        results_dir="$SCRIPT_DIR/app/build/test-results/$task"
+        echo ""
+        echo "  Clases de test que se ejecutarán:"
+        local i=0
+        while IFS= read -r f; do
+            i=$((i+1))
+            echo "    $i. ${f#"$SCRIPT_DIR"/app/src/test/}"
+        done < <(find "$SCRIPT_DIR/app/src/test" -name '*.kt' | sort)
     fi
 
-    ./gradlew "$task"
+    echo ""
+    ./gradlew -q "$task" || gradle_rc=$?
 
     echo ""
-    echo "TESTS COMPLETADOS."
+    echo "=============================================================="
+    echo "  RESULTADOS DE LOS TESTS"
+    echo "=============================================================="
+    print_test_summary "$results_dir"
+
+    if [ "$gradle_rc" -ne 0 ]; then
+        echo ""
+        echo "❌ TESTS CON FALLOS (código $gradle_rc)."
+        exit "$gradle_rc"
+    fi
+
+    echo ""
+    echo "✅ TESTS COMPLETADOS."
 }
 
 # === STOP ===
