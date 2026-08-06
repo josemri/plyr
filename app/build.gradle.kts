@@ -113,7 +113,4 @@ dependencies {
 
     // shazam-fpcalc
     implementation(libs.fpcalc.android)
-
-    // ONNX Runtime - Android (local on-device inference for intent classification / NER)
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.26.0")
 }

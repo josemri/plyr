@@ -15,7 +15,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 - **Duplicación resuelta al 100%**: los 7 focos (D1-D7) han sido eliminados; quedan solo patrones menores aislados (joinToString de artistas inline, `images?.firstOrNull()?.url?.let`).
 - **Monolitos de UI** (PlaylistScreen con 2.189 líneas, SearchScreen con 1.675).
 - **6 dependencias declaradas sin usar** y 2 archivos vacíos.
-- **139 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
+- **148 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
 
 **Prioridades claras:** (1) seguridad de credenciales, (2) los 4 bugs críticos (B1-B4), (3) arquitectura por pantallas, (4) bugs medios/bajos restantes.
 
@@ -30,7 +30,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 | Archivo más grande | `ui/PlaylistScreen.kt` (2.189) |
 | versionCode / versionName | 5 / 1.0.6 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
-| Tests unitarios | **139** (0 fallos; antes 76) |
+| Tests unitarios | **148** (0 fallos; antes 76) |
 | Tests instrumentados útiles | 0 |
 | Dependencias declaradas sin uso | 6 |
 | Focos de duplicación | 7 → **0 pendientes** (todos resueltos) |
@@ -48,7 +48,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 | B1 | **Alta** | `utils/Utils.kt:39` | **`isValidAudioUrl` nunca filtra nada.** En la L29 hay un early-return: si `isValidUrlFormat(url)` es false → return false. En la L39 `return hasAudioPattern || isValidUrlFormat(url)`: el segundo operando es **siempre `true`**, así que `containsAudioPattern` (ytimg.com, .mp3, etc.) es irrelevante y **cualquier URL http(s) pasa como "válida para audio"**. |
 | B2 | **Alta** | `utils/Translations.kt:970-1158` | **El bloque de català está contaminado con japonés.** A partir de "Local Screen" (~L970) hasta el final, las claves están traducidas a japonés (p.ej. `"plyr_local" to "plyr_ローカル"`, `"No tracks loaded" to "曲が読み込まれていません"`), copiadas del mapa "日本語". Los usuarios de català ven japonés en Local/Queue/Playlists/NFC/Share. |
 | B3 | **Alta** | `utils/Config.kt:210` (callers: `ui/SearchScreen.kt:208,275,...,1024`, `ui/PlaylistScreen.kt:346`, `ui/ConfigScreen.kt:54`) | **Red bloqueante en el hilo principal.** `getSpotifyAccessToken()` usa `runBlocking { withContext(IO) { suspendCoroutine {...} } }` para renovar el token por red. La UI la invoca directamente desde composables/LaunchedEffect en main → **riesgo de ANR**. |
-| B4 | **Alta** | `assistant/AssistantManager.kt:717-725` | **ExoPlayer tocado desde hilo de fondo.** El sleep-timer usa `java.util.Timer`/`TimerTask` y ejecuta `playerViewModel.pausePlayer()` en L723. ExoPlayer **no es thread-safe**; los métodos deben ir al main thread (riesgo de crash `IllegalStateException`). |
+| B4 | **Alta** | ~~`assistant/AssistantManager.kt:717-725`~~ | **ExoPlayer tocado desde hilo de fondo.** El sleep-timer usa `java.util.Timer`/`TimerTask` y ejecuta `playerViewModel.pausePlayer()` en L723. ExoPlayer **no es thread-safe**; los métodos deben ir al main thread (riesgo de crash `IllegalStateException`). **Resuelto por eliminación:** el asistente de voz (y su sleep-timer) se eliminó en §14. |
 
 ### Medios
 
@@ -69,7 +69,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 | B12 | Baja | `service/YouTubeSearchManager.kt:253-263` | `getFormattedVideoCount`: el `else` final es inalcanzable (el `when` ya cubre 1 / <1000 / >=1000) y `Double.format` depende del locale (`1.6K` → `1,6K`). |
 | B13 | Baja | `utils/UpdateChecker.kt:111` | `getPackageInfo(name, 0)` deprecado (API 33+); usar `PackageInfoFlags`. |
 | B14 | Baja | `MainActivity.kt:94` | `startService()` en vez de `startForegroundService()` para MusicService (frágil en Doze/API 26+). |
-| B15 | Baja | `ui/HomeScreen.kt:162-168` | La activación del asistente por shake no pide `RECORD_AUDIO` en runtime si falta → falla en silencio (las otras rutas sí lo piden). |
+| B15 | Baja | ~~`ui/HomeScreen.kt:162-168`~~ | La activación del asistente por shake no pide `RECORD_AUDIO` en runtime si falta → falla en silencio (las otras rutas sí lo piden). **Resuelto por eliminación:** el asistente de voz se eliminó en §14. |
 | B16 | Baja | `service/YouTubeSearchManager.kt:479-482` | **Resuelto en parte:** `getThumbnailUrl` ya no emite el literal `undefined` (delega en `UrlParser.youtubeThumbnailUrl(videoId) ?: ""`). Pero **`getPlaylistThumbnailUrl()` aún hardcodea `https://img.youtube.com/vi/undefined/hqdefault.jpg`** como placeholder (usada en :333). |
 
 ---
@@ -79,7 +79,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 | # | Ubicación | Descripción | Estado |
 |---|---|---|---|
 | D1 | (antes 4 sitios) `service/YouTubeSearchManager.kt:322,337,391,513`, `network/YouTubeManager.kt:37`, `ui/FeedScreen.kt` (3 fns privadas), `ui/components/QrScannerDialog.kt` (parseQrContent), `utils/NfcReader.kt` (parseNfcUrl), `utils/MediaMetadataExtractor.kt:241` (extractSpotifyId) | **Extracción de IDs de URLs en 6 sitios** con diferencias (YouTubeManager no soportaba `/shorts/`; QrScanner/NfcReader tenían parseo propio con `toUri()`). | ✅ **RESUELTO.** Nuevo `utils/UrlParser.kt` (`extractYoutubeVideoId`, `extractYoutubePlaylistId`, `extractSpotifyId`, `parseScanText`, `getUrlType`, `isPlayableUrl`) usado en los 6 puntos; funciones privadas eliminadas. |
-| D2 | (antes 5 sitios) `utils/Utils.kt`, `assistant/AssistantManager.kt:742`, `service/YouTubeSearchManager.kt:233-245`, `ui/components/SongListItem.kt:479`, `ui/components/SongMenuDialog.kt:215` | **5 implementaciones de formato de duración** con formatos distintos: `MM:SS` con pad vs `M:SS` sin pad, y solo YouTubeSearchManager soportaba horas. | ✅ **RESUELTO.** `Utils.formatDurationMs(ms)` ("M:SS") y `Utils.formatDurationSeconds(s)` ("MM:SS"/"HH:MM:SS"/"En vivo"); los 4 consumidores ahora las usan. |
+| D2 | (antes 5 sitios) `utils/Utils.kt`, ~~`assistant/AssistantManager.kt:742`~~, `service/YouTubeSearchManager.kt:233-245`, `ui/components/SongListItem.kt:479`, `ui/components/SongMenuDialog.kt:215` | **5 implementaciones de formato de duración** con formatos distintos: `MM:SS` con pad vs `M:SS` sin pad, y solo YouTubeSearchManager soportaba horas. | ✅ **RESUELTO.** `Utils.formatDurationMs(ms)` ("M:SS") y `Utils.formatDurationSeconds(s)` ("MM:SS"/"HH:MM:SS"/"En vivo"); los 4 consumidores ahora las usan. |
 | D3 | (antes 3 sitios) `network/YouTubeManager.kt:13-19`, `utils/MediaMetadataExtractor.kt:31-37`, `service/YouTubeSearchManager.kt:32-56` (+ `network/YoutubeAudioExtractor.kt:12-27`) | Guard `isInitialized` + `NewPipe.init(...)` en 3-4 objetos (YouTubeManager relanzaba errores, MediaMetadataExtractor los silenciaba; cada uno con su propio downloader/locale). | ✅ **RESUELTO.** `utils/NewPipeHolder.kt` (singleton `@Synchronized`, init único idempotente, locale "es,ES"). `YoutubeAudioExtractor.kt` (código muerto sin callers, duplicaba `YouTubeManager.getAudioUrl`) **eliminado**. |
 | D4 | (antes 3 sitios) `service/YouTubeSearchManager.kt:473`, `ui/components/search/YouTubePlaylistDetailView.kt:164`, `ui/PlaylistScreen.kt:68-72` | Construcción de thumbnail `https://img.youtube.com/vi/$id/mqdefault.jpg` + regex 16:9 propia en PlaylistScreen. | ✅ **RESUELTO.** `UrlParser.youtubeThumbnailUrl(videoId)` (null sin id) y `UrlParser.normalizeYoutubeThumb` (regex 16:9) en los 3 sitios. |
 | D5 | (antes 5 cuerpos) `network/SpotifyRepository.kt:1432,1455,1520,1524,1536` | `getImageUrl()` (`images?.firstOrNull()?.url ?: ""`) y `getArtistNames()` (`artists.joinToString(", ")`) con cuerpos idénticos en 3-2 clases. | ✅ **RESUELTO.** Extensiones compartidas `List<SpotifyImage>?.firstImageUrl()` y `List<SpotifyArtist>.artistNames()`; los 5 métodos delegan. 2 tests nuevos. |
@@ -100,7 +100,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 | Media | `ui/components/SongList.kt:48`, `LocalScreen.kt:284,407,795`, `SearchScreen.kt:836,1016,1438,1502,1553`, `PlaylistScreen.kt:456,1034,1105,1224,1267,1357,1637,1703,1779`, `SongMenuDialog.kt:485`, `SongListItem.kt:823`, `YouTubePlaylistDetailView.kt:219`, `SpotifyArtistDetailView.kt:266`, `YouTubeSearchResults.kt:257` | **LazyLists sin `key`** → recomposición innecesaria y pérdida de estado/animación al cambiar las listas. | `key` estable por id. |
 | Media | `ui/components/SongList.kt:59` | `isCurrentlyPlaying` recalculado por item comparando con LiveData en cada recomposición. | `derivedStateOf` + pasar id activo como parámetro. |
 | Baja | `ui/FeedScreen.kt:105` | `recommendations.forEach` dentro de `Column` + `verticalScroll` compone todos los items a la vez. | `LazyColumn`. |
-| Baja | `ui/HomeScreen.kt:191,193` | Red (YouTubeManager) en `Dispatchers.Default` (pool CPU compartido con ONNX). | `Dispatchers.IO` para tramos de red. |
+| Baja | ~~`ui/HomeScreen.kt:191,193`~~ | Red (YouTubeManager) en `Dispatchers.Default` (pool CPU compartido con ONNX). **Eliminado en §14** (el único uso de `Dispatchers.Default`/ONNX era el asistente de voz). |
 | Baja | `service/YouTubeSearchManager.kt:159` | `CoroutineScope(Dispatchers.IO)` efímera por búsqueda (no hay leak por `searchJob`, pero es scope no supervisada). | Reutilizar scope del composable/ViewModel. |
 
 ---
@@ -109,7 +109,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 
 | Severidad | Ubicación | Descripción | Recomendación |
 |---|---|---|---|
-| **Alta** | `ui/PlaylistScreen.kt` (2.189), `ui/SearchScreen.kt` (1.675), `network/SpotifyRepository.kt` (1.631), `ui/ConfigScreen.kt` (1.200), `ui/LocalScreen.kt` (1.114), `ui/components/SongListItem.kt` (1.029), `assistant/AssistantManager.kt` (986) | **God classes / monolitos** que mezclan UI, red, DB y lógica de negocio. | Extraer ViewModels, composables de item y capas de datos por dominio. |
+| **Alta** | `ui/PlaylistScreen.kt` (2.189), `ui/SearchScreen.kt` (1.675), `network/SpotifyRepository.kt` (1.631), `ui/ConfigScreen.kt` (1.200), `ui/LocalScreen.kt` (1.114), `ui/components/SongListItem.kt` (1.029), ~~`assistant/AssistantManager.kt` (986)~~ | **God classes / monolitos** que mezclan UI, red, DB y lógica de negocio. | Extraer ViewModels, composables de item y capas de datos por dominio. |
 | **Alta** | `utils/Config.kt` (729, líneas 24-44, 73-79, 195-227) | **God object** que mezcla SharedPreferences, API keys hardcodeadas y renovación de token con red síncrona. | Separar en `SpotifyAuthStore`, `AppSettings`, `ApiKeys`; mover renovación a `SpotifyTokenManager` (ya suspend). |
 | Media | `ui/components/SongListItem.kt:989-991` | Composable que consulta `PlaylistDatabase...downloadedTrackDao()` en composición. | Llevar al ViewModel/repositorio. |
 | Media | `ui/SearchScreen.kt:104-164`, `PlaylistScreen.kt:530-615`, `LocalScreen.kt:1076`, `FeedScreen.kt:43-68` | Estado y carga de datos en `remember { mutableStateOf }` + `rememberCoroutineScope`, llamando a repositorios con callbacks. | ViewModels por pantalla + repositorios suspend. |
@@ -149,7 +149,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 ### Positivos de seguridad
 - `local.properties` y keystore en `.gitignore`; sin secretos en el repositorio.
 - Sin WebView (ni `setJavaScriptEnabled`/`addJavascriptInterface`).
-- `POST_NOTIFICATIONS`, `CAMERA` y `RECORD_AUDIO` se piden en runtime correctamente.
+- `POST_NOTIFICATIONS` y `CAMERA` se piden en runtime correctamente.
 - `MusicService` usa Media3 MediaSession (no API deprecada) con `foregroundServiceType="mediaPlayback"`.
 
 ---
@@ -177,14 +177,14 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 | `ui/theme/Color.kt:5-11` | Colores template (`Purple80`, `Pink40`, etc.) sin usar; el tema real usa paleta terminal privada. |
 | `utils/Utils.kt:36` | `println()` en producción (dentro de `isValidAudioUrl`). |
 | `ui/SearchScreen.kt` (~14x) | Comentarios obsoletos `// antes Color(0xFF...)`. |
-| `assistant/AssistantManager.kt:905` | `// TODO: Implementar creación de playlist` (la capa `YouTubePlaylistCreator` ya existe y está testeada — §12, usa la integración de YouTube existente; falta cablearla). |
+| ~~`assistant/AssistantManager.kt:905`~~ | `// TODO: Implementar creación de playlist` — **eliminado en §14** (el asistente de voz ya no existe; la creación de playlists se hace desde la UI de playlists, §12). |
 | `utils/UpdateChecker.kt:15,30-33` | Caché de actualizaciones desactivado ("For debugging"); constante `CHECK_INTERVAL_MS` sin efecto. |
 | `utils/NewPipeHolder.kt` | Locale fijo `Localization("es","ES")` para NewPipe, no sigue el dispositivo (init único centralizado en D3). |
 | `res/values/strings.xml` | Solo `app_name`; **toda la UI está hardcodeada en Kotlin** (`Translations.kt`), no se aprovecha el sistema de recursos (sin lint de traducción ni resource shrinking). |
-| `assistant/AssistantTTSHelper.kt:62` | Override del `onError(utteranceId)` deprecado (mantiene el nuevo, bien). |
+| ~~`assistant/AssistantTTSHelper.kt:62`~~ | Override del `onError(utteranceId)` deprecado — **eliminado en §14**. |
 
 ### Tests
-- **139 unit tests en verde** (`./run.sh test`, 0 fallos): Translations (5), SpotifyModels (12), DatabaseMappings (3), YouTubeFormatting (8), Utils (30), SupabaseClient (7), ModelDefaults (7), UrlParser (33), NewPipeHolder (3), YouTubePlaylistCreator (15), CoverCropMath (15), ExampleUnitTest (1).
+- **148 unit tests en verde** (`./run.sh test`, 0 fallos): Translations (5), SpotifyModels (12), DatabaseMappings (3), YouTubeFormatting (8), Utils (30), SupabaseClient (7), ModelDefaults (7), UrlParser (33), NewPipeHolder (3), YouTubePlaylistCreator (15), CoverCropMath (24), ExampleUnitTest (1).
 - **Cambios aplicados en esta ronda:** eliminado `UrlExtractorTest` (usaba reflexión sobre funciones privadas de FeedScreen ya borradas) → sustituido por `UrlParserTest` (33 casos directos). `UtilsTest` creció de 24 a 30 (formatTimestamp, formatDurationMs, formatDurationSeconds). Añadidos `NewPipeHolderTest` (3) y tests directos de las extensiones `firstImageUrl`/`artistNames` en `SpotifyModelsTest` (12). Añadido `SpotifyToYouTubeConverterTest` (10) para la nueva capa de conversión `SpotifyToYouTubeConverter` (ver §12).
 - **Solo 1 test instrumentado de plantilla** (`app/src/androidTest/.../ExampleInstrumentedTest.kt`, verifica el package). No hay instrumentación real de los flujos críticos (login/callback, persistencia de tokens, permisos runtime, escáner QR).
 
@@ -211,7 +211,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 9. **B8/B9**: Cancelar `loadingJob` al cambiar de track y usar `AtomicBoolean`/dispatcher coherente para `loadingJobsActive`.
 10. ✅ **D1-D7 — COMPLETADO** (UrlParser, formatDuration, thumbnails, ScanResult, NewPipeHolder, extensiones de Spotify, trackMetadataSection; 76 → 109 tests; `YoutubeAudioExtractor.kt` muerto eliminado).
 11. **B7**: Simplificar `parseTimestamp` (2 formatos + `java.time.Instant.parse`) y **B12**: limpiar `getFormattedVideoCount`. **B16**: sustituir el placeholder `vi/undefined` de `getPlaylistThumbnailUrl`. **D7b**: cuando se arregle B2 (català), cablear `album_colon`/`release_colon`/`duration_colon` en `trackMetadataSection`.
-12. ✅ **Crear playlists de YouTube** — **HECHO** (no vía asistente, que sigue en TODO, sino en la **pantalla de crear playlist**): selector Spotify/YouTube + `YouTubePlaylistCreator` (§12).
+12. ✅ **Crear playlists de YouTube** — **HECHO** (no vía asistente — eliminado en §14 — sino en la **pantalla de crear playlist**): selector Spotify/YouTube + `YouTubePlaylistCreator` (§12).
 
 ### Fase 3 — Arquitectura (semana 3)
 12. Introducir **ViewModels por pantalla** (Search, Playlist, Local, Feed) moviendo estado, red y DB fuera de los composables.
@@ -221,7 +221,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 ### Fase 4 — Calidad (continuo)
 15. **QrScannerDialog**: `shutdown()` del executor + `unbindAll()` en `onDispose`.
 16. Añadir `key` a todas las LazyLists y `LazyColumn` en FeedScreen.
-17. `isMinifyEnabled=true` + `isShrinkResources=true` con reglas proguard (Room/NewPipe/ONNX).
+17. `isMinifyEnabled=true` + `isShrinkResources=true` con reglas proguard (Room/NewPipe).
 18. Migrar strings a `strings.xml` (o al menos cablear `album_colon`/`release_colon`/`duration_colon` tras arreglar B2 y eliminar claves muertas como `not_configurat`).
 19. Añadir **tests instrumentados** de flujos críticos (login/callback, tokens, permisos).
 20. Versionar bien: `UpdateChecker` ya lee `versionName` del PackageInfo — consistente con build.gradle.
@@ -240,7 +240,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 | **Rendimiento** | 5.0 / 10 | Leak de threads + cámara encendida tras cerrar el escáner (Alta), cache O(n²) en Feed, OkHttpClient recreado, LazyLists sin key, Feed no lazy. |
 | **Arquitectura / Mantenibilidad** | 5.0 / 10 | Siguen los monolitos y el God object `Config`, pero la **duplicación está resuelta al 100%** (D1-D7 con `UrlParser`, `formatDuration*`, `ScanResult`, `NewPipeHolder`, extensiones de Spotify y `trackMetadataSection`; código muerto eliminado). |
 | **Seguridad** | 3.5 / 10 | Sin cambios. Secretos distribuibles vía anon key (S1), OAuth con client secret (S2), tokens planos con backup (S4), sin minify (S3). Lo único sólido: sin WebView, .gitignore correcto, permisos runtime. |
-| **Cobertura de tests** | 6.0 / 10 | 139 unit tests en verde (+59). URL parsing, duración, inicialización NewPipe, extensiones de modelos y la creación de playlists de YouTube (con buscador inyectado) testeados de forma directa y sin reflexión; pero sigue habiendo 0 instrumentados y nada de flujos críticos. |
+| **Cobertura de tests** | 6.0 / 10 | 148 unit tests en verde (+72). URL parsing, duración, inicialización NewPipe, extensiones de modelos y la creación de playlists de YouTube (con buscador inyectado) testeados de forma directa y sin reflexión; pero sigue habiendo 0 instrumentados y nada de flujos críticos. |
 | **Limpieza / Estilo** | 6.0 / 10 | Código legible y comentado en general; lastrado por 2 archivos vacíos, 14 comentarios obsoletos, `println`, strings hardcodeadas y 6 deps sin usar. |
 
 ### Nota global
@@ -249,7 +249,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 
 | Estado | Interpretación |
 |---|---|
-| ✅ **Estable y funcional** | Compila, instala, reproduce música, los 139 unit tests pasan. Apto para uso personal diario. |
+| ✅ **Estable y funcional** | Compila, instala, reproduce música, los 148 unit tests pasan. Apto para uso personal diario. |
 | ⚠️ **Riesgo de seguridad real** | Credenciales de Spotify son recuperables por cualquiera (Supabase anon + APK sin ofuscar) y los tokens viajan en prefs planas con backup. **Esto es lo más urgente.** |
 | ⚠️ **Riesgo de crash puntual** | ExoPlayer desde Timer y red en main thread (B3, B4). |
 | 🟡 **Deuda de mantenimiento** | Monolitos y los 3 focos de duplicación restantes (D3/D5/D7) hacen cada cambio lento y propenso a regresiones. |
@@ -266,7 +266,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 
 ## 11. CAMBIOS APLICADOS (refactor de duplicación)
 
-Estado del repo tras la revisión 2026-08-06 (compila y 139 tests en verde):
+Estado del repo tras la revisión 2026-08-06 (compila y 148 tests en verde):
 
 ### D1 — Extracción de URLs centralizada
 - **Nuevo `utils/UrlParser.kt`** (110 líneas, sin dependencias Android): `extractYoutubeVideoId` (watch?v=, youtu.be/, /watch/, /shorts/, fallback), `extractYoutubePlaylistId` (list=, /playlist/), `extractSpotifyId`, `parseScanText` (incluye formato legacy `plyr_source:type:id`), `getUrlType`, `isPlayableUrl`, `youtubeThumbnailUrl`, `normalizeYoutubeThumb`.
@@ -304,9 +304,9 @@ Estado del repo tras la revisión 2026-08-06 (compila y 139 tests en verde):
 ## 12. CREACIÓN DE PLAYLISTS DE YOUTUBE (capa testeable, con la integración existente)
 
 Ante el objetivo de *"crear playlists exactamente iguales que las de Spotify pero de YouTube"*:
-- **No se usa la YouTube Data API** ni API key: la resolución de vídeos usa la integración de YouTube **ya existente** (`YouTubeManager.searchVideoId`, vía NewPipe; la misma que usa `AssistantManager.createTrackFromSpotify`).
+- **No se usa la YouTube Data API** ni API key: la resolución de vídeos usa la integración de YouTube **ya existente** (`YouTubeManager.searchVideoId`, vía NewPipe).
 - **No hay conversión de un lado a otro**: la playlist creada es **la misma** — mismo título, misma descripción y los mismos tracks en orden, solo que cada track queda resuelto a su vídeo de YouTube (playlist local con prefijo `youtube_`).
-- El `// TODO: Implementar creación de playlist` de `assistant/AssistantManager.kt:905` **no** se ha tocado (el usuario no quiere vía asistente); la creación se hace desde la **UI de playlists**.
+- La creación de playlists se hace desde la **UI de playlists** (el asistente de voz, que tenía el `// TODO: Implementar creación de playlist`, se eliminó en §14).
 
 ### Nuevo `service/YouTubePlaylistCreator.kt`
 - `data class CreatedYouTubePlaylist(title, description, tracks)` — resultado listo para guardar.
@@ -330,7 +330,7 @@ Ante el objetivo de *"crear playlists exactamente iguales que las de Spotify per
 ### Tests — `YouTubePlaylistCreatorTest` (15)
 A los 9 originales se añaden: `buildSourceTracks_mapsNameArtistsAndSpotifyId`, `buildSourceTracks_reindexesPositions`, `buildSourceTracks_emptyListProducesEmptyTracks`, `buildFromSpotifyTracks_resolvesSamePlaylistEndToEnd`, `build_usesResolvedVideoIdsWithoutSearching`, `build_resolvedVideoIdsOverridesSearchOnlyForKnownIds`.
 
-**Total de tests: 139, 0 fallos.**
+**Total de tests: 148, 0 fallos.**
 
 ### Nota de uso
 El botón `<new>` de Playlists **siempre es visible** (ya no depende de la conexión a Spotify; `<sync>` sigue siendo solo Spotify). En la pantalla de crear, con el selector en **youtube**, el buscador usa la integración existente de YouTube (`YouTubeSearchManager.searchYouTubeAll`), así que **no necesitas Spotify** para crear playlists de YouTube ni añadirles contenido; los tracks añadidos vía esa búsqueda conservan su `videoId` exacto (no se re-buscan).
@@ -360,5 +360,35 @@ Dentro de `<edit>` de una playlist `youtube_`: tocar la portada (preview 120dp) 
 
 ### Siguiente paso
 Probar en el dispositivo (`./run.sh run debug`): editar una playlist `youtube_`, cambiar su portada con `<pick>`, recortarla y verificar que aparece tanto en el grid como en la preview del modo edición.
+
+---
+
+## 14. ELIMINACIÓN DEL ASISTENTE DE VOZ
+
+Se eliminó **por completo** el asistente de voz (micrófono + NLU on-device + TTS + activación por gestos), preservando el resto de interacciones (shake/orientación de transporte, NFC, gestos, etc.).
+
+### Ficheros eliminados
+- `assistant/AssistantManager.kt` (NLU con ONNX + ejecución de comandos + sleep-timer).
+- `assistant/AssistantVoiceHelper.kt` (SpeechRecognizer).
+- `assistant/AssistantTTSHelper.kt` (TextToSpeech).
+- `utils/AssistantActivationEvent.kt` (Flow global de activación por shake).
+- `res/xml/actions.xml` (deep links de Google Assistant).
+
+### Código/UI retirado
+- `ui/HomeScreen.kt`: overlay de micrófono con animación CAVA, respuesta con efecto typewriter, gesto pull-to-activate, petición de `RECORD_AUDIO`, launcher de permisos y listener de voz. La pantalla vuelve a ser un layout simple (Row/Column) sin `pointerInput`/drag. Se quitaron los imports muertos (`Manifest`, `LocalDensity`, `ContextCompat`, `fadeIn/fadeOut`, `delay/launch/withContext/Dispatchers`, `Icons.Filled.Mic/Close`, `clickable`, `TextOverflow`).
+- `ui/ConfigScreen.kt`: `AssistantConfigSection` (checkboxs enable/same-language/TTS + selector de idioma), el ítem "assistant" del `MultiToggle` de shake y el composable `CheckboxOption` (quedó sin usos).
+- `MainActivity.kt`: rama `ShakeDetector.ACTION_ASSISTANT` que disparaba `AssistantActivationEvent`.
+- `utils/ShakeDetector.kt`: constante `ACTION_ASSISTANT` (y su doc).
+- `utils/Config.kt`: claves `KEY_ASSISTANT_*`, defaults `DEFAULT_ASSISTANT_*`, `SHAKE_ACTION_ASSISTANT` y los 8 métodos `is/setAssistant*`. `getShakeAction` **migra** el valor legacy `"assistant"` guardado en prefs a `"off"`.
+- `utils/Translations.kt`: **~390 líneas** de claves `assistant_*`, `enable_assistant`, `enable_tts`, `shake_assistant` y sus comentarios de sección en los 4 idiomas. Se conservan `auto_suggestions`/`contextual_help` (sin uso) y `enabled`/`disabled`.
+- `TranslationsTest.kt`: `assistant_cmd_add_queue` sustituida por `exit_message` en `coreKeys`.
+- `AndroidManifest.xml`: permiso `RECORD_AUDIO`. `app/build.gradle.kts`: dependencia `onnxruntime-android:1.26.0`. `README.md`: línea de permisos `RECORD_AUDIO`.
+
+### Lo que NO se tocó
+- Acciones de transporte por shake (`off/next/previous/play_pause`) y por orientación (`volume/skip`), NFC, QR, feed, gestos, idiomas, etc.
+- La reproducción, búsqueda, playlists, descargas y el resto de pantallas.
+
+### Tests
+- El asistente no tenía tests propios, así que el total se mantiene: **148 unit tests, 0 fallos** (`./run.sh test`). Compilación `:app:compileDebugKotlin` BUILD SUCCESSFUL.
 
 *Generado a partir de auditoría estática. Todos los hallazgos críticos están verificados contra el código. Los números de línea corresponden al estado actual del repo (commit working tree de 2026-08-02).*

@@ -29,7 +29,6 @@ import com.plyr.ui.components.CollapsibleSection
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
-import com.plyr.assistant.AssistantTTSHelper
 import kotlinx.coroutines.launch
 
 @Composable
@@ -130,10 +129,6 @@ fun ConfigScreen(
 
             // Sección de nombre de usuario
             UserNicknameConfigSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            AssistantConfigSection(context = context)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -683,134 +678,6 @@ fun LastfmApiConfigSection(context: Context) {
 }
 
 @Composable
-fun AssistantConfigSection(context: Context) {
-    var assistantEnabled by remember { mutableStateOf(Config.isAssistantEnabled(context)) }
-    var useSameLanguage by remember { mutableStateOf(Config.isAssistantSameLanguage(context)) }
-    var ttsEnabled by remember { mutableStateOf(Config.isAssistantTtsEnabled(context)) }
-    var assistantLanguage by remember { mutableStateOf(Config.getAssistantLanguage(context)) }
-    val haptic = LocalHapticFeedback.current
-
-    val statusText = if (assistantEnabled) Translations.get(context, "enabled") else Translations.get(context, "disabled")
-    val statusColor = if (assistantEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-
-    CollapsibleSection(
-        title = Translations.get(context, "assistant_settings"),
-        statusText = statusText,
-        statusColor = statusColor
-    ) {
-        CheckboxOption(
-            label = Translations.get(context, "enable_assistant"),
-            checked = assistantEnabled,
-            onCheckedChange = {
-                assistantEnabled = it
-                Config.setAssistantEnabled(context, it)
-                if (!it) {
-                    useSameLanguage = true
-                    Config.setAssistantSameLanguage(context, true)
-                    val appLang = Config.getLanguage(context)
-                    assistantLanguage = appLang
-                    Config.setAssistantLanguage(context, appLang)
-                }
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        CheckboxOption(
-            label = Translations.get(context, "assistant_same_language"),
-            checked = useSameLanguage,
-            enabled = assistantEnabled,
-            onCheckedChange = {
-                useSameLanguage = it
-                Config.setAssistantSameLanguage(context, it)
-                if (it) {
-                    val appLang = Config.getLanguage(context)
-                    assistantLanguage = appLang
-                    Config.setAssistantLanguage(context, appLang)
-                }
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        CheckboxOption(
-            label = Translations.get(context, "enable_tts"),
-            checked = ttsEnabled,
-            enabled = assistantEnabled,
-            onCheckedChange = {
-                ttsEnabled = it
-                Config.setAssistantTtsEnabled(context, it)
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                if (it) {
-                    AssistantTTSHelper.initializeIfNeeded(context)
-                } else {
-                    AssistantTTSHelper.shutdownIfNeeded()
-                }
-            }
-        )
-
-        if (assistantEnabled && !useSameLanguage) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = Translations.get(context, "language"),
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                ),
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
-
-            var assistantLangIndex by remember {
-                mutableIntStateOf(
-                    when (assistantLanguage) {
-                        Config.LANGUAGE_SPANISH -> 0
-                        Config.LANGUAGE_ENGLISH -> 1
-                        Config.LANGUAGE_CATALAN -> 2
-                        Config.LANGUAGE_JAPANESE -> 3
-                        else -> 0
-                    }
-                )
-            }
-
-            MultiToggle(
-                options = listOf(
-                    Translations.get(context, "lang_spanish"),
-                    Translations.get(context, "lang_english"),
-                    Translations.get(context, "lang_catalan"),
-                    Translations.get(context, "lang_japanese")
-                ),
-                initialIndex = assistantLangIndex,
-                onChange = { selectedIndex ->
-                    assistantLangIndex = selectedIndex
-                    val newLang = when (selectedIndex) {
-                        0 -> Config.LANGUAGE_SPANISH
-                        1 -> Config.LANGUAGE_ENGLISH
-                        2 -> Config.LANGUAGE_CATALAN
-                        3 -> Config.LANGUAGE_JAPANESE
-                        else -> Config.LANGUAGE_SPANISH
-                    }
-                    assistantLanguage = newLang
-                    Config.setAssistantLanguage(context, newLang)
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
-            )
-        }
-
-        // Ensure assistant language stays synced to app language when using same language
-        LaunchedEffect(key1 = Config.getLanguage(context), key2 = useSameLanguage) {
-            if (useSameLanguage) {
-                val appLang = Config.getLanguage(context)
-                assistantLanguage = appLang
-                Config.setAssistantLanguage(context, appLang)
-            }
-        }
-    }
-}
-
-@Composable
 fun GesturesConfigSection(context: Context) {
     var selectedShakeAction by remember { mutableStateOf(Config.getShakeAction(context)) }
     var selectedSwipeLeftAction by remember { mutableStateOf(Config.getSwipeLeftAction(context)) }
@@ -843,15 +710,13 @@ fun GesturesConfigSection(context: Context) {
                         Translations.get(context, "shake_off"),
                         Translations.get(context, "shake_next"),
                         Translations.get(context, "shake_previous"),
-                        Translations.get(context, "shake_play_pause"),
-                        Translations.get(context, "shake_assistant")
+                        Translations.get(context, "shake_play_pause")
                     ),
                     initialIndex = when (selectedShakeAction) {
                         Config.SHAKE_ACTION_OFF -> 0
                         Config.SHAKE_ACTION_NEXT -> 1
                         Config.SHAKE_ACTION_PREVIOUS -> 2
                         Config.SHAKE_ACTION_PLAY_PAUSE -> 3
-                        Config.SHAKE_ACTION_ASSISTANT -> 4
                         else -> 0
                     },
                     onChange = { selectedIndex ->
@@ -860,7 +725,6 @@ fun GesturesConfigSection(context: Context) {
                             1 -> Config.SHAKE_ACTION_NEXT
                             2 -> Config.SHAKE_ACTION_PREVIOUS
                             3 -> Config.SHAKE_ACTION_PLAY_PAUSE
-                            4 -> Config.SHAKE_ACTION_ASSISTANT
                             else -> Config.SHAKE_ACTION_OFF
                         }
                         Config.setShakeAction(context, selectedShakeAction)
@@ -990,51 +854,6 @@ fun GesturesConfigSection(context: Context) {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     }
                 )
-    }
-}
-
-@Composable
-fun CheckboxOption(
-    label: String,
-    checked: Boolean,
-    enabled: Boolean = true,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled) { onCheckedChange(!checked) }
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = if (checked) "[x]" else "[ ]",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 14.sp,
-                color = if (enabled) {
-                    if (checked) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onBackground
-                } else {
-                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                }
-            )
-        )
-
-        Spacer(modifier = Modifier.width(8.dp))
-
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.onBackground
-                } else {
-                    MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f)
-                }
-            )
-        )
     }
 }
 

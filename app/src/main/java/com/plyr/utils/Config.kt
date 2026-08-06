@@ -51,12 +51,6 @@ object Config {
     // Clave para configuración de orientación
     private const val KEY_ORIENTATION_ACTION = "orientation_action"
 
-    // Nuevas claves para configuración del asistente
-    private const val KEY_ASSISTANT_ENABLED = "assistant_enabled"
-    private const val KEY_ASSISTANT_SAME_LANGUAGE = "assistant_same_language"
-    private const val KEY_ASSISTANT_TTS_ENABLED = "assistant_tts_enabled"
-    private const val KEY_ASSISTANT_LANGUAGE = "assistant_language"
-
     // Clave para el nickname del usuario en Feed
     private const val KEY_USER_NICKNAME = "user_nickname"
 
@@ -72,10 +66,6 @@ object Config {
     private const val DEFAULT_SWIPE_RIGHT_ACTION = "add_to_liked_songs"
     private const val DEFAULT_SHAKE_ACTION = "off"
     private const val DEFAULT_ORIENTATION_ACTION = "off"
-    private const val DEFAULT_ASSISTANT_ENABLED = true
-    private const val DEFAULT_ASSISTANT_SAME_LANGUAGE = true
-    private const val DEFAULT_ASSISTANT_TTS_ENABLED = false
-    private const val DEFAULT_ASSISTANT_LANGUAGE = DEFAULT_LANGUAGE
 
     // Valor por defecto para modo de API keys
     private const val DEFAULT_API_KEY_MODE = "automatic"
@@ -120,7 +110,6 @@ object Config {
     const val SHAKE_ACTION_NEXT = "next"
     const val SHAKE_ACTION_PREVIOUS = "previous"
     const val SHAKE_ACTION_PLAY_PAUSE = "play_pause"
-    const val SHAKE_ACTION_ASSISTANT = "assistant"
 
     // === CONSTANTES PÚBLICAS DE ACCIONES DE ORIENTACIÓN ===
 
@@ -482,7 +471,7 @@ object Config {
     /**
      * Establece la acción para el gesto de shake.
      * @param context Contexto de la aplicación
-     * @param action Acción a establecer ("off", "next", "previous", "play_pause", "shuffle", "assistant")
+     * @param action Acción a establecer ("off", "next", "previous", "play_pause")
      */
     fun setShakeAction(context: Context, action: String) {
         getPrefs(context).edit {
@@ -496,7 +485,13 @@ object Config {
      * @return Acción actual (por defecto "off")
      */
     fun getShakeAction(context: Context): String {
-        return getPrefs(context).getString(KEY_SHAKE_ACTION, DEFAULT_SHAKE_ACTION) ?: DEFAULT_SHAKE_ACTION
+        val action = getPrefs(context).getString(KEY_SHAKE_ACTION, DEFAULT_SHAKE_ACTION) ?: DEFAULT_SHAKE_ACTION
+        // Migración: la antigua acción "assistant" del asistente de voz ya no existe
+        if (action == "assistant") {
+            setShakeAction(context, DEFAULT_SHAKE_ACTION)
+            return DEFAULT_SHAKE_ACTION
+        }
+        return action
     }
 
     // === GESTIÓN DE ACCIÓN DE ORIENTACIÓN ===
@@ -612,48 +607,6 @@ object Config {
         getPrefs(context).edit {
             remove(KEY_SPOTIFY_USER_NAME)
         }
-    }
-
-    // === CONFIGURACIÓN DEL ASISTENTE ===
-
-    /** Comprueba si el asistente está habilitado. */
-    fun isAssistantEnabled(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_ASSISTANT_ENABLED, DEFAULT_ASSISTANT_ENABLED)
-    }
-
-    /** Activa o desactiva el asistente. */
-    fun setAssistantEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit { putBoolean(KEY_ASSISTANT_ENABLED, enabled) }
-    }
-
-    /** Comprueba si el asistente debe usar el mismo idioma de la app. */
-    fun isAssistantSameLanguage(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_ASSISTANT_SAME_LANGUAGE, DEFAULT_ASSISTANT_SAME_LANGUAGE)
-    }
-
-    /** Establece si el asistente usa el mismo idioma que la app. */
-    fun setAssistantSameLanguage(context: Context, enabled: Boolean) {
-        getPrefs(context).edit { putBoolean(KEY_ASSISTANT_SAME_LANGUAGE, enabled) }
-    }
-
-    /** Comprueba si TTS del asistente está habilitado. */
-    fun isAssistantTtsEnabled(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_ASSISTANT_TTS_ENABLED, DEFAULT_ASSISTANT_TTS_ENABLED)
-    }
-
-    /** Activa o desactiva TTS para el asistente. */
-    fun setAssistantTtsEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit { putBoolean(KEY_ASSISTANT_TTS_ENABLED, enabled) }
-    }
-
-    /** Obtiene el idioma específico del asistente (si se usa distinto del de la app). */
-    fun getAssistantLanguage(context: Context): String {
-        return getPrefs(context).getString(KEY_ASSISTANT_LANGUAGE, DEFAULT_ASSISTANT_LANGUAGE) ?: DEFAULT_ASSISTANT_LANGUAGE
-    }
-
-    /** Establece el idioma específico del asistente. */
-    fun setAssistantLanguage(context: Context, language: String) {
-        getPrefs(context).edit { putString(KEY_ASSISTANT_LANGUAGE, language) }
     }
 
     // === GESTIÓN DE NICKNAME DEL USUARIO PARA FEED ===

@@ -15,7 +15,6 @@ import kotlin.math.sqrt
  * - NEXT: Pasar a la siguiente canción
  * - PREVIOUS: Volver a la canción anterior
  * - PLAY_PAUSE: Reproducir/Pausar
- * - ASSISTANT: Activar el asistente de voz
  */
 class ShakeDetector(
     private val context: Context,
@@ -45,7 +44,6 @@ class ShakeDetector(
         const val ACTION_NEXT = "next"
         const val ACTION_PREVIOUS = "previous"
         const val ACTION_PLAY_PAUSE = "play_pause"
-        const val ACTION_ASSISTANT = "assistant"
     }
 
     /**

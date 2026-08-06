@@ -47,7 +47,6 @@ plyr/
 
 ```xml
 INTERNET              # Stream music and fetch metadata
-RECORD_AUDIO          # Voice assistant and song recognition
 FOREGROUND_SERVICE    # Background playback
 WAKE_LOCK             # Keep playing when screen off
 POST_NOTIFICATIONS    # Playback controls

@@ -34,7 +34,7 @@ class TranslationsTest {
             "lang_spanish", "lang_english", "lang_catalan", "lang_japanese",
             "connected", "disconnected", "configured",
             "search_engine", "search_spotify", "search_youtube",
-            "info", "assistant_cmd_add_queue"
+            "info", "exit_message"
         )
         val translations = getTranslationsMap()
         languages.forEach { language ->

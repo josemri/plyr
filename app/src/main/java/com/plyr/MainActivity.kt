@@ -41,7 +41,6 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
-import com.plyr.utils.AssistantActivationEvent
 import com.plyr.utils.OrientationDetector
 import com.plyr.utils.LightSensorDetector
 import com.plyr.utils.UrlParser
@@ -198,12 +197,6 @@ class MainActivity : ComponentActivity() {
                         playerViewModel.pausePlayer()
                     } else {
                         playerViewModel.playPlayer()
-                    }
-                }
-                ShakeDetector.ACTION_ASSISTANT -> {
-                    // Activar el asistente de voz (si está habilitado)
-                    if (Config.isAssistantEnabled(this)) {
-                        AssistantActivationEvent.requestActivation()
                     }
                 }
             }

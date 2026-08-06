@@ -92,7 +92,7 @@ fun formatTime(ms: Long): String {
 
 /**
  * Formatea una duración en milisegundos a "M:SS" (minutos sin cero a la izquierda).
- * Sustituye a los formateadores inline de AssistantManager, SongListItem y SongMenuDialog.
+ * Sustituye a los formateadores inline de SongListItem y SongMenuDialog.
  *
  * @param ms Duración en milisegundos
  * @return Duración formateada como "M:SS" (ej: "3:45")
