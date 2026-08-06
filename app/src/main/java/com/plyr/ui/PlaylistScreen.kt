@@ -84,7 +84,10 @@ private fun youtubeThumbTo16to9(url: String?): String? = UrlParser.normalizeYout
 fun PlaylistsScreen(
     context: Context,
     onBack: () -> Unit,
-    playerViewModel: PlayerViewModel? = null
+    playerViewModel: PlayerViewModel? = null,
+    initialPlaylistId: String? = null,
+    openCreate: Boolean = false,
+    onInitialConsumed: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
 
@@ -236,6 +239,30 @@ fun PlaylistsScreen(
         }
     }
 
+    // Abrir una playlist directamente desde el Home (carrusel)
+    var pendingInitialPlaylist by remember { mutableStateOf(initialPlaylistId) }
+    LaunchedEffect(playlistsFromDB) {
+        val pendingId = pendingInitialPlaylist
+        if (pendingId != null && playlistsFromDB.isNotEmpty()) {
+            val entity = playlistsFromDB.find { it.spotifyId == pendingId }
+            pendingInitialPlaylist = null
+            onInitialConsumed()
+            if (entity != null) {
+                loadPlaylistTracks(entity.toSpotifyPlaylist())
+            } else {
+                onBack()
+            }
+        }
+    }
+
+    // Abrir la pantalla de crear playlist desde el Home si se pidió
+    LaunchedEffect(Unit) {
+        if (openCreate) {
+            showCreatePlaylistScreen = true
+            onInitialConsumed()
+        }
+    }
+
     //LIKED SONGS
     // Función para cargar las Liked Songs del usuario - ahora sincroniza con la base de datos
     val loadLikedSongs: () -> Unit = {
@@ -353,49 +380,19 @@ fun PlaylistsScreen(
 
     // Manejar botón de retroceso del sistema
     BackHandler {
-        if (selectedPlaylist != null) {
-            // Si estamos viendo un álbum que viene de un artista, volver al artista
-            if (isViewingAlbumFromArtist && selectedArtist != null) {
-                // Volver a la vista del artista
-                isViewingAlbumFromArtist = false
-                isLoadingTracks = true
-                val accessToken = Config.getSpotifyAccessToken(context)
-                if (accessToken != null) {
-                    // Cargar top tracks del artista
-                    SpotifyRepository.getArtistTopTracks(accessToken, selectedArtist!!.id) { tracks, errorMsg ->
-                        isLoadingTracks = false
-                        if (tracks != null) {
-                            // Restaurar la playlist temporal del artista
-                            selectedPlaylist = SpotifyPlaylist(
-                                id = selectedArtist!!.id,
-                                name = selectedArtist!!.name,
-                                description = "Top tracks by ${selectedArtist!!.name}",
-                                tracks = com.plyr.network.SpotifyPlaylistTracks(null, tracks.size),
-                                images = selectedArtist!!.images
-                            )
-                            playlistTracks = tracks
-                            selectedPlaylistEntity = null
-                        } else {
-                            Log.e("PlaylistScreen", "Error loading artist tracks: $errorMsg")
-                        }
-                    }
-                }
-            } else if (isEditing && hasUnsavedChanges) {
-                // Si estamos en modo edición con cambios sin guardar, mostrar diálogo
-                showExitEditDialog = true
-            } else {
-                // Salir de la playlist y resetear modo edición
-                isEditing = false
-                hasUnsavedChanges = false
-                selectedPlaylist = null
-                selectedPlaylistEntity = null
-                playlistTracks = emptyList()
-                // Limpiar artista y sus álbumes al salir completamente
-                selectedArtist = null
-                artistAlbums = emptyList()
-                isViewingAlbumFromArtist = false
-            }
+        if (isEditing && hasUnsavedChanges) {
+            // Si estamos en modo edición con cambios sin guardar, mostrar diálogo
+            showExitEditDialog = true
         } else {
+            // Salir de la playlist y volver al Home
+            isEditing = false
+            hasUnsavedChanges = false
+            selectedPlaylist = null
+            selectedPlaylistEntity = null
+            playlistTracks = emptyList()
+            selectedArtist = null
+            artistAlbums = emptyList()
+            isViewingAlbumFromArtist = false
             onBack()
         }
     }
@@ -409,125 +406,15 @@ fun PlaylistsScreen(
         if (showCreatePlaylistScreen) {
             CreatePlaylistScreen(
                 onBack = { showCreatePlaylistScreen = false },
-                onPlaylistCreated = { showCreatePlaylistScreen = false; loadPlaylists() },
+                onPlaylistCreated = { showCreatePlaylistScreen = false; onBack() },
                 playerViewModel = playerViewModel
             )
             return@Column
         }
-        Titulo(if (selectedPlaylist == null) Translations.get(context, "plyr_lists") else selectedPlaylist!!.name)
+        if (selectedPlaylist != null) {
+            Titulo(selectedPlaylist!!.name)
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Botón de sincronización manual (solo si está conectado) y de nueva playlist (siempre)
-        if (selectedPlaylist == null) {
-            val buttons = mutableListOf<ActionButtonData>()
-            if (isSpotifyConnected) {
-                buttons += ActionButtonData(
-                    text = Translations.get(context, if (isSyncing) "<syncing...>" else "<sync>"),
-                    color = if (isSyncing) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                    onClick = {
-                        forceSyncAll()
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    },
-                    enabled = !isSyncing
-                )
-            }
-            buttons += ActionButtonData(
-                text = Translations.get(context, "<new>"),
-                color = MaterialTheme.colorScheme.primary,
-                onClick = { showCreatePlaylistScreen = true },
-                enabled = !isSyncing
-            )
-            ActionButtonsGroup(buttons = buttons)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        when { // Estado no conectado - pero mostrar playlists de YouTube si existen
-            !isSpotifyConnected && selectedPlaylist == null -> {
-                // Mostrar playlists de YouTube guardadas aunque no haya Spotify
-                val youtubePlaylists = playlistsFromDB
-                    .filter { it.spotifyId.startsWith("youtube_") }
-                    .map { it.toSpotifyPlaylist() }
-
-                if (youtubePlaylists.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = Translations.get(context, "Spotify not connected"),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }
-                } else {
-                    // Mostrar solo playlists de YouTube
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 150.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(youtubePlaylists.size) { index ->
-                            val playlist = youtubePlaylists[index]
-                            val playlistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
-                            val channelName = getYouTubeChannelName(playlistEntity)
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        isEditing = false
-                                        hasUnsavedChanges = false
-                                        selectedPlaylist = playlist
-                                        loadPlaylistTracks(playlist)
-                                    },
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                AsyncImage(
-                                    model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
-                                    contentDescription = "Portada de ${playlist.name}",
-                                    modifier = Modifier
-                                        .size(150.dp)
-                                        .clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop,
-                                    placeholder = null,
-                                    error = null,
-                                    fallback = null
-                                )
-                                Text(
-                                    text = playlist.name,
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.onBackground
-                                    ),
-                                    modifier = Modifier.padding(top = 8.dp),
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                                if (channelName != null) {
-                                    Text(
-                                        text = channelName,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        modifier = Modifier.padding(top = 2.dp),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            selectedPlaylist != null -> {
                 // Vista de tracks de playlist
                 if (isLoadingTracks) {
                     Box(
@@ -768,7 +655,7 @@ fun PlaylistsScreen(
                                                             hasUnsavedChanges = false
                                                             selectedPlaylist = null
                                                             playlistTracks = emptyList()
-                                                            loadPlaylists()
+                                                            onBack()
                                                         } else {
                                                             Log.e("PlaylistScreen", "Error actualizando playlist de YouTube local")
                                                         }
@@ -882,7 +769,7 @@ fun PlaylistsScreen(
                                                     hasUnsavedChanges = false
                                                     selectedPlaylist = null
                                                     playlistTracks = emptyList()
-                                                    loadPlaylists()
+                                                    onBack()
                                                 }
                                             } else {
                                                 // Eliminar la playlist
@@ -903,8 +790,8 @@ fun PlaylistsScreen(
                                                                 hasUnsavedChanges = false
                                                                 selectedPlaylist = null
                                                                 playlistTracks = emptyList()
-                                                                // Recargar la lista de playlists
-                                                                loadPlaylists()
+                                                                // Volver al Home
+                                                                onBack()
                                                             }
                                                         }
                                                     }
@@ -1662,332 +1549,6 @@ fun PlaylistsScreen(
                 }
             }
 
-            else -> {
-                    // Estado cuando no está cargando ni sincronizando
-                    if (playlists.isEmpty() && (!isLoading || !isSyncing)) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "No playlists found",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
-                    } else {
-                        // Grilla de portadas de playlists
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = 150.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            // Primer item: Liked Songs
-                            if (likedSongsCount > 0) {
-                                item {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                // Mostrar las Liked Songs como una playlist especial desde DB
-                                                selectedPlaylist = SpotifyPlaylist(
-                                                    id = "liked_songs",
-                                                    name = "Liked Songs",
-                                                    description = "Your favorite tracks on Spotify",
-                                                    tracks = com.plyr.network.SpotifyPlaylistTracks(null, likedSongsCount),
-                                                    images = null
-                                                )
-                                                // Buscar la playlist entity de Liked Songs
-                                                selectedPlaylistEntity = playlistsFromDB.find { it.spotifyId == "liked_songs" }
-                                                isLoadingTracks = true
-
-                                                // Cargar tracks desde la base de datos
-                                                coroutineScope.launch {
-                                                    localRepository.getTracksWithAutoSync("liked_songs")
-                                                    isLoadingTracks = false
-                                                }
-                                            },
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                    ) {
-                                        // Icono de corazón para Liked Songs (en lugar de portada)
-                                        Box(
-                                            modifier = Modifier
-                                                .size(150.dp)
-                                                .clip(RoundedCornerShape(8.dp)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            // Fondo degradado
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .clip(RoundedCornerShape(8.dp)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                // Precompute gradient brush using theme colors (must be computed in a composable scope)
-                                                val likedGradient = Brush.verticalGradient(
-                                                    colors = listOf(
-                                                        MaterialTheme.colorScheme.primary,
-                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
-                                                    )
-                                                )
-
-                                                androidx.compose.foundation.Canvas(
-                                                    modifier = Modifier.fillMaxSize()
-                                                ) {
-                                                    drawRect(brush = likedGradient)
-                                                }
-                                                // Emoji de corazón
-                                                Text(
-                                                    text = "♥",
-                                                    style = MaterialTheme.typography.displayLarge.copy(
-                                                        fontSize = 64.sp,
-                                                        color = MaterialTheme.colorScheme.onPrimary
-                                                    )
-                                                )
-                                            }
-                                        }
-
-                                        // Nombre de la playlist
-                                        Text(
-                                            text = "Liked Songs",
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.onBackground
-                                            ),
-                                            modifier = Modifier.padding(top = 8.dp),
-                                            maxLines = 2,
-                                            overflow = TextOverflow.Ellipsis,
-                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                        )
-                                    }
-                                }
-                            }
-
-                            // Resto de las playlists
-                            items(playlists.size) { index ->
-                                val playlist = playlists[index]
-                                val playlistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
-                                val isYouTubePlaylist = playlist.id.startsWith("youtube_")
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            if (isEditing && hasUnsavedChanges) {
-                                                pendingPlaylist = playlist
-                                                showExitEditDialog = true
-                                            } else {
-                                                isEditing = false
-                                                hasUnsavedChanges = false
-                                                selectedPlaylist = playlist
-                                                loadPlaylistTracks(playlist)
-                                            }
-                                        },
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    // Portada de la playlist
-                                    AsyncImage(
-                                        model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
-                                        contentDescription = "Portada de ${playlist.name}",
-                                        modifier = Modifier
-                                            .size(150.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Crop,
-                                        placeholder = null,
-                                        error = null,
-                                        fallback = null
-                                    )
-
-                                    // Nombre de la playlist
-                                    Text(
-                                        text = playlist.name,
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        ),
-                                        modifier = Modifier.padding(top = 8.dp),
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                    if (isYouTubePlaylist) {
-                                        val channelName = getYouTubeChannelName(playlistEntity)
-                                        if (channelName != null) {
-                                            Text(
-                                                text = channelName,
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                ),
-                                                modifier = Modifier.padding(top = 2.dp),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Álbumes guardados
-                            items(savedAlbums.size) { index ->
-                                val albumEntity = savedAlbums[index]
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            // Cargar los tracks del álbum desde Spotify API
-                                            isLoadingTracks = true
-                                            val accessToken = Config.getSpotifyAccessToken(context)
-                                            if (accessToken != null) {
-                                                SpotifyRepository.getAlbumTracks(accessToken, albumEntity.id) { tracks, errorMsg ->
-                                                    isLoadingTracks = false
-                                                    if (tracks != null) {
-                                                        // Crear una playlist temporal para mostrar el álbum
-                                                        selectedPlaylist = SpotifyPlaylist(
-                                                            id = albumEntity.id,
-                                                            name = albumEntity.name,
-                                                            description = "Album by ${albumEntity.getArtistNames()}",
-                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, albumEntity.totaltracks ?: tracks.size),
-                                                            images = albumEntity.images
-                                                        )
-                                                        playlistTracks = tracks
-                                                        selectedPlaylistEntity = null
-                                                    } else {
-                                                        Log.e("PlaylistScreen", "Error loading album tracks: $errorMsg")
-                                                    }
-                                                }
-                                            } else {
-                                                isLoadingTracks = false
-                                            }
-                                        },
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    // Portada del álbum
-                                    AsyncImage(
-                                        model = albumEntity.getImageUrl(),
-                                        contentDescription = "Portada de ${albumEntity.name}",
-                                        modifier = Modifier
-                                            .size(150.dp)
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        placeholder = null,
-                                        error = null,
-                                        fallback = null
-                                    )
-
-                                    // Nombre del álbum
-                                    Text(
-                                        text = albumEntity.name,
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        ),
-                                        modifier = Modifier.padding(top = 8.dp),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-
-                                    // Artista del álbum
-                                    Text(
-                                        text = albumEntity.getArtistNames(),
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            fontSize = 10.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        ),
-                                        modifier = Modifier.padding(top = 2.dp),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                }
-                            }
-
-                            // Artistas seguidos
-                            items(followedArtists.size) { index ->
-                                val artist = followedArtists[index]
-
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            // Cargar los tracks y álbumes del artista
-                                            isLoadingTracks = true
-                                            isLoadingArtistAlbums = true
-                                            selectedArtist = artist
-                                            val accessToken = Config.getSpotifyAccessToken(context)
-                                            if (accessToken != null) {
-                                                // Cargar top tracks
-                                                SpotifyRepository.getArtistTopTracks(accessToken, artist.id) { tracks, errorMsg ->
-                                                    isLoadingTracks = false
-                                                    if (tracks != null) {
-                                                        // Crear una playlist temporal para mostrar los tracks del artista
-                                                        selectedPlaylist = SpotifyPlaylist(
-                                                            id = artist.id,
-                                                            name = artist.name,
-                                                            description = "Top tracks by ${artist.name}",
-                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, tracks.size),
-                                                            images = artist.images
-                                                        )
-                                                        playlistTracks = tracks
-                                                        selectedPlaylistEntity = null
-                                                    } else {
-                                                        Log.e("PlaylistScreen", "Error loading artist tracks: $errorMsg")
-                                                    }
-                                                }
-
-                                                // Cargar álbumes del artista
-                                                SpotifyRepository.getArtistAlbums(accessToken, artist.id) { albums, errorMsg ->
-                                                    isLoadingArtistAlbums = false
-                                                    if (albums != null) {
-                                                        artistAlbums = albums
-                                                        Log.d("PlaylistScreen", "Loaded ${albums.size} albums for ${artist.name}")
-                                                    } else {
-                                                        Log.e("PlaylistScreen", "Error loading artist albums: $errorMsg")
-                                                    }
-                                                }
-                                            }
-                                        },
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                ) {
-                                    // Portada del artista (usar imagen del artista)
-                                    AsyncImage(
-                                        model = artist.getImageUrl(),
-                                        contentDescription = "Artista ${artist.name}",
-                                        modifier = Modifier
-                                            .size(150.dp)
-                                            .clip(RoundedCornerShape(75.dp)),
-                                        placeholder = null,
-                                        error = null,
-                                        fallback = null
-                                    )
-
-                                    // Nombre del artista
-                                    Text(
-                                        text = artist.name,
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        ),
-                                        modifier = Modifier.padding(top = 8.dp),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                    )
-                                }
-                            }
-                        }
-                    }
-            }
-        }
 
         // Diálogo de recorte de portada (solo playlists locales youtube_ en modo edición)
         coverPickUri?.let { uri ->

@@ -427,4 +427,34 @@ Se eliminó **por completo** el feature local/descargas (pantalla Local, descarg
 ### Tests
 - Ningún test referenciaba el feature (los 148 unit tests existentes se mantienen **148, 0 fallos** con `./run.sh test`). Compilación `:app:compileDebugKotlin` BUILD SUCCESSFUL.
 
+## 16. REDISEÑO DE PLAYLISTS EN EL HOME (carrusel horizontal)
+
+Se eliminó la ventana de listado de playlists (`PlaylistsScreen` como listado con grid de playlists, Liked Songs, álbumes y artistas seguidos) y el botón `< playlists >` del Home. En su lugar, el Home muestra un **carrusel horizontal de portadas** (estilo Spotify) con las playlists reales de la base de datos local, más un tile final **"+"** para crear playlist. Abrir una portada lleva directamente a la vista de tracks de esa playlist; el botón "+" abre el creador de playlists. **No se incluye nada de Spotify**: el carrusel muestra únicamente playlists (excluye `liked_songs` y `album_*`), y el botón de sincronización `<sync>` desaparece.
+
+### Navegación (`ui/AudioListScreen.kt`)
+- Nuevos estados `playlistToOpenId` y `openPlaylistCreate` (rememberSaveable).
+- `HomeScreen` recibe `onOpenPlaylist(id)` y `onCreatePlaylist()`; ambos navegan a `Screen.PLAYLISTS`.
+- `PlaylistsScreen` recibe `initialPlaylistId`, `openCreate` y `onInitialConsumed` y, al abrirse, carga directamente la playlist indicada (o muestra `CreatePlaylistScreen`) y resetea los flags.
+
+### Home (`ui/HomeScreen.kt`)
+- Eliminado el botón `ActionButtonData` de playlists (y la clave `home_playlists` de `Translations.kt` en los 4 idiomas, sustituida por `home_new_playlist` para el tile "+").
+- El carrusel se muestra **entre el botón de search y el de queue** (tanto en el layout vertical como en el horizontal). Carrusel `LazyRow` con portada 120 dp (AsyncImage vía `UrlParser.normalizeYoutubeThumb`, con fallback de letra inicial si no hay imagen), nombre debajo, y tile "+" final que abre el creador. Datos reactivos desde `PlaylistLocalRepository.getAllPlaylistsLiveData()`. Extraído a `HomePlaylistCarousel`: usa `remember { LazyListState() }` (no restaurable, para no heredar el scroll de sesiones anteriores) y `LaunchedEffect(playlists) { scrollToItem(0) }` para que **al entrar en Home empiece siempre por la primera playlist** (izquierda), no por el "+" del final. Se eliminó el `contentPadding` del `LazyRow` para que no haya márgenes extra a izquierda/derecha.
+
+### Playlists (`ui/PlaylistScreen.kt`, ~2.400 → ~2.000 líneas)
+- Retirada la ventana de listado: botones `<sync>`/`<new>`, la cuadrícula de playlists de YouTube sin conectar y la cuadrícula conectada (con Liked Songs, Saved Albums y Followed Artists).
+- El `when` de la pantalla pasa a `if (selectedPlaylist != null) { ... }`: solo existe la **vista de tracks de playlist** (reproducción, edición, borrado, share). El título ahora es el nombre de la playlist abierta (se eliminó el fallback `plyr_lists`).
+- `BackHandler` simplificado: desde una playlist (o con cambios de edición sin guardar) siempre vuelve al **Home**, nunca al listado.
+- Tras crear/guardar/borrar, la navegación vuelve al Home (`onBack()`), donde el carrusel refleja los cambios vía LiveData.
+- El creador de playlists (`CreatePlaylistScreen`, en el mismo archivo) se conserva tal cual, ahora invocable solo desde el carrusel.
+
+### Traducciones (`utils/Translations.kt`)
+- Eliminadas `home_playlists`, `plyr_lists`, `<sync>`, `<syncing...>` y `<new>`; añadida `home_new_playlist` (es/en/ca/ja). Se conservan `Spotify not connected` y `Loading tracks...` (usados por `CreatePlaylistScreen`).
+
+### Lo que NO se tocó
+- La vista de tracks de una playlist (detalil), `CreatePlaylistScreen`, la edición de portadas y `PlaylistLocalRepository`.
+- Nota: queda código muerto (cargadores de Liked Songs/álbumes/artistas y el sub-flujo de artista) que quedó inalcanzable al quitar la ventana de listado; pendiente de limpieza en una futura iteración.
+
+### Tests
+- Compilación `:app:compileDebugKotlin` BUILD SUCCESSFUL y **148 tests, 0 fallos** con `./run.sh test`.
+
 *Generado a partir de auditoría estática. Todos los hallazgos críticos están verificados contra el código. Los números de línea corresponden al estado actual del repo (commit working tree de 2026-08-02).*

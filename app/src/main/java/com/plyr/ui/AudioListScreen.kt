@@ -32,6 +32,10 @@ fun AudioListScreen(
     var currentScreen by rememberSaveable { mutableStateOf(Screen.HOME.name) }
     val currentScreenEnum = Screen.valueOf(currentScreen)
 
+    // Playlist a abrir (desde el carrusel del Home) o crear
+    var playlistToOpenId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openPlaylistCreate by rememberSaveable { mutableStateOf(false) }
+
     // Observar eventos de NFC para navegar al SearchScreen desde cualquier pantalla
     val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
 
@@ -51,7 +55,17 @@ fun AudioListScreen(
         Screen.HOME -> HomeScreen(
             context = context,
             playerViewModel = playerViewModel,
-            onNavigateToScreen = { screen -> currentScreen = screen.name }
+            onNavigateToScreen = { screen -> currentScreen = screen.name },
+            onOpenPlaylist = { playlistId ->
+                playlistToOpenId = playlistId
+                openPlaylistCreate = false
+                currentScreen = Screen.PLAYLISTS.name
+            },
+            onCreatePlaylist = {
+                playlistToOpenId = null
+                openPlaylistCreate = true
+                currentScreen = Screen.PLAYLISTS.name
+            }
         )
         Screen.SEARCH -> SearchScreen(
             context = context,
@@ -71,7 +85,13 @@ fun AudioListScreen(
         Screen.PLAYLISTS -> PlaylistsScreen(
             context = context,
             onBack = { currentScreen = Screen.HOME.name },
-            playerViewModel = playerViewModel
+            playerViewModel = playerViewModel,
+            initialPlaylistId = playlistToOpenId,
+            openCreate = openPlaylistCreate,
+            onInitialConsumed = {
+                playlistToOpenId = null
+                openPlaylistCreate = false
+            }
         )
         Screen.FEED -> FeedScreen(
             context = context,

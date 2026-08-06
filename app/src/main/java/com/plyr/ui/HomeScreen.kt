@@ -3,7 +3,13 @@ package com.plyr.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -11,18 +17,27 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.asFlow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import com.plyr.database.PlaylistLocalRepository
 import com.plyr.ui.components.*
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import com.plyr.utils.Translations
+import com.plyr.utils.UrlParser
 import com.plyr.viewmodel.PlayerViewModel
 
 @SuppressLint("DiscouragedApi")
@@ -30,7 +45,9 @@ import com.plyr.viewmodel.PlayerViewModel
 fun HomeScreen(
     context: Context,
     playerViewModel: PlayerViewModel? = null,
-    onNavigateToScreen: (Screen) -> Unit
+    onNavigateToScreen: (Screen) -> Unit,
+    onOpenPlaylist: (String) -> Unit = {},
+    onCreatePlaylist: () -> Unit = {}
 ) {
     // Dimensiones responsivas basadas en el tamaño de pantalla
     val dimensions = calculateResponsiveDimensionsFallback()
@@ -56,8 +73,8 @@ fun HomeScreen(
                 if (asciiResIds.isNotEmpty()) asciiResIds.random() else 0
             }
 
-            // ActionButtonsGroup - definido antes para usarlo en ambos layouts
-            val buttons = listOf(
+            // Botones - el carrusel de playlists se muestra entre search y queue
+            val topButtons = listOf(
                 ActionButtonData(
                     text = "< ${Translations.get(context, "home_search")} >",
                     color = MaterialTheme.colorScheme.primary,
@@ -65,15 +82,9 @@ fun HomeScreen(
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onNavigateToScreen(Screen.SEARCH)
                     }
-                ),
-                ActionButtonData(
-                    text = "< ${Translations.get(context, "home_playlists")} >",
-                    color = MaterialTheme.colorScheme.primary,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onNavigateToScreen(Screen.PLAYLISTS)
-                    }
-                ),
+                )
+            )
+            val bottomButtons = listOf(
                 ActionButtonData(
                     text = "< ${Translations.get(context, "home_queue")} >",
                     color = MaterialTheme.colorScheme.primary,
@@ -128,7 +139,20 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         ActionButtonsGroup(
-                            buttons = buttons,
+                            buttons = topButtons,
+                            isHorizontal = false,
+                            spacing = dimensions.itemSpacing,
+                            modifier = Modifier.wrapContentWidth()
+                        )
+
+                        HomePlaylistCarousel(
+                            context = context,
+                            onOpenPlaylist = onOpenPlaylist,
+                            onCreatePlaylist = onCreatePlaylist
+                        )
+
+                        ActionButtonsGroup(
+                            buttons = bottomButtons,
                             isHorizontal = false,
                             spacing = dimensions.itemSpacing,
                             modifier = Modifier.wrapContentWidth()
@@ -175,7 +199,20 @@ fun HomeScreen(
 
                     // ActionButtonsGroup
                     ActionButtonsGroup(
-                        buttons = buttons,
+                        buttons = topButtons,
+                        isHorizontal = false,
+                        spacing = dimensions.itemSpacing,
+                        modifier = Modifier.wrapContentWidth()
+                    )
+
+                    HomePlaylistCarousel(
+                        context = context,
+                        onOpenPlaylist = onOpenPlaylist,
+                        onCreatePlaylist = onCreatePlaylist
+                    )
+
+                    ActionButtonsGroup(
+                        buttons = bottomButtons,
                         isHorizontal = false,
                         spacing = dimensions.itemSpacing,
                         modifier = Modifier.wrapContentWidth()
@@ -205,6 +242,125 @@ fun HomeScreen(
                     imageVector = Icons.Filled.Settings,
                     contentDescription = Translations.get(context, "settings"),
                     tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Carrusel horizontal de playlists (solo playlists, sin secciones de Spotify).
+ * Empieza siempre por el principio (primera playlist a la izquierda).
+ */
+@Composable
+private fun HomePlaylistCarousel(
+    context: Context,
+    onOpenPlaylist: (String) -> Unit,
+    onCreatePlaylist: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val playlistRepository = remember { PlaylistLocalRepository(context) }
+    val playlistEntities by playlistRepository.getAllPlaylistsLiveData()
+        .asFlow()
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val playlists = playlistEntities.filter {
+        it.spotifyId != "liked_songs" && !it.spotifyId.startsWith("album_")
+    }
+
+    // Estado no restaurable para que el carrusel arranque siempre por el principio
+    val listState = remember { LazyListState() }
+    // Al entrar en Home (o cuando cargan las playlists), mostrar la primera a la izquierda
+    LaunchedEffect(playlists) {
+        if (playlists.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    LazyRow(
+        state = listState,
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(playlists, key = { it.spotifyId }) { playlist ->
+            val coverUrl = UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
+            Column(
+                modifier = Modifier
+                    .width(120.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onOpenPlaylist(playlist.spotifyId)
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (coverUrl != null) {
+                    AsyncImage(
+                        model = coverUrl,
+                        contentDescription = playlist.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = playlist.name.take(1),
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = playlist.name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
+        item(key = "create_playlist") {
+            Column(
+                modifier = Modifier
+                    .width(120.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onCreatePlaylist()
+                    },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "+",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = Translations.get(context, "home_new_playlist"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
                 )
             }
         }

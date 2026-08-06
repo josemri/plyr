@@ -84,8 +84,8 @@ object Translations {
 
             // Home Screen
             "home_search" to "buscar",
-            "home_playlists" to "listas",
             "home_queue" to "cola",
+            "home_new_playlist" to "nueva playlist",
             "home_feed" to "feed",
             "home_settings" to "ajustes",
             "exit_message" to "Presiona de nuevo para salir",
@@ -195,10 +195,6 @@ object Translations {
             "player_not_available" to "reproductor_no_disponible",
 
             //Playlists Screen
-            "plyr_lists" to "plyr_listas",
-            "<syncing...>" to "<sincronizando...>",
-            "<sync>" to "<sincronizar>",
-            "<new>" to "<crear>",
             "Spotify not connected" to "Spotify no conectado",
             "Loading tracks..." to "Cargando canciones...",
 
@@ -363,8 +359,8 @@ object Translations {
 
             // Home Screen
             "home_search" to "search",
-            "home_playlists" to "playlists",
             "home_queue" to "queue",
+            "home_new_playlist" to "new playlist",
             "home_feed" to "feed",
             "home_settings" to "settings",
             "exit_message" to "Press back again to exit",
@@ -603,8 +599,8 @@ object Translations {
 
             // Home Screen
             "home_search" to "cercar",
-            "home_playlists" to "llistes",
             "home_queue" to "cua",
+            "home_new_playlist" to "nova llista",
             "home_feed" to "feed",
             "home_settings" to "ajustos",
             "exit_message" to "Prem de nou per sortir",
@@ -714,10 +710,6 @@ object Translations {
             "player_not_available" to "プレイヤーが利用できません",
 
             // Playlists Screen
-            "plyr_lists" to "plyr_リスト",
-            "<syncing...>" to "<同期中...>",
-            "<sync>" to "<同期>",
-            "<new>" to "<新規作成>",
             "Spotify not connected" to "Spotifyが接続されていません",
             "Loading tracks..." to "曲を読み込み中...",
 
@@ -883,8 +875,8 @@ object Translations {
 
             // Home Screen
             "home_search" to "検索",
-            "home_playlists" to "リスト",
             "home_queue" to "キュー",
+            "home_new_playlist" to "新しいプレイリスト",
             "home_feed" to "feed",
             "home_settings" to "設定",
             "exit_message" to "もう一度押すと終了します",
@@ -994,10 +986,6 @@ object Translations {
             "player_not_available" to "プレイヤーが利用できません",
 
             // Playlists Screen
-            "plyr_lists" to "plyr_リスト",
-            "<syncing...>" to "<同期中...>",
-            "<sync>" to "<同期>",
-            "<new>" to "<新規作成>",
             "Spotify not connected" to "Spotifyが接続されていません",
             "Loading tracks..." to "曲を読み込み中...",
 
