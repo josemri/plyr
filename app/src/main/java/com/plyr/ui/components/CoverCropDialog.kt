@@ -15,13 +15,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -31,12 +32,12 @@ import com.plyr.service.CoverCropState
 import com.plyr.service.CoverImageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlin.math.roundToInt
 
 /**
  * CoverCropDialog - Editor de recorte cuadrado de portadas (estilo Spotify).
  *
- * Muestra la imagen elegida dentro de un marco cuadrado; se puede hacer
+ * La imagen llena por completo la pantalla de recorte; sobre ella se dibuja un
+ * marco cuadrado centrado que delimita la zona que se guardará. Se puede hacer
  * pinch-zoom y arrastrar para encuadrar. Al confirmar se recorta el cuadrado
  * visible y se entrega como Bitmap vía [onConfirm].
  */
@@ -108,7 +109,9 @@ fun CoverCropDialog(
                     modifier = Modifier.padding(16.dp)
                 )
 
-                // Zona de recorte (tamaño del marco cuadrado calculado aquí)
+                // Zona de recorte: la imagen llena todo el área disponible
+                var viewportPxW by remember { mutableFloatStateOf(0f) }
+                var viewportPxH by remember { mutableFloatStateOf(0f) }
                 var squarePx by remember { mutableFloatStateOf(0f) }
                 Box(
                     modifier = Modifier
@@ -119,43 +122,30 @@ fun CoverCropDialog(
                         val density = LocalDensity.current
                         val containerW = maxWidth
                         val containerH = maxHeight
-                        val squareDp = minOf(containerW, containerH) * 0.92f
+                        val squareDp = minOf(containerW, containerH) * 0.9f
+                        viewportPxW = with(density) { containerW.toPx() }
+                        viewportPxH = with(density) { containerH.toPx() }
                         squarePx = with(density) { squareDp.toPx() }
 
                         val imageW = currentBitmap.width.toFloat()
                         val imageH = currentBitmap.height.toFloat()
-                        val scale = CoverCropMath.baseScale(squarePx, imageW, imageH) * zoom
-                        val scaledW = imageW * scale
-                        val scaledH = imageH * scale
-                        val scrim = Color.Black.copy(alpha = 0.75f)
-                        val hScrim = (containerH - squareDp) / 2f
-                        val vScrim = (containerW - squareDp) / 2f
 
-                        // Imagen con gestos (pinch-zoom + arrastre)
+                        // Imagen a sangre con gestos (pinch-zoom + arrastre).
+                        // El zoom se aplica como transformación gráfica real (graphicsLayer),
+                        // así el tamaño de layout queda fijo y la imagen crece de verdad.
                         Box(
                             modifier = Modifier
-                                .size(squareDp)
-                                .align(Alignment.Center)
+                                .fillMaxSize()
                                 .clipToBounds()
-                                .background(Color.DarkGray)
-                                .pointerInput(imageW, imageH, squarePx) {
+                                .pointerInput(viewportPxW, viewportPxH, squarePx, imageW, imageH) {
                                     detectTransformGestures { centroid, pan, gestureZoom, _ ->
-                                        val newZoom = (zoom * gestureZoom).coerceAtLeast(1f)
-                                        val base = CoverCropMath.baseScale(squarePx, imageW, imageH)
-                                        val scaleBefore = base * zoom
-                                        val scaleAfter = base * newZoom
-                                        val halfSquare = squarePx / 2f
-                                        // Punto de la imagen original bajo el centroide del gesto
-                                        val imgFX = (centroid.x - (halfSquare + offsetX)) / scaleBefore + imageW / 2f
-                                        val imgFY = (centroid.y - (halfSquare + offsetY)) / scaleBefore + imageH / 2f
-                                        // Ajustar zoom y desplazamiento para que ese punto siga
-                                        // bajo los dedos (centroide + pan) tras el cambio de escala
-                                        zoom = newZoom
-                                        offsetX = (centroid.x + pan.x) - halfSquare - (imgFX - imageW / 2f) * scaleAfter
-                                        offsetY = (centroid.y + pan.y) - halfSquare - (imgFY - imageH / 2f) * scaleAfter
-                                        val clamped = CoverCropMath.clampState(
+                                        val next = CoverCropMath.focalZoom(
                                             CoverCropState(zoom, offsetX, offsetY),
-                                            squarePx, imageW, imageH
+                                            centroid.x, centroid.y, pan.x, pan.y, gestureZoom,
+                                            viewportPxW, viewportPxH, squarePx, imageW, imageH
+                                        )
+                                        val clamped = CoverCropMath.clampState(
+                                            next, viewportPxW, viewportPxH, squarePx, imageW, imageH
                                         )
                                         zoom = clamped.zoom
                                         offsetX = clamped.offsetX
@@ -166,19 +156,23 @@ fun CoverCropDialog(
                             Image(
                                 bitmap = currentBitmap.asImageBitmap(),
                                 contentDescription = null,
-                                contentScale = ContentScale.Fit,
+                                contentScale = ContentScale.Crop,
                                 modifier = Modifier
-                                    .offset {
-                                        IntOffset(
-                                            (((squarePx - scaledW) / 2f) + offsetX).roundToInt(),
-                                            (((squarePx - scaledH) / 2f) + offsetY).roundToInt()
-                                        )
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        scaleX = zoom
+                                        scaleY = zoom
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                        translationX = offsetX
+                                        translationY = offsetY
                                     }
-                                    .size(with(density) { scaledW.toDp() }, with(density) { scaledH.toDp() })
                             )
                         }
 
-                        // Scrims alrededor del marco cuadrado
+                        // Oscurecer suavemente la zona fuera del marco de recorte
+                        val scrim = Color.Black.copy(alpha = 0.45f)
+                        val hScrim = (containerH - squareDp) / 2f
+                        val vScrim = (containerW - squareDp) / 2f
                         Box(
                             Modifier
                                 .fillMaxWidth()
@@ -231,6 +225,8 @@ fun CoverCropDialog(
                             color = MaterialTheme.colorScheme.primary,
                             onClick = {
                                 val rect = CoverCropMath.sourceRect(
+                                    viewportW = viewportPxW,
+                                    viewportH = viewportPxH,
                                     square = squarePx,
                                     imageW = currentBitmap.width.toFloat(),
                                     imageH = currentBitmap.height.toFloat(),

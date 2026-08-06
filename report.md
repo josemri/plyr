@@ -346,17 +346,17 @@ Probar en el dispositivo (`./run.sh run debug`): crear playlist con tipo "youtub
 
 Para **playlists locales `youtube_`** (decisión de alcance: solo locales; las de Spotify necesitarían el scope `ugc-image-upload` y re-autenticación, fuera de alcance):
 
-- **`service/CoverCropMath.kt`** — matemática pura del recorte (testeada en JVM, 15 tests):
-  - `baseScale` (center-crop: cubre el marco cuadrado), `maxOffset` (límite de arrastre por eje), `clampState` (zoom ≥ 1 y offsets limitados) y `sourceRect` (cuadrado visible en píxeles de la imagen original; siempre cuadrado y dentro de la imagen).
+- **`service/CoverCropMath.kt`** — matemática pura del recorte (testeada en JVM, 24 tests):
+  - `coverScale` (la imagen cubre por completo el viewport de recorte, sin espacios vacíos), `minZoom` (zoom-out mínimo para que la imagen siga cubriendo el marco cuadrado), `focalZoom` (zoom manteniendo fijo el punto bajo los dedos, con arrastre), `clampState` (zoom entre `minZoom` y 8x; la traslación se limita para que la imagen cubra **el marco de recorte**, no el viewport completo, de modo que la imagen nunca queda "pegada"/bloqueada a un borde por grande o pequeña que sea) y `sourceRect` (el marco cuadrado, centrado en el viewport, expresado en píxeles de la imagen original; siempre cuadrado y dentro de la imagen).
 - **`service/CoverImageManager.kt`** — decode de un Uri con downsampling (máx. 2048), `crop` del rectángulo calculado, `resizeToSquare` (máx. 1024) y `save` a `filesDir/covers/playlist_<rawId>.jpg` devolviendo una URI `file://` que Coil entiende (se guarda en `PlaylistEntity.imageUrl`).
-- **`ui/components/CoverCropDialog.kt`** — editor tipo Spotify: marco cuadrado, pinch-zoom y arrastre (gestos `detectTransformGestures`, siempre clampados), scrims alrededor y botones `<cancel>`/`<save>`. Recorta y entrega el Bitmap final.
+- **`ui/components/CoverCropDialog.kt`** — editor simple a sangre: la imagen llena por completo el área de recorte (centrada, sin franjas grises), con un marco cuadrado blanco centrado encima y un oscurecido suave (45%) fuera de él. El zoom/pinch se aplica como **transformación gráfica real** (`graphicsLayer`: escala + traslación de la capa), de modo que la imagen crece de verdad y el punto tocado queda fijo bajo los dedos (gestos `detectTransformGestures` siempre clampados). **Admite zoom out**: el zoom puede bajar de 1 hasta `minZoom`, el punto en que la imagen dejaría de cubrir el marco de recorte; si queda más pequeña que el área, la imagen se centra (letterbox). Botones `<cancel>`/`<save>`. Recorta y entrega el Bitmap final.
 - **`PlaylistLocalRepository.updatePlaylistImage(localPlaylistId, imageUrl)`** — guarda la nueva portada en local; al ser LiveData, el grid se actualiza solo.
-- **`PlaylistScreen`**: en modo edición de una `youtube_` aparece `> change_cover` (preview 64dp + `<pick>`), que abre el **Photo Picker** (`PickVisualMedia`, con fallback a ACTION_OPEN_DOCUMENT en dispositivos viejos); al confirmar el recorte se guarda y se refresca la entidad. `normalizeYoutubeThumb` deja pasar las rutas locales (`file://`) sin tocar.
+- **`PlaylistScreen`**: en modo edición de una `youtube_` la portada (preview 120dp a la izquierda, clickable) abre el **Photo Picker** (`PickVisualMedia`, con fallback a ACTION_OPEN_DOCUMENT en dispositivos viejos); al confirmar el recorte se guarda y se refresca la entidad. `normalizeYoutubeThumb` deja pasar las rutas locales (`file://`) sin tocar.
 
-**Total de tests: 139, 0 fallos.**
+**Total de tests: 148, 0 fallos.**
 
 ### Nota de uso
-Dentro de `<edit>` de una playlist `youtube_`: sección `> change_cover` → `<pick>` → elegir imagen de la galería → encuadrar (pinch-zoom + arrastre) → `<save>`. La portada se guarda en el almacenamiento interno de la app (no depende de red ni de Spotify) y aparece en el grid al momento.
+Dentro de `<edit>` de una playlist `youtube_`: tocar la portada (preview 120dp) → elegir imagen de la galería → encuadrar (la imagen llena la pantalla; pinch-zoom + arrastre) → `<save>`. La portada se guarda en el almacenamiento interno de la app (no depende de red ni de Spotify) y aparece en el grid al momento.
 
 ### Siguiente paso
 Probar en el dispositivo (`./run.sh run debug`): editar una playlist `youtube_`, cambiar su portada con `<pick>`, recortarla y verificar que aparece tanto en el grid como en la preview del modo edición.
