@@ -314,7 +314,7 @@ private fun HomePlaylistCarousel(
             val coverUrl = UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
             Column(
                 modifier = Modifier
-                    .width(120.dp)
+                    .width(140.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -328,13 +328,13 @@ private fun HomePlaylistCarousel(
                         contentDescription = playlist.name,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(120.dp)
+                            .size(140.dp)
                             .clip(RoundedCornerShape(12.dp))
                     )
                 } else {
                     Box(
                         modifier = Modifier
-                            .size(120.dp)
+                            .size(140.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
@@ -361,7 +361,7 @@ private fun HomePlaylistCarousel(
         item(key = "create_playlist") {
             Column(
                 modifier = Modifier
-                    .width(120.dp)
+                    .width(140.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -371,7 +371,7 @@ private fun HomePlaylistCarousel(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(120.dp)
+                        .size(140.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center

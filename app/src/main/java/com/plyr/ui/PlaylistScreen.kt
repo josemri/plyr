@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
@@ -405,7 +406,7 @@ fun PlaylistsScreen(
         //si se pulsa boton de <new> mostrar CreatePlaylistScreen
         if (showCreatePlaylistScreen) {
             CreatePlaylistScreen(
-                onBack = { showCreatePlaylistScreen = false },
+                onBack = { showCreatePlaylistScreen = false; onBack() },
                 onPlaylistCreated = { showCreatePlaylistScreen = false; onBack() },
                 playerViewModel = playerViewModel
             )
@@ -413,7 +414,29 @@ fun PlaylistsScreen(
         }
         if (selectedPlaylist != null) {
             Titulo(selectedPlaylist!!.name)
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Descripción de la playlist entre el título y los botones,
+            // pegada a la derecha (estilo WhatsApp "~descripción").
+            // Para playlists de YouTube el autor se guarda como "YouTube Playlist by USER"
+            // y aquí se muestra solo "USER".
+            val rawDescription = selectedPlaylistEntity?.description ?: selectedPlaylist?.description
+            val channelName = getYouTubeChannelName(selectedPlaylistEntity)
+            val playlistDescription = (channelName ?: rawDescription)?.takeIf { it.isNotBlank() }
+            if (playlistDescription != null) {
+                Text(
+                    text = "~$playlistDescription",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    textAlign = TextAlign.End,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
 
                 // Vista de tracks de playlist
                 if (isLoadingTracks) {
