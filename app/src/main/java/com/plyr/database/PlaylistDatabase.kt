@@ -3,7 +3,9 @@ package com.plyr.database
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import android.content.Context
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
  * PlaylistDatabase - Configuración principal de Room Database
@@ -19,12 +21,9 @@ import android.content.Context
     entities = [
         PlaylistEntity::class,
         TrackEntity::class,
-        DownloadedTrackEntity::class,
-        SearchHistoryEntity::class,
-        LocalPlaylistEntity::class,
-        LocalPlaylistTrackEntity::class
+        SearchHistoryEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class PlaylistDatabase : RoomDatabase() {
@@ -40,24 +39,26 @@ abstract class PlaylistDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
 
     /**
-     * Acceso al DAO de tracks descargados.
-     */
-    abstract fun downloadedTrackDao(): DownloadedTrackDao
-
-    /**
      * Acceso al DAO del historial de búsquedas.
      */
     abstract fun searchHistoryDao(): SearchHistoryDao
-
-    /**
-     * Acceso al DAO de playlists locales.
-     */
-    abstract fun localPlaylistDao(): LocalPlaylistDao
 
     companion object {
         /** Instancia volátil para thread-safety */
         @Volatile
         private var INSTANCE: PlaylistDatabase? = null
+
+        /**
+         * Migración 5→6: elimina las tablas del feature local/descargas
+         * (downloaded_tracks, local_playlists y local_playlist_tracks).
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS downloaded_tracks")
+                db.execSQL("DROP TABLE IF EXISTS local_playlists")
+                db.execSQL("DROP TABLE IF EXISTS local_playlist_tracks")
+            }
+        }
         
         /**
          * Obtiene la instancia única de la base de datos.
@@ -73,6 +74,7 @@ abstract class PlaylistDatabase : RoomDatabase() {
                     PlaylistDatabase::class.java,
                     "playlist_database"
                 )
+                    .addMigrations(MIGRATION_5_6)
                     .fallbackToDestructiveMigration(false)
                 .build()
                 INSTANCE = instance

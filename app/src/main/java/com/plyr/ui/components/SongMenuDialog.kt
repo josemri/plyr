@@ -18,19 +18,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.plyr.database.PlaylistDatabase
 import com.plyr.database.TrackEntity
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyTrack
 import com.plyr.utils.Config
-import com.plyr.utils.DownloadManager
 import com.plyr.utils.Translations
 import com.plyr.viewmodel.PlayerViewModel
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Data class para pasar información de la canción al menú
@@ -60,7 +54,6 @@ fun SongMenuDialog(
     context: Context,
     songData: SongMenuData,
     playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope,
     onDismiss: () -> Unit,
     onLikedStatusChanged: (() -> Unit)? = null
 ) {
@@ -339,64 +332,6 @@ fun SongMenuDialog(
                                                 }
                                             }
                                         }
-                                    }
-                                }
-                            }
-                            .padding(vertical = 4.dp)
-                    )
-
-                    // Download
-                    Text(
-                        text = Translations.get(context, "download"),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Normal,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onDismiss()
-                                coroutineScope.launch {
-                                    val initialYoutubeId = songData.youtubeId ?: songData.trackEntity?.youtubeVideoId
-                                    
-                                    val finalYoutubeId = if (initialYoutubeId == null) {
-                                        withContext(Dispatchers.IO) {
-                                            val searchQuery = "${songData.title} ${songData.artist}"
-                                            Log.d("SongMenuDialog", "YouTube ID not available, searching: '$searchQuery'")
-                                            com.plyr.network.YouTubeManager.searchVideoId(searchQuery)
-                                        }
-                                    } else {
-                                        initialYoutubeId
-                                    }
-
-                                    if (finalYoutubeId != null) {
-                                        val database = PlaylistDatabase.getDatabase(context)
-                                        val alreadyDownloaded = database.downloadedTrackDao()
-                                            .isTrackDownloadedByYoutubeId(finalYoutubeId) > 0
-
-                                        if (alreadyDownloaded) {
-                                            Log.d("SongMenuDialog", "Track already downloaded")
-                                        } else {
-                                            Log.d("SongMenuDialog", "Starting download: ${songData.title}")
-                                            DownloadManager.downloadTrack(
-                                                context = context,
-                                                spotifyTrackId = songData.spotifyId,
-                                                youtubeVideoId = finalYoutubeId,
-                                                trackName = songData.title,
-                                                artists = songData.artist,
-                                                onProgress = { progress ->
-                                                    Log.d("SongMenuDialog", "Download progress: $progress%")
-                                                },
-                                                onComplete = { success, error ->
-                                                    if (success) {
-                                                        Log.d("SongMenuDialog", "✓ Download completed: ${songData.title}")
-                                                    } else {
-                                                        Log.e("SongMenuDialog", "✗ Download failed: $error")
-                                                    }
-                                                }
-                                            )
-                                        }
-                                    } else {
-                                        Log.e("SongMenuDialog", "Cannot download: YouTube video not found")
                                     }
                                 }
                             }

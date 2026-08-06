@@ -468,7 +468,6 @@ private fun PlaybackControls(
                 trackEntity = currentTrack
             ),
             playerViewModel = playerViewModel,
-            coroutineScope = coroutineScope,
             onDismiss = { showSongMenu = false }
         )
     }

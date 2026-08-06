@@ -1,7 +1,7 @@
 # Reporte de análisis de PLYR
 
 **Fecha:** 2026-08-02 (actualizado tras refactor de duplicación — todos los focos D1-D7 resueltos)
-**Alcance:** `/home/josep/plyr/app/src/main/java/com/plyr` (77 archivos, ~22.400 líneas Kotlin) + configuración de Gradle/Manifiesto.
+**Alcance:** `/home/josep/plyr/app/src/main/java/com/plyr` (69 archivos, ~19.600 líneas Kotlin) + configuración de Gradle/Manifiesto.
 **Método:** auditoría estática manual + 3 análisis paralelos (bugs/duplicación, rendimiento/arquitectura, seguridad/prácticas). Todos los hallazgos críticos fueron verificados leyendo el código. Esta revisión actualiza la primera versión teniendo en cuenta los cambios de refactor ya aplicados (ver §11).
 
 ---
@@ -25,8 +25,8 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 
 | Métrica | Valor |
 |---|---|
-| Archivos Kotlin (main) | 77 |
-| Líneas totales | ~22.400 |
+| Archivos Kotlin (main) | 69 |
+| Líneas totales | ~19.600 |
 | Archivo más grande | `ui/PlaylistScreen.kt` (2.189) |
 | versionCode / versionName | 5 / 1.0.6 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
@@ -386,9 +386,45 @@ Se eliminó **por completo** el asistente de voz (micrófono + NLU on-device + T
 
 ### Lo que NO se tocó
 - Acciones de transporte por shake (`off/next/previous/play_pause`) y por orientación (`volume/skip`), NFC, QR, feed, gestos, idiomas, etc.
-- La reproducción, búsqueda, playlists, descargas y el resto de pantallas.
+- La reproducción, búsqueda, playlists ~~y descargas~~ y el resto de pantallas (el feature de descargas se eliminó posteriormente en la §15).
 
 ### Tests
 - El asistente no tenía tests propios, así que el total se mantiene: **148 unit tests, 0 fallos** (`./run.sh test`). Compilación `:app:compileDebugKotlin` BUILD SUCCESSFUL.
+
+---
+
+## 15. ELIMINACIÓN DEL FEATURE LOCAL / DESCARGAS
+
+Se eliminó **por completo** el feature local/descargas (pantalla Local, descarga de audio desde YouTube, importación de archivos y detección de audio con AcoustID/fpcalc), preservando las playlists de **Spotify/YouTube** (`PlaylistLocalRepository`), el historial de búsqueda y el resto de pantallas.
+
+### Ficheros eliminados
+- `ui/LocalScreen.kt` (~1.114 líneas: ventana Local con descargas, playlists locales e importación).
+- `utils/DownloadManager.kt` (descarga de YouTube, importación de audio y borrado de playlists locales).
+- `service/AudioDetection.kt` (detección de audio con fpcalc + AcoustID).
+- `database/DownloadedTrackEntity.kt`, `database/DownloadedTrackDao.kt`.
+- `database/LocalPlaylistEntity.kt`, `database/LocalPlaylistTrackEntity.kt`, `database/LocalPlaylistDao.kt`.
+
+### Código/UI retirado
+- `ui/AudioListScreen.kt`: `Screen.LOCAL` del enum y la rama `Screen.LOCAL -> LocalScreen(...)`.
+- `ui/HomeScreen.kt`: botón `< local >` (y su traducción `home_local` en los 4 idiomas).
+- `ui/components/SongListItem.kt`: botón de descarga del menú, acción de swipe `SWIPE_ACTION_DOWNLOAD` (icono + handler) e imports de `DownloadManager`/`PlaylistDatabase`/`withContext`/`Dispatchers`.
+- `ui/components/SongMenuDialog.kt`: opción de descargar, imports de `DownloadManager`/`PlaylistDatabase` y el parámetro `coroutineScope` (ya sin uso; se quitó también del caller en `FloatingMusicControls.kt`).
+- `utils/Config.kt`: `KEY_ACOUSTID_API_KEY`, `SWIPE_ACTION_DOWNLOAD` y los 3 métodos de AcoustID. `getSwipeLeftAction`/`getSwipeRightAction` **migran** el valor legacy `"download"` guardado en prefs al default. `clearAllApiKeys` ya no borra AcoustID.
+- `ui/ConfigScreen.kt`: sección `AcoustidApiConfigSection` + su llamada, el mapeo `keys["acust_id"]` de `SupabaseClient.getAutomaticKeys()` y la opción "download" (índice 4) de los dos `MultiToggle` de swipe.
+- `utils/Translations.kt`: **~40 claves** `acoustid_*`, `home_local`, `plyr_local`, `download` y `swipe_action_download` (+ comentarios de sección `// AcoustID Configuration`) en los 4 idiomas. Se conservan `note_local_storage` (credenciales) y `lastfm_*`.
+- `AndroidManifest.xml`: permisos `READ_EXTERNAL_STORAGE` y `READ_MEDIA_AUDIO` (solo los usaba la importación de la ventana Local).
+- `app/build.gradle.kts` + `gradle/libs.versions.toml`: dependencia `fpcalc-android` (QuickLyric).
+- `viewmodel/PlayerViewModel.kt`: rama de reproducción de archivos `file://` (muerta, solo la generaba el feature local).
+
+### Base de datos
+- `database/PlaylistDatabase.kt`: se quitan las 3 entidades y 2 DAOs del `@Database` (versión 5 → **6**) y se añade **`MIGRATION_5_6`** que hace `DROP TABLE IF EXISTS` de `downloaded_tracks`, `local_playlists` y `local_playlist_tracks`. Así los usuarios existentes conservan playlists, tracks e historial al abrir la app.
+
+### Lo que NO se tocó
+- `PlaylistLocalRepository` y la creación/edición de playlists de **Spotify y YouTube**, `PlaylistDao`/`TrackDao`/`SearchHistoryDao`, `SearchHistoryEntity`.
+- `SimpleDownloader`/`NewPipeHolder` (descarga de JSON de YouTube, sin relación con el feature eliminado).
+- Acciones de swipe restantes (`queue/liked/playlist/share`) y de shake/orientación, NFC, QR, feed, etc.
+
+### Tests
+- Ningún test referenciaba el feature (los 148 unit tests existentes se mantienen **148, 0 fallos** con `./run.sh test`). Compilación `:app:compileDebugKotlin` BUILD SUCCESSFUL.
 
 *Generado a partir de auditoría estática. Todos los hallazgos críticos están verificados contra el código. Los números de línea corresponden al estado actual del repo (commit working tree de 2026-08-02).*

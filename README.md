@@ -6,7 +6,7 @@
 [![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://www.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
 
-Built this music player because I wanted something simple with a terminal aesthetic. Streams from YouTube and Spotify, supports voice commands, has gesture controls for quick actions, and works with local files too. The UI is ASCII-inspired with monospace fonts everywhere.
+Built this music player because I wanted something simple with a terminal aesthetic. Streams from YouTube and Spotify, has gesture controls for quick actions. The UI is ASCII-inspired with monospace fonts everywhere.
 
 ## screenshots
 
@@ -51,8 +51,6 @@ FOREGROUND_SERVICE    # Background playback
 WAKE_LOCK             # Keep playing when screen off
 POST_NOTIFICATIONS    # Playback controls
 CAMERA                # QR code sharing
-READ_EXTERNAL_STORAGE # Save and load local songs
-READ_MEDIA_AUDIO      # Local music files
 ```
 
 

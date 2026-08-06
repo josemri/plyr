@@ -171,7 +171,6 @@ fun ConfigScreen(
                         // Mapear nombres de Supabase a nombres de Config
                         keys["client_id"]?.let { Config.setSpotifyClientId(context, it) }
                         keys["client_secret"]?.let { Config.setSpotifyClientSecret(context, it) }
-                        keys["acust_id"]?.let { Config.setAcoustidApiKey(context, it) }
                         keys["lastfm"]?.let { Config.setLastfmApiKey(context, it) }
                         // Actualizar el estado del botón después de cargar las credenciales
                         hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
@@ -195,7 +194,6 @@ fun ConfigScreen(
                                 // Mapear nombres de Supabase a nombres de Config
                                 keys["client_id"]?.let { Config.setSpotifyClientId(context, it) }
                                 keys["client_secret"]?.let { Config.setSpotifyClientSecret(context, it) }
-                                keys["acust_id"]?.let { Config.setAcoustidApiKey(context, it) }
                                 keys["lastfm"]?.let { Config.setLastfmApiKey(context, it) }
                                 // Actualizar el estado del botón después de cargar las credenciales
                                 hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
@@ -288,10 +286,6 @@ fun ConfigScreen(
             // Configuración de API (solo en modo manual)
             if (apiKeyMode == "manual") {
                 SpotifyApiConfigSection(context = context)
-
-                Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-                AcoustidApiConfigSection(context = context)
 
                 Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -547,67 +541,6 @@ fun SpotifyApiConfigSection(context: Context) {
 }
 
 @Composable
-fun AcoustidApiConfigSection(context: Context) {
-    var apiKey by remember { mutableStateOf(Config.getAcoustidApiKey(context) ?: "") }
-    val haptic = LocalHapticFeedback.current
-
-    val hasApiKey = Config.hasAcoustidApiKey(context)
-    val statusText = if (hasApiKey) Translations.get(context, "configured") else Translations.get(context, "not_configured")
-    val statusColor = if (hasApiKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-
-    CollapsibleSection(
-        title = Translations.get(context, "acoustid_status"),
-        statusText = statusText,
-        statusColor = statusColor
-    ) {
-        OutlinedTextField(
-            value = apiKey,
-            onValueChange = {
-                apiKey = it
-                Config.setAcoustidApiKey(context, it)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            textStyle = TextStyle(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onBackground
-            ),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            placeholder = {
-                Text(
-                    text = Translations.get(context, "enter_acoustid_api_key"),
-                    style = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                    )
-                )
-            }
-        )
-
-        // Info text
-        Text(
-            text = Translations.get(context, "acoustid_info"),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            lineHeight = 14.sp
-        )
-    }
-}
-
-@Composable
 fun LastfmApiConfigSection(context: Context) {
     var apiKey by remember { mutableStateOf(Config.getLastfmApiKey(context) ?: "") }
     val haptic = LocalHapticFeedback.current
@@ -750,15 +683,13 @@ fun GesturesConfigSection(context: Context) {
                         Translations.get(context, "swipe_action_queue"),
                         Translations.get(context, "swipe_action_liked"),
                         Translations.get(context, "swipe_action_playlist"),
-                        Translations.get(context, "swipe_action_share"),
-                        Translations.get(context, "swipe_action_download")
+                        Translations.get(context, "swipe_action_share")
                     ),
                     initialIndex = when (selectedSwipeLeftAction) {
                         Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
                         Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
                         Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
                         Config.SWIPE_ACTION_SHARE -> 3
-                        Config.SWIPE_ACTION_DOWNLOAD -> 4
                         else -> 0
                     },
                     onChange = { selectedIndex ->
@@ -767,7 +698,6 @@ fun GesturesConfigSection(context: Context) {
                             1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
                             2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
                             3 -> Config.SWIPE_ACTION_SHARE
-                            4 -> Config.SWIPE_ACTION_DOWNLOAD
                             else -> Config.SWIPE_ACTION_ADD_TO_QUEUE
                         }
                         Config.setSwipeLeftAction(context, selectedSwipeLeftAction)
@@ -793,15 +723,13 @@ fun GesturesConfigSection(context: Context) {
                         Translations.get(context, "swipe_action_queue"),
                         Translations.get(context, "swipe_action_liked"),
                         Translations.get(context, "swipe_action_playlist"),
-                        Translations.get(context, "swipe_action_share"),
-                        Translations.get(context, "swipe_action_download")
+                        Translations.get(context, "swipe_action_share")
                     ),
                     initialIndex = when (selectedSwipeRightAction) {
                         Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
                         Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
                         Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
                         Config.SWIPE_ACTION_SHARE -> 3
-                        Config.SWIPE_ACTION_DOWNLOAD -> 4
                         else -> 1
                     },
                     onChange = { selectedIndex ->
@@ -810,7 +738,6 @@ fun GesturesConfigSection(context: Context) {
                             1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
                             2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
                             3 -> Config.SWIPE_ACTION_SHARE
-                            4 -> Config.SWIPE_ACTION_DOWNLOAD
                             else -> Config.SWIPE_ACTION_ADD_TO_LIKED
                         }
                         Config.setSwipeRightAction(context, selectedSwipeRightAction)

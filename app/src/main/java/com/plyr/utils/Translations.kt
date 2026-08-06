@@ -32,7 +32,6 @@ object Translations {
             "info" to "> información",
             "info_text" to "    ● ¡no piratees música!\n    ● cambia el motor con yt: / sp:",
             "spotify_status" to "> estado_sptfy",
-            "acoustid_status" to "> estado_acoustid",
             "client" to "    ● cliente:",
             "api" to "    ● api:",
             "connected" to "conectado",
@@ -65,10 +64,6 @@ object Translations {
             "loading_recommendations" to "<generando recomendaciones...>",
             "share_with_NFC" to "<compartir con NFC>",
 
-            // AcoustID Configuration
-            "acoustid_api_key" to "    ● acoustid_api_key:",
-            "enter_acoustid_api_key" to "introduce tu api key de acoustid",
-            "acoustid_info" to "      AcoustID es un servicio gratuito para identificar música.\n      Cómo obtener tu API Key:\n      1. Ve a https://acoustid.org/new-application\n      2. Crea una cuenta o inicia sesión\n      3. Crea una nueva aplicación (nombre: 'plyr')\n      4. Copia tu API Key y pégala arriba\n      5. Esta key te permite identificar canciones desde la app",
 
             // Last.fm Configuration
             "lastfm_status" to "> estado_lastfm",
@@ -91,7 +86,6 @@ object Translations {
             "home_search" to "buscar",
             "home_playlists" to "listas",
             "home_queue" to "cola",
-            "home_local" to "local",
             "home_feed" to "feed",
             "home_settings" to "ajustes",
             "exit_message" to "Presiona de nuevo para salir",
@@ -187,7 +181,6 @@ object Translations {
             "playlist_name_placeholder" to "Nombre de la playlist",
 
             // Local Screen
-            "plyr_local" to "plyr_local",
             "unknown error" to "error desconocido",
             "No tracks downloaded" to "Ninguna canción descargada",
             "delete track" to "eliminar canción",
@@ -241,14 +234,12 @@ object Translations {
             "share" to "compartir",
             "add_to_liked_songs" to "añadir a favoritos",
             "remove_from_liked_songs" to "quitar de favoritos",
-            "download" to "descargar",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "cola",
             "swipe_action_liked" to "fav",
             "swipe_action_playlist" to "lista",
             "swipe_action_share" to "share",
-            "swipe_action_download" to "down",
 
             // Gestures Configuration
             "gestures_section" to "> gestos",
@@ -316,7 +307,6 @@ object Translations {
             "login" to "<login>",
             "info_text" to "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
             "spotify_status" to "> sptfy_status",
-            "acoustid_status" to "> acoustid_status",
             "client" to "    ● client:",
             "api" to "    ● api:",
             "connected" to "connected",
@@ -353,10 +343,6 @@ object Translations {
             "orientation_for" to "    orientation for:",
             "share_me" to "< share me! >",
 
-            // AcoustID Configuration
-            "acoustid_api_key" to "    ● acoustid_api_key:",
-            "enter_acoustid_api_key" to "enter your acoustid api key",
-            "acoustid_info" to "      AcoustID is a free service for music identification.\n      How to get your API Key:\n      1. Go to https://acoustid.org/new-application\n      2. Create an account or log in\n      3. Create a new application (name: 'plyr')\n      4. Copy your API Key and paste it above\n      5. This key allows you to identify songs from the app",
 
             // Last.fm Configuration
             "lastfm_status" to "> lastfm_status",
@@ -379,7 +365,6 @@ object Translations {
             "home_search" to "search",
             "home_playlists" to "playlists",
             "home_queue" to "queue",
-            "home_local" to "local",
             "home_feed" to "feed",
             "home_settings" to "settings",
             "exit_message" to "Press back again to exit",
@@ -494,14 +479,12 @@ object Translations {
             "share" to "share",
             "add_to_liked_songs" to "add to liked songs",
             "remove_from_liked_songs" to "remove from liked songs",
-            "download" to "download",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "queue",
             "swipe_action_liked" to "fav",
             "swipe_action_playlist" to "list",
             "swipe_action_share" to "share",
-            "swipe_action_download" to "down",
 
             // Gestures Configuration
             "gestures_section" to "> gestures",
@@ -563,7 +546,6 @@ object Translations {
             "info" to "> info",
             "info_text" to "    ● no piratejis música!\n    ● Canvia motor amb yt: / sp:",
             "spotify_status" to "> estat_sptfy",
-            "acoustid_status" to "> estat_acoustid",
             "login" to "<iniciar_sessió>",
             "client" to "    ● client:",
             "api" to "    ● api:",
@@ -601,10 +583,6 @@ object Translations {
             "orientation_for" to "    orientar per:",
             "share_me" to "< Comparteix-me! >",
 
-            // AcoustID Configuration
-            "acoustid_api_key" to "    ● acoustid_api_key:",
-            "enter_acoustid_api_key" to "introdueix la teva api key de acoustid",
-            "acoustid_info" to "      AcoustID és un servei gratuït per identificar música.\n      Com obtenir la teva API Key:\n      1. Ves a https://acoustid.org/new-application\n      2. Crea un compte o inicia sessió\n      3. Crea una nova aplicació (nom: 'plyr')\n      4. Copia la teva API Key i enganxa-la a dalt\n      5. Aquesta key et permet identificar cançons des de l'app",
 
             // Last.fm Configuration
             "lastfm_status" to "> estat_lastfm",
@@ -627,7 +605,6 @@ object Translations {
             "home_search" to "cercar",
             "home_playlists" to "llistes",
             "home_queue" to "cua",
-            "home_local" to "local",
             "home_feed" to "feed",
             "home_settings" to "ajustos",
             "exit_message" to "Prem de nou per sortir",
@@ -723,7 +700,6 @@ object Translations {
             "playlist_name_placeholder" to "Nom de la playlist",
 
             // Local Screen
-            "plyr_local" to "plyr_ローカル",
             "unknown error" to "不明なエラー",
             "No tracks downloaded" to "ダウンロードされた曲はありません",
             "delete track" to "曲を削除",
@@ -777,14 +753,12 @@ object Translations {
             "share" to "共有",
             "add_to_liked_songs" to "お気に入りに追加",
             "remove_from_liked_songs" to "お気に入りから削除",
-            "download" to "ダウンロード",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "キュー",
             "swipe_action_liked" to "お気に",
             "swipe_action_playlist" to "リスト",
             "swipe_action_share" to "共有",
-            "swipe_action_download" to "ダウン",
 
             // Gestures Configuration
             "gestures_section" to "> ジェスチャー",
@@ -852,7 +826,6 @@ object Translations {
             "info" to "> 情報",
             "info_text" to "    ● 音楽の海賊行為はやめよう!\n    ● エンジン切替: yt: / sp:",
             "spotify_status" to "> sptfy_ステータス",
-            "acoustid_status" to "> acoustid_ステータス",
             "login" to "<ログイン>",
             "client" to "    ● クライアント:",
             "api" to "    ● api:",
@@ -890,10 +863,6 @@ object Translations {
             "orientation_for" to "    向けて:",
             "share_me" to "< 私を共有！ >",
 
-            // AcoustID Configuration
-            "acoustid_api_key" to "    ● acoustid_api_key:",
-            "enter_acoustid_api_key" to "acoustid api keyを入力",
-            "acoustid_info" to "      AcoustIDは音楽識別のための無料サービスです。\n      API Keyの取得方法:\n      1. https://acoustid.org/new-application にアクセス\n      2. アカウントを作成またはログイン\n      3. 新しいアプリケーションを作成 (名前: 'plyr')\n      4. API Keyをコピーして上に貼り付け\n      5. このkeyでアプリから曲を識別できます",
 
             // Last.fm Configuration
             "lastfm_status" to "> lastfm_ステータス",
@@ -916,7 +885,6 @@ object Translations {
             "home_search" to "検索",
             "home_playlists" to "リスト",
             "home_queue" to "キュー",
-            "home_local" to "ローカル",
             "home_feed" to "feed",
             "home_settings" to "設定",
             "exit_message" to "もう一度押すと終了します",
@@ -1012,7 +980,6 @@ object Translations {
             "playlist_name_placeholder" to "プレイリスト名",
 
             // Local Screen
-            "plyr_local" to "plyr_ローカル",
             "unknown error" to "不明なエラー",
             "No tracks downloaded" to "ダウンロードされた曲はありません",
             "delete track" to "曲を削除",
@@ -1066,14 +1033,12 @@ object Translations {
             "share" to "共有",
             "add_to_liked_songs" to "お気に入りに追加",
             "remove_from_liked_songs" to "お気に入りから削除",
-            "download" to "ダウンロード",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "キュー",
             "swipe_action_liked" to "お気に",
             "swipe_action_playlist" to "リスト",
             "swipe_action_share" to "共有",
-            "swipe_action_download" to "ダウン",
 
             // Gestures Configuration
             "gestures_section" to "> ジェスチャー",

@@ -4,7 +4,6 @@ cameraCore = "1.6.1"
 coilCompose = "2.7.0"
 core = "3.5.4"
 coreSplashscreen = "1.2.0"
-fpcalcAndroid = "1.0.2b"
 gson = "2.14.0"
 kotlin = "2.3.21"
 coreKtx = "1.18.0"
@@ -42,7 +41,6 @@ androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "roomRunt
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "roomRuntime" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coilCompose" }
 core = { module = "com.google.zxing:core", version.ref = "core" }
-fpcalc-android = { module = "com.github.QuickLyric:fpcalc-android", version.ref = "fpcalcAndroid" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

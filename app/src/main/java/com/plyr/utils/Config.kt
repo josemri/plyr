@@ -40,7 +40,6 @@ object Config {
     private const val KEY_SPOTIFY_CLIENT_ID = "spotify_client_id"
     private const val KEY_SPOTIFY_CLIENT_SECRET = "spotify_client_secret"
     private const val KEY_SPOTIFY_USER_NAME = "spotify_user_name"
-    private const val KEY_ACOUSTID_API_KEY = "acoustid_api_key"
     private const val KEY_LASTFM_API_KEY = "lastfm_api_key"
     private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
@@ -101,7 +100,6 @@ object Config {
     const val SWIPE_ACTION_ADD_TO_LIKED = "add_to_liked_songs"
     const val SWIPE_ACTION_ADD_TO_PLAYLIST = "add_to_playlist"
     const val SWIPE_ACTION_SHARE = "share"
-    const val SWIPE_ACTION_DOWNLOAD = "download"
 
     // === CONSTANTES PÚBLICAS DE ACCIONES DE SHAKE ===
 
@@ -443,7 +441,13 @@ object Config {
      * @return Acción actual (por defecto "add_to_queue")
      */
     fun getSwipeLeftAction(context: Context): String {
-        return getPrefs(context).getString(KEY_SWIPE_LEFT_ACTION, DEFAULT_SWIPE_LEFT_ACTION) ?: DEFAULT_SWIPE_LEFT_ACTION
+        val action = getPrefs(context).getString(KEY_SWIPE_LEFT_ACTION, DEFAULT_SWIPE_LEFT_ACTION) ?: DEFAULT_SWIPE_LEFT_ACTION
+        // Migración: la antigua acción "download" del feature local ya no existe
+        if (action == "download") {
+            setSwipeLeftAction(context, DEFAULT_SWIPE_LEFT_ACTION)
+            return DEFAULT_SWIPE_LEFT_ACTION
+        }
+        return action
     }
 
     /**
@@ -463,7 +467,13 @@ object Config {
      * @return Acción actual (por defecto "add_to_liked_songs")
      */
     fun getSwipeRightAction(context: Context): String {
-        return getPrefs(context).getString(KEY_SWIPE_RIGHT_ACTION, DEFAULT_SWIPE_RIGHT_ACTION) ?: DEFAULT_SWIPE_RIGHT_ACTION
+        val action = getPrefs(context).getString(KEY_SWIPE_RIGHT_ACTION, DEFAULT_SWIPE_RIGHT_ACTION) ?: DEFAULT_SWIPE_RIGHT_ACTION
+        // Migración: la antigua acción "download" del feature local ya no existe
+        if (action == "download") {
+            setSwipeRightAction(context, DEFAULT_SWIPE_RIGHT_ACTION)
+            return DEFAULT_SWIPE_RIGHT_ACTION
+        }
+        return action
     }
 
     // === GESTIÓN DE ACCIÓN DE SHAKE ===
@@ -514,38 +524,6 @@ object Config {
      */
     fun getOrientationAction(context: Context): String {
         return getPrefs(context).getString(KEY_ORIENTATION_ACTION, DEFAULT_ORIENTATION_ACTION) ?: DEFAULT_ORIENTATION_ACTION
-    }
-
-    // === GESTIÓN DE ACOUSTID API KEY ===
-
-    /**
-     * Obtiene la API Key de AcoustID configurada por el usuario.
-     * @param context Contexto de la aplicación
-     * @return API Key de AcoustID o null si no está configurada
-     */
-    fun getAcoustidApiKey(context: Context): String? {
-        return getPrefs(context).getString(KEY_ACOUSTID_API_KEY, null)
-    }
-
-    /**
-     * Establece la API Key de AcoustID del usuario.
-     * @param context Contexto de la aplicación
-     * @param apiKey API Key de AcoustID
-     */
-    fun setAcoustidApiKey(context: Context, apiKey: String) {
-        getPrefs(context).edit {
-            putString(KEY_ACOUSTID_API_KEY, apiKey.trim())
-        }
-    }
-
-    /**
-     * Verifica si el usuario tiene una API Key de AcoustID configurada.
-     * @param context Contexto de la aplicación
-     * @return true si tiene la API Key configurada, false en caso contrario
-     */
-    fun hasAcoustidApiKey(context: Context): Boolean {
-        val apiKey = getPrefs(context).getString(KEY_ACOUSTID_API_KEY, null)
-        return !apiKey.isNullOrBlank()
     }
 
     // === GESTIÓN DE LASTFM API KEY ===
@@ -664,14 +642,13 @@ object Config {
     }
 
     /**
-     * Limpia todas las API keys almacenadas (Spotify, AcoustID, Last.fm).
+     * Limpia todas las API keys almacenadas (Spotify y Last.fm).
      * @param context Contexto de la aplicación
      */
     fun clearAllApiKeys(context: Context) {
         getPrefs(context).edit {
             remove(KEY_SPOTIFY_CLIENT_ID)
             remove(KEY_SPOTIFY_CLIENT_SECRET)
-            remove(KEY_ACOUSTID_API_KEY)
             remove(KEY_LASTFM_API_KEY)
         }
         // También limpiar tokens de Spotify

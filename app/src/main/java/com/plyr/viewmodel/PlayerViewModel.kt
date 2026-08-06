@@ -102,16 +102,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _currentTitle.postValue("${track.name} - ${track.artists}")
 
             val audioUrl = withContext(Dispatchers.IO) {
-                // Verificar si audioUrl es una ruta de archivo local
-                if (track.audioUrl != null && (track.audioUrl.startsWith("/") || track.audioUrl.startsWith("file://"))) {
-                    val localFile = java.io.File(track.audioUrl.removePrefix("file://"))
-
-                    if (localFile.exists()) {
-                        return@withContext track.audioUrl
-                    }
-                }
-
-                // Si no es archivo local, obtener de YouTube
+                // Obtener de YouTube
                 val videoId = track.youtubeVideoId ?: YouTubeManager.searchVideoId("${track.name} ${track.artists}")
                 videoId?.let { YouTubeManager.getAudioUrl(it) }
             }

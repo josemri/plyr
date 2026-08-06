@@ -33,13 +33,9 @@ import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.network.SpotifyRepository
 import com.plyr.utils.Config
-import com.plyr.utils.DownloadManager
 import com.plyr.utils.Translations
-import com.plyr.database.PlaylistDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.Dispatchers
 import com.plyr.ui.theme.PlyrSpacing
 import com.plyr.ui.theme.PlyrTextStyles
 
@@ -61,7 +57,6 @@ private fun getSwipeIconAndColor(action: String): Pair<String, Color> {
         Config.SWIPE_ACTION_ADD_TO_LIKED -> "♥" to MaterialTheme.colorScheme.error
         Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> "≡" to MaterialTheme.colorScheme.tertiary
         Config.SWIPE_ACTION_SHARE -> "⤴" to MaterialTheme.colorScheme.secondary
-        Config.SWIPE_ACTION_DOWNLOAD -> "↓" to MaterialTheme.colorScheme.primary
         else -> "?" to MaterialTheme.colorScheme.onSurfaceVariant
     }
 }
@@ -610,74 +605,6 @@ fun SongListItem(
                                 }
                                 .padding(vertical = 4.dp)
                         )
-
-                        // Download
-                        Text(
-                            text = Translations.get(context, "download"),
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Normal,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    showPopup = false
-                                    coroutineScope.launch {
-                                        // Obtener el youtubeId
-                                        val trackEntity = if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
-                                            trackEntities[index]
-                                        } else null
-
-                                        val initialYoutubeId = trackEntity?.youtubeVideoId ?: song.youtubeId
-
-                                        // Si no tenemos youtubeId, buscarlo
-                                        val finalYoutubeId = if (initialYoutubeId == null) {
-                                            withContext(Dispatchers.IO) {
-                                                val searchQuery = "${song.title} ${song.artist}"
-                                                Log.d("SongListItem", "YouTube ID not available, searching with query: '$searchQuery'")
-                                                val foundId = com.plyr.network.YouTubeManager.searchVideoId(searchQuery)
-                                                Log.d("SongListItem", "YouTube search result: ${if (foundId != null) "Found ID: $foundId" else "NOT FOUND"}")
-                                                foundId
-                                            }
-                                        } else {
-                                            Log.d("SongListItem", "Using existing YouTube ID: $initialYoutubeId")
-                                            initialYoutubeId
-                                        }
-
-                                        if (finalYoutubeId != null) {
-                                            // Verificar si ya está descargada usando YouTube ID
-                                            val database = PlaylistDatabase.getDatabase(context)
-                                            val alreadyDownloaded = database.downloadedTrackDao()
-                                                .isTrackDownloadedByYoutubeId(finalYoutubeId) > 0
-
-                                            if (alreadyDownloaded) {
-                                                Log.d("SongListItem", "Track already downloaded")
-                                            } else {
-                                                Log.d("SongListItem", "Starting download: ${song.title}")
-                                                DownloadManager.downloadTrack(
-                                                    context = context,
-                                                    spotifyTrackId = song.spotifyId,
-                                                    youtubeVideoId = finalYoutubeId,
-                                                    trackName = song.title,
-                                                    artists = song.artist,
-                                                    onProgress = { progress ->
-                                                        Log.d("SongListItem", "Download progress: $progress%")
-                                                    },
-                                                    onComplete = { success, error ->
-                                                        if (success) {
-                                                            Log.d("SongListItem", "✓ Download completed: ${song.title}")
-                                                        } else {
-                                                            Log.e("SongListItem", "✗ Download failed: $error")
-                                                        }
-                                                    }
-                                                )
-                                            }
-                                        } else {
-                                            Log.e("SongListItem", "Cannot download: YouTube video not found for query: '${song.title} ${song.artist}'")
-                                        }
-                                    }
-                                }
-                                .padding(vertical = 4.dp)
-                        )
                     }
                 }
             }
@@ -937,57 +864,6 @@ fun executeSwipeAction(
         Config.SWIPE_ACTION_SHARE -> {
             // Compartir
             onShowShareDialog()
-        }
-        Config.SWIPE_ACTION_DOWNLOAD -> {
-            // Descargar
-            coroutineScope.launch {
-                // Obtener el youtubeId
-                val trackEntity = if (trackEntities.isNotEmpty() && index in trackEntities.indices) {
-                    trackEntities[index]
-                } else null
-
-                val initialYoutubeId = trackEntity?.youtubeVideoId ?: song.youtubeId
-
-                // Si no tenemos youtubeId, buscarlo
-                val finalYoutubeId = initialYoutubeId
-                    ?: withContext(Dispatchers.IO) {
-                        val searchQuery = "${song.title} ${song.artist}"
-                        Log.d("SongListItem", "YouTube ID not available, searching with query: '$searchQuery'")
-                        com.plyr.network.YouTubeManager.searchVideoId(searchQuery)
-                    }
-
-                if (finalYoutubeId != null) {
-                    // Verificar si ya está descargada usando YouTube ID
-                    val database = PlaylistDatabase.getDatabase(context)
-                    val alreadyDownloaded = database.downloadedTrackDao()
-                        .isTrackDownloadedByYoutubeId(finalYoutubeId) > 0
-
-                    if (alreadyDownloaded) {
-                        Log.d("SongListItem", "Track already downloaded")
-                    } else {
-                        Log.d("SongListItem", "Starting download: ${song.title}")
-                        DownloadManager.downloadTrack(
-                            context = context,
-                            spotifyTrackId = song.spotifyId,
-                            youtubeVideoId = finalYoutubeId,
-                            trackName = song.title,
-                            artists = song.artist,
-                            onProgress = { progress ->
-                                Log.d("SongListItem", "Download progress: $progress%")
-                            },
-                            onComplete = { success, error ->
-                                if (success) {
-                                    Log.d("SongListItem", "✓ Download completed: ${song.title}")
-                                } else {
-                                    Log.e("SongListItem", "✗ Download failed: $error")
-                                }
-                            }
-                        )
-                    }
-                } else {
-                    Log.e("SongListItem", "Cannot download: YouTube video not found")
-                }
-            }
         }
         else -> {
             Log.w("SongListItem", "Acción desconocida para swipe: $action")
