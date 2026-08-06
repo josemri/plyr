@@ -37,17 +37,21 @@ import com.plyr.database.*
 import com.plyr.network.SpotifyPlaylist
 import com.plyr.network.SpotifyRepository
 import com.plyr.network.SpotifyTrack
+import com.plyr.network.SpotifyArtist
 import com.plyr.network.SpotifyAlbum
 import com.plyr.network.SpotifyArtistFull
 import com.plyr.utils.Config
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
+import com.plyr.service.YouTubePlaylistCreator
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
 import com.plyr.ui.components.ShareDialog
 import com.plyr.ui.components.ShareableItem
 import com.plyr.ui.components.ShareType
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -61,9 +65,10 @@ import com.plyr.ui.components.ActionButtonData
 import com.plyr.ui.components.ActionButtonsGroup
 
 private fun getYouTubeChannelName(playlistEntity: PlaylistEntity?): String? {
-    return playlistEntity?.description
-        ?.removePrefix("YouTube Playlist by ")
-        ?.takeIf { it.isNotBlank() }
+    val description = playlistEntity?.description ?: return null
+    return if (description.startsWith("YouTube Playlist by ")) {
+        description.removePrefix("YouTube Playlist by ").takeIf { it.isNotBlank() }
+    } else null
 }
 
 private fun youtubeThumbTo16to9(url: String?): String? = UrlParser.normalizeYoutubeThumb(url)
@@ -388,7 +393,7 @@ fun PlaylistsScreen(
     ) {
         //si se pulsa boton de <new> mostrar CreatePlaylistScreen
         if (showCreatePlaylistScreen) {
-            CreateSpotifyPlaylistScreen(
+            CreatePlaylistScreen(
                 onBack = { showCreatePlaylistScreen = false },
                 onPlaylistCreated = { showCreatePlaylistScreen = false; loadPlaylists() },
                 playerViewModel = playerViewModel
@@ -397,26 +402,27 @@ fun PlaylistsScreen(
         }
         Titulo(if (selectedPlaylist == null) Translations.get(context, "plyr_lists") else selectedPlaylist!!.name)
 
-        // Botón de sincronización manual (solo visible si está conectado y no es una playlist individual)
-        if (isSpotifyConnected && selectedPlaylist == null) {
-            ActionButtonsGroup(listOf(
-		    ActionButtonData(
-		        text = Translations.get(context, if (isSyncing) "<syncing...>" else "<sync>"),
-				color = if (isSyncing) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-		        onClick = {
-		            forceSyncAll()
-		            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-		        },
-		        enabled = !isSyncing
-		    ),
-		    ActionButtonData(
-		        text = Translations.get(context, "<new>"),
-		        color = MaterialTheme.colorScheme.primary,
-		        onClick = { showCreatePlaylistScreen = true },
-		        enabled = !isSyncing
-			    )
-			)
-		    )
+        // Botón de sincronización manual (solo si está conectado) y de nueva playlist (siempre)
+        if (selectedPlaylist == null) {
+            val buttons = mutableListOf<ActionButtonData>()
+            if (isSpotifyConnected) {
+                buttons += ActionButtonData(
+                    text = Translations.get(context, if (isSyncing) "<syncing...>" else "<sync>"),
+                    color = if (isSyncing) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                    onClick = {
+                        forceSyncAll()
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    },
+                    enabled = !isSyncing
+                )
+            }
+            buttons += ActionButtonData(
+                text = Translations.get(context, "<new>"),
+                color = MaterialTheme.colorScheme.primary,
+                onClick = { showCreatePlaylistScreen = true },
+                enabled = !isSyncing
+            )
+            ActionButtonsGroup(buttons = buttons)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -531,8 +537,9 @@ fun PlaylistsScreen(
                     var showShareDialog by remember { mutableStateOf(false) }
 
                     // Determinar si la playlist seleccionada es editable (es 'mía')
+                    // Las playlists de YouTube (prefijo youtube_) también son editables: son locales
                     val isYouTubePlaylistView = selectedPlaylist?.id?.startsWith("youtube_") == true
-                    val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs" && !isYouTubePlaylistView
+                    val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs"
 
  // Función para parar todas las reproducciones
                      fun stopAllPlayback() {
@@ -731,41 +738,64 @@ fun PlaylistsScreen(
                                         if (isEditing) {
                                             // Al hacer clic en save, verificar si hay cambios sin guardar
                                             if (hasUnsavedChanges) {
-                                                // Guardar cambios en Spotify
-                                                val accessToken = Config.getSpotifyAccessToken(context)
-                                                if (accessToken != null && selectedPlaylist != null) {
-                                                    // Mostrar indicador de carga
+                                                if (isYouTubePlaylistView && selectedPlaylist != null) {
+                                                    // Guardar cambios en la playlist de YouTube local
                                                     isLoadingTracks = true
-
-                                                    SpotifyRepository.updatePlaylistDetails(
-                                                        accessToken = accessToken,
-                                                        playlistId = selectedPlaylist!!.id,
-                                                        name = if (newTitle != originalTitle) newTitle else null,
-                                                        description = if (newDesc != originalDesc) newDesc else null
-                                                    ) { success, errorMsg ->
+                                                    coroutineScope.launch {
+                                                        val success = localRepository.updatePlaylistDetails(
+                                                            localPlaylistId = selectedPlaylist!!.id,
+                                                            newTitle = if (newTitle != originalTitle) newTitle else null,
+                                                            newDesc = if (newDesc != originalDesc) newDesc else null
+                                                        )
+                                                        isLoadingTracks = false
                                                         if (success) {
-                                                            // Sincronizar playlists después de EDITAR
-                                                            coroutineScope.launch {
-                                                                localRepository.syncPlaylistsFromSpotify()
-                                                                // Esperar a que termine la sincronización
-                                                                kotlinx.coroutines.delay(500)
-                                                                isLoadingTracks = false
-                                                                // Salir del modo edición y volver al listado
-                                                                isEditing = false
-                                                                hasUnsavedChanges = false
-                                                                selectedPlaylist = null
-                                                                playlistTracks = emptyList()
-                                                            }
+                                                            // Salir del modo edición y volver al listado
+                                                            isEditing = false
+                                                            hasUnsavedChanges = false
+                                                            selectedPlaylist = null
+                                                            playlistTracks = emptyList()
+                                                            loadPlaylists()
                                                         } else {
-                                                            isLoadingTracks = false
-                                                            // Mostrar error
-                                                            Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
+                                                            Log.e("PlaylistScreen", "Error actualizando playlist de YouTube local")
                                                         }
                                                     }
                                                 } else {
-                                                    // Si no hay token, solo resetear el flag y salir
-                                                    hasUnsavedChanges = false
-                                                    isEditing = false
+                                                    // Guardar cambios en Spotify
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null && selectedPlaylist != null) {
+                                                        // Mostrar indicador de carga
+                                                        isLoadingTracks = true
+
+                                                        SpotifyRepository.updatePlaylistDetails(
+                                                            accessToken = accessToken,
+                                                            playlistId = selectedPlaylist!!.id,
+                                                            name = if (newTitle != originalTitle) newTitle else null,
+                                                            description = if (newDesc != originalDesc) newDesc else null
+                                                        ) { success, errorMsg ->
+                                                            if (success) {
+                                                                // Sincronizar playlists después de EDITAR
+                                                                coroutineScope.launch {
+                                                                    localRepository.syncPlaylistsFromSpotify()
+                                                                    // Esperar a que termine la sincronización
+                                                                    kotlinx.coroutines.delay(500)
+                                                                    isLoadingTracks = false
+                                                                    // Salir del modo edición y volver al listado
+                                                                    isEditing = false
+                                                                    hasUnsavedChanges = false
+                                                                    selectedPlaylist = null
+                                                                    playlistTracks = emptyList()
+                                                                }
+                                                            } else {
+                                                                isLoadingTracks = false
+                                                                // Mostrar error
+                                                                Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
+                                                            }
+                                                        }
+                                                    } else {
+                                                        // Si no hay token, solo resetear el flag y salir
+                                                        hasUnsavedChanges = false
+                                                        isEditing = false
+                                                    }
                                                 }
                                             } else {
                                                 // Si no hay cambios, solo salir del modo edición
@@ -825,26 +855,38 @@ fun PlaylistsScreen(
                                     TextButton(
                                         onClick = {
                                             showDeleteDialog = false
-                                            // Eliminar la playlist
-                                            val accessToken = Config.getSpotifyAccessToken(context)
-                                            if (accessToken != null && selectedPlaylist != null) {
+                                            if (isYouTubePlaylistView && selectedPlaylist != null) {
+                                                // Eliminar playlist de YouTube local (sin token de Spotify)
                                                 coroutineScope.launch {
-                                                    SpotifyRepository.unfollowPlaylist(
-                                                        accessToken,
-                                                        selectedPlaylist!!.id
-                                                    ) { success: Boolean, errorMsg: String? ->
-                                                        if (success) {
-                                                            // Sincronizar playlists después de eliminar
-                                                            coroutineScope.launch {
-                                                                localRepository.syncPlaylistsFromSpotify()
+                                                    localRepository.deleteYouTubePlaylist(selectedPlaylist!!.id.removePrefix("youtube_"))
+                                                    isEditing = false
+                                                    hasUnsavedChanges = false
+                                                    selectedPlaylist = null
+                                                    playlistTracks = emptyList()
+                                                    loadPlaylists()
+                                                }
+                                            } else {
+                                                // Eliminar la playlist
+                                                val accessToken = Config.getSpotifyAccessToken(context)
+                                                if (accessToken != null && selectedPlaylist != null) {
+                                                    coroutineScope.launch {
+                                                        SpotifyRepository.unfollowPlaylist(
+                                                            accessToken,
+                                                            selectedPlaylist!!.id
+                                                        ) { success: Boolean, errorMsg: String? ->
+                                                            if (success) {
+                                                                // Sincronizar playlists después de eliminar
+                                                                coroutineScope.launch {
+                                                                    localRepository.syncPlaylistsFromSpotify()
+                                                                }
+                                                                // Salir del modo edición y volver a la lista
+                                                                isEditing = false
+                                                                hasUnsavedChanges = false
+                                                                selectedPlaylist = null
+                                                                playlistTracks = emptyList()
+                                                                // Recargar la lista de playlists
+                                                                loadPlaylists()
                                                             }
-                                                            // Salir del modo edición y volver a la lista
-                                                            isEditing = false
-                                                            hasUnsavedChanges = false
-                                                            selectedPlaylist = null
-                                                            playlistTracks = emptyList()
-                                                            // Recargar la lista de playlists
-                                                            loadPlaylists()
                                                         }
                                                     }
                                                 }
@@ -966,15 +1008,39 @@ fun PlaylistsScreen(
                                             onSearch = {
                                                 if (searchQuery.isNotBlank() && !isSearching) {
                                                     isSearching = true
-                                                    val accessToken = Config.getSpotifyAccessToken(context)
-                                                    if (accessToken != null) {
+                                                    if (isYouTubePlaylistView) {
+                                                        // Búsqueda de vídeos de YouTube con la integración existente
                                                         coroutineScope.launch {
-                                                            SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
-                                                                isSearching = false
-                                                                if (results != null) {
-                                                                    searchResults = results.tracks.items
-                                                                } else {
-                                                                    editError = errorMsg
+                                                            val result = try {
+                                                                youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
+                                                            } catch (e: Exception) {
+                                                                Log.e("PlaylistScreen", "Error buscando en YouTube: ${e.message}")
+                                                                null
+                                                            }
+                                                            isSearching = false
+                                                            if (result != null) {
+                                                                searchResults = result.videos.map { video ->
+                                                                    SpotifyTrack(
+                                                                        id = video.videoId,
+                                                                        name = video.title,
+                                                                        artists = listOf(SpotifyArtist(video.uploader))
+                                                                    )
+                                                                }
+                                                            } else {
+                                                                editError = "YouTube search failed"
+                                                            }
+                                                        }
+                                                    } else {
+                                                        val accessToken = Config.getSpotifyAccessToken(context)
+                                                        if (accessToken != null) {
+                                                            coroutineScope.launch {
+                                                                SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
+                                                                    isSearching = false
+                                                                    if (results != null) {
+                                                                        searchResults = results.tracks.items
+                                                                    } else {
+                                                                        editError = errorMsg
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -1046,24 +1112,50 @@ fun PlaylistsScreen(
                                             isCurrentlyPlaying = isPlaying,
                                             customButtonIcon = "+",
                                             customButtonAction = {
-                                                // Añadir canción a la playlist
-                                                val accessToken = Config.getSpotifyAccessToken(context)
-                                                if (accessToken != null && selectedPlaylist != null) {
+                                                if (isYouTubePlaylistView && selectedPlaylist != null) {
+                                                    // Añadir track a la playlist de YouTube local (videoId ya resuelto)
                                                     coroutineScope.launch {
-                                                        SpotifyRepository.addTrackToPlaylist(
-                                                            accessToken,
-                                                            selectedPlaylist!!.id,
-                                                            track.id
-                                                        ) { success, errorMsg ->
-                                                            if (success) {
-                                                                searchResults = emptyList()
-                                                                searchQuery = ""
-                                                                // Recargar tracks
-                                                                coroutineScope.launch {
-                                                                    localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
+                                                        val success = localRepository.addTrackToYouTubePlaylist(
+                                                            localPlaylistId = selectedPlaylist!!.id,
+                                                            track = TrackEntity(
+                                                                id = "",
+                                                                playlistId = selectedPlaylist!!.id,
+                                                                spotifyTrackId = track.id,
+                                                                name = track.name,
+                                                                artists = track.getArtistNames(),
+                                                                youtubeVideoId = track.id.takeIf { it.length == 11 },
+                                                                audioUrl = null,
+                                                                position = 0,
+                                                                lastSyncTime = System.currentTimeMillis()
+                                                            )
+                                                        )
+                                                        if (success) {
+                                                            searchResults = emptyList()
+                                                            searchQuery = ""
+                                                        } else {
+                                                            editError = "Error adding track"
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Añadir canción a la playlist
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null && selectedPlaylist != null) {
+                                                        coroutineScope.launch {
+                                                            SpotifyRepository.addTrackToPlaylist(
+                                                                accessToken,
+                                                                selectedPlaylist!!.id,
+                                                                track.id
+                                                            ) { success, errorMsg ->
+                                                                if (success) {
+                                                                    searchResults = emptyList()
+                                                                    searchQuery = ""
+                                                                    // Recargar tracks
+                                                                    coroutineScope.launch {
+                                                                        localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
+                                                                    }
+                                                                } else {
+                                                                    editError = errorMsg
                                                                 }
-                                                            } else {
-                                                                editError = errorMsg
                                                             }
                                                         }
                                                     }
@@ -1117,22 +1209,35 @@ fun PlaylistsScreen(
                                             isCurrentlyPlaying = isPlaying,
                                             customButtonIcon = "x",
                                             customButtonAction = {
-                                                // Eliminar canción de la playlist
-                                                val accessToken = Config.getSpotifyAccessToken(context)
-                                                if (accessToken != null && selectedPlaylist != null) {
+                                                if (isYouTubePlaylistView && selectedPlaylist != null) {
+                                                    // Eliminar track de la playlist de YouTube local
                                                     coroutineScope.launch {
-                                                        SpotifyRepository.removeTrackFromPlaylist(
-                                                            accessToken,
-                                                            selectedPlaylist!!.id,
-                                                            track.id
-                                                        ) { success, errorMsg ->
-                                                            if (success) {
-                                                                // Recargar tracks
-                                                                coroutineScope.launch {
-                                                                    localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
+                                                        val success = localRepository.removeTrackFromYouTubePlaylist(
+                                                            localPlaylistId = selectedPlaylist!!.id,
+                                                            spotifyTrackId = track.id
+                                                        )
+                                                        if (!success) {
+                                                            editError = "Error removing track"
+                                                        }
+                                                    }
+                                                } else {
+                                                    // Eliminar canción de la playlist
+                                                    val accessToken = Config.getSpotifyAccessToken(context)
+                                                    if (accessToken != null && selectedPlaylist != null) {
+                                                        coroutineScope.launch {
+                                                            SpotifyRepository.removeTrackFromPlaylist(
+                                                                accessToken,
+                                                                selectedPlaylist!!.id,
+                                                                track.id
+                                                            ) { success, errorMsg ->
+                                                                if (success) {
+                                                                    // Recargar tracks
+                                                                    coroutineScope.launch {
+                                                                        localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
+                                                                    }
+                                                                } else {
+                                                                    editError = errorMsg
                                                                 }
-                                                            } else {
-                                                                editError = errorMsg
                                                             }
                                                         }
                                                     }
@@ -1853,7 +1958,7 @@ fun PlaylistsScreen(
 }
 
 @Composable
-fun CreateSpotifyPlaylistScreen(
+fun CreatePlaylistScreen(
     onBack: () -> Unit,
     onPlaylistCreated: () -> Unit,
     playerViewModel: PlayerViewModel? = null
@@ -1861,6 +1966,7 @@ fun CreateSpotifyPlaylistScreen(
     var playlistName by remember { mutableStateOf("") }
     var playlistDesc by remember { mutableStateOf("") }
     var isPublic by remember { mutableStateOf(true) }
+    var playlistType by remember { mutableStateOf(0) } // 0 = Spotify, 1 = YouTube
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -1873,6 +1979,7 @@ fun CreateSpotifyPlaylistScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val localRepository = remember { PlaylistLocalRepository(context) }
+    val youtubeSearchManager = remember { YouTubeSearchManager(context) }
 
     // Observar el track actual para actualización reactiva del indicador de reproducción
     val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
@@ -1904,10 +2011,18 @@ fun CreateSpotifyPlaylistScreen(
         )
         Spacer(Modifier.height(8.dp))
         MultiToggle(
-            options = listOf("public", "private"),
-            initialIndex = if (isPublic) 0 else 1,
-            onChange = { index -> isPublic = (index == 0) }
+            options = listOf("spotify", "youtube"),
+            initialIndex = 0,
+            onChange = { index -> playlistType = index }
         )
+        if (playlistType == 0) {
+            Spacer(Modifier.height(8.dp))
+            MultiToggle(
+                options = listOf("public", "private"),
+                initialIndex = if (isPublic) 0 else 1,
+                onChange = { index -> isPublic = (index == 0) }
+            )
+        }
         // Campo de búsqueda
         OutlinedTextField(
             value = searchQuery,
@@ -1931,17 +2046,44 @@ fun CreateSpotifyPlaylistScreen(
                 onSearch = {
                     if (searchQuery.isNotBlank() && !isSearching) {
                         isSearching = true
-                        val accessToken = Config.getSpotifyAccessToken(context)
-                        if (accessToken != null) {
+                        error = null
+                        if (playlistType == 1) {
+                            // Búsqueda de vídeos de YouTube con la integración existente
                             coroutineScope.launch {
-                                SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
-                                    isSearching = false
-                                    if (results != null) {
-                                        searchResults = results.tracks.items
-                                    } else {
-                                        error = errorMsg
+                                val result = try {
+                                    youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                                isSearching = false
+                                if (result != null) {
+                                    searchResults = result.videos.map { video ->
+                                        SpotifyTrack(
+                                            id = video.videoId,
+                                            name = video.title,
+                                            artists = listOf(SpotifyArtist(video.uploader))
+                                        )
+                                    }
+                                } else {
+                                    error = "YouTube search failed"
+                                }
+                            }
+                        } else {
+                            val accessToken = Config.getSpotifyAccessToken(context)
+                            if (accessToken != null) {
+                                coroutineScope.launch {
+                                    SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
+                                        isSearching = false
+                                        if (results != null) {
+                                            searchResults = results.tracks.items
+                                        } else {
+                                            error = errorMsg
+                                        }
                                     }
                                 }
+                            } else {
+                                isSearching = false
+                                error = "Spotify not connected"
                             }
                         }
                     }
@@ -2066,30 +2208,65 @@ fun CreateSpotifyPlaylistScreen(
                     // Acción de crear playlist con las canciones seleccionadas
                     isLoading = true
                     error = null
-                    val accessToken = Config.getSpotifyAccessToken(context)
-                    if (accessToken != null) {
-                        val trackIds = selectedTracks.map { it.id }
-                        SpotifyRepository.createPlaylist(
-                            accessToken,
-                            playlistName,
-                            playlistDesc,
-                            isPublic,
-                            trackIds
-                        ) { success, errMsg ->
+                    if (playlistType == 1) {
+                        // Crear playlist de YouTube usando la integración existente
+                        coroutineScope.launch {
+                            val (saved, message) = withContext(Dispatchers.IO) {
+                                val creator = YouTubePlaylistCreator()
+                                val rawId = "yt_${System.currentTimeMillis()}"
+                                // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
+                                val resolvedVideoIds = selectedTracks
+                                    .filter { it.id.length == 11 }
+                                    .associate { it.id to it.id }
+                                val created = creator.build(
+                                    title = playlistName,
+                                    description = playlistDesc.ifBlank { null },
+                                    sourceTracks = creator.buildSourceTracks(selectedTracks),
+                                    targetPlaylistId = "youtube_$rawId",
+                                    resolvedVideoIds = resolvedVideoIds
+                                )
+                                val ok = localRepository.saveCreatedYouTubePlaylist(
+                                    playlistId = rawId,
+                                    title = created.title,
+                                    description = created.description,
+                                    imageUrl = null,
+                                    tracks = created.tracks
+                                )
+                                ok to "${created.tracks.size} tracks (${selectedTracks.size - created.tracks.size} sin vídeo)"
+                            }
                             isLoading = false
-                            if (success) {
-                                // Sincronizar playlists después de crear
-                                coroutineScope.launch {
-                                    localRepository.syncPlaylistsFromSpotify()
-                                }
+                            if (saved) {
                                 onPlaylistCreated()
                             } else {
-                                error = errMsg ?: "Unknown error"
+                                error = message
                             }
                         }
                     } else {
-                        isLoading = false
-                        error = "Spotify not connected"
+                        val accessToken = Config.getSpotifyAccessToken(context)
+                        if (accessToken != null) {
+                            val trackIds = selectedTracks.map { it.id }
+                            SpotifyRepository.createPlaylist(
+                                accessToken,
+                                playlistName,
+                                playlistDesc,
+                                isPublic,
+                                trackIds
+                            ) { success, errMsg ->
+                                isLoading = false
+                                if (success) {
+                                    // Sincronizar playlists después de crear
+                                    coroutineScope.launch {
+                                        localRepository.syncPlaylistsFromSpotify()
+                                    }
+                                    onPlaylistCreated()
+                                } else {
+                                    error = errMsg ?: "Unknown error"
+                                }
+                            }
+                        } else {
+                            isLoading = false
+                            error = "Spotify not connected"
+                        }
                     }
                 }
             )

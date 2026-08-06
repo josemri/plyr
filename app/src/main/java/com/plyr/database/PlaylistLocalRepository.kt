@@ -693,26 +693,71 @@ class PlaylistLocalRepository(context: Context) {
         videoCount: Int,
         imageUrl: String?,
         tracks: List<TrackEntity>
-    ): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val localPlaylistId = "youtube_$playlistId"
-
-            // Crear la playlist entity
-            val playlistEntity = PlaylistEntity(
+    ): Boolean {
+        val localPlaylistId = "youtube_$playlistId"
+        return saveYouTubePlaylistWithTracks(
+            PlaylistEntity(
                 spotifyId = localPlaylistId,
                 name = title,
                 description = "YouTube Playlist by $uploader",
                 trackCount = tracks.size,
                 imageUrl = imageUrl,
                 lastSyncTime = System.currentTimeMillis()
-            )
+            ),
+            tracks
+        )
+    }
 
-            // Guardar playlist y tracks
-            playlistDao.insertPlaylist(playlistEntity)
-            trackDao.deleteTracksByPlaylist(localPlaylistId)
+    /**
+     * Guarda una playlist de YouTube creada por el usuario en la base de datos local.
+     * Conserva el título y la descripción tal cual (la misma playlist), a diferencia de
+     * [saveYouTubePlaylist] que sobreescribe la descripción con el nombre del creador.
+     *
+     * @param playlistId ID (raw) de la playlist; se guarda como "youtube_$playlistId"
+     * @param title Título de la playlist
+     * @param description Descripción original (se preserva)
+     * @param imageUrl URL de la portada de la playlist
+     * @param tracks Lista de tracks (ya con playlistId = "youtube_$playlistId")
+     * @return true si se guardó correctamente, false en caso contrario
+     */
+    suspend fun saveCreatedYouTubePlaylist(
+        playlistId: String,
+        title: String,
+        description: String?,
+        imageUrl: String?,
+        tracks: List<TrackEntity>
+    ): Boolean {
+        val localPlaylistId = "youtube_$playlistId"
+        return saveYouTubePlaylistWithTracks(
+            PlaylistEntity(
+                spotifyId = localPlaylistId,
+                name = title,
+                description = description,
+                trackCount = tracks.size,
+                imageUrl = imageUrl,
+                lastSyncTime = System.currentTimeMillis()
+            ),
+            tracks
+        )
+    }
+
+    /**
+     * Inserta una playlist de YouTube y sus tracks, reemplazando los anteriores.
+     *
+     * @param playlist PlaylistEntity a insertar (debe empezar por "youtube_")
+     * @param tracks Tracks a insertar (con playlistId = playlist.spotifyId)
+     * @return true si se guardó correctamente, false en caso contrario
+     */
+    private suspend fun saveYouTubePlaylistWithTracks(
+        playlist: PlaylistEntity,
+        tracks: List<TrackEntity>
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            playlistDao.insertPlaylist(playlist)
+            trackDao.deleteTracksByPlaylist(playlist.spotifyId)
             trackDao.insertTracks(tracks)
 
-            Log.d(TAG, "✅ YouTube playlist guardada: $title (${tracks.size} tracks)")
+            Log.d(TAG, "✅ YouTube playlist guardada: ${playlist.name} (${tracks.size} tracks)")
             true
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error guardando YouTube playlist: ${e.message}", e)
@@ -752,5 +797,114 @@ class PlaylistLocalRepository(context: Context) {
     suspend fun getYouTubePlaylists(): List<PlaylistEntity> = withContext(Dispatchers.IO) {
         val allPlaylists = playlistDao.getAllPlaylistsSync()
         allPlaylists.filter { it.spotifyId.startsWith("youtube_") }
+    }
+
+    /**
+     * Actualiza el nombre y/o la descripción de una playlist local (YouTube).
+     * Preserva el campo que no se quiere cambiar pasando null.
+     *
+     * @param localPlaylistId ID local de la playlist (con prefijo "youtube_")
+     * @param newTitle Nuevo título (null = mantener el actual)
+     * @param newDesc Nueva descripción (null = mantener la actual)
+     * @return true si se actualizó correctamente, false en caso contrario
+     */
+    suspend fun updatePlaylistDetails(
+        localPlaylistId: String,
+        newTitle: String?,
+        newDesc: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val playlist = playlistDao.getPlaylistById(localPlaylistId)
+                ?: return@withContext false
+            playlistDao.updatePlaylist(
+                playlist.copy(
+                    name = newTitle ?: playlist.name,
+                    description = newDesc ?: playlist.description,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            )
+            Log.d(TAG, "Playlist local actualizada: $localPlaylistId (title=${newTitle ?: playlist.name})")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error actualizando playlist local: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Añade un track a una playlist de YouTube local.
+     * Asigna la siguiente posición, reescribe el ID único y actualiza el contador.
+     * El track debe traer ya resuelto spotifyTrackId/name/artists/youtubeVideoId.
+     *
+     * @param localPlaylistId ID local de la playlist (con prefijo "youtube_")
+     * @param track TrackEntity base (id/playlistId/position se reescriben aquí)
+     * @return true si se añadió correctamente, false en caso contrario
+     */
+    suspend fun addTrackToYouTubePlaylist(
+        localPlaylistId: String,
+        track: TrackEntity
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val position = trackDao.getTracksByPlaylistSync(localPlaylistId).size
+            trackDao.insertTrack(
+                track.copy(
+                    id = "${localPlaylistId}_${track.spotifyTrackId}_$position",
+                    playlistId = localPlaylistId,
+                    position = position
+                )
+            )
+            playlistDao.getPlaylistById(localPlaylistId)?.let { playlist ->
+                playlistDao.updatePlaylist(
+                    playlist.copy(
+                        trackCount = position + 1,
+                        lastSyncTime = System.currentTimeMillis()
+                    )
+                )
+            }
+            Log.d(TAG, "Track añadido a playlist de YouTube: $localPlaylistId (${track.name})")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error añadiendo track a playlist de YouTube: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * Elimina un track de una playlist de YouTube local por su spotifyTrackId.
+     * Reindexa las posiciones restantes y actualiza el contador.
+     *
+     * @param localPlaylistId ID local de la playlist (con prefijo "youtube_")
+     * @param spotifyTrackId ID del track a eliminar
+     * @return true si se eliminó correctamente, false en caso contrario
+     */
+    suspend fun removeTrackFromYouTubePlaylist(
+        localPlaylistId: String,
+        spotifyTrackId: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val existing = trackDao.getTracksByPlaylistSync(localPlaylistId)
+            val track = existing.find { it.spotifyTrackId == spotifyTrackId }
+                ?: return@withContext false
+            trackDao.deleteTrackById(track.id)
+            val updated = trackDao.getTracksByPlaylistSync(localPlaylistId)
+            updated.forEachIndexed { index, t ->
+                if (t.position != index) {
+                    trackDao.updateTrack(t.copy(position = index))
+                }
+            }
+            playlistDao.getPlaylistById(localPlaylistId)?.let { playlist ->
+                playlistDao.updatePlaylist(
+                    playlist.copy(
+                        trackCount = updated.size,
+                        lastSyncTime = System.currentTimeMillis()
+                    )
+                )
+            }
+            Log.d(TAG, "Track eliminado de playlist de YouTube: $localPlaylistId ($spotifyTrackId)")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error eliminando track de playlist de YouTube: ${e.message}", e)
+            false
+        }
     }
 }

@@ -15,7 +15,7 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 - **Duplicación resuelta al 100%**: los 7 focos (D1-D7) han sido eliminados; quedan solo patrones menores aislados (joinToString de artistas inline, `images?.firstOrNull()?.url?.let`).
 - **Monolitos de UI** (PlaylistScreen con 2.189 líneas, SearchScreen con 1.675).
 - **6 dependencias declaradas sin usar** y 2 archivos vacíos.
-- **109 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
+- **124 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
 
 **Prioridades claras:** (1) seguridad de credenciales, (2) los 4 bugs críticos (B1-B4), (3) arquitectura por pantallas, (4) bugs medios/bajos restantes.
 
@@ -30,12 +30,12 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 | Archivo más grande | `ui/PlaylistScreen.kt` (2.189) |
 | versionCode / versionName | 5 / 1.0.6 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
-| Tests unitarios | **109** (0 fallos; antes 76) |
+| Tests unitarios | **124** (0 fallos; antes 76) |
 | Tests instrumentados útiles | 0 |
 | Dependencias declaradas sin uso | 6 |
 | Focos de duplicación | 7 → **0 pendientes** (todos resueltos) |
 | Bugs detectados | ~14 (4 críticos) |
-| Ficheros nuevos de refactor | `utils/UrlParser.kt`, `model/ScanResult.kt`, `utils/NewPipeHolder.kt`, `ui/components/TrackMetadataSection.kt` |
+| Ficheros nuevos de refactor | `utils/UrlParser.kt`, `model/ScanResult.kt`, `utils/NewPipeHolder.kt`, `ui/components/TrackMetadataSection.kt`, `service/YouTubePlaylistCreator.kt` |
 
 ---
 
@@ -177,15 +177,15 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 | `ui/theme/Color.kt:5-11` | Colores template (`Purple80`, `Pink40`, etc.) sin usar; el tema real usa paleta terminal privada. |
 | `utils/Utils.kt:36` | `println()` en producción (dentro de `isValidAudioUrl`). |
 | `ui/SearchScreen.kt` (~14x) | Comentarios obsoletos `// antes Color(0xFF...)`. |
-| `assistant/AssistantManager.kt:911` | `// TODO: Implementar creación de playlist`. |
+| `assistant/AssistantManager.kt:905` | `// TODO: Implementar creación de playlist` (la capa `YouTubePlaylistCreator` ya existe y está testeada — §12, usa la integración de YouTube existente; falta cablearla). |
 | `utils/UpdateChecker.kt:15,30-33` | Caché de actualizaciones desactivado ("For debugging"); constante `CHECK_INTERVAL_MS` sin efecto. |
 | `utils/NewPipeHolder.kt` | Locale fijo `Localization("es","ES")` para NewPipe, no sigue el dispositivo (init único centralizado en D3). |
 | `res/values/strings.xml` | Solo `app_name`; **toda la UI está hardcodeada en Kotlin** (`Translations.kt`), no se aprovecha el sistema de recursos (sin lint de traducción ni resource shrinking). |
 | `assistant/AssistantTTSHelper.kt:62` | Override del `onError(utteranceId)` deprecado (mantiene el nuevo, bien). |
 
 ### Tests
-- **109 unit tests en verde** (`./run.sh test`, 0 fallos): Translations (5), SpotifyModels (12), DatabaseMappings (3), YouTubeFormatting (8), Utils (30), SupabaseClient (7), ModelDefaults (7), UrlParser (33), NewPipeHolder (3), ExampleUnitTest (1).
-- **Cambios aplicados en esta ronda:** eliminado `UrlExtractorTest` (usaba reflexión sobre funciones privadas de FeedScreen ya borradas) → sustituido por `UrlParserTest` (33 casos directos). `UtilsTest` creció de 24 a 30 (formatTimestamp, formatDurationMs, formatDurationSeconds). Añadidos `NewPipeHolderTest` (3) y tests directos de las extensiones `firstImageUrl`/`artistNames` en `SpotifyModelsTest` (12).
+- **124 unit tests en verde** (`./run.sh test`, 0 fallos): Translations (5), SpotifyModels (12), DatabaseMappings (3), YouTubeFormatting (8), Utils (30), SupabaseClient (7), ModelDefaults (7), UrlParser (33), NewPipeHolder (3), YouTubePlaylistCreator (15), ExampleUnitTest (1).
+- **Cambios aplicados en esta ronda:** eliminado `UrlExtractorTest` (usaba reflexión sobre funciones privadas de FeedScreen ya borradas) → sustituido por `UrlParserTest` (33 casos directos). `UtilsTest` creció de 24 a 30 (formatTimestamp, formatDurationMs, formatDurationSeconds). Añadidos `NewPipeHolderTest` (3) y tests directos de las extensiones `firstImageUrl`/`artistNames` en `SpotifyModelsTest` (12). Añadido `SpotifyToYouTubeConverterTest` (10) para la nueva capa de conversión `SpotifyToYouTubeConverter` (ver §12).
 - **Solo 1 test instrumentado de plantilla** (`app/src/androidTest/.../ExampleInstrumentedTest.kt`, verifica el package). No hay instrumentación real de los flujos críticos (login/callback, persistencia de tokens, permisos runtime, escáner QR).
 
 ### Estilo / limpieza (actualización)
@@ -211,6 +211,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 9. **B8/B9**: Cancelar `loadingJob` al cambiar de track y usar `AtomicBoolean`/dispatcher coherente para `loadingJobsActive`.
 10. ✅ **D1-D7 — COMPLETADO** (UrlParser, formatDuration, thumbnails, ScanResult, NewPipeHolder, extensiones de Spotify, trackMetadataSection; 76 → 109 tests; `YoutubeAudioExtractor.kt` muerto eliminado).
 11. **B7**: Simplificar `parseTimestamp` (2 formatos + `java.time.Instant.parse`) y **B12**: limpiar `getFormattedVideoCount`. **B16**: sustituir el placeholder `vi/undefined` de `getPlaylistThumbnailUrl`. **D7b**: cuando se arregle B2 (català), cablear `album_colon`/`release_colon`/`duration_colon` en `trackMetadataSection`.
+12. ✅ **Crear playlists de YouTube** — **HECHO** (no vía asistente, que sigue en TODO, sino en la **pantalla de crear playlist**): selector Spotify/YouTube + `YouTubePlaylistCreator` (§12).
 
 ### Fase 3 — Arquitectura (semana 3)
 12. Introducir **ViewModels por pantalla** (Search, Playlist, Local, Feed) moviendo estado, red y DB fuera de los composables.
@@ -239,7 +240,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 | **Rendimiento** | 5.0 / 10 | Leak de threads + cámara encendida tras cerrar el escáner (Alta), cache O(n²) en Feed, OkHttpClient recreado, LazyLists sin key, Feed no lazy. |
 | **Arquitectura / Mantenibilidad** | 5.0 / 10 | Siguen los monolitos y el God object `Config`, pero la **duplicación está resuelta al 100%** (D1-D7 con `UrlParser`, `formatDuration*`, `ScanResult`, `NewPipeHolder`, extensiones de Spotify y `trackMetadataSection`; código muerto eliminado). |
 | **Seguridad** | 3.5 / 10 | Sin cambios. Secretos distribuibles vía anon key (S1), OAuth con client secret (S2), tokens planos con backup (S4), sin minify (S3). Lo único sólido: sin WebView, .gitignore correcto, permisos runtime. |
-| **Cobertura de tests** | 6.0 / 10 | 109 unit tests en verde (+33). URL parsing, duración, inicialización NewPipe y extensiones de modelos testeados de forma directa y sin reflexión; pero sigue habiendo 0 instrumentados y nada de flujos críticos. |
+| **Cobertura de tests** | 6.0 / 10 | 124 unit tests en verde (+48). URL parsing, duración, inicialización NewPipe, extensiones de modelos y la creación de playlists de YouTube (con buscador inyectado) testeados de forma directa y sin reflexión; pero sigue habiendo 0 instrumentados y nada de flujos críticos. |
 | **Limpieza / Estilo** | 6.0 / 10 | Código legible y comentado en general; lastrado por 2 archivos vacíos, 14 comentarios obsoletos, `println`, strings hardcodeadas y 6 deps sin usar. |
 
 ### Nota global
@@ -248,7 +249,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 
 | Estado | Interpretación |
 |---|---|
-| ✅ **Estable y funcional** | Compila, instala, reproduce música, los 109 unit tests pasan. Apto para uso personal diario. |
+| ✅ **Estable y funcional** | Compila, instala, reproduce música, los 124 unit tests pasan. Apto para uso personal diario. |
 | ⚠️ **Riesgo de seguridad real** | Credenciales de Spotify son recuperables por cualquiera (Supabase anon + APK sin ofuscar) y los tokens viajan en prefs planas con backup. **Esto es lo más urgente.** |
 | ⚠️ **Riesgo de crash puntual** | ExoPlayer desde Timer y red en main thread (B3, B4). |
 | 🟡 **Deuda de mantenimiento** | Monolitos y los 3 focos de duplicación restantes (D3/D5/D7) hacen cada cambio lento y propenso a regresiones. |
@@ -265,7 +266,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 
 ## 11. CAMBIOS APLICADOS (refactor de duplicación)
 
-Estado del repo tras la revisión 2026-08-02 (compila y 109 tests en verde):
+Estado del repo tras la revisión 2026-08-06 (compila y 124 tests en verde):
 
 ### D1 — Extracción de URLs centralizada
 - **Nuevo `utils/UrlParser.kt`** (110 líneas, sin dependencias Android): `extractYoutubeVideoId` (watch?v=, youtu.be/, /watch/, /shorts/, fallback), `extractYoutubePlaylistId` (list=, /playlist/), `extractSpotifyId`, `parseScanText` (incluye formato legacy `plyr_source:type:id`), `getUrlType`, `isPlayableUrl`, `youtubeThumbnailUrl`, `normalizeYoutubeThumb`.
@@ -297,6 +298,47 @@ Estado del repo tras la revisión 2026-08-02 (compila y 109 tests en verde):
 
 ### Pendiente de esta línea de trabajo
 - **B16** (placeholder `vi/undefined` en `getPlaylistThumbnailUrl`) y **D7b** (cablear traducciones `album_colon`/`release_colon`/`duration_colon` tras arreglar B2).
+
+---
+
+## 12. CREACIÓN DE PLAYLISTS DE YOUTUBE (capa testeable, con la integración existente)
+
+Ante el objetivo de *"crear playlists exactamente iguales que las de Spotify pero de YouTube"*:
+- **No se usa la YouTube Data API** ni API key: la resolución de vídeos usa la integración de YouTube **ya existente** (`YouTubeManager.searchVideoId`, vía NewPipe; la misma que usa `AssistantManager.createTrackFromSpotify`).
+- **No hay conversión de un lado a otro**: la playlist creada es **la misma** — mismo título, misma descripción y los mismos tracks en orden, solo que cada track queda resuelto a su vídeo de YouTube (playlist local con prefijo `youtube_`).
+- El `// TODO: Implementar creación de playlist` de `assistant/AssistantManager.kt:905` **no** se ha tocado (el usuario no quiere vía asistente); la creación se hace desde la **UI de playlists**.
+
+### Nuevo `service/YouTubePlaylistCreator.kt`
+- `data class CreatedYouTubePlaylist(title, description, tracks)` — resultado listo para guardar.
+- `class YouTubePlaylistCreator(resolveVideoId = YouTubeManager.searchVideoId)`:
+  - `buildSourceTracks(selectedTracks)` — convierte los tracks de Spotify seleccionados en tracks fuente (mismo nombre, artistas e `spotifyTrackId`).
+  - `build(title, description, sourceTracks, targetPlaylistId, resolvedVideoIds = emptyMap())` — resuelve cada track con la integración existente (`"<nombre> <artistas>"`), reusa `youtubeVideoId` si ya existe, luego `resolvedVideoIds[spotifyTrackId]` (para no re-buscar lo ya encontrado), omite los que no tengan vídeo y reindexa (0..n-1) escribiendo `playlistId`/`id`/`youtubeVideoId`.
+  - El buscador es **inyectable** para poder testear sin red.
+
+### Cambios en `PlaylistLocalRepository`
+- Refactor: `saveYouTubePlaylist` y la nueva `saveCreatedYouTubePlaylist` delegan en el helper privado `saveYouTubePlaylistWithTracks` (sin duplicación).
+- `saveCreatedYouTubePlaylist` **preserva la descripción original** (la misma playlist); `saveYouTubePlaylist` mantiene el comportamiento previo (`"YouTube Playlist by $uploader"`).
+- En `PlaylistScreen.kt`: `CreateSpotifyPlaylistScreen` renombrada a **`CreatePlaylistScreen`** con selector **Spotify/YouTube**; la rama YouTube crea la playlist con `YouTubePlaylistCreator` + `saveCreatedYouTubePlaylist`. El botón `<new>` ya no depende de la conexión a Spotify, y en modo "youtube" el buscador usa `YouTubeSearchManager.searchYouTubeAll` (sin Spotify). `getYouTubeChannelName` ahora solo muestra el canal si el prefijo existe.
+
+### Edición de playlists `youtube_` (misma UI que Spotify, sin depender de Spotify)
+- `canEdit` ya no excluye las playlists de YouTube: son locales y por tanto editables igual que las propias de Spotify (sigue excluyendo `liked_songs`).
+- **Renombrar / descripción**: el `<save>` de una playlist `youtube_` guarda con el nuevo `updatePlaylistDetails(localPlaylistId, newTitle, newDesc)` del repositorio (null = mantener), sin token de Spotify.
+- **Añadir tracks**: el buscador del modo edición cambia a `YouTubeSearchManager.searchYouTubeAll` (videos, sin playlists) cuando la playlist es `youtube_`; los resultados se mapean con `id = videoId`, y al pulsar `+` se insertan en local vía `addTrackToYouTubePlaylist` (siguiente posición, ID único reescrito, `youtubeVideoId` = el `videoId` ya resuelto, sin re-buscar). La lista "current tracks" se refresca sola vía LiveData.
+- **Quitar tracks**: `removeTrackFromYouTubePlaylist` borra por `spotifyTrackId`, reindexa posiciones y actualiza el contador.
+- **Borrar la playlist**: `<delete>` usa `deleteYouTubePlaylist` (local, sin token de Spotify).
+
+### Tests — `YouTubePlaylistCreatorTest` (15)
+A los 9 originales se añaden: `buildSourceTracks_mapsNameArtistsAndSpotifyId`, `buildSourceTracks_reindexesPositions`, `buildSourceTracks_emptyListProducesEmptyTracks`, `buildFromSpotifyTracks_resolvesSamePlaylistEndToEnd`, `build_usesResolvedVideoIdsWithoutSearching`, `build_resolvedVideoIdsOverridesSearchOnlyForKnownIds`.
+
+**Total de tests: 124, 0 fallos.**
+
+### Nota de uso
+El botón `<new>` de Playlists **siempre es visible** (ya no depende de la conexión a Spotify; `<sync>` sigue siendo solo Spotify). En la pantalla de crear, con el selector en **youtube**, el buscador usa la integración existente de YouTube (`YouTubeSearchManager.searchYouTubeAll`), así que **no necesitas Spotify** para crear playlists de YouTube ni añadirles contenido; los tracks añadidos vía esa búsqueda conservan su `videoId` exacto (no se re-buscan).
+
+Las playlists `youtube_` también se **editan sin Spotify**: `<edit>` permite renombrar/descripción, añadir vídeos buscando en YouTube, quitarlos con `x` y borrarlas con `<delete>` (todo local, prefijo `youtube_`, nunca se toca al sincronizar con Spotify).
+
+### Siguiente paso
+Probar en el dispositivo (`./run.sh run debug`): crear playlist con tipo "youtube", verificar que aparece en la lista, que `<edit>` permite renombrar/añadir/quitar vídeos y que reproduce con audio de YouTube.
 
 ---
 
