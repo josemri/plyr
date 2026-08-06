@@ -36,6 +36,9 @@ fun AudioListScreen(
     var playlistToOpenId by rememberSaveable { mutableStateOf<String?>(null) }
     var openPlaylistCreate by rememberSaveable { mutableStateOf(false) }
 
+    // Query con la que entrar en el SearchScreen (desde la barra de búsqueda del Home)
+    var searchInitialQuery by rememberSaveable { mutableStateOf<String?>(null) }
+
     // Observar eventos de NFC para navegar al SearchScreen desde cualquier pantalla
     val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
 
@@ -43,6 +46,7 @@ fun AudioListScreen(
         if (nfcScanResult != null) {
             android.util.Log.d("AudioListScreen", "🏷️ NFC detected, navigating to SearchScreen from ${currentScreen}")
             // Navegar al SearchScreen cuando se detecta un NFC, desde cualquier pantalla
+            searchInitialQuery = null
             currentScreen = Screen.SEARCH.name
         }
     }
@@ -65,10 +69,15 @@ fun AudioListScreen(
                 playlistToOpenId = null
                 openPlaylistCreate = true
                 currentScreen = Screen.PLAYLISTS.name
+            },
+            onSearchSubmitted = { query ->
+                searchInitialQuery = query
+                currentScreen = Screen.SEARCH.name
             }
         )
         Screen.SEARCH -> SearchScreen(
             context = context,
+            initialQuery = searchInitialQuery,
             onVideoSelectedFromSearch = onVideoSelectedFromSearch,
             onBack = { currentScreen = Screen.HOME.name },
             playerViewModel = playerViewModel
@@ -96,7 +105,10 @@ fun AudioListScreen(
         Screen.FEED -> FeedScreen(
             context = context,
             onBack = { currentScreen = Screen.HOME.name },
-            onNavigateToSearch = { currentScreen = Screen.SEARCH.name },
+            onNavigateToSearch = {
+                searchInitialQuery = null
+                currentScreen = Screen.SEARCH.name
+            },
             playerViewModel = playerViewModel
         )
     }

@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
@@ -52,17 +51,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import com.plyr.ui.components.Titulo
-import com.plyr.ui.components.ActionButton
-import com.plyr.ui.components.ActionButtonData
 
 @Composable
 fun SearchScreen(
     context: Context,
+    initialQuery: String? = null,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
     playerViewModel: PlayerViewModel? = null
 ) {
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf(initialQuery ?: "") }
     var results by remember { mutableStateOf<List<AudioItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -267,6 +265,15 @@ fun SearchScreen(
                     error = "${Translations.get(context, "search_error")}: ${e.message}"
                 }
             }
+        }
+    }
+
+    // Al entrar desde la barra del Home con una query, realizar la búsqueda directamente
+    // (así no se muestra la pantalla inicial vacía de campo + historial)
+    LaunchedEffect(Unit) {
+        val query = initialQuery
+        if (!query.isNullOrBlank()) {
+            performSearch(query, false)
         }
     }
 
@@ -1100,11 +1107,6 @@ private fun SearchMainView(
         keyboardController?.show()
     }
 
-    // Database for search history
-    val database = remember { PlaylistDatabase.getDatabase(context) }
-    val searchHistoryDao = database.searchHistoryDao()
-    val searchHistory by searchHistoryDao.getAllSearches().collectAsState(initial = emptyList())
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1175,112 +1177,6 @@ private fun SearchMainView(
         )
 
         Spacer(Modifier.height(12.dp))
-
-        // === HISTORIAL DE BÚSQUEDAS ===
-        if (searchHistory.isNotEmpty() && results.isEmpty() && !showSpotifyResults && !showYouTubeAllResults && !isLoading) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ActionButton(
-                        data = ActionButtonData(
-                            text = "<limpiar>",
-                            color = MaterialTheme.colorScheme.error, // antes Color(0xFFFF6B6B)
-                            onClick = {
-                                coroutineScope.launch {
-                                    searchHistoryDao.clearHistory()
-                                }
-                            }
-                        )
-                    )
-                }
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(1.dp)
-                ) {
-                    searchHistory.take(10).forEach { historyItem ->
-                        val color = when (historyItem.searchEngine) {
-                            "youtube" -> Color.Red // Rojo para YouTube
-                            "spotify" -> Color.Green// Verde para Spotify
-                            else -> MaterialTheme.colorScheme.outline
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(32.dp)
-                                .clickable {
-                                    // Agregar prefijo según el motor de búsqueda original
-                                    val queryWithPrefix = when (historyItem.searchEngine) {
-                                        "youtube" -> "yt:${historyItem.query}"
-                                        "spotify" -> "sp:${historyItem.query}"
-                                        else -> historyItem.query
-                                    }
-                                    onSearchQueryChange(queryWithPrefix)
-                                    onSearchTriggered(queryWithPrefix, false)
-                                }
-                                .background(Color.Transparent),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = historyItem.query,
-                                style = MaterialTheme.typography.bodyLarge.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = color
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(start = 8.dp, end = 4.dp)
-                            )
-
-                            IconButton(
-                                onClick = {
-                                    coroutineScope.launch {
-                                        searchHistoryDao.deleteSearch(historyItem.id)
-                                    }
-                                },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Text(
-                                    text = "x",
-                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Texto explicativo de colores
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = Translations.get(context, "colored by used engine"),
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.outline // antes Color(0xFF95A5A6)
-                        )
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-        }
 
         if (isLoading) {
             Row(

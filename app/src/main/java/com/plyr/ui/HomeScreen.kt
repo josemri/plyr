@@ -4,28 +4,37 @@ import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -33,21 +42,25 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.plyr.database.PlaylistDatabase
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.ui.components.*
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
 import com.plyr.viewmodel.PlayerViewModel
+import kotlinx.coroutines.launch
 
 @SuppressLint("DiscouragedApi")
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     context: Context,
     playerViewModel: PlayerViewModel? = null,
     onNavigateToScreen: (Screen) -> Unit,
     onOpenPlaylist: (String) -> Unit = {},
-    onCreatePlaylist: () -> Unit = {}
+    onCreatePlaylist: () -> Unit = {},
+    onSearchSubmitted: (String) -> Unit = {}
 ) {
     // Dimensiones responsivas basadas en el tamaño de pantalla
     val dimensions = calculateResponsiveDimensionsFallback()
@@ -55,53 +68,144 @@ fun HomeScreen(
     var showExitMessage by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
-    Box(
+    // Estado de búsqueda: el campo del Home toma el foco y al pulsar intro se busca
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearchActive by remember { mutableStateOf(false) }
+
+    // Si se cierra el teclado sin haber buscado, volver al contenido del Home
+    val isImeVisible = WindowInsets.isImeVisible
+    val focusManager = LocalFocusManager.current
+    LaunchedEffect(isImeVisible) {
+        if (!isImeVisible) {
+            focusManager.clearFocus()
+        }
+    }
+
+    // ASCII arts list - definido aquí para usar en ambos layouts
+    val asciiResIds = remember {
+        val ids = mutableListOf<Int>()
+        for (i in 1..50) {
+            val name = "ascii_$i"
+            val resId = context.resources.getIdentifier(name, "drawable", context.packageName)
+            if (resId != 0) ids.add(resId)
+        }
+        ids
+    }
+    val selectedRes = remember(asciiResIds) {
+        if (asciiResIds.isNotEmpty()) asciiResIds.random() else 0
+    }
+
+    // Botones - queue y feed en la misma línea, settings debajo formando triángulo
+    val buttons = listOf(
+        ActionButtonData(
+            text = "< ${Translations.get(context, "home_queue")} >",
+            color = MaterialTheme.colorScheme.primary,
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onNavigateToScreen(Screen.QUEUE)
+            }
+        ),
+        ActionButtonData(
+            text = "< ${Translations.get(context, "home_feed")} >",
+            color = MaterialTheme.colorScheme.primary,
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onNavigateToScreen(Screen.FEED)
+            }
+        )
+    )
+    val settingsButton = ActionButtonData(
+        text = "< ${Translations.get(context, "home_settings")} >",
+        color = MaterialTheme.colorScheme.primary,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onNavigateToScreen(Screen.CONFIG)
+        }
+    )
+
+    Column(
         modifier = Modifier.fillMaxSize()
     ) {
-            // ASCII arts list - definido aquí para usar en ambos layouts
-            val asciiResIds = remember {
-                val ids = mutableListOf<Int>()
-                for (i in 1..50) {
-                    val name = "ascii_$i"
-                    val resId = context.resources.getIdentifier(name, "drawable", context.packageName)
-                    if (resId != 0) ids.add(resId)
-                }
-                ids
-            }
-            val selectedRes = remember(asciiResIds) {
-                if (asciiResIds.isNotEmpty()) asciiResIds.random() else 0
-            }
-
-            // Botones - queue y feed en la misma línea, settings debajo formando triángulo
-            val buttons = listOf(
-                ActionButtonData(
-                    text = "< ${Translations.get(context, "home_queue")} >",
-                    color = MaterialTheme.colorScheme.primary,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onNavigateToScreen(Screen.QUEUE)
+        // Barra de búsqueda superior (real: toma el foco al pulsarla y busca al darle a intro)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = {
+                    Text(
+                        Translations.get(context, "search_placeholder"),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace
+                        )
+                    )
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { isSearchActive = it.isFocused },
+                trailingIcon = {
+                    Row {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Text(
+                                    text = "x",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                )
+                            }
+                        }
+                        Text(
+                            text = Translations.get(context, "search_scan_qr"),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.secondary
+                            ),
+                            modifier = Modifier.align(Alignment.CenterVertically)
+                        )
+                    }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        if (searchQuery.isNotBlank()) {
+                            onSearchSubmitted(searchQuery)
+                        }
                     }
                 ),
-                ActionButtonData(
-                    text = "< ${Translations.get(context, "home_feed")} >",
-                    color = MaterialTheme.colorScheme.primary,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onNavigateToScreen(Screen.FEED)
-                    }
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                textStyle = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace
                 )
             )
-            val settingsButton = ActionButtonData(
-                text = "< ${Translations.get(context, "home_settings")} >",
-                color = MaterialTheme.colorScheme.primary,
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onNavigateToScreen(Screen.CONFIG)
+        }
+
+        if (isSearchActive) {
+            // Historial de búsquedas (en azul primario y sin botón <limpiar>)
+            HomeSearchHistory(
+                context = context,
+                onHistoryClick = { query ->
+                    onSearchSubmitted(query)
                 }
             )
-
-            // Main content - responsivo según orientación y tamaño de pantalla
-            if (dimensions.showSideBySideLayout) {
+        } else {
+            // Contenido principal
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Main content - responsivo según orientación y tamaño de pantalla
+                if (dimensions.showSideBySideLayout) {
                 // Layout horizontal para landscape en pantallas grandes
                 Row(
                     modifier = Modifier
@@ -229,52 +333,92 @@ fun HomeScreen(
                 }
             }
 
-            // Barra superior: barra de búsqueda (al pulsarla va a SearchScreen)
+            }
+        }
+    }
+}
+
+/**
+ * Historial de búsquedas del Home (en azul primario y sin botón <limpiar>).
+ */
+@Composable
+private fun HomeSearchHistory(
+    context: Context,
+    onHistoryClick: (String) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val searchHistoryDao = remember { PlaylistDatabase.getDatabase(context).searchHistoryDao() }
+    val searchHistory by searchHistoryDao.getAllSearches().collectAsState(initial = emptyList())
+
+    if (searchHistory.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = Translations.get(context, "search_placeholder"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(1.dp)
+    ) {
+        items(searchHistory, key = { it.id }) { historyItem ->
             Row(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .height(40.dp)
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        // Prefijo del motor de búsqueda original para buscar en el mismo
+                        val queryWithPrefix = when (historyItem.searchEngine) {
+                            "youtube" -> "yt:${historyItem.query}"
+                            "spotify" -> "sp:${historyItem.query}"
+                            else -> historyItem.query
+                        }
+                        onHistoryClick(queryWithPrefix)
+                    },
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Barra de búsqueda con la misma apariencia que la del SearchScreen
-                // (OutlinedTextField con borde, label en monospace y botón QR)
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .border(1.dp, MaterialTheme.colorScheme.secondary, RoundedCornerShape(4.dp))
-                        .clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToScreen(Screen.SEARCH)
-                        },
-                    shape = RoundedCornerShape(4.dp),
-                    color = MaterialTheme.colorScheme.surface
+                Text(
+                    text = historyItem.query,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = 8.dp, end = 4.dp)
+                )
+                IconButton(
+                    onClick = {
+                        // Borrar solo esta entrada del historial (sin botón <limpiar>)
+                        scope.launch {
+                            searchHistoryDao.deleteSearch(historyItem.id)
+                        }
+                    },
+                    modifier = Modifier.size(40.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = Translations.get(context, "search_placeholder"),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.secondary
-                            ),
-                            modifier = Modifier.weight(1f)
+                    Text(
+                        text = "x",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.secondary
                         )
-                        Text(
-                            text = Translations.get(context, "search_scan_qr"),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        )
-                    }
+                    )
                 }
             }
         }
+    }
 }
 
 /**
