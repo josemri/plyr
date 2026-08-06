@@ -19,7 +19,10 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -1089,6 +1092,14 @@ private fun SearchMainView(
     onYouTubePlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
     onShowQrScannerChange: (Boolean) -> Unit
 ) {
+    // Al entrar en la vista de búsqueda, enfocar el campo y abrir el teclado
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
     // Database for search history
     val database = remember { PlaylistDatabase.getDatabase(context) }
     val searchHistoryDao = database.searchHistoryDao()
@@ -1114,7 +1125,9 @@ private fun SearchMainView(
                     )
                 )
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
             trailingIcon = {
                 Row {
                     if (searchQuery.isNotEmpty()) {

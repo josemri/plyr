@@ -83,7 +83,6 @@ object Translations {
             "loading" to "loading...",
 
             // Home Screen
-            "home_search" to "buscar",
             "home_queue" to "cola",
             "home_new_playlist" to "nueva playlist",
             "home_feed" to "feed",
@@ -358,7 +357,6 @@ object Translations {
             "loading" to "loading...",
 
             // Home Screen
-            "home_search" to "search",
             "home_queue" to "queue",
             "home_new_playlist" to "new playlist",
             "home_feed" to "feed",
@@ -598,7 +596,6 @@ object Translations {
             "loading" to "carregant...",
 
             // Home Screen
-            "home_search" to "cercar",
             "home_queue" to "cua",
             "home_new_playlist" to "nova llista",
             "home_feed" to "feed",
@@ -874,7 +871,6 @@ object Translations {
             "loading" to "読み込み中...",
 
             // Home Screen
-            "home_search" to "検索",
             "home_queue" to "キュー",
             "home_new_playlist" to "新しいプレイリスト",
             "home_feed" to "feed",

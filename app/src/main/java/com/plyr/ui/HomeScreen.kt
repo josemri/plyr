@@ -4,17 +4,15 @@ import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -27,9 +25,11 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
@@ -55,10 +55,9 @@ fun HomeScreen(
     var showExitMessage by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
-    PlyrScreenContainer {
-        Box(
-            modifier = Modifier.fillMaxSize()
-        ) {
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
             // ASCII arts list - definido aquí para usar en ambos layouts
             val asciiResIds = remember {
                 val ids = mutableListOf<Int>()
@@ -73,18 +72,8 @@ fun HomeScreen(
                 if (asciiResIds.isNotEmpty()) asciiResIds.random() else 0
             }
 
-            // Botones - el carrusel de playlists se muestra entre search y queue
-            val topButtons = listOf(
-                ActionButtonData(
-                    text = "< ${Translations.get(context, "home_search")} >",
-                    color = MaterialTheme.colorScheme.primary,
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onNavigateToScreen(Screen.SEARCH)
-                    }
-                )
-            )
-            val bottomButtons = listOf(
+            // Botones - queue y feed en la misma línea, settings debajo formando triángulo
+            val buttons = listOf(
                 ActionButtonData(
                     text = "< ${Translations.get(context, "home_queue")} >",
                     color = MaterialTheme.colorScheme.primary,
@@ -102,6 +91,14 @@ fun HomeScreen(
                     }
                 )
             )
+            val settingsButton = ActionButtonData(
+                text = "< ${Translations.get(context, "home_settings")} >",
+                color = MaterialTheme.colorScheme.primary,
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNavigateToScreen(Screen.CONFIG)
+                }
+            )
 
             // Main content - responsivo según orientación y tamaño de pantalla
             if (dimensions.showSideBySideLayout) {
@@ -109,7 +106,7 @@ fun HomeScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = dimensions.screenPadding),
+                        .padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -120,7 +117,7 @@ fun HomeScreen(
                         var imgModifier = Modifier
                             .widthIn(max = dimensions.imageMaxWidth)
                             .heightIn(max = dimensions.imageMaxHeight)
-                            .padding(end = dimensions.sectionSpacing)
+                            .padding(end = 16.dp)
                         if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
                             imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
                         }
@@ -133,18 +130,11 @@ fun HomeScreen(
                         )
                     }
 
-                    // Botones en el otro lado
+                    // Carrusel y botones en el otro lado
                     Column(
-                        verticalArrangement = Arrangement.spacedBy(dimensions.itemSpacing),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        ActionButtonsGroup(
-                            buttons = topButtons,
-                            isHorizontal = false,
-                            spacing = dimensions.itemSpacing,
-                            modifier = Modifier.wrapContentWidth()
-                        )
-
                         HomePlaylistCarousel(
                             context = context,
                             onOpenPlaylist = onOpenPlaylist,
@@ -152,14 +142,21 @@ fun HomeScreen(
                         )
 
                         ActionButtonsGroup(
-                            buttons = bottomButtons,
-                            isHorizontal = false,
-                            spacing = dimensions.itemSpacing,
+                            buttons = buttons,
+                            isHorizontal = true,
+                            spacing = 24.dp,
+                            fontSize = 20.sp,
+                            modifier = Modifier.wrapContentWidth()
+                        )
+
+                        ActionButton(
+                            data = settingsButton,
+                            fontSize = 20.sp,
                             modifier = Modifier.wrapContentWidth()
                         )
 
                         if (showExitMessage) {
-                            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+                            Spacer(modifier = Modifier.height(24.dp))
                             PlyrErrorText(
                                 text = Translations.get(context, "exit_message"),
                                 modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -172,7 +169,7 @@ fun HomeScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = dimensions.screenPadding),
+                        .padding(horizontal = 8.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -183,7 +180,6 @@ fun HomeScreen(
                         var imgModifier = Modifier
                             .widthIn(max = dimensions.imageMaxWidth)
                             .heightIn(max = dimensions.imageMaxHeight)
-                            .padding(horizontal = dimensions.contentPadding)
                         if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
                             imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
                         }
@@ -194,32 +190,37 @@ fun HomeScreen(
                             colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
                             modifier = imgModifier
                         )
-                        Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+                        // Más espacio entre el logo y el carrusel de playlists
+                        Spacer(modifier = Modifier.height(40.dp))
                     }
 
-                    // ActionButtonsGroup
-                    ActionButtonsGroup(
-                        buttons = topButtons,
-                        isHorizontal = false,
-                        spacing = dimensions.itemSpacing,
-                        modifier = Modifier.wrapContentWidth()
-                    )
-
+                    // Carrusel de playlists
                     HomePlaylistCarousel(
                         context = context,
                         onOpenPlaylist = onOpenPlaylist,
                         onCreatePlaylist = onCreatePlaylist
                     )
 
+                    // Queue y feed en la misma línea, más separados del carrusel
+                    Spacer(modifier = Modifier.height(24.dp))
                     ActionButtonsGroup(
-                        buttons = bottomButtons,
-                        isHorizontal = false,
-                        spacing = dimensions.itemSpacing,
+                        buttons = buttons,
+                        isHorizontal = true,
+                        spacing = 24.dp,
+                        fontSize = 20.sp,
+                        modifier = Modifier.wrapContentWidth()
+                    )
+
+                    // Settings debajo, formando triángulo con queue y feed
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ActionButton(
+                        data = settingsButton,
+                        fontSize = 20.sp,
                         modifier = Modifier.wrapContentWidth()
                     )
 
                     if (showExitMessage) {
-                        Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+                        Spacer(modifier = Modifier.height(24.dp))
                         PlyrErrorText(
                             text = Translations.get(context, "exit_message"),
                             modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -228,24 +229,52 @@ fun HomeScreen(
                 }
             }
 
-            // Top-right settings icon
-            IconButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onNavigateToScreen(Screen.CONFIG)
-                },
+            // Barra superior: barra de búsqueda (al pulsarla va a SearchScreen)
+            Row(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(12.dp)
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = Translations.get(context, "settings"),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                // Barra de búsqueda con la misma apariencia que la del SearchScreen
+                // (OutlinedTextField con borde, label en monospace y botón QR)
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.secondary, RoundedCornerShape(4.dp))
+                        .clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToScreen(Screen.SEARCH)
+                        },
+                    shape = RoundedCornerShape(4.dp),
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = Translations.get(context, "search_placeholder"),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.secondary
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = Translations.get(context, "search_scan_qr"),
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        )
+                    }
+                }
             }
         }
-    }
 }
 
 /**

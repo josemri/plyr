@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -30,7 +31,8 @@ data class ActionButtonData(
 @Composable
 fun ActionButton(
     data: ActionButtonData,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 16.sp
 ) {
     // Helper: pick a readable color based on theme and background
     @Composable
@@ -55,7 +57,7 @@ fun ActionButton(
         text = data.text,
         style = MaterialTheme.typography.bodyMedium.copy(
             fontFamily = FontFamily.Monospace,
-            fontSize = 16.sp,
+            fontSize = fontSize,
             color = textColor
         ),
         textAlign = TextAlign.Center,
@@ -78,6 +80,7 @@ fun ActionButtonsGroup(
     buttons: List<ActionButtonData>,
     isHorizontal: Boolean = true,
     spacing: Dp = 16.dp,
+    fontSize: TextUnit = 16.sp,
     modifier: Modifier = Modifier
         .fillMaxWidth()
         .padding(bottom = 16.dp)
@@ -89,7 +92,7 @@ fun ActionButtonsGroup(
         ) {
             val childModifier = Modifier
                 .wrapContentWidth()
-            buttons.forEach { ActionButton(it, modifier = childModifier) }
+            buttons.forEach { ActionButton(it, modifier = childModifier, fontSize = fontSize) }
         }
     } else {
         Column(
@@ -98,7 +101,7 @@ fun ActionButtonsGroup(
         ) {
             val childModifier = Modifier
                 .fillMaxWidth()
-            buttons.forEach { ActionButton(it, modifier = childModifier) }
+            buttons.forEach { ActionButton(it, modifier = childModifier, fontSize = fontSize) }
         }
     }
 }
