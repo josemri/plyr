@@ -139,19 +139,19 @@ fun PlaylistsScreen(
     // Estado para manejar navegación pendiente cuando hay cambios sin guardar
     var pendingPlaylist by remember { mutableStateOf<AppPlaylist?>(null) }
 
-    // Tracks observados desde la base de datos
-    val tracksFromDB by if (selectedPlaylistEntity != null) {
-        localRepository.getTracksByPlaylistLiveData(selectedPlaylistEntity!!.remoteId)
-            .asFlow()
-            .collectAsStateWithLifecycle(initialValue = emptyList())
-    } else {
-        remember { mutableStateOf(emptyList()) }
-    }
-
-    // Actualizar tracks cuando cambien en la DB
-    LaunchedEffect(tracksFromDB) {
-        if (selectedPlaylistEntity != null) {
-            playlistTracks = tracksFromDB.map { it.toAppTrack() }
+    // Cargar tracks reactivamente cuando cambia la playlist seleccionada
+    var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
+    LaunchedEffect(selectedPlaylistEntity?.remoteId) {
+        val id = selectedPlaylistEntity?.remoteId
+        if (id != null) {
+            isLoadingTracks = true
+            val tracks = com.plyr.database.PlaylistDatabase.getDatabase(context).trackDao().getTracksByPlaylistSync(id)
+            trackEntities = tracks
+            playlistTracks = tracks.map { it.toAppTrack() }
+            isLoadingTracks = false
+        } else {
+            trackEntities = emptyList()
+            playlistTracks = emptyList()
         }
     }
 
@@ -160,28 +160,21 @@ fun PlaylistsScreen(
     val loadPlaylistTracks: (AppPlaylist) -> Unit = { playlist ->
         selectedPlaylist = playlist
         selectedPlaylistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
-        isLoadingTracks = true
-        if (selectedPlaylistEntity == null) {
-            isLoadingTracks = false
-        } else {
-            coroutineScope.launch {
-                val tracks = com.plyr.database.PlaylistDatabase.getDatabase(context).trackDao().getTracksByPlaylistSync(playlist.id)
-                playlistTracks = tracks.map { it.toAppTrack() }
-                isLoadingTracks = false
-            }
-        }
     }
 
     // Abrir una playlist directamente desde el Home (carrusel)
     var pendingInitialPlaylist by remember { mutableStateOf(initialPlaylistId) }
-    LaunchedEffect(playlistsFromDB) {
+    val openedFromHome = remember { initialPlaylistId != null }
+    LaunchedEffect(pendingInitialPlaylist) {
         val pendingId = pendingInitialPlaylist
-        if (pendingId != null && playlistsFromDB.isNotEmpty()) {
+        if (pendingId != null) {
             val entity = playlistsFromDB.find { it.remoteId == pendingId }
+                ?: com.plyr.database.PlaylistDatabase.getDatabase(context).playlistDao().getPlaylistById(pendingId)
             pendingInitialPlaylist = null
             onInitialConsumed()
             if (entity != null) {
-                loadPlaylistTracks(entity.toAppPlaylist())
+                selectedPlaylist = entity.toAppPlaylist()
+                selectedPlaylistEntity = entity
             } else {
                 onBack()
             }
@@ -211,13 +204,14 @@ fun PlaylistsScreen(
         if (isEditing && hasUnsavedChanges) {
             showExitEditDialog = true
         } else if (selectedPlaylist != null) {
-            isEditing = false
-            hasUnsavedChanges = false
-            selectedPlaylist = null
-            selectedPlaylistEntity = null
-            playlistTracks = emptyList()
-            if (initialPlaylistId != null) {
+            if (openedFromHome) {
                 onBack()
+            } else {
+                isEditing = false
+                hasUnsavedChanges = false
+                selectedPlaylist = null
+                selectedPlaylistEntity = null
+                playlistTracks = emptyList()
             }
         } else {
             isEditing = false
@@ -318,7 +312,7 @@ fun PlaylistsScreen(
                                 playerViewModel.clearPlayerState()
 
                                 // Mezclar toda la lista de tracks
-                                val shuffledTracks = tracksFromDB.shuffled()
+                                val shuffledTracks = trackEntities.shuffled()
                                 val firstTrack = shuffledTracks.first()
 
                                 // Reproducir la canción usando PlayerViewModel
@@ -340,14 +334,14 @@ fun PlaylistsScreen(
                         stopAllPlayback()
                         isStarting = true
 
-                        if (playlistTracks.isNotEmpty() && playerViewModel != null && tracksFromDB.isNotEmpty()) {
+                        if (playlistTracks.isNotEmpty() && playerViewModel != null && trackEntities.isNotEmpty()) {
                             startJob = coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
                                 // Limpiar estado previo del reproductor
                                 playerViewModel.clearPlayerState()
 
                                 // Replicar exactamente la lógica de SongListItem cuando haces clic en una canción
-                                playerViewModel.setCurrentPlaylist(tracksFromDB, 0)
-                                val selectedTrackEntity = tracksFromDB[0]
+                                playerViewModel.setCurrentPlaylist(trackEntities, 0)
+                                val selectedTrackEntity = trackEntities[0]
 
                                 try {
                                     playerViewModel.loadAudioFromTrack(selectedTrackEntity)
@@ -808,7 +802,7 @@ fun PlaylistsScreen(
                                                 remoteId = track.id,
                                                 shareUrl = "https://www.youtube.com/watch?v=${track.id}"
                                             ),
-                                            trackEntities = tracksFromDB,
+                                            trackEntities = trackEntities,
                                             index = index,
                                             playerViewModel = playerViewModel,
                                             coroutineScope = coroutineScope,
@@ -842,7 +836,7 @@ fun PlaylistsScreen(
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 // Prepara trackEntities - si no hay en DB, crear temporales
-                                val trackEntitiesList = tracksFromDB.ifEmpty {
+                                val trackEntitiesList = trackEntities.ifEmpty {
                                     // Crear TrackEntities temporales para álbumes u otras fuentes sin BD
                                     playlistTracks.mapIndexed { trackIndex, track ->
                                         TrackEntity(
