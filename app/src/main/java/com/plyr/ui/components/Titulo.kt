@@ -15,7 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun Titulo(titulo: String) {
+fun Titulo(
+    titulo: String,
+    trailing: @Composable (() -> Unit)? = null
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -33,6 +36,7 @@ fun Titulo(titulo: String) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        trailing?.invoke()
     }
 }
 

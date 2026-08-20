@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.livedata.observeAsState
@@ -968,7 +969,23 @@ fun PlaylistsScreen(
 
         // Lista de playlists (visible cuando no hay playlist seleccionada ni creando)
         if (selectedPlaylist == null && !showCreatePlaylistScreen && pendingInitialPlaylist == null) {
-            Titulo(Translations.get(context, "plyr_lists"))
+            Titulo(
+                titulo = Translations.get(context, "plyr_lists"),
+                trailing = {
+                    Text(
+                        text = "+",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 24.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.clickable {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showCreatePlaylistScreen = true
+                        }.padding(start = 8.dp)
+                    )
+                }
+            )
             Spacer(modifier = Modifier.height(8.dp))
 
             if (playlists.isEmpty()) {

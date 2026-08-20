@@ -45,7 +45,8 @@ fun SearchScreen(
     initialQuery: String? = null,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
-    playerViewModel: PlayerViewModel? = null
+    playerViewModel: PlayerViewModel? = null,
+    isActive: Boolean = true
 ) {
     var searchQuery by remember { mutableStateOf(initialQuery ?: "") }
     var results by remember { mutableStateOf<List<AudioItem>>(emptyList()) }
@@ -207,7 +208,8 @@ fun SearchScreen(
                     onYouTubePlaylistSelected = { playlist ->
                         selectedYouTubePlaylist = playlist
                     },
-                    onShowQrScannerChange = { showQrScanner = it }
+                    onShowQrScannerChange = { showQrScanner = it },
+                    isActive = isActive
                 )
                 if (showQrScanner) {
                     QrScannerDialog(
@@ -258,13 +260,16 @@ private fun SearchMainView(
     youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
     showYouTubeAllResults: Boolean,
     onYouTubePlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
-    onShowQrScannerChange: (Boolean) -> Unit
+    onShowQrScannerChange: (Boolean) -> Unit,
+    isActive: Boolean = true
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
-    LaunchedEffect(Unit) {
-        focusRequester.requestFocus()
-        keyboardController?.show()
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
     }
 
     Column(

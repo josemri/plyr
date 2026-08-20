@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,15 +40,11 @@ fun AudioListScreen(
     val currentScreenEnum = Screen.valueOf(currentScreen)
 
     var playlistToOpenId by rememberSaveable { mutableStateOf<String?>(null) }
-    var openPlaylistCreate by rememberSaveable { mutableStateOf(false) }
-    var searchInitialQuery by rememberSaveable { mutableStateOf<String?>(null) }
 
     val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
 
     LaunchedEffect(nfcScanResult) {
         if (nfcScanResult != null) {
-            android.util.Log.d("AudioListScreen", "🏷️ NFC detected, navigating to SearchScreen from ${currentScreen}")
-            searchInitialQuery = null
             currentScreen = Screen.SEARCH.name
         }
     }
@@ -65,66 +62,85 @@ fun AudioListScreen(
 
     when (currentScreenEnum) {
         Screen.HOME -> {
-            val pagerState = rememberPagerState(initialPage = 1) { 3 }
-            val pagerScope = rememberCoroutineScope()
+            val verticalPagerState = rememberPagerState(initialPage = 1) { 2 }
+            val verticalPagerScope = rememberCoroutineScope()
 
-            BackHandler(enabled = pagerState.currentPage != 1) {
-                pagerScope.launch {
-                    pagerState.animateScrollToPage(1)
+            BackHandler(enabled = verticalPagerState.currentPage == 0) {
+                verticalPagerScope.launch {
+                    verticalPagerState.animateScrollToPage(1)
                 }
             }
 
-            HorizontalPager(
-                state = pagerState,
+            VerticalPager(
+                state = verticalPagerState,
                 modifier = Modifier.fillMaxSize()
-            ) { page ->
-                when (page) {
-                    0 -> ConfigScreen(
+            ) { verticalPage ->
+                when (verticalPage) {
+                    0 -> SearchScreen(
                         context = context,
+                        onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                         onBack = {
-                            pagerScope.launch {
-                                pagerState.animateScrollToPage(1)
+                            verticalPagerScope.launch {
+                                verticalPagerState.animateScrollToPage(1)
                             }
                         },
-                        onThemeChanged = onThemeChanged
-                    )
-                    1 -> HomeScreen(
-                        context = context,
                         playerViewModel = playerViewModel,
-                        onNavigateToScreen = { screen -> currentScreen = screen.name },
-                        onOpenPlaylist = { playlistId ->
-                            playlistToOpenId = playlistId
-                            openPlaylistCreate = false
-                            currentScreen = Screen.PLAYLISTS.name
-                        },
-                        onCreatePlaylist = {
-                            playlistToOpenId = null
-                            openPlaylistCreate = true
-                            currentScreen = Screen.PLAYLISTS.name
-                        },
-                        onSearchSubmitted = { query ->
-                            searchInitialQuery = query
-                            currentScreen = Screen.SEARCH.name
-                        }
+                        isActive = verticalPagerState.currentPage == 0
                     )
-                    2 -> PlaylistsScreen(
-                        context = context,
-                        onBack = {
-                            pagerScope.launch {
-                                pagerState.animateScrollToPage(1)
+                    1 -> {
+                        val horizontalPagerState = rememberPagerState(initialPage = 1) { 3 }
+                        val horizontalPagerScope = rememberCoroutineScope()
+
+                        BackHandler(enabled = horizontalPagerState.currentPage != 1) {
+                            horizontalPagerScope.launch {
+                                horizontalPagerState.animateScrollToPage(1)
                             }
-                        },
-                        playerViewModel = playerViewModel
-                    )
+                        }
+
+                        HorizontalPager(
+                            state = horizontalPagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { page ->
+                            when (page) {
+                                0 -> ConfigScreen(
+                                    context = context,
+                                    onBack = {
+                                        horizontalPagerScope.launch {
+                                            horizontalPagerState.animateScrollToPage(1)
+                                        }
+                                    },
+                                    onThemeChanged = onThemeChanged
+                                )
+                                1 -> HomeScreen(
+                                    context = context,
+                                    playerViewModel = playerViewModel,
+                                    onNavigateToScreen = { screen -> currentScreen = screen.name },
+                                    onOpenPlaylist = { playlistId ->
+                                        playlistToOpenId = playlistId
+                                        currentScreen = Screen.PLAYLISTS.name
+                                    }
+                                )
+                                2 -> PlaylistsScreen(
+                                    context = context,
+                                    onBack = {
+                                        horizontalPagerScope.launch {
+                                            horizontalPagerState.animateScrollToPage(1)
+                                        }
+                                    },
+                                    playerViewModel = playerViewModel
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
         Screen.SEARCH -> SearchScreen(
             context = context,
-            initialQuery = searchInitialQuery,
             onVideoSelectedFromSearch = onVideoSelectedFromSearch,
             onBack = { currentScreen = Screen.HOME.name },
-            playerViewModel = playerViewModel
+            playerViewModel = playerViewModel,
+            isActive = true
         )
         Screen.QUEUE -> QueueScreen(
             onBack = { currentScreen = Screen.HOME.name },
@@ -135,17 +151,14 @@ fun AudioListScreen(
             onBack = { currentScreen = Screen.HOME.name },
             playerViewModel = playerViewModel,
             initialPlaylistId = playlistToOpenId,
-            openCreate = openPlaylistCreate,
             onInitialConsumed = {
                 playlistToOpenId = null
-                openPlaylistCreate = false
             }
         )
         Screen.FEED -> FeedScreen(
             context = context,
             onBack = { currentScreen = Screen.HOME.name },
             onNavigateToSearch = {
-                searchInitialQuery = null
                 currentScreen = Screen.SEARCH.name
             },
             playerViewModel = playerViewModel
