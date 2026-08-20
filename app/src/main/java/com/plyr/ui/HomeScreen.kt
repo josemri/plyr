@@ -113,14 +113,6 @@ fun HomeScreen(
             }
         )
     )
-    val settingsButton = ActionButtonData(
-        text = "< ${Translations.get(context, "home_settings")} >",
-        color = MaterialTheme.colorScheme.primary,
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-            onNavigateToScreen(Screen.CONFIG)
-        }
-    )
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -272,12 +264,6 @@ fun HomeScreen(
                             modifier = Modifier.wrapContentWidth()
                         )
 
-                        ActionButton(
-                            data = settingsButton,
-                            fontSize = 20.sp,
-                            modifier = Modifier.wrapContentWidth()
-                        )
-
                         if (showExitMessage) {
                             Spacer(modifier = Modifier.height(24.dp))
                             PlyrErrorText(
@@ -349,14 +335,6 @@ fun HomeScreen(
                         buttons = buttons,
                         isHorizontal = true,
                         spacing = 24.dp,
-                        fontSize = 20.sp,
-                        modifier = Modifier.wrapContentWidth()
-                    )
-
-                    // Settings debajo, formando triángulo con queue y feed
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ActionButton(
-                        data = settingsButton,
                         fontSize = 20.sp,
                         modifier = Modifier.wrapContentWidth()
                     )
