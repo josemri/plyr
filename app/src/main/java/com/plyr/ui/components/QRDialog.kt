@@ -38,8 +38,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 data class ShareableItem(
-    val spotifyId: String?,
-    val spotifyUrl: String?,
+    val remoteId: String?,
+    val shareUrl: String?,
     val youtubeId: String?,
     val title: String,
     val artist: String,
@@ -112,11 +112,9 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
-    val shareUrl = item.spotifyUrl ?: when {
+    val shareUrl = item.shareUrl ?: when {
         item.type == ShareType.APP -> "https://github.com/josemri/plyr/releases/download/latest/plyr.apk"
-        item.spotifyId != null -> "https://open.spotify.com/${item.type.name.lowercase()}/${item.spotifyId}"
         item.youtubeId != null -> {
-            // Detectar si es un ID de playlist (empieza con PL, UU, FL, RD)
             if (item.youtubeId.startsWith("PL") ||
                 item.youtubeId.startsWith("UU") ||
                 item.youtubeId.startsWith("FL") ||

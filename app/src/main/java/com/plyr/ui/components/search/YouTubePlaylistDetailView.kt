@@ -71,7 +71,7 @@ fun YouTubePlaylistDetailView(
                 TrackEntity(
                     id = "ytpl_${playlist.playlistId}_${video.videoId}_$index",
                     playlistId = "youtube_${playlist.playlistId}",
-                    spotifyTrackId = video.videoId,
+                    remoteTrackId = video.videoId,
                     name = video.title,
                     artists = video.uploader,
                     youtubeVideoId = video.videoId,
@@ -92,7 +92,7 @@ fun YouTubePlaylistDetailView(
             .fillMaxSize()
             .padding(PlyrSpacing.large)
     ) {
-        // Header estilo Spotify playlist detail
+        // Header del detalle de playlist
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -224,7 +224,7 @@ fun YouTubePlaylistDetailView(
                             title = v.title,
                             artist = v.uploader,
                             youtubeId = v.videoId,
-                            spotifyUrl = "https://www.youtube.com/watch?v=${v.videoId}"
+                            shareUrl = "https://www.youtube.com/watch?v=${v.videoId}"
                         )
                         val isPlaying = currentTrack?.youtubeVideoId == v.videoId ||
                                        currentTrack?.id == trackEntities.getOrNull(idx)?.id
@@ -245,8 +245,8 @@ fun YouTubePlaylistDetailView(
     if (showShareDialog) {
         ShareDialog(
             item = ShareableItem(
-                spotifyId = null,
-                spotifyUrl = null,
+                remoteId = null,
+                shareUrl = null,
                 youtubeId = playlist.playlistId,
                 title = playlist.title,
                 artist = "YouTube Playlist",

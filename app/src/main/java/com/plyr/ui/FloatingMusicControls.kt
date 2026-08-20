@@ -463,7 +463,7 @@ private fun PlaybackControls(
             songData = SongMenuData(
                 title = currentTrack.name,
                 artist = currentTrack.artists,
-                spotifyId = currentTrack.spotifyTrackId,
+                remoteId = currentTrack.remoteTrackId,
                 youtubeId = currentTrack.youtubeVideoId,
                 trackEntity = currentTrack
             ),

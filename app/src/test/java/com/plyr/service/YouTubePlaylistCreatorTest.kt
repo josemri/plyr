@@ -1,8 +1,8 @@
 package com.plyr.service
 
 import com.plyr.database.TrackEntity
-import com.plyr.network.SpotifyArtist
-import com.plyr.network.SpotifyTrack
+import com.plyr.network.AppArtist
+import com.plyr.network.AppTrack
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -17,12 +17,12 @@ class YouTubePlaylistCreatorTest {
     private fun track(
         name: String,
         artists: String = "Artist",
-        spotifyTrackId: String = "s_$name",
+        remoteTrackId: String = "s_$name",
         youtubeVideoId: String? = null
     ): TrackEntity = TrackEntity(
         id = "src_$name",
         playlistId = "src_playlist",
-        spotifyTrackId = spotifyTrackId,
+        remoteTrackId = remoteTrackId,
         name = name,
         artists = artists,
         youtubeVideoId = youtubeVideoId,
@@ -88,7 +88,7 @@ class YouTubePlaylistCreatorTest {
     fun build_usesResolvedVideoIdsWithoutSearching() {
         var searches = 0
         val creator = creator { searches++; "ignored" }
-        val source = listOf(track("One", spotifyTrackId = "abcdefghijk"))
+        val source = listOf(track("One", remoteTrackId = "abcdefghijk"))
         val result = creator.build(
             "T", null, source, "youtube_123",
             resolvedVideoIds = mapOf("abcdefghijk" to "from_map")
@@ -101,7 +101,7 @@ class YouTubePlaylistCreatorTest {
     fun build_resolvedVideoIdsOverridesSearchOnlyForKnownIds() {
         var searches = 0
         val creator = creator { searches++; "searched_$it" }
-        val source = listOf(track("One", spotifyTrackId = "knownid1"), track("Two", spotifyTrackId = "spotify_id_2"))
+        val source = listOf(track("One", remoteTrackId = "knownid1"), track("Two", remoteTrackId = "spotify_id_2"))
         val result = creator.build(
             "T", null, source, "youtube_123",
             resolvedVideoIds = mapOf("knownid1" to "from_map")
@@ -137,34 +137,34 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_preservesNameArtistsAndSpotifyTrackId() {
-        val source = track("One", "Artist A, Artist B", spotifyTrackId = "spotify_1")
+    fun build_preservesNameArtistsAndAppTrackId() {
+        val source = track("One", "Artist A, Artist B", remoteTrackId = "spotify_1")
         val result = creator().build("T", null, listOf(source), "youtube_123")
         val out = result.tracks.single()
         assertEquals("One", out.name)
         assertEquals("Artist A, Artist B", out.artists)
-        assertEquals("spotify_1", out.spotifyTrackId)
+        assertEquals("spotify_1", out.remoteTrackId)
     }
 
     @Test
     fun buildSourceTracks_mapsNameArtistsAndSpotifyId() {
         val selected = listOf(
-            SpotifyTrack("sp1", "One", listOf(SpotifyArtist("Artist A"), SpotifyArtist("Artist B"))),
-            SpotifyTrack("sp2", "Two", listOf(SpotifyArtist("Solo")))
+            AppTrack("sp1", "One", listOf(AppArtist("Artist A"), AppArtist("Artist B"))),
+            AppTrack("sp2", "Two", listOf(AppArtist("Solo")))
         )
         val source = YouTubePlaylistCreator().buildSourceTracks(selected)
         assertEquals(2, source.size)
         assertEquals("One", source[0].name)
         assertEquals("Artist A, Artist B", source[0].artists)
-        assertEquals("sp1", source[0].spotifyTrackId)
+        assertEquals("sp1", source[0].remoteTrackId)
         assertEquals("Two", source[1].name)
         assertEquals("Solo", source[1].artists)
-        assertEquals("sp2", source[1].spotifyTrackId)
+        assertEquals("sp2", source[1].remoteTrackId)
     }
 
     @Test
     fun buildSourceTracks_reindexesPositions() {
-        val selected = listOf(SpotifyTrack("sp1", "One", emptyList()), SpotifyTrack("sp2", "Two", emptyList()))
+        val selected = listOf(AppTrack("sp1", "One", emptyList()), AppTrack("sp2", "Two", emptyList()))
         val source = YouTubePlaylistCreator().buildSourceTracks(selected)
         assertEquals(listOf(0, 1), source.map { it.position })
         assertEquals(listOf("source_sp1_0", "source_sp2_1"), source.map { it.id })
@@ -176,11 +176,11 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun buildFromSpotifyTracks_resolvesSamePlaylistEndToEnd() {
+    fun buildFromAppTracks_resolvesSamePlaylistEndToEnd() {
         val creator = creator { "video_$it" }
         val selected = listOf(
-            SpotifyTrack("sp1", "One", listOf(SpotifyArtist("A"))),
-            SpotifyTrack("sp2", "Two", listOf(SpotifyArtist("B")))
+            AppTrack("sp1", "One", listOf(AppArtist("A"))),
+            AppTrack("sp2", "Two", listOf(AppArtist("B")))
         )
         val created = creator.build(
             title = "Mi Playlist",
@@ -191,7 +191,7 @@ class YouTubePlaylistCreatorTest {
         assertEquals("Mi Playlist", created.title)
         assertEquals("La descripción", created.description)
         assertEquals(2, created.tracks.size)
-        assertEquals(listOf("sp1", "sp2"), created.tracks.map { it.spotifyTrackId })
+        assertEquals(listOf("sp1", "sp2"), created.tracks.map { it.remoteTrackId })
         assertEquals(listOf("One", "Two"), created.tracks.map { it.name })
         assertEquals(listOf("youtube_yt_1", "youtube_yt_1"), created.tracks.map { it.playlistId })
     }

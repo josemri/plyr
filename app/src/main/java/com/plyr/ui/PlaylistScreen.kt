@@ -6,9 +6,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -29,24 +29,18 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import android.graphics.Bitmap
 import android.net.Uri
 import coil.compose.AsyncImage
 import com.plyr.database.*
-import com.plyr.network.SpotifyPlaylist
-import com.plyr.network.SpotifyRepository
-import com.plyr.network.SpotifyTrack
-import com.plyr.network.SpotifyArtist
-import com.plyr.network.SpotifyAlbum
-import com.plyr.network.SpotifyArtistFull
-import com.plyr.utils.Config
+import com.plyr.network.AppPlaylist
+import com.plyr.network.AppTrack
+import com.plyr.network.AppArtist
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.service.YouTubePlaylistCreator
@@ -60,13 +54,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
 import com.plyr.ui.components.*
-import androidx.compose.ui.graphics.Brush
-import com.plyr.network.getRecommendations
 import com.plyr.ui.components.ActionButton
 import com.plyr.ui.components.ActionButtonData
 import com.plyr.ui.components.ActionButtonsGroup
@@ -103,8 +94,6 @@ fun PlaylistsScreen(
     // Estado para las playlists y autenticación
     val playlistsFromDB by localRepository.getAllPlaylistsLiveData().asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     var isLoading by remember { mutableStateOf(false) }
-    var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
-    var isSyncing by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
 
     // Estado para Liked Songs - ahora desde DB
@@ -118,16 +107,6 @@ fun PlaylistsScreen(
         likedSongsCount = likedSongsPlaylist.size
     }
 
-    // Estado para álbumes guardados
-    var savedAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
-    var isLoadingSavedAlbums by remember { mutableStateOf(false) }
-    var savedAlbumsCount by remember { mutableIntStateOf(0) }
-
-    // Estado para artistas seguidos
-    var followedArtists by remember { mutableStateOf<List<SpotifyArtistFull>>(emptyList()) }
-    var isLoadingFollowedArtists by remember { mutableStateOf(false) }
-    var followedArtistsCount by remember { mutableIntStateOf(0) }
-
     // Estados para detectar cambios en modo edición (movidos aquí para ser accesibles globalmente)
     var showExitEditDialog by remember { mutableStateOf(false) }
     var hasUnsavedChanges by remember { mutableStateOf(false) }
@@ -136,16 +115,16 @@ fun PlaylistsScreen(
     var newTitle by remember { mutableStateOf("") }
     var newDesc by remember { mutableStateOf("") }
 
-    // Convertir entidades a SpotifyPlaylist para compatibilidad con UI existente
+    // Convertir entidades a AppPlaylist para compatibilidad con UI existente
     // Filtrar liked_songs y álbumes para que no aparezcan duplicados (se muestran como items especiales)
     val playlists = playlistsFromDB
-        .filter { it.spotifyId != "liked_songs" && !it.spotifyId.startsWith("album_") }
-        .map { it.toSpotifyPlaylist() }
+        .filter { it.remoteId != "liked_songs" && !it.remoteId.startsWith("album_") }
+        .map { it.toAppPlaylist() }
 
     // Estado para mostrar tracks de una playlist
-    var selectedPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
+    var selectedPlaylist by remember { mutableStateOf<AppPlaylist?>(null) }
     var selectedPlaylistEntity by remember { mutableStateOf<PlaylistEntity?>(null) }
-    var playlistTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+    var playlistTracks by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
     var isLoadingTracks by remember { mutableStateOf(false) }
     var showCreatePlaylistScreen by remember { mutableStateOf(false) }
 
@@ -157,39 +136,12 @@ fun PlaylistsScreen(
         if (uri != null) coverPickUri = uri
     }
 
-    // Estado para los álbumes del artista seleccionado
-    var selectedArtist by remember { mutableStateOf<SpotifyArtistFull?>(null) }
-    var artistAlbums by remember { mutableStateOf<List<SpotifyAlbum>>(emptyList()) }
-    var isLoadingArtistAlbums by remember { mutableStateOf(false) }
-    var isFollowingArtist by remember { mutableStateOf<Boolean?>(null) }
-    var isFollowActionLoading by remember { mutableStateOf(false) }
-    var isViewingAlbumFromArtist by remember { mutableStateOf(false) }
-
-    // Verificar si seguimos al artista cuando se selecciona uno
-    LaunchedEffect(selectedArtist) {
-        if (selectedArtist != null) {
-            val accessToken = Config.getSpotifyAccessToken(context)
-            if (accessToken != null) {
-                SpotifyRepository.checkIfFollowingArtist(accessToken, selectedArtist!!.id) { isFollowing, errorMsg ->
-                    if (errorMsg == null) {
-                        isFollowingArtist = isFollowing
-                    } else {
-                        Log.e("PlaylistScreen", "Error checking if following artist: $errorMsg")
-                        isFollowingArtist = null
-                    }
-                }
-            }
-        } else {
-            isFollowingArtist = null
-        }
-    }
-
     // Estado para manejar navegación pendiente cuando hay cambios sin guardar
-    var pendingPlaylist by remember { mutableStateOf<SpotifyPlaylist?>(null) }
+    var pendingPlaylist by remember { mutableStateOf<AppPlaylist?>(null) }
 
     // Tracks observados desde la base de datos
     val tracksFromDB by if (selectedPlaylistEntity != null) {
-        localRepository.getTracksByPlaylistLiveData(selectedPlaylistEntity!!.spotifyId)
+        localRepository.getTracksByPlaylistLiveData(selectedPlaylistEntity!!.remoteId)
             .asFlow()
             .collectAsStateWithLifecycle(initialValue = emptyList())
     } else {
@@ -199,43 +151,23 @@ fun PlaylistsScreen(
     // Actualizar tracks cuando cambien en la DB
     LaunchedEffect(tracksFromDB) {
         if (selectedPlaylistEntity != null) {
-            playlistTracks = tracksFromDB.map { it.toSpotifyTrack() }
+            playlistTracks = tracksFromDB.map { it.toAppTrack() }
         }
     }
 
-    // Función para cargar playlists con sincronización automática
-    val loadPlaylists = {
-        if (isSpotifyConnected) {
-            isLoading = true
-            coroutineScope.launch {
-                localRepository.getPlaylistsWithAutoSync()
-                isLoading = false
-            }
-        }
-    }
+    val loadPlaylists = { }
 
-    // Función para cargar tracks de una playlist
-    val loadPlaylistTracks: (SpotifyPlaylist) -> Unit = { playlist ->
+    val loadPlaylistTracks: (AppPlaylist) -> Unit = { playlist ->
         selectedPlaylist = playlist
-        selectedPlaylistEntity = playlistsFromDB.find { it.spotifyId == playlist.id }
+        selectedPlaylistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
         isLoadingTracks = true
-
         if (selectedPlaylistEntity == null) {
             isLoadingTracks = false
         } else {
-            if (playlist.id.startsWith("youtube_")) {
-                // Para playlists de YouTube, los tracks ya están en la DB
-                // Forzar lectura para que el observer de tracksFromDB se active
-                coroutineScope.launch {
-                    localRepository.getTracksWithAutoSync(playlist.id)
-                    isLoadingTracks = false
-                }
-            } else {
-                // Usar corrutina para operaciones asíncronas (Spotify playlists)
-                coroutineScope.launch {
-                    localRepository.getTracksWithAutoSync(playlist.id)
-                    isLoadingTracks = false
-                }
+            coroutineScope.launch {
+                val tracks = com.plyr.database.PlaylistDatabase.getDatabase(context).trackDao().getTracksByPlaylistSync(playlist.id)
+                playlistTracks = tracks.map { it.toAppTrack() }
+                isLoadingTracks = false
             }
         }
     }
@@ -245,11 +177,11 @@ fun PlaylistsScreen(
     LaunchedEffect(playlistsFromDB) {
         val pendingId = pendingInitialPlaylist
         if (pendingId != null && playlistsFromDB.isNotEmpty()) {
-            val entity = playlistsFromDB.find { it.spotifyId == pendingId }
+            val entity = playlistsFromDB.find { it.remoteId == pendingId }
             pendingInitialPlaylist = null
             onInitialConsumed()
             if (entity != null) {
-                loadPlaylistTracks(entity.toSpotifyPlaylist())
+                loadPlaylistTracks(entity.toAppPlaylist())
             } else {
                 onBack()
             }
@@ -264,113 +196,8 @@ fun PlaylistsScreen(
         }
     }
 
-    //LIKED SONGS
-    // Función para cargar las Liked Songs del usuario - ahora sincroniza con la base de datos
-    val loadLikedSongs: () -> Unit = {
-        coroutineScope.launch {
-            try {
-                // Sincronizar Liked Songs con la base de datos local
-                localRepository.getLikedSongsWithAutoSync()
-                Log.d("PlaylistsScreen", "✓ Liked Songs sincronizadas desde DB")
-            } catch (e: Exception) {
-                Log.e("PlaylistsScreen", "Exception syncing liked songs: ${e.message}")
-            }
-        }
-    }
-    //LIKED SONGS
+    val loadLikedSongs: () -> Unit = { }
 
-
-    //ALBUMS
-    // Función para cargar los álbumes guardados del usuario
-    val loadSavedAlbums: () -> Unit = {
-        isLoadingSavedAlbums = true
-
-        coroutineScope.launch {
-            try {
-                val accessToken = Config.getSpotifyAccessToken(context)
-                if (accessToken != null) {
-                    // Obtener los álbumes guardados usando la API de Spotify
-                    SpotifyRepository.getUserSavedAlbums(accessToken) { albums, errorMsg ->
-                        isLoadingSavedAlbums = false
-                        if (albums != null) {
-                            savedAlbums = albums
-                            savedAlbumsCount = albums.size
-                            Log.d("PlaylistsScreen", "✓ Saved Albums actualizados: ${albums.size} álbumes")
-                        } else {
-                            Log.e("PlaylistsScreen", "Error loading saved albums: $errorMsg")
-                        }
-                    }
-                } else {
-                    isLoadingSavedAlbums = false
-                }
-            } catch (e: Exception) {
-                isLoadingSavedAlbums = false
-                Log.e("PlaylistsScreen", "Exception loading saved albums: ${e.message}")
-            }
-        }
-    }
-    //ALBUMS
-
-    //ARTISTS
-    // Función para cargar los artistas seguidos del usuario
-    val loadFollowedArtists: () -> Unit = {
-        isLoadingFollowedArtists = true
-
-        coroutineScope.launch {
-            try {
-                val accessToken = Config.getSpotifyAccessToken(context)
-                if (accessToken != null) {
-                    // Obtener los artistas seguidos usando la API de Spotify
-                    SpotifyRepository.getUserFollowedArtists(accessToken) { artists, errorMsg ->
-                        isLoadingFollowedArtists = false
-                        if (artists != null) {
-                            followedArtists = artists
-                            followedArtistsCount = artists.size
-                            Log.d("PlaylistsScreen", "✓ Followed Artists actualizados: ${artists.size} artistas")
-                        } else {
-                            Log.e("PlaylistsScreen", "Error loading followed artists: $errorMsg")
-                        }
-                    }
-                } else {
-                    isLoadingFollowedArtists = false
-                }
-            } catch (e: Exception) {
-                isLoadingFollowedArtists = false
-                Log.e("PlaylistsScreen", "Exception loading followed artists: ${e.message}")
-            }
-        }
-    }
-    //ARTISTS
-
-    // Función para forzar sincronización completa
-    val forceSyncAll = {
-        if (!isSpotifyConnected) {
-        } else {
-            isSyncing = true
-
-            coroutineScope.launch {
-                try {
-                    localRepository.forceSyncAll()
-                    loadLikedSongs()
-                    loadSavedAlbums()
-                    loadFollowedArtists()
-                    isSyncing = false
-                } catch (_: Exception) {
-                    isSyncing = false
-                }
-            }
-        }
-    }
-
-    // Cargar si está conectado
-    LaunchedEffect(isSpotifyConnected) {
-        if (isSpotifyConnected) {
-            loadPlaylists()
-            loadLikedSongs()
-            loadSavedAlbums()
-            loadFollowedArtists()
-        }
-    }
 
     // Cleanup del YouTubeSearchManager
     DisposableEffect(Unit) {
@@ -391,9 +218,6 @@ fun PlaylistsScreen(
             selectedPlaylist = null
             selectedPlaylistEntity = null
             playlistTracks = emptyList()
-            selectedArtist = null
-            artistAlbums = emptyList()
-            isViewingAlbumFromArtist = false
             onBack()
         }
     }
@@ -584,73 +408,6 @@ fun PlaylistsScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     }
                                 ))
-
-                                // Botón follow/unfollow - solo para artistas
-                                if (selectedArtist != null) {
-                                    add(ActionButtonData(
-                                        text = if (isFollowActionLoading) {
-                                            "<...>"
-                                        } else if (isFollowingArtist == true) {
-                                            "<unfollow>"
-                                        } else {
-                                            "<follow>"
-                                        },
-                                        color = if (isFollowingArtist == true) {
-                                            MaterialTheme.colorScheme.error
-                                        } else {
-                                            MaterialTheme.colorScheme.primary
-                                        },
-                                        enabled = !isFollowActionLoading,
-                                        onClick = {
-                                            val accessToken = Config.getSpotifyAccessToken(context)
-                                            if (accessToken != null && selectedArtist != null) {
-                                                isFollowActionLoading = true
-                                                if (isFollowingArtist == true) {
-                                                    SpotifyRepository.unfollowArtist(accessToken, selectedArtist!!.id) { success, errorMsg ->
-                                                        isFollowActionLoading = false
-                                                        if (success) {
-                                                            isFollowingArtist = false
-                                                            // Recargar la lista de artistas seguidos
-                                                            coroutineScope.launch {
-                                                                val token = Config.getSpotifyAccessToken(context)
-                                                                if (token != null) {
-                                                                    SpotifyRepository.getUserFollowedArtists(token) { artists, _ ->
-                                                                        if (artists != null) {
-                                                                            followedArtists = artists
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        } else {
-                                                            Log.e("PlaylistScreen", "Error unfollowing artist: $errorMsg")
-                                                        }
-                                                    }
-                                                } else {
-                                                    SpotifyRepository.followArtist(accessToken, selectedArtist!!.id) { success, errorMsg ->
-                                                        isFollowActionLoading = false
-                                                        if (success) {
-                                                            isFollowingArtist = true
-                                                            // Recargar la lista de artistas seguidos
-                                                            coroutineScope.launch {
-                                                                val token = Config.getSpotifyAccessToken(context)
-                                                                if (token != null) {
-                                                                    SpotifyRepository.getUserFollowedArtists(token) { artists, _ ->
-                                                                        if (artists != null) {
-                                                                            followedArtists = artists
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        } else {
-                                                            Log.e("PlaylistScreen", "Error following artist: $errorMsg")
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                    ))
-                                }
                             }
 
                             // Botón edit/save
@@ -662,8 +419,8 @@ fun PlaylistsScreen(
                                         if (isEditing) {
                                             // Al hacer clic en save, verificar si hay cambios sin guardar
                                             if (hasUnsavedChanges) {
-                                                if (isYouTubePlaylistView && selectedPlaylist != null) {
-                                                    // Guardar cambios en la playlist de YouTube local
+                                                // Guardar cambios en la playlist local
+                                                if (selectedPlaylist != null) {
                                                     isLoadingTracks = true
                                                     coroutineScope.launch {
                                                         val success = localRepository.updatePlaylistDetails(
@@ -673,53 +430,18 @@ fun PlaylistsScreen(
                                                         )
                                                         isLoadingTracks = false
                                                         if (success) {
-                                                            // Salir del modo edición y volver al listado
                                                             isEditing = false
                                                             hasUnsavedChanges = false
                                                             selectedPlaylist = null
                                                             playlistTracks = emptyList()
                                                             onBack()
                                                         } else {
-                                                            Log.e("PlaylistScreen", "Error actualizando playlist de YouTube local")
+                                                            Log.e("PlaylistScreen", "Error actualizando playlist")
                                                         }
                                                     }
                                                 } else {
-                                                    // Guardar cambios en Spotify
-                                                    val accessToken = Config.getSpotifyAccessToken(context)
-                                                    if (accessToken != null && selectedPlaylist != null) {
-                                                        // Mostrar indicador de carga
-                                                        isLoadingTracks = true
-
-                                                        SpotifyRepository.updatePlaylistDetails(
-                                                            accessToken = accessToken,
-                                                            playlistId = selectedPlaylist!!.id,
-                                                            name = if (newTitle != originalTitle) newTitle else null,
-                                                            description = if (newDesc != originalDesc) newDesc else null
-                                                        ) { success, errorMsg ->
-                                                            if (success) {
-                                                                // Sincronizar playlists después de EDITAR
-                                                                coroutineScope.launch {
-                                                                    localRepository.syncPlaylistsFromSpotify()
-                                                                    // Esperar a que termine la sincronización
-                                                                    kotlinx.coroutines.delay(500)
-                                                                    isLoadingTracks = false
-                                                                    // Salir del modo edición y volver al listado
-                                                                    isEditing = false
-                                                                    hasUnsavedChanges = false
-                                                                    selectedPlaylist = null
-                                                                    playlistTracks = emptyList()
-                                                                }
-                                                            } else {
-                                                                isLoadingTracks = false
-                                                                // Mostrar error
-                                                                Log.e("PlaylistScreen", "Error actualizando playlist: $errorMsg")
-                                                            }
-                                                        }
-                                                    } else {
-                                                        // Si no hay token, solo resetear el flag y salir
-                                                        hasUnsavedChanges = false
-                                                        isEditing = false
-                                                    }
+                                                    hasUnsavedChanges = false
+                                                    isEditing = false
                                                 }
                                             } else {
                                                 // Si no hay cambios, solo salir del modo edición
@@ -784,8 +506,8 @@ fun PlaylistsScreen(
                                     TextButton(
                                         onClick = {
                                             showDeleteDialog = false
-                                            if (isYouTubePlaylistView && selectedPlaylist != null) {
-                                                // Eliminar playlist de YouTube local (sin token de Spotify)
+                                            if (selectedPlaylist != null) {
+                                                // Eliminar playlist local
                                                 coroutineScope.launch {
                                                     localRepository.deleteYouTubePlaylist(selectedPlaylist!!.id.removePrefix("youtube_"))
                                                     isEditing = false
@@ -793,31 +515,6 @@ fun PlaylistsScreen(
                                                     selectedPlaylist = null
                                                     playlistTracks = emptyList()
                                                     onBack()
-                                                }
-                                            } else {
-                                                // Eliminar la playlist
-                                                val accessToken = Config.getSpotifyAccessToken(context)
-                                                if (accessToken != null && selectedPlaylist != null) {
-                                                    coroutineScope.launch {
-                                                        SpotifyRepository.unfollowPlaylist(
-                                                            accessToken,
-                                                            selectedPlaylist!!.id
-                                                        ) { success: Boolean, errorMsg: String? ->
-                                                            if (success) {
-                                                                // Sincronizar playlists después de eliminar
-                                                                coroutineScope.launch {
-                                                                    localRepository.syncPlaylistsFromSpotify()
-                                                                }
-                                                                // Salir del modo edición y volver a la lista
-                                                                isEditing = false
-                                                                hasUnsavedChanges = false
-                                                                selectedPlaylist = null
-                                                                playlistTracks = emptyList()
-                                                                // Volver al Home
-                                                                onBack()
-                                                            }
-                                                        }
-                                                    }
                                                 }
                                             }
                                         }
@@ -850,7 +547,7 @@ fun PlaylistsScreen(
                             // Estados para el buscador de canciones en edición
                             var searchQuery by remember { mutableStateOf("") }
                             var isSearching by remember { mutableStateOf(false) }
-                            var searchResults by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+                            var searchResults by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
                             var editError by remember { mutableStateOf<String?>(null) }
 
                             // Detectar cambios en los campos
@@ -952,41 +649,25 @@ fun PlaylistsScreen(
                                             onSearch = {
                                                 if (searchQuery.isNotBlank() && !isSearching) {
                                                     isSearching = true
-                                                    if (isYouTubePlaylistView) {
-                                                        // Búsqueda de vídeos de YouTube con la integración existente
-                                                        coroutineScope.launch {
-                                                            val result = try {
-                                                                youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
-                                                            } catch (e: Exception) {
-                                                                Log.e("PlaylistScreen", "Error buscando en YouTube: ${e.message}")
-                                                                null
-                                                            }
-                                                            isSearching = false
-                                                            if (result != null) {
-                                                                searchResults = result.videos.map { video ->
-                                                                    SpotifyTrack(
-                                                                        id = video.videoId,
-                                                                        name = video.title,
-                                                                        artists = listOf(SpotifyArtist(video.uploader))
-                                                                    )
-                                                                }
-                                                            } else {
-                                                                editError = "YouTube search failed"
-                                                            }
+                                                    // Búsqueda de vídeos de YouTube con la integración existente
+                                                    coroutineScope.launch {
+                                                        val result = try {
+                                                            youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
+                                                        } catch (e: Exception) {
+                                                            Log.e("PlaylistScreen", "Error buscando en YouTube: ${e.message}")
+                                                            null
                                                         }
-                                                    } else {
-                                                        val accessToken = Config.getSpotifyAccessToken(context)
-                                                        if (accessToken != null) {
-                                                            coroutineScope.launch {
-                                                                SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
-                                                                    isSearching = false
-                                                                    if (results != null) {
-                                                                        searchResults = results.tracks.items
-                                                                    } else {
-                                                                        editError = errorMsg
-                                                                    }
-                                                                }
+                                                        isSearching = false
+                                                        if (result != null) {
+                                                            searchResults = result.videos.map { video ->
+                                                                AppTrack(
+                                                                    id = video.videoId,
+                                                                    name = video.title,
+                                                                    artists = listOf(AppArtist(video.uploader))
+                                                                )
                                                             }
+                                                        } else {
+                                                            editError = "YouTube search failed"
                                                         }
                                                     }
                                                 }
@@ -1028,7 +709,7 @@ fun PlaylistsScreen(
                                         TrackEntity(
                                             id = "edit_search_${track.id}_$trackIndex",
                                             playlistId = "edit_search_${System.currentTimeMillis()}",
-                                            spotifyTrackId = track.id,
+                                            remoteTrackId = track.id,
                                             name = track.name,
                                             artists = track.getArtistNames(),
                                             youtubeVideoId = null,
@@ -1040,14 +721,14 @@ fun PlaylistsScreen(
 
                                     items(searchResults.take(10).size) { index ->
                                         val track = searchResults[index]
-                                        val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
+                                        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                                         SongListItem(
                                             song = Song(
                                                 number = index + 1,
                                                 title = track.name,
                                                 artist = track.getArtistNames(),
-                                                spotifyId = track.id,
-                                                spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                                                remoteId = track.id,
+                                                shareUrl = "https://www.youtube.com/watch?v=${track.id}"
                                             ),
                                             trackEntities = searchTrackEntities,
                                             index = index,
@@ -1056,7 +737,7 @@ fun PlaylistsScreen(
                                             isCurrentlyPlaying = isPlaying,
                                             customButtonIcon = "+",
                                             customButtonAction = {
-                                                if (isYouTubePlaylistView && selectedPlaylist != null) {
+                                                if (selectedPlaylist != null) {
                                                     // Añadir track a la playlist de YouTube local (videoId ya resuelto)
                                                     coroutineScope.launch {
                                                         val success = localRepository.addTrackToYouTubePlaylist(
@@ -1064,7 +745,7 @@ fun PlaylistsScreen(
                                                             track = TrackEntity(
                                                                 id = "",
                                                                 playlistId = selectedPlaylist!!.id,
-                                                                spotifyTrackId = track.id,
+                                                                remoteTrackId = track.id,
                                                                 name = track.name,
                                                                 artists = track.getArtistNames(),
                                                                 youtubeVideoId = track.id.takeIf { it.length == 11 },
@@ -1078,29 +759,6 @@ fun PlaylistsScreen(
                                                             searchQuery = ""
                                                         } else {
                                                             editError = "Error adding track"
-                                                        }
-                                                    }
-                                                } else {
-                                                    // Añadir canción a la playlist
-                                                    val accessToken = Config.getSpotifyAccessToken(context)
-                                                    if (accessToken != null && selectedPlaylist != null) {
-                                                        coroutineScope.launch {
-                                                            SpotifyRepository.addTrackToPlaylist(
-                                                                accessToken,
-                                                                selectedPlaylist!!.id,
-                                                                track.id
-                                                            ) { success, errorMsg ->
-                                                                if (success) {
-                                                                    searchResults = emptyList()
-                                                                    searchQuery = ""
-                                                                    // Recargar tracks
-                                                                    coroutineScope.launch {
-                                                                        localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
-                                                                    }
-                                                                } else {
-                                                                    editError = errorMsg
-                                                                }
-                                                            }
                                                         }
                                                     }
                                                 }
@@ -1137,14 +795,14 @@ fun PlaylistsScreen(
 
                                     items(playlistTracks.size) { index ->
                                         val track = playlistTracks[index]
-                                        val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
+                                        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                                         SongListItem(
                                             song = Song(
                                                 number = index + 1,
                                                 title = track.name,
                                                 artist = track.getArtistNames(),
-                                                spotifyId = track.id,
-                                                spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                                                remoteId = track.id,
+                                                shareUrl = "https://www.youtube.com/watch?v=${track.id}"
                                             ),
                                             trackEntities = tracksFromDB,
                                             index = index,
@@ -1153,45 +811,20 @@ fun PlaylistsScreen(
                                             isCurrentlyPlaying = isPlaying,
                                             customButtonIcon = "x",
                                             customButtonAction = {
-                                                if (isYouTubePlaylistView && selectedPlaylist != null) {
+                                                if (selectedPlaylist != null) {
                                                     // Eliminar track de la playlist de YouTube local
                                                     coroutineScope.launch {
                                                         val success = localRepository.removeTrackFromYouTubePlaylist(
                                                             localPlaylistId = selectedPlaylist!!.id,
-                                                            spotifyTrackId = track.id
+                                                            remoteTrackId = track.id
                                                         )
                                                         if (!success) {
                                                             editError = "Error removing track"
                                                         }
                                                     }
-                                                } else {
-                                                    // Eliminar canción de la playlist
-                                                    val accessToken = Config.getSpotifyAccessToken(context)
-                                                    if (accessToken != null && selectedPlaylist != null) {
-                                                        coroutineScope.launch {
-                                                            SpotifyRepository.removeTrackFromPlaylist(
-                                                                accessToken,
-                                                                selectedPlaylist!!.id,
-                                                                track.id
-                                                            ) { success, errorMsg ->
-                                                                if (success) {
-                                                                    // Recargar tracks
-                                                                    coroutineScope.launch {
-                                                                        localRepository.syncTracksFromSpotify(selectedPlaylist!!.id)
-                                                                    }
-                                                                } else {
-                                                                    editError = errorMsg
-                                                                }
-                                                            }
-                                                        }
-                                                    }
                                                 }
                                             },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            onLikedStatusChanged = {
-                                                // Recargar las Liked Songs cuando se modifica el estado
-                                                loadLikedSongs()
-                                            }
+                                            modifier = Modifier.fillMaxWidth()
                                         )
                                     }
                                 }
@@ -1199,51 +832,6 @@ fun PlaylistsScreen(
                         }
                         // Lista de tracks (solo visible cuando NO está en modo edición)
                         if (!isEditing) {
-                            // Estado para recomendaciones
-                            var recommendedSongs by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
-                            var isLoadingRecommendations by remember { mutableStateOf(false) }
-                            var recommendationError by remember { mutableStateOf<String?>(null) }
-
-                            // Cargar recomendaciones cuando se carga la playlist
-                            LaunchedEffect(playlistTracks) {
-                                if (playlistTracks.isNotEmpty()) {
-                                    isLoadingRecommendations = true
-                                    recommendationError = null
-                                    coroutineScope.launch {
-                                        try {
-                                            // Extraer nombres de artistas de las canciones - obtener múltiples artistas distintos
-                                            val artistNames = mutableSetOf<String>()
-
-                                            // Iterar sobre todas las canciones para recolectar artistas distintos
-                                            for (track in playlistTracks) {
-                                                val trackArtists = track.getArtistNames()
-                                                // Dividir por comas si hay múltiples artistas
-                                                val artistList = trackArtists.split(",").map { it.trim() }
-                                                artistNames.addAll(artistList)
-
-                                                // Detener cuando tengamos suficientes artistas (máximo 10)
-                                                if (artistNames.size >= 10) {
-                                                    break
-                                                }
-                                            }
-
-                                            val finalArtistList = artistNames.toList().take(10)
-
-                                            if (finalArtistList.isNotEmpty()) {
-                                                val recommendations = getRecommendations(context, finalArtistList)
-                                                // ahora getRecommendations devuelve List<SpotifyTrack>
-                                                recommendedSongs = recommendations
-                                            }
-                                        } catch (e: Exception) {
-                                            Log.e("PlaylistScreen", "Error loading recommendations: ${e.message}")
-                                            recommendationError = e.message
-                                        } finally {
-                                            isLoadingRecommendations = false
-                                        }
-                                    }
-                                }
-                            }
-
                             LazyColumn(
                                 modifier = Modifier.fillMaxWidth(),
                                 contentPadding = PaddingValues(bottom = 16.dp),
@@ -1256,7 +844,7 @@ fun PlaylistsScreen(
                                         TrackEntity(
                                             id = "temp_${selectedPlaylist?.id}_${track.id}",
                                             playlistId = selectedPlaylist?.id ?: "unknown",
-                                            spotifyTrackId = track.id,
+                                            remoteTrackId = track.id,
                                             name = track.name,
                                             artists = track.getArtistNames(),
                                             youtubeVideoId = null,
@@ -1273,10 +861,10 @@ fun PlaylistsScreen(
                                         number = index + 1,
                                         title = track.name,
                                         artist = track.getArtistNames(),
-                                        spotifyId = track.id,
-                                        spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                                        remoteId = track.id,
+                                        shareUrl = "https://www.youtube.com/watch?v=${track.id}"
                                     )
-                                    val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
+                                    val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                                     SongListItem(
                                         song = song,
                                         trackEntities = trackEntitiesList,
@@ -1284,178 +872,8 @@ fun PlaylistsScreen(
                                         playerViewModel = playerViewModel,
                                         coroutineScope = coroutineScope,
                                         modifier = Modifier.fillMaxWidth(),
-                                        isCurrentlyPlaying = isPlaying,
-                                        onLikedStatusChanged = {
-                                            // Recargar las Liked Songs cuando se modifica el estado
-                                            loadLikedSongs()
-                                        }
+                                        isCurrentlyPlaying = isPlaying
                                     )
-                                }
-
-                                // Sección de álbumes del artista (solo si hay un artista seleccionado)
-                                if (selectedArtist != null && artistAlbums.isNotEmpty()) {
-                                    item {
-                                        Spacer(Modifier.height(24.dp))
-                                        Text(
-                                            text = Translations.get(context, "albums"),
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            ),
-                                            modifier = Modifier.padding(bottom = 12.dp)
-                                        )
-
-                                        LazyRow(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp)
-                                        ) {
-                                            items(artistAlbums.size) { index ->
-                                                val album = artistAlbums[index]
-                                                Column(
-                                                    modifier = Modifier
-                                                        .width(120.dp)
-                                                        .clickable {
-                                                            // Cargar los tracks del álbum
-                                                            isViewingAlbumFromArtist = true
-                                                            isLoadingTracks = true
-                                                            val accessToken = Config.getSpotifyAccessToken(context)
-                                                            if (accessToken != null) {
-                                                                SpotifyRepository.getAlbumTracks(accessToken, album.id) { tracks, errorMsg ->
-                                                                    isLoadingTracks = false
-                                                                    if (tracks != null) {
-                                                                        // Crear una playlist temporal para mostrar el álbum
-                                                                        selectedPlaylist = SpotifyPlaylist(
-                                                                            id = album.id,
-                                                                            name = album.name,
-                                                                            description = "Album by ${album.getArtistNames()}",
-                                                                            tracks = com.plyr.network.SpotifyPlaylistTracks(null, album.totaltracks ?: tracks.size),
-                                                                            images = album.images
-                                                                        )
-                                                                        playlistTracks = tracks
-                                                                        selectedPlaylistEntity = null
-                                                                        // NO limpiar artista ni álbumes aquí para poder volver
-                                                                    } else {
-                                                                        Log.e("PlaylistScreen", "Error loading album tracks: $errorMsg")
-                                                                    }
-                                                                }
-                                                            }
-                                                        },
-                                                    horizontalAlignment = Alignment.CenterHorizontally
-                                                ) {
-                                                    AsyncImage(
-                                                        model = album.getImageUrl(),
-                                                        contentDescription = "Portada de ${album.name}",
-                                                        modifier = Modifier
-                                                            .size(150.dp)
-                                                            .clip(RoundedCornerShape(8.dp)),
-                                                        placeholder = null,
-                                                        error = null,
-                                                        fallback = null
-                                                    )
-
-                                                    Text(
-                                                        text = album.name,
-                                                        style = MaterialTheme.typography.bodySmall.copy(
-                                                            fontFamily = FontFamily.Monospace,
-                                                            color = MaterialTheme.colorScheme.onBackground
-                                                        ),
-                                                        modifier = Modifier.padding(top = 4.dp),
-                                                        maxLines = 2,
-                                                        overflow = TextOverflow.Ellipsis,
-                                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Sección de recomendaciones (usando SpotifyTrack real)
-                                if (recommendedSongs.isNotEmpty()) {
-                                    item {
-                                        Spacer(Modifier.height(24.dp))
-                                        Text(
-                                            text = Translations.get(context, "similar_songs"),
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            ),
-                                            modifier = Modifier.padding(bottom = 12.dp)
-                                        )
-                                    }
-
-                                    // Construir TrackEntity reales a partir de SpotifyTrack
-                                    val recommendedTrackEntities = recommendedSongs.mapIndexed { i, t ->
-                                        TrackEntity(
-                                            id = "spotify_${t.id}",
-                                            playlistId = "recommendations",
-                                            spotifyTrackId = t.id,
-                                            name = t.name,
-                                            artists = t.getArtistNames(),
-                                            youtubeVideoId = null,
-                                            audioUrl = null,
-                                            position = i,
-                                            lastSyncTime = System.currentTimeMillis()
-                                        )
-                                    }
-
-                                    items(recommendedTrackEntities.size) { index ->
-                                        val t = recommendedSongs[index]
-                                        val entity = recommendedTrackEntities[index]
-                                        val songListItem = Song(
-                                            number = index + 1,
-                                            title = t.name,
-                                            artist = t.getArtistNames(),
-                                            spotifyId = t.id,
-                                            spotifyUrl = "https://open.spotify.com/track/${t.id}"
-                                        )
-                                        val isPlaying = currentPlayingTrack?.spotifyTrackId == t.id
-
-                                        SongListItem(
-                                            song = songListItem,
-                                            trackEntities = recommendedTrackEntities,
-                                            index = index,
-                                            playerViewModel = playerViewModel,
-                                            coroutineScope = coroutineScope,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            isCurrentlyPlaying = isPlaying,
-                                            onLikedStatusChanged = {
-                                                // si se modifica liked desde aquí, recargar liked songs
-                                                loadLikedSongs()
-                                            }
-                                        )
-                                    }
-                                }
-
-                                // Mostrar indicador de carga
-                                if (isLoadingRecommendations) {
-                                    item {
-                                        Spacer(Modifier.height(24.dp))
-                                        Text(
-                                            text = Translations.get(context, "loading_recommendations"),
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.tertiary
-                                            ),
-                                            modifier = Modifier.padding(start = 8.dp)
-                                        )
-                                    }
-                                }
-
-                                // Mostrar error si existe
-                                recommendationError?.let {
-                                    item {
-                                        Spacer(Modifier.height(24.dp))
-                                        Text(
-                                            text = "⚠ Error loading similar: $it",
-                                            color = MaterialTheme.colorScheme.error,
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace
-                                            ),
-                                            modifier = Modifier.padding(start = 8.dp)
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -1535,37 +953,14 @@ fun PlaylistsScreen(
                     // Diálogo de compartir - debe estar dentro del mismo scope que showShareDialog
                     if (showShareDialog) {
                         ShareDialog(
-                            item = if (isViewingAlbumFromArtist && selectedPlaylist != null) {
-                                // Es un álbum visto desde un artista
-                                ShareableItem(
-                                    spotifyId = selectedPlaylist!!.id,
-                                    spotifyUrl = "https://open.spotify.com/album/${selectedPlaylist!!.id}",
-                                    youtubeId = null,
-                                    title = selectedPlaylist!!.name,
-                                    artist = selectedPlaylist!!.description ?: "Album",
-                                    type = ShareType.ALBUM
-                                )
-                            } else if (selectedArtist != null) {
-                                // Es un artista
-                                ShareableItem(
-                                    spotifyId = selectedArtist!!.id,
-                                    spotifyUrl = "https://open.spotify.com/artist/${selectedArtist!!.id}",
-                                    youtubeId = null,
-                                    title = selectedArtist!!.name,
-                                    artist = selectedArtist!!.genres?.joinToString(", ") ?: "Artist",
-                                    type = ShareType.ARTIST
-                                )
-                            } else {
-                                // Es una playlist
-                                ShareableItem(
-                                    spotifyId = selectedPlaylist!!.id,
-                                    spotifyUrl = "https://open.spotify.com/playlist/${selectedPlaylist!!.id}",
-                                    youtubeId = null,
-                                    title = selectedPlaylist!!.name,
-                                    artist = "Playlist",
-                                    type = ShareType.PLAYLIST
-                                )
-                            },
+                            item = ShareableItem(
+                                remoteId = selectedPlaylist!!.id,
+                                shareUrl = null,
+                                youtubeId = selectedPlaylist!!.id.removePrefix("youtube_"),
+                                title = selectedPlaylist!!.name,
+                                artist = "Playlist",
+                                type = ShareType.PLAYLIST
+                            ),
                             onDismiss = { showShareDialog = false }
                         )
                     }
@@ -1573,10 +968,89 @@ fun PlaylistsScreen(
             }
 
 
-        // Diálogo de recorte de portada (solo playlists locales youtube_ en modo edición)
+        // Lista de playlists (visible cuando no hay playlist seleccionada ni creando)
+        if (selectedPlaylist == null && !showCreatePlaylistScreen) {
+            Titulo(Translations.get(context, "plyr_lists"))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (playlists.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = Translations.get(context, "no_playlists"),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(playlists.size) { index ->
+                        val playlist = playlists[index]
+                        val playlistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
+                        val channelName = getYouTubeChannelName(playlistEntity)
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    loadPlaylistTracks(playlist)
+                                },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            AsyncImage(
+                                model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
+                                contentDescription = "Portada de ${playlist.name}",
+                                modifier = Modifier
+                                    .size(150.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop,
+                                placeholder = null,
+                                error = null,
+                                fallback = null
+                            )
+                            Text(
+                                text = playlist.name,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                ),
+                                modifier = Modifier.padding(top = 8.dp),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                            if (channelName != null) {
+                                Text(
+                                    text = channelName,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    modifier = Modifier.padding(top = 2.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
         coverPickUri?.let { uri ->
             val entity = selectedPlaylistEntity
-            if (entity != null && isEditing && entity.spotifyId.startsWith("youtube_")) {
+            if (entity != null && isEditing && entity.remoteId.startsWith("youtube_")) {
                 CoverCropDialog(
                     uri = uri,
                     onDismiss = { coverPickUri = null },
@@ -1585,11 +1059,11 @@ fun PlaylistsScreen(
                         coroutineScope.launch {
                             val path = CoverImageManager.save(
                                 context,
-                                entity.spotifyId.removePrefix("youtube_"),
+                                entity.remoteId.removePrefix("youtube_"),
                                 cropped
                             )
                             if (path != null) {
-                                localRepository.updatePlaylistImage(entity.spotifyId, path)
+                                localRepository.updatePlaylistImage(entity.remoteId, path)
                                 // Refrescar la entidad para que la preview en modo edición se actualice
                                 selectedPlaylistEntity = entity.copy(imageUrl = path)
                             }
@@ -1609,16 +1083,14 @@ fun CreatePlaylistScreen(
 ) {
     var playlistName by remember { mutableStateOf("") }
     var playlistDesc by remember { mutableStateOf("") }
-    var isPublic by remember { mutableStateOf(true) }
-    var playlistType by remember { mutableStateOf(0) } // 0 = Spotify, 1 = YouTube
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     // Estados para el buscador de canciones
     var searchQuery by remember { mutableStateOf("") }
     var isSearching by remember { mutableStateOf(false) }
-    var searchResults by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
-    var selectedTracks by remember { mutableStateOf<List<SpotifyTrack>>(emptyList()) }
+    var searchResults by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
+    var selectedTracks by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -1654,19 +1126,6 @@ fun CreatePlaylistScreen(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(8.dp))
-        MultiToggle(
-            options = listOf("spotify", "youtube"),
-            initialIndex = 0,
-            onChange = { index -> playlistType = index }
-        )
-        if (playlistType == 0) {
-            Spacer(Modifier.height(8.dp))
-            MultiToggle(
-                options = listOf("public", "private"),
-                initialIndex = if (isPublic) 0 else 1,
-                onChange = { index -> isPublic = (index == 0) }
-            )
-        }
         // Campo de búsqueda
         OutlinedTextField(
             value = searchQuery,
@@ -1691,43 +1150,24 @@ fun CreatePlaylistScreen(
                     if (searchQuery.isNotBlank() && !isSearching) {
                         isSearching = true
                         error = null
-                        if (playlistType == 1) {
-                            // Búsqueda de vídeos de YouTube con la integración existente
-                            coroutineScope.launch {
-                                val result = try {
-                                    youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
-                                } catch (e: Exception) {
-                                    null
-                                }
-                                isSearching = false
-                                if (result != null) {
-                                    searchResults = result.videos.map { video ->
-                                        SpotifyTrack(
-                                            id = video.videoId,
-                                            name = video.title,
-                                            artists = listOf(SpotifyArtist(video.uploader))
-                                        )
-                                    }
-                                } else {
-                                    error = "YouTube search failed"
-                                }
+                        // Búsqueda de vídeos de YouTube con la integración existente
+                        coroutineScope.launch {
+                            val result = try {
+                                youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
+                            } catch (e: Exception) {
+                                null
                             }
-                        } else {
-                            val accessToken = Config.getSpotifyAccessToken(context)
-                            if (accessToken != null) {
-                                coroutineScope.launch {
-                                    SpotifyRepository.searchAll(accessToken, searchQuery) { results, errorMsg ->
-                                        isSearching = false
-                                        if (results != null) {
-                                            searchResults = results.tracks.items
-                                        } else {
-                                            error = errorMsg
-                                        }
-                                    }
+                            isSearching = false
+                            if (result != null) {
+                                searchResults = result.videos.map { video ->
+                                    AppTrack(
+                                        id = video.videoId,
+                                        name = video.title,
+                                        artists = listOf(AppArtist(video.uploader))
+                                    )
                                 }
                             } else {
-                                isSearching = false
-                                error = "Spotify not connected"
+                                error = "YouTube search failed"
                             }
                         }
                     }
@@ -1752,9 +1192,9 @@ fun CreatePlaylistScreen(
         if (searchResults.isNotEmpty()) {
             val trackEntities = searchResults.take(10).mapIndexed { trackIndex, track ->
                 TrackEntity(
-                    id = "spotify_search_${track.id}_$trackIndex",
-                    playlistId = "spotify_search_${System.currentTimeMillis()}",
-                    spotifyTrackId = track.id,
+                    id = "yt_search_${track.id}_$trackIndex",
+                    playlistId = "yt_search_${System.currentTimeMillis()}",
+                    remoteTrackId = track.id,
                     name = track.name,
                     artists = track.getArtistNames(),
                     youtubeVideoId = null,
@@ -1765,14 +1205,14 @@ fun CreatePlaylistScreen(
             }
 
             searchResults.take(10).forEachIndexed { index, track ->
-                val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
+                val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                 SongListItem(
                     song = Song(
                         number = index + 1,
                         title = track.name,
                         artist = track.getArtistNames(),
                         youtubeId = track.id,
-                        spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                        shareUrl = "https://www.youtube.com/watch?v=${track.id}"
                     ),
                     trackEntities = trackEntities,
                     index = index,
@@ -1805,9 +1245,9 @@ fun CreatePlaylistScreen(
             )
             val tracksEntities = selectedTracks.mapIndexed { trackIndex, track ->
                 TrackEntity(
-                    id = "spotify_search_${track.id}_$trackIndex",
-                    playlistId = "spotify_search_${System.currentTimeMillis()}",
-                    spotifyTrackId = track.id,
+                    id = "yt_search_${track.id}_$trackIndex",
+                    playlistId = "yt_search_${System.currentTimeMillis()}",
+                    remoteTrackId = track.id,
                     name = track.name,
                     artists = track.getArtistNames(),
                     youtubeVideoId = null,
@@ -1818,14 +1258,14 @@ fun CreatePlaylistScreen(
             }
 
             selectedTracks.forEachIndexed { index, track ->
-                val isPlaying = currentPlayingTrack?.spotifyTrackId == track.id
+                val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                 SongListItem(
                     song = Song(
                         number = index + 1,
                         title = track.name,
                         artist = track.getArtistNames(),
                         youtubeId = track.id,
-                        spotifyUrl = "https://open.spotify.com/track/${track.id}"
+                        shareUrl = "https://www.youtube.com/watch?v=${track.id}"
                     ),
                     trackEntities = tracksEntities,
                     index = index,
@@ -1852,64 +1292,36 @@ fun CreatePlaylistScreen(
                     // Acción de crear playlist con las canciones seleccionadas
                     isLoading = true
                     error = null
-                    if (playlistType == 1) {
-                        // Crear playlist de YouTube usando la integración existente
-                        coroutineScope.launch {
-                            val (saved, message) = withContext(Dispatchers.IO) {
-                                val creator = YouTubePlaylistCreator()
-                                val rawId = "yt_${System.currentTimeMillis()}"
-                                // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
-                                val resolvedVideoIds = selectedTracks
-                                    .filter { it.id.length == 11 }
-                                    .associate { it.id to it.id }
-                                val created = creator.build(
-                                    title = playlistName,
-                                    description = playlistDesc.ifBlank { null },
-                                    sourceTracks = creator.buildSourceTracks(selectedTracks),
-                                    targetPlaylistId = "youtube_$rawId",
-                                    resolvedVideoIds = resolvedVideoIds
-                                )
-                                val ok = localRepository.saveCreatedYouTubePlaylist(
-                                    playlistId = rawId,
-                                    title = created.title,
-                                    description = created.description,
-                                    imageUrl = null,
-                                    tracks = created.tracks
-                                )
-                                ok to "${created.tracks.size} tracks (${selectedTracks.size - created.tracks.size} sin vídeo)"
-                            }
-                            isLoading = false
-                            if (saved) {
-                                onPlaylistCreated()
-                            } else {
-                                error = message
-                            }
+                    // Crear playlist de YouTube usando la integración existente
+                    coroutineScope.launch {
+                        val (saved, message) = withContext(Dispatchers.IO) {
+                            val creator = YouTubePlaylistCreator()
+                            val rawId = "yt_${System.currentTimeMillis()}"
+                            // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
+                            val resolvedVideoIds = selectedTracks
+                                .filter { it.id.length == 11 }
+                                .associate { it.id to it.id }
+                            val created = creator.build(
+                                title = playlistName,
+                                description = playlistDesc.ifBlank { null },
+                                sourceTracks = creator.buildSourceTracks(selectedTracks),
+                                targetPlaylistId = "youtube_$rawId",
+                                resolvedVideoIds = resolvedVideoIds
+                            )
+                            val ok = localRepository.saveCreatedYouTubePlaylist(
+                                playlistId = rawId,
+                                title = created.title,
+                                description = created.description,
+                                imageUrl = null,
+                                tracks = created.tracks
+                            )
+                            ok to "${created.tracks.size} tracks (${selectedTracks.size - created.tracks.size} sin vídeo)"
                         }
-                    } else {
-                        val accessToken = Config.getSpotifyAccessToken(context)
-                        if (accessToken != null) {
-                            val trackIds = selectedTracks.map { it.id }
-                            SpotifyRepository.createPlaylist(
-                                accessToken,
-                                playlistName,
-                                playlistDesc,
-                                isPublic,
-                                trackIds
-                            ) { success, errMsg ->
-                                isLoading = false
-                                if (success) {
-                                    // Sincronizar playlists después de crear
-                                    coroutineScope.launch {
-                                        localRepository.syncPlaylistsFromSpotify()
-                                    }
-                                    onPlaylistCreated()
-                                } else {
-                                    error = errMsg ?: "Unknown error"
-                                }
-                            }
+                        isLoading = false
+                        if (saved) {
+                            onPlaylistCreated()
                         } else {
-                            isLoading = false
-                            error = "Spotify not connected"
+                            error = message
                         }
                     }
                 }
@@ -1922,86 +1334,4 @@ fun CreatePlaylistScreen(
     }
 }
 
-@Composable
-fun SpotifyPlaylistDetailView(
-    playlist: SpotifyPlaylist,
-    tracks: List<SpotifyTrack>,
-    trackEntities: List<TrackEntity>? = null,
-    isLoading: Boolean,
-    error: String?,
-    onStart: () -> Unit,
-    onRandom: () -> Unit,
-    onSave: () -> Unit,
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
-) {
-    var showShareDialog by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Titulo(playlist.name)
-
-        // Botones de acción (usar tokens del tema en lugar de hex literals)
-        ActionButtonsGroup(
-            buttons = listOf(
-                ActionButtonData(">", MaterialTheme.colorScheme.primary, onStart, tracks.isNotEmpty()),
-                ActionButtonData("<rnd>", MaterialTheme.colorScheme.tertiary, onRandom, tracks.isNotEmpty()),
-                ActionButtonData("<save>", MaterialTheme.colorScheme.secondary, onSave, true),
-                ActionButtonData("<share>", MaterialTheme.colorScheme.error, { showShareDialog = true }, true)
-            )
-        )
-
-        // Estados de carga y error
-        if (isLoading) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    "$ loading tracks...",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                )
-            }
-        }
-
-        error?.let {
-            Text(
-                "ERR: $it",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace
-                ),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-
-        //listado canciones
-        if (tracks.isNotEmpty()) {
-            SongList(
-                playlist = playlist,
-                tracks = tracks,
-                trackEntities = trackEntities,
-                playerViewModel = playerViewModel,
-                coroutineScope = coroutineScope
-            )
-        }
-    }
-
-    if (showShareDialog) {
-        ShareDialog(
-            item = ShareableItem(
-                spotifyId = playlist.id,
-                spotifyUrl = "https://open.spotify.com/playlist/${playlist.id}",
-                youtubeId = null,
-                title = playlist.name,
-                artist = "Playlist",
-                type = ShareType.PLAYLIST
-            ),
-            onDismiss = { showShareDialog = false }
-        )
-    }
-}

@@ -71,7 +71,7 @@ interface TrackDao {
     
     /**
      * Actualiza solo el YouTube ID de un track específico.
-     * Útil para asignar videos de YouTube a tracks de Spotify.
+     * Útil para asignar videos de YouTube a tracks.
      */
     @Query("UPDATE tracks SET youtubeVideoId = :youtubeVideoId WHERE id = :trackId")
     suspend fun updateYoutubeVideoId(trackId: String, youtubeVideoId: String)

@@ -3,7 +3,7 @@ package com.plyr.utils
 import com.plyr.model.ScanResult
 
 /**
- * Parsing centralizado de URLs de YouTube/Spotify y construcción de thumbnails.
+ * Parsing centralizado de URLs y construcción de thumbnails.
  * Pura (sin dependencias Android) para poder testearla en JVM.
  */
 object UrlParser {
@@ -37,14 +37,14 @@ object UrlParser {
     }.getOrNull()
 
     /**
-     * Extrae el ID de Spotify del último segmento de la URL.
+     * Extrae el ID del último segmento de una URL genérica.
      */
     fun extractSpotifyId(url: String): String? = runCatching {
         url.substringAfterLast("/").substringBefore("?").takeIf { it.isNotBlank() }
     }.getOrNull()
 
     /**
-     * Parsea un texto (URL de Spotify/YouTube o formato legacy "plyr_source:type:id")
+     * Parsea un texto (URL o formato legacy "plyr_source:type:id")
      * a un ScanResult.
      */
     fun parseScanText(text: String): ScanResult? = runCatching {

@@ -33,7 +33,7 @@ class TranslationsTest {
             "config_title", "theme", "language",
             "lang_spanish", "lang_english", "lang_catalan", "lang_japanese",
             "connected", "disconnected", "configured",
-            "search_engine", "search_spotify", "search_youtube",
+            "search_engine", "search_youtube",
             "info", "exit_message"
         )
         val translations = getTranslationsMap()

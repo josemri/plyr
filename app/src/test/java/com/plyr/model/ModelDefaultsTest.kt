@@ -1,6 +1,6 @@
 package com.plyr.model
 
-import com.plyr.network.Song
+import com.plyr.ui.components.Song
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -73,9 +73,9 @@ class ModelDefaultsTest {
 
     @Test
     fun song_isDataClassWithEquality() {
-        val a = Song("Título", "Artista")
-        val b = Song("Título", "Artista")
-        val c = Song("Otro", "Artista")
+        val a = Song(1, "Título", "Artista")
+        val b = Song(1, "Título", "Artista")
+        val c = Song(2, "Otro", "Artista")
         assertEquals(a, b)
         assertFalse(a == c)
         assertNotNull(a.title)

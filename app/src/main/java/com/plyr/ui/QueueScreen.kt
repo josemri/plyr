@@ -61,9 +61,9 @@ fun QueueScreen(
                             number = index + 1,
                             title = track.name,
                             artist = track.artists.ifEmpty { "Unknown Artist" },
-                            spotifyId = track.spotifyTrackId,
+                            remoteId = track.remoteTrackId,
                             youtubeId = track.youtubeVideoId,
-                            spotifyUrl = null // TrackEntity no tiene spotifyUrl
+                            shareUrl = null // TrackEntity no tiene shareUrl
                         )
 
                         SongListItem(

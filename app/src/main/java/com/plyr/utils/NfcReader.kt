@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Helper para leer URLs de tags NFC (YouTube y Spotify)
+ * Helper para leer URLs de tags NFC
  */
 object NfcReader {
     private const val TAG = "NfcReader"
@@ -241,7 +241,7 @@ object NfcReader {
     }
 
     /**
-     * Verifica si la URL es de YouTube o Spotify
+     * Verifica si la URL es reconocida
      */
     fun clearLastUrl() {
         _lastReadUrl.value = null

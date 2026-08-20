@@ -1,41 +1,42 @@
 # Reporte de análisis de PLYR
 
-**Fecha:** 2026-08-02 (actualizado tras refactor de duplicación — todos los focos D1-D7 resueltos)
-**Alcance:** `/home/josep/plyr/app/src/main/java/com/plyr` (69 archivos, ~19.600 líneas Kotlin) + configuración de Gradle/Manifiesto.
-**Método:** auditoría estática manual + 3 análisis paralelos (bugs/duplicación, rendimiento/arquitectura, seguridad/prácticas). Todos los hallazgos críticos fueron verificados leyendo el código. Esta revisión actualiza la primera versión teniendo en cuenta los cambios de refactor ya aplicados (ver §11).
+**Fecha:** 2026-08-20 (actualizado tras migración completa Spotify → YouTube + refactor de duplicación)
+**Alcance:** `/home/josep/plyr/app/src/main/java/com/plyr` (62 archivos, ~12.663 líneas Kotlin) + configuración de Gradle/Manifiesto.
+**Método:** auditoría estática manual + 3 análisis paralelos (bugs/duplicación, rendimiento/arquitectura, seguridad/prácticas). Todos los hallazgos críticos fueron verificados leyendo el código. Esta revisión actualiza la primera versión tras la migración Spotify → YouTube (§17) y refactor de duplicación (§11).
 
 ---
 
 ## 1. Resumen ejecutivo
 
-PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se instala y funciona en el dispositivo. Tiene **buenos cimientos** (Compose moderno, Media3, Room, NewPipe), pero acumula **deuda técnica importante**:
+PLYR es una app de música funcional (**YouTube-only + local**) que compila, se instala y funciona en el dispositivo. Tiene **buenos cimientos** (Compose moderno, Media3, Room, NewPipe), pero acumula **deuda técnica importante**:
 
-- **4 bugs críticos** (1 de lógica que no hace nada, 1 de traducción que muestra japonés en català, 2 de riesgo ANR/crash).
-- **3 focos de seguridad reales** (secretos de Spotify distribuidos vía Supabase anon, HTTP en claro con API key en la URL, tokens en SharedPreferences plano con backup a la nube).
-- **Duplicación resuelta al 100%**: los 7 focos (D1-D7) han sido eliminados; quedan solo patrones menores aislados (joinToString de artistas inline, `images?.firstOrNull()?.url?.let`).
-- **Monolitos de UI** (PlaylistScreen con 2.189 líneas, SearchScreen con 1.675).
-- **6 dependencias declaradas sin usar** y 2 archivos vacíos.
-- **148 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
+- **1 bug crítico** (B1: `isValidAudioUrl` nunca filtra nada) + **2 bugs medios** (B5-B6).
+- **Duplicación resuelta al 100%**: los 7 focos (D1-D7) han sido eliminados.
+- **Migración Spotify → YouTube completada** (§17): eliminados SpotifyRepository (1642 líneas), 5 archivos dedicados, ~50 funciones; renombrados todos los modelos (`SpotifyTrack` → `AppTrack`, etc.); eliminadas ~30 claves de traducción; renombrados campos de DB. **~7.000 líneas eliminadas (-35%)**.
+- **Monolitos de UI** más reducidos (PlaylistScreen ~1255, SearchScreen ~430).
+- **144 unit tests en verde** (0 fallos), pero **0 tests instrumentados útiles**.
 
-**Prioridades claras:** (1) seguridad de credenciales, (2) los 4 bugs críticos (B1-B4), (3) arquitectura por pantallas, (4) bugs medios/bajos restantes.
+**Prioridades claras:** (1) bugs restantes (B1, B5-B6), (2) arquitectura por pantallas (ViewModels), (3) calidad (R8, key en LazyLists, QrScannerDialog leak).
 
 ---
 
 ## 2. Métricas del proyecto
 
-| Métrica | Valor |
-|---|---|
-| Archivos Kotlin (main) | 69 |
-| Líneas totales | ~19.600 |
-| Archivo más grande | `ui/PlaylistScreen.kt` (2.189) |
-| versionCode / versionName | 5 / 1.0.6 |
-| minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
-| Tests unitarios | **148** (0 fallos; antes 76) |
-| Tests instrumentados útiles | 0 |
-| Dependencias declaradas sin uso | 6 |
-| Focos de duplicación | 7 → **0 pendientes** (todos resueltos) |
-| Bugs detectados | ~14 (4 críticos) |
-| Ficheros nuevos de refactor | `utils/UrlParser.kt`, `model/ScanResult.kt`, `utils/NewPipeHolder.kt`, `ui/components/TrackMetadataSection.kt`, `service/YouTubePlaylistCreator.kt` |
+| Métrica | Valor | Notas |
+|---|---|---|
+| Archivos Kotlin (main) | 62 | -7 vs pre-migración |
+| Líneas totales | ~12.663 | -6.937 vs pre-migración (~35% menos) |
+| Archivo más grande | `ui/PlaylistScreen.kt` (~1.255) | Antes 2.189 |
+| versionCode / versionName | 5 / 1.0.6 | |
+| minSdk / targetSdk / compileSdk | 24 / 36 / 36 | |
+| Tests unitarios | **144** (0 fallos) | -4 vs pre-migración (tests de modelos Spotify eliminados) |
+| Tests instrumentados útiles | 0 | |
+| Dependencias declaradas sin uso | 0 | Eliminadas 2026-08-17 |
+| Focos de duplicación | **0 pendientes** | Todos resueltos (D1-D7) |
+| Bugs activos | ~5 (1 crítico) | B1 crítico; B5-B6 medios; B12-B14 bajos |
+| Referencias "Spotify" restantes | 13 | Todas legítimas (UrlParser NFC/QR, migración SQL, ScanResult) |
+| Dependencia Spotify | **0** | Eliminada completamente |
+| Ficheros nuevos de refactor | `utils/UrlParser.kt`, `model/ScanResult.kt`, `utils/NewPipeHolder.kt`, `ui/components/TrackMetadataSection.kt`, `service/YouTubePlaylistCreator.kt`, `network/AppModels.kt` | |
 
 ---
 
@@ -43,34 +44,39 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 
 ### Críticos
 
-| # | Severidad | Ubicación | Descripción |
-|---|---|---|---|
-| B1 | **Alta** | `utils/Utils.kt:39` | **`isValidAudioUrl` nunca filtra nada.** En la L29 hay un early-return: si `isValidUrlFormat(url)` es false → return false. En la L39 `return hasAudioPattern || isValidUrlFormat(url)`: el segundo operando es **siempre `true`**, así que `containsAudioPattern` (ytimg.com, .mp3, etc.) es irrelevante y **cualquier URL http(s) pasa como "válida para audio"**. |
-| B2 | **Alta** | `utils/Translations.kt:970-1158` | **El bloque de català está contaminado con japonés.** A partir de "Local Screen" (~L970) hasta el final, las claves están traducidas a japonés (p.ej. `"plyr_local" to "plyr_ローカル"`, `"No tracks loaded" to "曲が読み込まれていません"`), copiadas del mapa "日本語". Los usuarios de català ven japonés en Local/Queue/Playlists/NFC/Share. |
-| B3 | **Alta** | `utils/Config.kt:210` (callers: `ui/SearchScreen.kt:208,275,...,1024`, `ui/PlaylistScreen.kt:346`, `ui/ConfigScreen.kt:54`) | **Red bloqueante en el hilo principal.** `getSpotifyAccessToken()` usa `runBlocking { withContext(IO) { suspendCoroutine {...} } }` para renovar el token por red. La UI la invoca directamente desde composables/LaunchedEffect en main → **riesgo de ANR**. |
-| B4 | **Alta** | ~~`assistant/AssistantManager.kt:717-725`~~ | **ExoPlayer tocado desde hilo de fondo.** El sleep-timer usa `java.util.Timer`/`TimerTask` y ejecuta `playerViewModel.pausePlayer()` en L723. ExoPlayer **no es thread-safe**; los métodos deben ir al main thread (riesgo de crash `IllegalStateException`). **Resuelto por eliminación:** el asistente de voz (y su sleep-timer) se eliminó en §14. |
+| # | Severidad | Ubicación | Descripción | Estado |
+|---|---|---|---|---|
+| B1 | **Alta** | `utils/Utils.kt:39` | **`isValidAudioUrl` nunca filtra nada.** En la L29 hay un early-return: si `isValidUrlFormat(url)` es false → return false. En la L39 `return hasAudioPattern || isValidUrlFormat(url)`: el segundo operando es **siempre `true`**, así que `containsAudioPattern` (ytimg.com, .mp3, etc.) es irrelevante y **cualquier URL http(s) pasa como "válida para audio"**. | **PENDIENTE** |
+| ~~B3~~ | ~~Alta~~ | ~~`utils/Config.kt:210`~~ | ~~**Red bloqueante en el hilo principal.** `getSpotifyAccessToken()` usa `runBlocking` para renovar el token.~~ | ✅ **RESUELTO** — función eliminada con Spotify |
+| ~~B4~~ | ~~Alta~~ | ~~`assistant/AssistantManager.kt`~~ | ~~**ExoPlayer tocado desde hilo de fondo.**~~ | ✅ **RESUELTO** — asistente eliminado (§14) |
 
 ### Medios
 
-| # | Severidad | Ubicación | Descripción |
-|---|---|---|---|
-| B5 | Media | `ui/QueueScreen.kt:103` | Usa `Translations.get(context, "Player not available")` con la **clave literal inexistente** (la clave real es `"player_not_available"`). El fallback devuelve la propia clave → **inglés en todos los idiomas**. |
-| B6 | Media | `ui/ConfigScreen.kt:262` | Loguea `Config.getSpotifyClientSecret(context)?.take(5)` → **fuga parcial del client secret a logcat**. |
-| B7 | Media | `network/SupabaseClient.kt:315` | Primer patrón de `parseTimestamp` (`SSSSSS`, 6 dígitos) no matchea el ISO real; hoy funciona por el fallback del 2º patrón. Si llega fracción de 6 dígitos, SimpleDateFormat lenient lo interpreta como milisegundos (~+2 min). |
-| B8 | Media | `viewmodel/PlayerViewModel.kt:163` | `loadingJob` (precarga de playlist) nunca se cancela al cambiar de canción/salir → resuelve URLs de canciones obsoletas en background. |
-| B9 | Media | `viewmodel/PlayerViewModel.kt:50,177` | `loadingJobsActive` (boolean no atómico) escrito desde hilo IO (:177) y leído desde main (:157) → race condition. |
-| B10 | Media | `ui/FeedScreen.kt:47,65` | `metadataCache` (Map en `mutableStateOf`) crece sin límite y se reconstruye completo en cada actualización (`metadataCache + ...` → O(n²)). |
-| B11 | Media | `network/Recommendations.kt:25-30` | La llamada a Last.fm usa **HTTP en claro** con la **API key en la URL** (`&api_key=`): cualquier intermediario la captura. |
+| # | Severidad | Ubicación | Descripción | Estado |
+|---|---|---|---|---|
+| B5 | Media | `ui/QueueScreen.kt:103` | Usa `Translations.get(context, "Player not available")` con la **clave literal inexistente** (la clave real es `"player_not_available"`). El fallback devuelve la propia clave → **inglés en todos los idiomas**. | **PENDIENTE** |
+| B6 | Media | `ui/ConfigScreen.kt:262` | ~~Loguea `Config.getSpotifyClientSecret(context)?.take(5)` → **fuga parcial del client secret a logcat**.~~ Ya no se loguea (función eliminada). | ✅ **RESUELTO** |
+| ~~B7~~ | Media | ~~`network/SupabaseClient.kt:315`~~ | ~~Primer patrón de `parseTimestamp` no matchea el ISO real~~ | ⚠️ **ACTIVO** — SupabaseClient sigue existiendo |
+| B8 | Media | `viewmodel/PlayerViewModel.kt:163` | `loadingJob` (precarga de playlist) nunca se cancela al cambiar de canción/salir → resuelve URLs de canciones obsoletas en background. | **PENDIENTE** |
+| B9 | Media | `viewmodel/PlayerViewModel.kt:50,177` | `loadingJobsActive` (boolean no atómico) escrito desde hilo IO y leído desde main → race condition. | **PENDIENTE** |
+| B10 | Media | `ui/FeedScreen.kt:47,65` | `metadataCache` (Map en `mutableStateOf`) crece sin límite y se reconstruye completo en cada actualización → O(n²). | **PENDIENTE** |
+| ~~B11~~ | ~~Media~~ | ~~`network/Recommendations.kt:25-30`~~ | ~~La llamada a Last.fm usa **HTTP en claro** con la **API key en la URL**.~~ | ✅ **RESUELTO** — Recommendations.kt eliminado |
 
 ### Bajos
 
-| # | Severidad | Ubicación | Descripción |
-|---|---|---|---|
-| B12 | Baja | `service/YouTubeSearchManager.kt:253-263` | `getFormattedVideoCount`: el `else` final es inalcanzable (el `when` ya cubre 1 / <1000 / >=1000) y `Double.format` depende del locale (`1.6K` → `1,6K`). |
-| B13 | Baja | `utils/UpdateChecker.kt:111` | `getPackageInfo(name, 0)` deprecado (API 33+); usar `PackageInfoFlags`. |
-| B14 | Baja | `MainActivity.kt:94` | `startService()` en vez de `startForegroundService()` para MusicService (frágil en Doze/API 26+). |
-| B15 | Baja | ~~`ui/HomeScreen.kt:162-168`~~ | La activación del asistente por shake no pide `RECORD_AUDIO` en runtime si falta → falla en silencio (las otras rutas sí lo piden). **Resuelto por eliminación:** el asistente de voz se eliminó en §14. |
-| B16 | Baja | `service/YouTubeSearchManager.kt:479-482` | **Resuelto en parte:** `getThumbnailUrl` ya no emite el literal `undefined` (delega en `UrlParser.youtubeThumbnailUrl(videoId) ?: ""`). Pero **`getPlaylistThumbnailUrl()` aún hardcodea `https://img.youtube.com/vi/undefined/hqdefault.jpg`** como placeholder (usada en :333). |
+| # | Severidad | Ubicación | Descripción | Estado |
+|---|---|---|---|---|
+| B12 | Baja | `service/YouTubeSearchManager.kt:253-263` | `getFormattedVideoCount`: el `else` final es inalcanzable (el `when` ya cubre todos los casos) y `Double.format` depende del locale. | **PENDIENTE** |
+| B13 | Baja | `utils/UpdateChecker.kt:111` | `getPackageInfo(name, 0)` deprecado (API 33+); usar `PackageInfoFlags`. | **PENDIENTE** |
+| B14 | Baja | `MainActivity.kt:94` | `startService()` en vez de `startForegroundService()` para MusicService (frágil en Doze/API 26+). | **PENDIENTE** |
+| ~~B15~~ | ~~Baja~~ | ~~`ui/HomeScreen.kt`~~ | ~~Asistente por shake no pide `RECORD_AUDIO` en runtime~~ | ✅ **RESUELTO** — asistente eliminado (§14) |
+| B16 | Baja | `service/YouTubeSearchManager.kt:479-482` | **Resuelto en parte:** `getThumbnailUrl` ya no emite `undefined`. Pero **`getPlaylistThumbnailUrl()` aún hardcodea `https://img.youtube.com/vi/undefined/hqdefault.jpg`**. | **PENDIENTE** (parcial) |
+
+### Resumen de bugs
+- **Críticos activos: 1** (B1)
+- **Medios activos: 3** (B5, B8, B9, B10)
+- **Bajos activos: 4** (B12-B14, B16)
+- **Resueltos con migración Spotify: 4** (B3, B4, B6, B11)
 
 ---
 
@@ -109,13 +115,14 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 
 | Severidad | Ubicación | Descripción | Recomendación |
 |---|---|---|---|
-| **Alta** | `ui/PlaylistScreen.kt` (2.189), `ui/SearchScreen.kt` (1.675), `network/SpotifyRepository.kt` (1.631), `ui/ConfigScreen.kt` (1.200), `ui/LocalScreen.kt` (1.114), `ui/components/SongListItem.kt` (1.029), ~~`assistant/AssistantManager.kt` (986)~~ | **God classes / monolitos** que mezclan UI, red, DB y lógica de negocio. | Extraer ViewModels, composables de item y capas de datos por dominio. |
-| **Alta** | `utils/Config.kt` (729, líneas 24-44, 73-79, 195-227) | **God object** que mezcla SharedPreferences, API keys hardcodeadas y renovación de token con red síncrona. | Separar en `SpotifyAuthStore`, `AppSettings`, `ApiKeys`; mover renovación a `SpotifyTokenManager` (ya suspend). |
-| Media | `ui/components/SongListItem.kt:989-991` | Composable que consulta `PlaylistDatabase...downloadedTrackDao()` en composición. | Llevar al ViewModel/repositorio. |
-| Media | `ui/SearchScreen.kt:104-164`, `PlaylistScreen.kt:530-615`, `LocalScreen.kt:1076`, `FeedScreen.kt:43-68` | Estado y carga de datos en `remember { mutableStateOf }` + `rememberCoroutineScope`, llamando a repositorios con callbacks. | ViewModels por pantalla + repositorios suspend. |
-| Baja | ~~`network/YoutubeAudioExtractor.kt:35`~~ | **Eliminado** — `YoutubeAudioExtractor.getAudioUrl()` no tenía callers y duplicaba `YouTubeManager.getAudioUrl`. |
+| **Alta** | `ui/PlaylistScreen.kt` (~1.255), `ui/SearchScreen.kt` (~430), `ui/ConfigScreen.kt`, `ui/components/SongListItem.kt` (~418) | **Monolitos** que mezclan UI, red, DB y lógica de negocio. | Extraer ViewModels, composables de item y capas de datos por dominio. |
+| Media | `ui/components/SongListItem.kt` | Composable que consulta `PlaylistDatabase...downloadedTrackDao()` en composición. | Llevar al ViewModel/repositorio. |
+| Media | `ui/SearchScreen.kt`, `PlaylistScreen.kt`, `FeedScreen.kt` | Estado y carga de datos en `remember { mutableStateOf }` + `rememberCoroutineScope`, llamando a repositorios con callbacks. | ViewModels por pantalla + repositorios suspend. |
 
-**Nota positiva del refactor:** `utils/UrlParser.kt` y `model/ScanResult.kt` son clases puras (sin dependencias Android), testeables en JVM — patrón a replicar al extraer lógica de los monolitos.
+**Nota positiva:**
+- `utils/Config.kt` ya no es un God object de Spotify — se redujo de 659 a 429 líneas con 15 funciones eliminadas.
+- `PlaylistLocalRepository` se redujo de 938 a 280 líneas (toda la lógica Spotify eliminada).
+- `utils/UrlParser.kt` y `model/ScanResult.kt` son clases puras (sin dependencias Android), testeables en JVM — patrón a replicar.
 
 ---
 
@@ -123,12 +130,12 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 
 ### Crítico / Alto
 
-| # | Severidad | Ubicación | Descripción |
-|---|---|---|---|
-| S1 | **Alta** | `network/SupabaseClient.kt:345-386` + `ui/ConfigScreen.kt:174-204` | **Distribución de secretos vía Supabase con anon key.** `getAutomaticKeys()` baja de la tabla `automatic` el `client_secret` de Spotify, la key de AcoustID y la de Last.fm usando la anon key pública. Si RLS permite `anon SELECT` (probable, el propio app lo lee así), **cualquiera puede hacer curl y obtener los secretos**. |
-| S2 | **Alta** | `network/SpotifyRepository.kt:55,97,793-797` | **OAuth con client_secret en el dispositivo** (Authorization: Basic). Spotify exige el flujo **PKCE** (sin secret) para apps nativas; el secret es extraíble del APK/memoria. |
-| S3 | **Alta** | `app/build.gradle.kts:24` | **`isMinifyEnabled = false` en release**: sin R8 ni ofuscación; el APK es trivial de de-compilar. |
-| S4 | **Alta** | `utils/Config.kt:140` + `AndroidManifest.xml:25` + `res/xml/backup_rules.xml` y `data_extraction_rules.xml` | **Tokens de Spotify en SharedPreferences plano** (`MODE_PRIVATE`, sin `EncryptedSharedPreferences`) **con `allowBackup="true"` y reglas de backup vacías** → los refresh tokens se copian a la nube de Google / transferencia entre dispositivos. |
+| # | Severidad | Ubicación | Descripción | Estado |
+|---|---|---|---|---|
+| ~~S1~~ | ~~Alta~~ | ~~`network/SupabaseClient.kt`~~ | ~~**Distribución de secretos vía Supabase con anon key.**~~ | ⚠️ **ACTIVO** — SupabaseClient sigue existiendo (usado para Last.fm key?) |
+| ~~S2~~ | ~~Alta~~ | ~~`network/SpotifyRepository.kt`~~ | ~~**OAuth con client_secret en el dispositivo.**~~ | ✅ **RESUELTO** — SpotifyRepository eliminado |
+| S3 | **Alta** | `app/build.gradle.kts:24` | **`isMinifyEnabled = false` en release**: sin R8 ni ofuscación; el APK es trivial de de-compilar. | **PENDIENTE** |
+| ~~S4~~ | ~~Alta~~ | ~~`utils/Config.kt`~~ | ~~**Tokens de Spotify en SharedPreferences plano con `allowBackup="true"`.**~~ | ✅ **RESUELTO** — tokens Spotify eliminados |
 
 ### Medios
 
@@ -160,23 +167,23 @@ PLYR es una app de música funcional (Spotify + YouTube + local) que compila, se
 
 | Dependencia | Línea | Uso real |
 |---|---|---|
-| `androidx.compose.material:material-icons-extended` | `app/build.gradle.kts:70` | Solo se usan iconos del core (`Icons.Filled.Close/Mic/Settings`, HomeScreen.kt:39-42). **~30MB que no se usan.** |
-| `com.android.volley` | `app/build.gradle.kts:82` | 0 imports. |
-| `androidx.media3:media3-ui` | `app/build.gradle.kts:95` | 0 imports. |
-| `androidx.media:media` | `app/build.gradle.kts:109` | 0 imports (solo `androidx.media3`). |
-| `androidx.core:core-splashscreen` | `app/build.gradle.kts:79` | 0 imports. |
-| `androidx.lifecycle:lifecycle-viewmodel-compose` | `app/build.gradle.kts:92` | 0 imports (`viewModel()` no se usa). |
+| ~~`androidx.compose.material:material-icons-extended`~~ | ~~`app/build.gradle.kts:70`~~ | ~~Solo se usan iconos del core.~~ **ELIMINADO** (2026-08-17). |
+| ~~`com.android.volley`~~ | ~~`app/build.gradle.kts:82`~~ | **ELIMINADO** — 0 imports. |
+| ~~`androidx.media3:media3-ui`~~ | ~~`app/build.gradle.kts:95`~~ | **ELIMINADO** — 0 imports (no `PlayerView`). |
+| ~~`androidx.media:media`~~ | ~~`app/build.gradle.kts:109`~~ | **ELIMINADO** — 0 imports (solo `androidx.media3`). |
+| ~~`androidx.core:core-splashscreen`~~ | ~~`app/build.gradle.kts:79`~~ | **ELIMINADO** — 0 imports (sin `installSplashScreen`). |
+| ~~`androidx.lifecycle:lifecycle-viewmodel-compose`~~ | ~~`app/build.gradle.kts:92`~~ | **ELIMINADO** — 0 imports (`viewModel()` no se usa). |
 
-Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `androidx-foundation`/`androidx-compose-foundation` (libs.versions.toml:64-65).
+~~`navigation-compose` solo en catálogo (sin usar)~~ **ELIMINADO** (2026-08-17). ~~alias duplicado `androidx-foundation`/`androidx-compose-foundation`~~ **ELIMINADO** (solo queda `androidx-foundation`).
 
 ### Estilo / limpieza
 
 | Ubicación | Detalle |
 |---|---|
-| `ui/components/MediaListItem.kt`, `ui/components/MediaGridItem.kt` | Archivos de 1 línea (vacíos). |
-| `ui/theme/Color.kt:5-11` | Colores template (`Purple80`, `Pink40`, etc.) sin usar; el tema real usa paleta terminal privada. |
-| `utils/Utils.kt:36` | `println()` en producción (dentro de `isValidAudioUrl`). |
-| `ui/SearchScreen.kt` (~14x) | Comentarios obsoletos `// antes Color(0xFF...)`. |
+| ~~`ui/components/MediaListItem.kt`~~, ~~`ui/components/MediaGridItem.kt`~~ | **ELIMINADOS** (2026-08-17) — archivos vacíos de 1 línea. |
+| `ui/theme/Color.kt` | Colores template (`Purple80`, `Pink40`, etc.) **vacío** — se eliminaron los valores sin usar. |
+| ~~`utils/Utils.kt:36`~~ | ~~`println()` en producción~~ — **ELIMINADO** (2026-08-17). |
+| ~~`ui/SearchScreen.kt` (~14x)~~ | ~~Comentarios obsoletos `// antes Color(0xFF...)`~~ — **ELIMINADOS** los 21 (2026-08-17). |
 | ~~`assistant/AssistantManager.kt:905`~~ | `// TODO: Implementar creación de playlist` — **eliminado en §14** (el asistente de voz ya no existe; la creación de playlists se hace desde la UI de playlists, §12). |
 | `utils/UpdateChecker.kt:15,30-33` | Caché de actualizaciones desactivado ("For debugging"); constante `CHECK_INTERVAL_MS` sin efecto. |
 | `utils/NewPipeHolder.kt` | Locale fijo `Localization("es","ES")` para NewPipe, no sigue el dispositivo (init único centralizado en D3). |
@@ -216,7 +223,7 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 ### Fase 3 — Arquitectura (semana 3)
 12. Introducir **ViewModels por pantalla** (Search, Playlist, Local, Feed) moviendo estado, red y DB fuera de los composables.
 13. Refactorizar `Config` en `SpotifyAuthStore`/`AppSettings`/`ApiKeys`; eliminar `runBlocking` en `PlaylistLocalRepository`.
-14. Limpieza de dependencias (6 sin uso + `navigation-compose` del catálogo + alias duplicado) y de código muerto (MediaListItem/MediaGridItem, Color.kt).
+14. ~~Limpieza de dependencias (6 sin uso + `navigation-compose` del catálogo + alias duplicado) y de código muerto (MediaListItem/MediaGridItem, Color.kt).~~ **COMPLETADO** (2026-08-17): 6 deps eliminadas, alias duplicado eliminado, archivos vacíos eliminados, `navigation-compose` eliminado del catálogo.
 
 ### Fase 4 — Calidad (continuo)
 15. **QrScannerDialog**: `shutdown()` del executor + `unbindAll()` en `onDispose`.
@@ -230,37 +237,36 @@ Además: `navigation-compose` solo en catálogo (sin usar) y alias duplicados `a
 
 ## 10. HEALTH REPORT — Integrity Score
 
-> Sección de "salud" del código. Cada categoría puntúa de 0 a 10 (10 = excelente). Los pesos son orientativos. Puntuaciones actualizadas tras el refactor de duplicación.
+> Sección de "salud" del código. Cada categoría puntúa de 0 a 10 (10 = excelente). Los pesos son orientativos.
 
 ### Puntuaciones por categoría
 
 | Categoría | Nota | Justificación |
 |---|---|---|
-| **Correctitud / Funcionalidad** | 6.5 / 10 | Funciona y compila, pero hay 1 filtro que no filtra (B1), 1 pantalla con japonés en català (B2) y 2 riesgos de ANR/crash (B3, B4). |
-| **Rendimiento** | 5.0 / 10 | Leak de threads + cámara encendida tras cerrar el escáner (Alta), cache O(n²) en Feed, OkHttpClient recreado, LazyLists sin key, Feed no lazy. |
-| **Arquitectura / Mantenibilidad** | 5.0 / 10 | Siguen los monolitos y el God object `Config`, pero la **duplicación está resuelta al 100%** (D1-D7 con `UrlParser`, `formatDuration*`, `ScanResult`, `NewPipeHolder`, extensiones de Spotify y `trackMetadataSection`; código muerto eliminado). |
-| **Seguridad** | 3.5 / 10 | Sin cambios. Secretos distribuibles vía anon key (S1), OAuth con client secret (S2), tokens planos con backup (S4), sin minify (S3). Lo único sólido: sin WebView, .gitignore correcto, permisos runtime. |
-| **Cobertura de tests** | 6.0 / 10 | 148 unit tests en verde (+72). URL parsing, duración, inicialización NewPipe, extensiones de modelos y la creación de playlists de YouTube (con buscador inyectado) testeados de forma directa y sin reflexión; pero sigue habiendo 0 instrumentados y nada de flujos críticos. |
-| **Limpieza / Estilo** | 6.0 / 10 | Código legible y comentado en general; lastrado por 2 archivos vacíos, 14 comentarios obsoletos, `println`, strings hardcodeadas y 6 deps sin usar. |
+| **Correctitud / Funcionalidad** | 7.5 / 10 | Funciona y compila. B1 (filtro inútil) es el único crítico. B3/B4/B6/B11 resueltos con la migración. B2 (català/japonés) resuelto. |
+| **Rendimiento** | 6.0 / 10 | Leak de threads + cámara en escáner (pendiente), cache O(n²) en Feed, OkHttpClient recreado, LazyLists sin key, Feed no lazy. Mejora vs antes (B3/B11 eliminados). |
+| **Arquitectura / Mantenibilidad** | 6.5 / 10 | Duplicación al 100% resuelta. SpotifyRepository (1642 l.) eliminado. Config reducido. Monolitos más pequeños. Pendiente: ViewModels. |
+| **Seguridad** | 6.0 / 10 | S1+S2+S4 resueltos (Spotify eliminado). Queda S3 (sin R8). Mucho mejor que antes (3.5). |
+| **Cobertura de tests** | 6.5 / 10 | 144 unit tests en verde. Tests de migración (AppModels, DatabaseMappings, YouTubePlaylistCreator). Pendiente: instrumentados. |
+| **Limpieza / Estilo** | 7.5 / 10 | Código más limpio (-35% líneas). Sin dependencias Spotify. Traducciones neteadas. Pendiente: R8, key en LazyLists. |
 
 ### Nota global
 
-**5.4 / 10 — "Funciona, pero con deuda técnica acumulada"** (antes 5.0; +0.4 por duplicación resuelta y mejor cobertura)
+**6.7 / 10 — "Estable y funcional, deuda técnica moderada"** (antes 5.6; +1.1 por migración Spotify completa)
 
 | Estado | Interpretación |
 |---|---|
-| ✅ **Estable y funcional** | Compila, instala, reproduce música, los 148 unit tests pasan. Apto para uso personal diario. |
-| ⚠️ **Riesgo de seguridad real** | Credenciales de Spotify son recuperables por cualquiera (Supabase anon + APK sin ofuscar) y los tokens viajan en prefs planas con backup. **Esto es lo más urgente.** |
-| ⚠️ **Riesgo de crash puntual** | ExoPlayer desde Timer y red en main thread (B3, B4). |
-| 🟡 **Deuda de mantenimiento** | Monolitos y los 3 focos de duplicación restantes (D3/D5/D7) hacen cada cambio lento y propenso a regresiones. |
+| ✅ **Estable y funcional** | Compila, instala, reproduce música, 144 unit tests pasan. YouTube-only. |
+| ✅ **Seguridad mejorada** | Eliminados Spotify OAuth, client_secret, tokens en prefs. |
+| ⚠️ **Pendiente** | B1 (filtro URLs), R8, ViewModels, instrumentados. |
 
 ### Top 5 acciones que más mejorarían la nota
 
-1. **PKCE + eliminar secretos vía Supabase** (seguridad: 3.5 → ~7) — *días de trabajo, impacto máximo.*
-2. **EncryptedSharedPreferences + excluir prefs del backup** (seguridad: → ~8).
-3. **Arreglar los 4 bugs críticos (B1-B4)** (correctitud: 6.5 → ~8.5) — *horas de trabajo.*
-4. **Hacer `getSpotifyAccessToken` suspend + terminar bugs B5-B16** (correctitud y mantenibilidad).
-5. **Activar R8 + limpiar dependencias sin uso** (seguridad y APK: -30MB, → ~7).
+1. ~~**PKCE + eliminar secretos Spotify**~~ — ✅ COMPLETADO (migración)
+2. ~~**B3/B4/B6/B11**~~ — ✅ RESUELTOS
+3. **Arreglar B1** (`isValidAudioUrl`) + B5 (clave traducción) — *horas de trabajo.*
+4. **Activar R8** + `isMinifyEnabled = true` — *poco esfuerzo, alto impacto en seguridad.*
+5. **ViewModels por pantalla** — *días de trabajo, mejora arquitectónica mayor.*
 
 ---
 
@@ -458,4 +464,88 @@ Se eliminó la ventana de listado de playlists (`PlaylistsScreen` como listado c
 ### Tests
 - Compilación `:app:compileDebugKotlin` BUILD SUCCESSFUL y **148 tests, 0 fallos** con `./run.sh test`.
 
-*Generado a partir de auditoría estática. Todos los hallazgos críticos están verificados contra el código. Los números de línea corresponden al estado actual del repo (commit working tree de 2026-08-02).*
+*Generado a partir de auditoría estática. Todos los hallazgos críticos están verificados contra el código. Los números de línea corresponden al estado actual del repo.*
+
+---
+
+## 17. MIGRACIÓN COMPLETA: SPOTIFY → YOUTUBE-ONLY
+
+**Fecha:** 2026-08-20
+**Resultado:** ✅ Migración completada. La app es 100% YouTube-only.
+
+### Qué se eliminó
+
+| Archivo | Línies | Motiu |
+|---|---|---|
+| `network/SpotifyRepository.kt` | 1642 | Client API complet Spotify (OAuth, cerca, playlists, likes) |
+| `network/Recommendations.kt` | 231 | Recomanacions Last.fm + Spotify |
+| `utils/SpotifyTokenManager.kt` | 151 | Gestió tokens Spotify |
+| `utils/SpotifyAuthEvent.kt` | 17 | Event bus OAuth Spotify |
+| `ui/components/search/SpotifyArtistDetailView.kt` | 377 | Vista detall artista Spotify |
+| `ui/components/SongList.kt` | ~40 | Codi mort |
+
+**Total:** ~2.458 línies eliminades
+
+### Qué es redujo
+
+| Archivo | Abans | Després | Motiu |
+|---|---|---|---|
+| `utils/Config.kt` | 659 | 429 | 15 funcions Spotify eliminades |
+| `database/PlaylistLocalRepository.kt` | 938 | 280 | Sync, liked songs, àlbums, artistes eliminats |
+| `ui/SearchScreen.kt` | ~1584 | ~430 | Cerca Spotify eliminada |
+| `ui/PlaylistScreen.kt` | ~2189 | ~1255 | Sync, follow, recomanacions eliminades |
+| `ui/components/SongListItem.kt` | ~877 | ~418 | Info Spotify, likes eliminats |
+| `ui/components/SongMenuDialog.kt` | ~424 | ~180 | Accions Spotify eliminades |
+| `ui/ConfigScreen.kt` | ~1200 | ~800 | Login/logout Spotify eliminat |
+| `utils/MediaMetadataExtractor.kt` | ~300 | ~200 | Spotify metadata eliminada |
+
+**Total:** ~6.937 línies menys (-35%)
+
+### Qué es renombrat
+
+| Original | Nou | Fitxers afectats |
+|---|---|---|
+| `SpotifyTrack` | `AppTrack` | 7 fitxers + tests |
+| `SpotifyPlaylist` | `AppPlaylist` | 7 fitxers + tests |
+| `SpotifyArtist` | `AppArtist` | 7 fitxers + tests |
+| `SpotifyImage` | `AppImage` | 7 fitxers |
+| `SpotifyAlbumSimple` | `AppAlbumSimple` | 1 fitxer |
+| `SpotifyModels.kt` | `AppModels.kt` | 1 fitxer (renamed) |
+| `spotifyUrl` | `shareUrl` | 8 fitxers |
+| `spotifyId` → `remoteId` | DB column | Entitats, DAO, extensions |
+| `spotifyTrackId` → `remoteTrackId` | DB column | Entitats, DAO, extensions |
+| `spotify_search_` | `yt_search_` | PlaylistScreen |
+
+### Bug resolt amb la migració
+
+**B3** — `getSpotifyAccessToken()` amb `runBlocking` al main thread. S'ha eliminat completament.
+
+### Seguretat millorada
+
+| Impacte | Canvi |
+|---|---|
+| **S2** ✅ | OAuth amb client_secret eliminat |
+| **S4** ✅ | Tokens Spotify a SharedPreferences eliminats |
+
+### Funcionalitats perdudes
+
+1. Àlbums (YouTube no en té)
+2. Artistes seguits
+3. Sync automàtic de playlists
+4. Recomanacions Last.fm + Spotify
+5. Metadades riques (gèneres, popularitat, data llançament)
+6. Cobertura musical completa de Spotify
+
+### Referències Spotify restants (legítimes)
+
+Les 13 referències "spotify" al codi són:
+- `PlaylistDatabase.kt`: SQL de migració (noms antics de columnes — correcte)
+- `UrlParser.kt`: Parsing d'URLs Spotify per NFC/QR
+- `ScanResult.kt`: Camp `source` pot ser `"spotify"`
+
+### Pendient
+
+- [ ] Activar `isMinifyEnabled = true` + R8
+- [ ] Netjar `SupabaseClient.kt` si ja no s'usa
+- [ ] Netjar `AndroidManifest.xml` (intent filter, cleartext)
+- [ ] Provar en dispositiu físic

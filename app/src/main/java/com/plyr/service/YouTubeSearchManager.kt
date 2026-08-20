@@ -150,7 +150,7 @@ class YouTubeSearchManager(private val context: Context) {
             try {
                 Log.d(TAG, "Iniciando búsqueda de YouTube IDs para playlist: $playlistId")
                 
-                val tracks = localRepository.getTracksWithAutoSync(playlistId)
+                val tracks = com.plyr.database.PlaylistDatabase.getDatabase(context).trackDao().getTracksByPlaylistSync(playlistId)
                 val tracksWithoutYouTubeId = tracks.filter { it.youtubeVideoId == null }
                 
                 Log.d(TAG, "Encontrados ${tracksWithoutYouTubeId.size} tracks sin YouTube ID")

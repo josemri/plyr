@@ -67,7 +67,6 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.runtime.livedata)
 
     implementation(libs.core)
@@ -76,10 +75,7 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
-    implementation(libs.androidx.core.splashscreen)
     implementation(libs.androidx.foundation)
-
-    implementation(libs.volley)
     implementation(libs.androidx.compose.ui.text)
 
     testImplementation(libs.junit)
@@ -89,10 +85,8 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.session)
-    implementation(libs.androidx.media3.ui)
     implementation(libs.okhttp)
     implementation(libs.gson)
 
@@ -106,7 +100,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     kapt(libs.androidx.room.compiler)
-    implementation(libs.androidx.media)
 
     // Coil for image loading
     implementation(libs.coil.compose)

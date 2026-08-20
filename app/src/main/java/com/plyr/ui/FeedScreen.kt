@@ -130,7 +130,7 @@ fun FeedScreen(
 /**
  * Maneja el click en una recomendación según su tipo de contenido.
  * - YouTube Videos: Reproduce directamente
- * - Spotify/YouTube Playlists, Albums, Artists: Navega a SearchScreen reutilizando NfcScanEvent
+ * - YouTube Playlists: Navega a SearchScreen reutilizando NfcScanEvent
  */
 private suspend fun handleRecommendationClick(
     recommendation: Recommendation,
@@ -143,44 +143,16 @@ private suspend fun handleRecommendationClick(
 
     when (mediaType) {
         MediaType.YOUTUBE_VIDEO -> {
-            // Reproducir directamente videos de YouTube
             playYoutubeVideo(recommendation, metadata, playerViewModel)
         }
         MediaType.YOUTUBE_PLAYLIST -> {
-            // Navegar a SearchScreen para playlists de YouTube
             val playlistId = UrlParser.extractYoutubePlaylistId(url)
             if (playlistId != null) {
                 NfcScanEvent.onNfcScanned(ScanResult("youtube", "playlist", playlistId))
                 onNavigateToSearch()
             }
         }
-        MediaType.SPOTIFY_TRACK -> {
-            // Reproducir track de Spotify buscando en YouTube
-            playSpotifyTrack(recommendation, metadata, playerViewModel)
-        }
-        MediaType.SPOTIFY_PLAYLIST -> {
-            val spotifyId = UrlParser.extractSpotifyId(url)
-            if (spotifyId != null) {
-                NfcScanEvent.onNfcScanned(ScanResult("spotify", "playlist", spotifyId))
-                onNavigateToSearch()
-            }
-        }
-        MediaType.SPOTIFY_ALBUM -> {
-            val spotifyId = UrlParser.extractSpotifyId(url)
-            if (spotifyId != null) {
-                NfcScanEvent.onNfcScanned(ScanResult("spotify", "album", spotifyId))
-                onNavigateToSearch()
-            }
-        }
-        MediaType.SPOTIFY_ARTIST -> {
-            val spotifyId = UrlParser.extractSpotifyId(url)
-            if (spotifyId != null) {
-                NfcScanEvent.onNfcScanned(ScanResult("spotify", "artist", spotifyId))
-                onNavigateToSearch()
-            }
-        }
         MediaType.UNKNOWN -> {
-            // Intentar como video de YouTube
             val videoId = UrlParser.extractYoutubeVideoId(url)
             if (videoId != null) {
                 playYoutubeVideo(recommendation, metadata, playerViewModel)
@@ -200,32 +172,10 @@ private suspend fun playYoutubeVideo(
     val track = TrackEntity(
         id = "feed_${recommendation.id}",
         playlistId = "feed_recommendations",
-        spotifyTrackId = "",
+        remoteTrackId = "",
         name = metadata?.title ?: recommendation.url,
         artists = metadata?.author ?: "",
         youtubeVideoId = videoId,
-        audioUrl = null,
-        position = 0,
-        lastSyncTime = System.currentTimeMillis()
-    )
-    playerViewModel.setCurrentPlaylist(listOf(track), 0)
-    playerViewModel.loadAudioFromTrack(track)
-}
-
-private suspend fun playSpotifyTrack(
-    recommendation: Recommendation,
-    metadata: MediaMetadata?,
-    playerViewModel: PlayerViewModel?
-) {
-    if (playerViewModel == null) return
-
-    val track = TrackEntity(
-        id = "feed_${recommendation.id}",
-        playlistId = "feed_recommendations",
-        spotifyTrackId = UrlParser.extractSpotifyId(recommendation.url) ?: "",
-        name = metadata?.title ?: recommendation.url,
-        artists = metadata?.author ?: "",
-        youtubeVideoId = null, // Se buscará dinámicamente
         audioUrl = null,
         position = 0,
         lastSyncTime = System.currentTimeMillis()

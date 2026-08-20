@@ -23,19 +23,10 @@ import android.annotation.SuppressLint
  * @return true si la URL es válida para audio, false en caso contrario
  */
 fun isValidAudioUrl(url: String): Boolean {
-    println("Utils: Validando URL: $url")
-    
-    // Verificar formato básico de URL
     if (!isValidUrlFormat(url)) {
-        println("Utils: URL no válida - formato incorrecto")
         return false
     }
-    
-    // Verificar patrones de audio conocidos
     val hasAudioPattern = containsAudioPattern(url)
-    println("Utils: URL contiene patrón de audio: $hasAudioPattern")
-    
-    // Aceptar URLs válidas con patrones de audio o URLs generales válidas
     return hasAudioPattern || isValidUrlFormat(url)
 }
 

@@ -73,6 +73,11 @@ fun AudioListScreen(
             onSearchSubmitted = { query ->
                 searchInitialQuery = query
                 currentScreen = Screen.SEARCH.name
+            },
+            onShowAllPlaylists = {
+                playlistToOpenId = null
+                openPlaylistCreate = false
+                currentScreen = Screen.PLAYLISTS.name
             }
         )
         Screen.SEARCH -> SearchScreen(

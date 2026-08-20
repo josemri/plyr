@@ -20,8 +20,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,7 +58,8 @@ fun HomeScreen(
     onNavigateToScreen: (Screen) -> Unit,
     onOpenPlaylist: (String) -> Unit = {},
     onCreatePlaylist: () -> Unit = {},
-    onSearchSubmitted: (String) -> Unit = {}
+    onSearchSubmitted: (String) -> Unit = {},
+    onShowAllPlaylists: () -> Unit = {}
 ) {
     // Dimensiones responsivas basadas en el tamaño de pantalla
     val dimensions = calculateResponsiveDimensionsFallback()
@@ -239,6 +238,26 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Botón > para ver todas las playlists
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = ">",
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onShowAllPlaylists()
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
                         HomePlaylistCarousel(
                             context = context,
                             onOpenPlaylist = onOpenPlaylist,
@@ -299,6 +318,25 @@ fun HomeScreen(
                     }
 
                     // Carrusel de playlists
+                    // Botón > para ver todas las playlists
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = ">",
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onShowAllPlaylists()
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
                     HomePlaylistCarousel(
                         context = context,
                         onOpenPlaylist = onOpenPlaylist,
@@ -381,7 +419,6 @@ private fun HomeSearchHistory(
                         // Prefijo del motor de búsqueda original para buscar en el mismo
                         val queryWithPrefix = when (historyItem.searchEngine) {
                             "youtube" -> "yt:${historyItem.query}"
-                            "spotify" -> "sp:${historyItem.query}"
                             else -> historyItem.query
                         }
                         onHistoryClick(queryWithPrefix)
@@ -422,7 +459,7 @@ private fun HomeSearchHistory(
 }
 
 /**
- * Carrusel horizontal de playlists (solo playlists, sin secciones de Spotify).
+ * Carrusel horizontal de playlists.
  * Empieza siempre por el principio (primera playlist a la izquierda).
  */
 @Composable
@@ -437,7 +474,7 @@ private fun HomePlaylistCarousel(
         .asFlow()
         .collectAsStateWithLifecycle(initialValue = emptyList())
     val playlists = playlistEntities.filter {
-        it.spotifyId != "liked_songs" && !it.spotifyId.startsWith("album_")
+        it.remoteId != "liked_songs" && !it.remoteId.startsWith("album_")
     }
 
     // Estado no restaurable para que el carrusel arranque siempre por el principio
@@ -454,7 +491,7 @@ private fun HomePlaylistCarousel(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(playlists, key = { it.spotifyId }) { playlist ->
+        items(playlists, key = { it.remoteId }) { playlist ->
             val coverUrl = UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
             Column(
                 modifier = Modifier
@@ -462,7 +499,7 @@ private fun HomePlaylistCarousel(
                     .clip(RoundedCornerShape(12.dp))
                     .clickable {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onOpenPlaylist(playlist.spotifyId)
+                        onOpenPlaylist(playlist.remoteId)
                     },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {

@@ -5,7 +5,7 @@ package com.plyr.model
  * Sustituye a los antiguos QrScanResult y NfcScanResult.
  */
 data class ScanResult(
-    val source: String, // "spotify" or "youtube"
+    val source: String, // "youtube" or "spotify" (recognized URL)
     val type: String,   // "track", "playlist", "album", "artist"
     val id: String
 )

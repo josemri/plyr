@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
  * SearchHistoryEntity - Entidad para el historial de búsquedas
  *
  * Guarda las búsquedas realizadas por el usuario con información sobre
- * el motor de búsqueda utilizado (YouTube o Spotify)
+ * el motor de búsqueda utilizado
  */
 @Entity(tableName = "search_history")
 data class SearchHistoryEntity(
@@ -20,7 +20,7 @@ data class SearchHistoryEntity(
     val query: String,
 
     /**
-     * Motor de búsqueda utilizado: "youtube" o "spotify"
+     * Motor de búsqueda utilizado
      */
     val searchEngine: String,
 

@@ -32,9 +32,7 @@ import com.plyr.service.MusicService
 import com.plyr.ui.AudioListScreen
 import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.PlyrTheme
-import com.plyr.network.SpotifyRepository
 import com.plyr.utils.Config
-import com.plyr.utils.SpotifyAuthEvent
 import com.plyr.utils.ShakeDetector
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.launch
@@ -78,7 +76,6 @@ class MainActivity : ComponentActivity() {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 123)
         }
 
-        handleSpotifyCallback(intent)
         enableEdgeToEdge()
 
         // Inicializar ShakeDetector
@@ -139,7 +136,7 @@ class MainActivity : ComponentActivity() {
                                         TrackEntity(
                                             id = "search_${item.videoId}_$i",
                                             playlistId = "search_${System.currentTimeMillis()}",
-                                            spotifyTrackId = "",
+                                            remoteTrackId = "",
                                             name = item.title,
                                             artists = item.channel,
                                             youtubeVideoId = item.videoId,
@@ -294,9 +291,6 @@ class MainActivity : ComponentActivity() {
 
         // Manejar NFC tag para lectura de URLs
         handleNfcUrlRead(intent)
-
-        // Manejar Spotify callback
-        handleSpotifyCallback(intent)
     }
 
     private fun handleNfcUrlRead(intent: Intent?) {
@@ -347,34 +341,6 @@ class MainActivity : ComponentActivity() {
                 NfcTagEvent.onTagDetected(tag)
             } else {
                 android.util.Log.w("MainActivity", "⚠️ NFC intent received but tag is null")
-            }
-        }
-    }
-
-    private fun handleSpotifyCallback(intent: Intent?) {
-        intent?.data?.let { uri ->
-            if (uri.scheme == "plyr" && uri.host == "spotify") {
-                uri.getQueryParameter("code")?.let { code ->
-                    SpotifyRepository.exchangeCodeForTokens(this, code) { tokens, error ->
-                        if (tokens != null && error == null) {
-                            Config.setSpotifyTokens(this, tokens.accessToken, tokens.refreshToken, tokens.expiresIn)
-
-                            // Obtener el perfil del usuario y guardar el nombre de usuario
-                            SpotifyRepository.getUserProfile(tokens.accessToken) { userProfile, _ ->
-                                if (userProfile != null && !userProfile.displayName.isNullOrBlank()) {
-                                    Config.setSpotifyUserName(this, userProfile.displayName)
-                                    android.util.Log.d("MainActivity", "✓ Nombre de usuario guardado: ${userProfile.displayName}")
-                                } else {
-                                    android.util.Log.d("MainActivity", "⚠ displayName es null o vacío: ${userProfile?.displayName}")
-                                }
-                            }
-
-                            SpotifyAuthEvent.onAuthComplete(true, "connected_successfully")
-                        } else {
-                            SpotifyAuthEvent.onAuthComplete(false, "token_exchange_failed")
-                        }
-                    }
-                } ?: SpotifyAuthEvent.onAuthComplete(false, "cancelled_by_user")
             }
         }
     }

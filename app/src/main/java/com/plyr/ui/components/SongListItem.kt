@@ -19,8 +19,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -31,7 +29,6 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
-import com.plyr.network.SpotifyRepository
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import kotlinx.coroutines.CoroutineScope
@@ -44,9 +41,9 @@ data class Song(
     val number: Int,
     val title: String,
     val artist: String,
-    val spotifyId: String? = null,
+    val remoteId: String? = null,
     val youtubeId: String? = null,
-    val spotifyUrl: String? = null
+    val shareUrl: String? = null
 )
 
 // Helper function para obtener icono y color según la acción
@@ -79,45 +76,12 @@ fun SongListItem(
     val context = LocalContext.current
     var showPopup by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
-    var showPlaylistDialog by remember { mutableStateOf(false) }
-    var userPlaylists by remember { mutableStateOf<List<com.plyr.network.SpotifyPlaylist>>(emptyList()) }
-    var isLoadingPlaylists by remember { mutableStateOf(false) }
-    var addToPlaylistError by remember { mutableStateOf<String?>(null) }
-    var addToPlaylistSuccess by remember { mutableStateOf(false) }
-    var isLoadingTrackInfo by remember { mutableStateOf(false) }
-    var fetchedTrackInfo by remember { mutableStateOf<com.plyr.network.SpotifyTrack?>(null) }
-    var fetchInfoError by remember { mutableStateOf<String?>(null) }
-    var isLiked by remember { mutableStateOf<Boolean?>(null) }
 
     // Obtener las acciones configuradas y sus iconos/colores
     val swipeRightAction = Config.getSwipeRightAction(context)
     val swipeLeftAction = Config.getSwipeLeftAction(context)
     val (rightIcon, rightColor) = getSwipeIconAndColor(swipeRightAction)
     val (leftIcon, leftColor) = getSwipeIconAndColor(swipeLeftAction)
-
-    // Cargar playlists cuando se abre el diálogo (ya sea desde swipe o desde popup)
-    LaunchedEffect(showPlaylistDialog) {
-        if (showPlaylistDialog && !isLoadingPlaylists) {
-            isLoadingPlaylists = true
-            addToPlaylistError = null
-            addToPlaylistSuccess = false
-
-            val accessToken = Config.getSpotifyAccessToken(context)
-            if (accessToken != null) {
-                SpotifyRepository.getUserPlaylists(accessToken) { playlists, error ->
-                    isLoadingPlaylists = false
-                    if (playlists != null) {
-                        userPlaylists = playlists
-                    } else {
-                        addToPlaylistError = error ?: "Error cargando playlists"
-                    }
-                }
-            } else {
-                isLoadingPlaylists = false
-                addToPlaylistError = "Token de Spotify no disponible"
-            }
-        }
-    }
 
     // Swipe gesture state
     val offsetX = remember { Animatable(0f) }
@@ -197,7 +161,7 @@ fun SongListItem(
                                             index = index,
                                             coroutineScope = coroutineScope,
                                             onLikedStatusChanged = onLikedStatusChanged,
-                                            onShowPlaylistDialog = { showPlaylistDialog = true },
+                                            onShowPlaylistDialog = {},
                                             onShowShareDialog = { showShareDialog = true }
                                         )
                                         resetSwipe()
@@ -214,7 +178,7 @@ fun SongListItem(
                                             index = index,
                                             coroutineScope = coroutineScope,
                                             onLikedStatusChanged = onLikedStatusChanged,
-                                            onShowPlaylistDialog = { showPlaylistDialog = true },
+                                            onShowPlaylistDialog = {},
                                             onShowShareDialog = { showShareDialog = true }
                                         )
                                         resetSwipe()
@@ -316,55 +280,8 @@ fun SongListItem(
 
     // Solo mostrar popup si no hay acción personalizada
     if (showPopup && customButtonAction == null) {
-        // Cargar información de la canción cuando se abre el popup
-        LaunchedEffect(showPopup) {
-            if (showPopup) {
-                // Resetear estados previos
-                isLoadingTrackInfo = false
-                fetchInfoError = null
-                fetchedTrackInfo = null
-
-                val sId = song.spotifyId
-                // Si no hay spotifyId real o es un placeholder (recomendación/temporal), NO llamar a la API
-                if (sId == null || sId.isBlank() || sId.startsWith("recommended_") || sId.startsWith("temp_")) {
-                    // No intentamos obtener datos desde Spotify para ids placeholder.
-                    // Mostrar la info básica (song.title / song.artist) en el diálogo.
-                    isLoadingTrackInfo = false
-                    fetchInfoError = null
-                    isLiked = null
-                } else {
-                    isLoadingTrackInfo = true
-                    fetchInfoError = null
-                    val accessToken = Config.getSpotifyAccessToken(context)
-                    if (accessToken != null) {
-                        // Obtener info del track
-                        SpotifyRepository.getTrackInfo(accessToken, sId) { trackInfo, error ->
-                            isLoadingTrackInfo = false
-                            if (trackInfo != null) {
-                                fetchedTrackInfo = trackInfo
-                            } else {
-                                fetchInfoError = error ?: "Error fetching track info"
-                            }
-                        }
-
-                        // Verificar si está en Liked Songs
-                        SpotifyRepository.checkSavedTrack(accessToken, sId) { liked, error ->
-                            if (error == null) {
-                                isLiked = liked
-                            }
-                        }
-                    } else {
-                        isLoadingTrackInfo = false
-                        fetchInfoError = "Token de Spotify no disponible"
-                    }
-                }
-            }
-        }
-
         Dialog(onDismissRequest = {
             showPopup = false
-            fetchedTrackInfo = null
-            fetchInfoError = null
         }) {
             Box(
                 modifier = Modifier
@@ -377,151 +294,26 @@ fun SongListItem(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Sección de información del track
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(150.dp)
-                    ) {
-                        when {
-                            isLoadingTrackInfo -> {
-                                // Estado de carga
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = Translations.get(context, "loading"),
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                        )
-                                    )
-                                }
-                            }
-                            fetchInfoError != null -> {
-                                // Error
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = "✗",
-                                        style = MaterialTheme.typography.displayMedium.copy(
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = fetchInfoError ?: "Error",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = MaterialTheme.colorScheme.error
-                                        ),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                            fetchedTrackInfo != null -> {
-                                // Mostrar información de la canción
-                                val trackInfo = fetchedTrackInfo
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    item {
-                                        Text(
-                                            text = trackInfo?.name ?: song.title,
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                color = MaterialTheme.colorScheme.onBackground,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        )
-                                    }
-                                    item {
-                                        Text(
-                                            text = trackInfo?.artists?.joinToString(", ") { it.name } ?: song.artist,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                                            )
-                                        )
-                                    }
-                                    trackMetadataSection(
-                                        albumName = trackInfo?.album?.name,
-                                        releaseDate = trackInfo?.album?.releaseDate,
-                                        durationMs = trackInfo?.durationMs
-                                    )
-                                }
-                            }
-                            else -> {
-                                // Mostrar info básica mientras carga
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.Start,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = song.title,
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            color = MaterialTheme.colorScheme.onBackground,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    )
-                                    Text(
-                                        text = song.artist,
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // Song info
+                    Text(
+                        text = song.title,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                    Text(
+                        text = song.artist,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                        )
+                    )
 
-                    // Botones de acción
+                    // Action buttons
                     Column(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Add to Playlist
-                        Text(
-                            text = Translations.get(context, "add_to_playlist"),
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Normal,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (isRealSpotifyId(song.spotifyId) && Config.isSpotifyConnected(context)) {
-                                        showPopup = false
-                                        showPlaylistDialog = true
-                                        isLoadingPlaylists = true
-                                        addToPlaylistError = null
-
-                                        val accessToken = Config.getSpotifyAccessToken(context)
-                                        if (accessToken != null) {
-                                            SpotifyRepository.getUserPlaylists(accessToken) { playlists, error ->
-                                                isLoadingPlaylists = false
-                                                if (playlists != null) {
-                                                    userPlaylists = playlists
-                                                } else {
-                                                    addToPlaylistError = error ?: "Error cargando playlists"
-                                                }
-                                            }
-                                        } else {
-                                            isLoadingPlaylists = false
-                                            addToPlaylistError = "Token de Spotify no disponible"
-                                        }
-                                    } else {
-                                        Log.d("SongListItem", "No se puede añadir a playlist: spotifyId inválido o no conectado")
-                                        showPopup = false
-                                    }
-                                }
-                                .padding(vertical = 4.dp)
-                        )
-
                         // Add to Queue
                         Text(
                             text = Translations.get(context, "add_to_queue"),
@@ -557,239 +349,6 @@ fun SongListItem(
                                 }
                                 .padding(vertical = 4.dp)
                         )
-
-                        // Like / Unlike
-                        Text(
-                            text = if (isLiked == true) Translations.get(context, "remove_from_liked_songs") else Translations.get(context, "add_to_liked_songs"),
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Normal,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    // Acción de agregar/quitar de Liked Songs
-                                    showPopup = false
-                                    isLiked?.let { currentlyLiked ->
-                                        val accessToken = Config.getSpotifyAccessToken(context)
-                                        if (accessToken != null && isRealSpotifyId(song.spotifyId)) {
-                                            isLoadingTrackInfo = true
-                                            if (currentlyLiked) {
-                                                // Quitar de Liked Songs
-                                                SpotifyRepository.removeTrack(accessToken, song.spotifyId!!) { success, error ->
-                                                    isLoadingTrackInfo = false
-                                                    if (success) {
-                                                        isLiked = false
-                                                        Log.d("SongListItem", "✓ Canción quitada de Liked Songs")
-                                                        onLikedStatusChanged?.invoke()
-                                                    } else {
-                                                        Log.e("SongListItem", "Error quitando canción de Liked Songs: $error")
-                                                    }
-                                                }
-                                            } else {
-                                                // Añadir a Liked Songs
-                                                SpotifyRepository.saveTrack(accessToken, song.spotifyId!!) { success, error ->
-                                                    isLoadingTrackInfo = false
-                                                    if (success) {
-                                                        isLiked = true
-                                                        Log.d("SongListItem", "✓ Canción añadida a Liked Songs")
-                                                        onLikedStatusChanged?.invoke()
-                                                    } else {
-                                                        Log.e("SongListItem", "Error añadiendo canción a Liked Songs: $error")
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            Log.d("SongListItem", "No se puede (des)marcar Liked: spotifyId inválido o no conectado")
-                                        }
-                                    }
-                                }
-                                .padding(vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // Diálogo de selección de playlist
-    if (showPlaylistDialog) {
-        Dialog(onDismissRequest = {
-            showPlaylistDialog = false
-            addToPlaylistSuccess = false
-            addToPlaylistError = null
-        }) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(24.dp)
-                    .fillMaxWidth(0.9f)
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Contenido del diálogo
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(300.dp)
-                    ) {
-                        when {
-                            isLoadingPlaylists -> {
-                                // Estado de carga
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = Translations.get(context, "loading_playlists"),
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                        )
-                                    )
-                                }
-                            }
-                            addToPlaylistSuccess -> {
-                                // Éxito
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = "✓",
-                                        style = MaterialTheme.typography.displayLarge.copy(
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = Translations.get(context, "track_added_successfully"),
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = MaterialTheme.colorScheme.onBackground
-                                        )
-                                    )
-                                }
-                            }
-                            addToPlaylistError != null -> {
-                                // Error
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = "✗",
-                                        style = MaterialTheme.typography.displayLarge.copy(
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = addToPlaylistError ?: "Error",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = MaterialTheme.colorScheme.error
-                                        ),
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            }
-                            userPlaylists.isEmpty() -> {
-                                // Sin playlists
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = Translations.get(context, "no_playlists_found"),
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                        )
-                                    )
-                                }
-                            }
-                            else -> {
-                                // Lista de playlists
-                                    LazyColumn(
-                                        modifier = Modifier.fillMaxSize(),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        items(userPlaylists) { playlist ->
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .clickable {
-                                                        // Añadir la canción a la playlist
-                                                        val accessToken = Config.getSpotifyAccessToken(context)
-                                                        if (accessToken != null && isRealSpotifyId(song.spotifyId)) {
-                                                            isLoadingPlaylists = true
-                                                            SpotifyRepository.addTrackToPlaylist(
-                                                                accessToken,
-                                                                playlist.id,
-                                                                song.spotifyId!!
-                                                            ) { success, error ->
-                                                                isLoadingPlaylists = false
-                                                                if (success) {
-                                                                    addToPlaylistSuccess = true
-                                                                    Log.d("SongListItem", "✓ Canción añadida a '${playlist.name}'")
-                                                                    // Cerrar el diálogo después de 1.5 segundos
-                                                                    coroutineScope.launch {
-                                                                        kotlinx.coroutines.delay(1500)
-                                                                        showPlaylistDialog = false
-                                                                        addToPlaylistSuccess = false
-                                                                    }
-                                                                } else {
-                                                                    addToPlaylistError = error
-                                                                    Log.e("SongListItem", "Error añadiendo canción: $error")
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                                    .padding(12.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier.weight(1f)
-                                                ) {
-                                                    Text(
-                                                        text = playlist.name,
-                                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                                            color = MaterialTheme.colorScheme.onBackground
-                                                        ),
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                    playlist.description?.let { desc ->
-                                                        if (desc.isNotBlank()) {
-                                                            Text(
-                                                                text = desc,
-                                                                style = MaterialTheme.typography.bodySmall.copy(
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                ),
-                                                                maxLines = 1,
-                                                                overflow = TextOverflow.Ellipsis
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                                Text(
-                                                    text = ">",
-                                                    style = MaterialTheme.typography.bodyLarge.copy(
-                                                        color = MaterialTheme.colorScheme.primary
-                                                    )
-                                                )
-                                            }
-                                        }
-                                    }
-                            }
-                        }
                     }
                 }
             }
@@ -799,8 +358,8 @@ fun SongListItem(
     if (showShareDialog) {
         ShareDialog(
             item = ShareableItem(
-                spotifyId = song.spotifyId,
-                spotifyUrl = song.spotifyUrl,
+                remoteId = song.remoteId,
+                shareUrl = song.shareUrl,
                 youtubeId = song.youtubeId,
                 title = song.title,
                 artist = song.artist,
@@ -825,21 +384,8 @@ fun executeSwipeAction(
 ) {
     when (action) {
         Config.SWIPE_ACTION_ADD_TO_LIKED -> {
-            // Añadir a favoritos
-            val accessToken = Config.getSpotifyAccessToken(context)
-            if (accessToken != null && song.spotifyId != null) {
-                Log.d("SongListItem", "Calling saveTrack with spotifyId: ${song.spotifyId}")
-                SpotifyRepository.saveTrack(accessToken, song.spotifyId) { success, error ->
-                    if (success) {
-                        onLikedStatusChanged?.invoke()
-                        Log.d("SongListItem", "✓ Canción añadida a favoritos")
-                    } else {
-                        Log.e("SongListItem", "✗ Error añadiendo a favoritos: $error")
-                    }
-                }
-            } else {
-                Log.e("SongListItem", "✗ No se puede añadir a favoritos: accessToken=${accessToken != null}, spotifyId=${song.spotifyId}")
-            }
+            Log.d("SongListItem", "Add to liked (no-op): ${song.title}")
+            onLikedStatusChanged?.invoke()
         }
         Config.SWIPE_ACTION_ADD_TO_QUEUE -> {
             // Añadir a cola
@@ -854,12 +400,7 @@ fun executeSwipeAction(
             } ?: Log.e("SongListItem", "✗ PlayerViewModel is null")
         }
         Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> {
-            // Añadir a playlist
-            if (song.spotifyId != null && Config.isSpotifyConnected(context)) {
-                onShowPlaylistDialog()
-            } else {
-                Log.d("SongListItem", "No se puede añadir a playlist: sin Spotify ID o no conectado")
-            }
+            Log.d("SongListItem", "Add to playlist (no-op): ${song.title}")
         }
         Config.SWIPE_ACTION_SHARE -> {
             // Compartir
@@ -871,7 +412,7 @@ fun executeSwipeAction(
     }
 }
 
-// Helper para validar si el spotifyId es real (no un placeholder generado localmente)
-private fun isRealSpotifyId(sId: String?): Boolean {
+// Helper para validar si el remoteId es válido (no un placeholder generado localmente)
+private fun isValidRemoteId(sId: String?): Boolean {
     return sId != null && sId.isNotBlank() && !sId.startsWith("recommended_") && !sId.startsWith("temp_")
 }

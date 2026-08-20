@@ -204,7 +204,7 @@ private fun YouTubeVideosList(
             TrackEntity(
                 id = "yt_${video.videoId}",
                 playlistId = playlistId,
-                spotifyTrackId = "yt_${video.videoId}", // placeholder obligatorio
+                remoteTrackId = "yt_${video.videoId}", // placeholder obligatorio
                 name = video.title,
                 artists = video.uploader,
                 youtubeVideoId = video.videoId,
@@ -224,7 +224,7 @@ private fun YouTubeVideosList(
                     title = video.title,
                     artist = video.uploader,
                     youtubeId = video.videoId,
-                    spotifyUrl = "https://www.youtube.com/watch?v=${video.videoId}"
+                    shareUrl = "https://www.youtube.com/watch?v=${video.videoId}"
                 ),
                 trackEntities = trackEntities,
                 index = index,

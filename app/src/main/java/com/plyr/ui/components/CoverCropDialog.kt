@@ -34,7 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * CoverCropDialog - Editor de recorte cuadrado de portadas (estilo Spotify).
+ * CoverCropDialog - Editor de recorte cuadrado de portadas.
  *
  * La imagen llena por completo la pantalla de recorte; sobre ella se dibuja un
  * marco cuadrado centrado que delimita la zona que se guardará. Se puede hacer

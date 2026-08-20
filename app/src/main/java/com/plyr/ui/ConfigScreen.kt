@@ -13,23 +13,17 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
-import com.plyr.utils.SpotifyAuthEvent
-import com.plyr.network.SpotifyRepository
-import com.plyr.network.SupabaseClient
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.components.Subtitulo
 import com.plyr.ui.components.CollapsibleSection
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.style.TextAlign
-import kotlinx.coroutines.launch
 
 @Composable
 fun ConfigScreen(
@@ -40,21 +34,11 @@ fun ConfigScreen(
     var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
     var selectedLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
 
-    // Estado para Spotify - se actualiza cada vez que se abre la pantalla
-    var isSpotifyConnected by remember { mutableStateOf(Config.isSpotifyConnected(context)) }
-    var spotifyUserName by remember { mutableStateOf(Config.getSpotifyUserName(context)) }
-    var connectionMessage by remember { mutableStateOf("") }
-
     // Update checker state
     var updateInfo by remember { mutableStateOf<com.plyr.utils.UpdateChecker.UpdateInfo?>(null) }
 
-    // Actualizar el estado de Spotify cuando la pantalla es visible
+    // Check for updates when screen opens
     LaunchedEffect(Unit) {
-        isSpotifyConnected = Config.isSpotifyConnected(context)
-        spotifyUserName = Config.getSpotifyUserName(context)
-        android.util.Log.d("ConfigScreen", "🔄 Estado actualizado - Conectado: $isSpotifyConnected, Usuario: $spotifyUserName")
-
-        // Check for updates
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val info = com.plyr.utils.UpdateChecker.checkForUpdate(context)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
@@ -136,164 +120,6 @@ fun ConfigScreen(
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            // Escuchar eventos de autenticación de Spotify
-            LaunchedEffect(Unit) {
-                SpotifyAuthEvent.setAuthCallback { success, message ->
-                    isSpotifyConnected = success
-                    connectionMessage = message ?: if (success) Translations.get(context, "connected") else "error"
-                }
-            }
-
-            // Limpiar callback al salir
-            DisposableEffect(Unit) {
-                onDispose {
-                    SpotifyAuthEvent.clearCallback()
-                }
-            }
-
-            Subtitulo("SERVICES")
-
-            // Toggle Automatic/Manual para API Keys
-            var apiKeyMode by remember { mutableStateOf(Config.getApiKeyMode(context)) }
-            var isLoadingKeys by remember { mutableStateOf(false) }
-            val coroutineScope = rememberCoroutineScope()
-
-            // Estado del botón de login - declarado antes para poder actualizarlo
-            var hasSpotifyCredentials by remember { mutableStateOf(Config.hasSpotifyCredentials(context)) }
-            var spotifyUserNameLocal by remember { mutableStateOf(Config.getSpotifyUserName(context)) }
-            
-            // Cargar keys automáticas al inicio SOLO si está en modo automatic y no tiene credenciales guardadas
-            LaunchedEffect(Unit) {
-                if (apiKeyMode == "automatic" && !Config.hasSpotifyCredentials(context)) {
-                    isLoadingKeys = true
-                    val keys = SupabaseClient.getAutomaticKeys()
-                    if (keys.isNotEmpty()) {
-                        // Mapear nombres de Supabase a nombres de Config
-                        keys["client_id"]?.let { Config.setSpotifyClientId(context, it) }
-                        keys["client_secret"]?.let { Config.setSpotifyClientSecret(context, it) }
-                        keys["lastfm"]?.let { Config.setLastfmApiKey(context, it) }
-                        // Actualizar el estado del botón después de cargar las credenciales
-                        hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
-                        android.util.Log.d("ConfigScreen", "✅ Keys cargadas automáticamente, hasSpotifyCredentials: $hasSpotifyCredentials")
-                    }
-                    isLoadingKeys = false
-                }
-            }
-            MultiToggle(
-                options = listOf("Automatic", "Manual"),
-                initialIndex = if (apiKeyMode == "automatic") 0 else 1,
-                onChange = { index ->
-                    val newMode = if (index == 0) "automatic" else "manual"
-                    
-                    if (newMode == "automatic" && apiKeyMode == "manual") {
-                        // Solo cargar keys cuando se cambia de manual a automatic
-                        isLoadingKeys = true
-                        coroutineScope.launch {
-                            val keys = SupabaseClient.getAutomaticKeys()
-                            if (keys.isNotEmpty()) {
-                                // Mapear nombres de Supabase a nombres de Config
-                                keys["client_id"]?.let { Config.setSpotifyClientId(context, it) }
-                                keys["client_secret"]?.let { Config.setSpotifyClientSecret(context, it) }
-                                keys["lastfm"]?.let { Config.setLastfmApiKey(context, it) }
-                                // Actualizar el estado del botón después de cargar las credenciales
-                                hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
-                                android.util.Log.d("ConfigScreen", "✅ Keys cargadas al cambiar a automatic, hasSpotifyCredentials: $hasSpotifyCredentials")
-                            }
-                            isLoadingKeys = false
-                        }
-                    } else if (apiKeyMode == "automatic" && newMode == "manual") {
-                        // Cambio de automatic a manual: limpiar keys
-                        Config.clearAllApiKeys(context)
-                        hasSpotifyCredentials = false
-                    }
-                    
-                    apiKeyMode = newMode
-                    Config.setApiKeyMode(context, newMode)
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                }
-            )
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Botón de Login/Logout de Spotify
-            // Actualizar estado cuando cambian las keys o se termina de cargar
-            LaunchedEffect(apiKeyMode, isLoadingKeys) {
-                hasSpotifyCredentials = Config.hasSpotifyCredentials(context)
-                spotifyUserNameLocal = Config.getSpotifyUserName(context)
-            }
-            
-            Text(
-                text = when {
-                    hasSpotifyCredentials -> {
-                        if (!spotifyUserNameLocal.isNullOrBlank()) {
-                            "Hello $spotifyUserNameLocal!"
-                        } else {
-                            Translations.get(context, "login")
-                        }
-                    }
-                    else -> Translations.get(context, "login")
-                },
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 16.sp,
-                    color = if (hasSpotifyCredentials && !spotifyUserNameLocal.isNullOrBlank()) 
-                        MaterialTheme.colorScheme.primary 
-                    else 
-                        MaterialTheme.colorScheme.error
-                ),
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        android.util.Log.d("ConfigScreen", "🔘 Login button clicked!")
-                        android.util.Log.d("ConfigScreen", "   hasSpotifyCredentials: $hasSpotifyCredentials")
-                        android.util.Log.d("ConfigScreen", "   spotifyUserNameLocal: $spotifyUserNameLocal")
-                        android.util.Log.d("ConfigScreen", "   Config.hasSpotifyCredentials: ${Config.hasSpotifyCredentials(context)}")
-                        android.util.Log.d("ConfigScreen", "   Config.getSpotifyClientId: ${Config.getSpotifyClientId(context)}")
-                        android.util.Log.d("ConfigScreen", "   Config.getSpotifyClientSecret: ${Config.getSpotifyClientSecret(context)?.take(5)}...")
-                        
-                        if (hasSpotifyCredentials && !spotifyUserNameLocal.isNullOrBlank()) {
-                            // Ya está logueado, hacer logout
-                            android.util.Log.d("ConfigScreen", "   ➡️ Doing LOGOUT")
-                            Config.clearSpotifyTokens(context)
-                            Config.clearSpotifyUserName(context)
-                            spotifyUserNameLocal = null
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        } else if (hasSpotifyCredentials) {
-                            // Tiene credenciales pero no está logueado, iniciar login
-                            android.util.Log.d("ConfigScreen", "   ➡️ Starting OAuth LOGIN flow")
-                            try {
-                                val success = SpotifyRepository.startOAuthFlow(context)
-                                android.util.Log.d("ConfigScreen", "   OAuth flow started: $success")
-                                if (success) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            } catch (e: Exception) {
-                                android.util.Log.e("ConfigScreen", "   ❌ OAuth flow error: ${e.message}", e)
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            }
-                        } else {
-                            android.util.Log.d("ConfigScreen", "   ⚠️ No credentials - button click ignored")
-                        }
-                    }
-                    .padding(vertical = 8.dp)
-            )
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Configuración de API (solo en modo manual)
-            if (apiKeyMode == "manual") {
-                SpotifyApiConfigSection(context = context)
-
-                Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-                LastfmApiConfigSection(context = context)
-
-                Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-            }
-
             // Información de uso
             Column {
                 Text(
@@ -357,8 +183,8 @@ fun ShareAppSection(context: Context) {
     if (showShareDialog) {
         com.plyr.ui.components.ShareDialog(
             item = com.plyr.ui.components.ShareableItem(
-                spotifyId = null,
-                spotifyUrl = null,
+                remoteId = null,
+                shareUrl = null,
                 youtubeId = null,
                 title = "plyr",
                 artist = "",
@@ -392,223 +218,6 @@ fun ShareAppSection(context: Context) {
     }
 }
 
-
-@Composable
-fun SpotifyApiConfigSection(context: Context) {
-    var clientId by remember { mutableStateOf(Config.getSpotifyClientId(context) ?: "") }
-    var clientSecret by remember { mutableStateOf(Config.getSpotifyClientSecret(context) ?: "") }
-    val haptic = LocalHapticFeedback.current
-
-    val hasCredentials = Config.hasSpotifyCredentials(context)
-    val statusText = if (hasCredentials) Translations.get(context, "configured") else Translations.get(context, "not_configured")
-    val statusColor = if (hasCredentials) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-
-    CollapsibleSection(
-        title = Translations.get(context, "spotify_status"),
-        statusText = statusText,
-        statusColor = statusColor
-    ) {
-        // Client ID field
-        Text(
-            text = Translations.get(context, "client_id"),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        OutlinedTextField(
-            value = clientId,
-            onValueChange = {
-                clientId = it
-                Config.setSpotifyClientId(context, it)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            textStyle = TextStyle(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onBackground
-            ),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            placeholder = {
-                Text(
-                    text = Translations.get(context, "enter_client_id"),
-                    style = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                    )
-                )
-            }
-        )
-
-        // Client Secret field
-        Text(
-            text = Translations.get(context, "client_secret"),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        OutlinedTextField(
-            value = clientSecret,
-            onValueChange = {
-                clientSecret = it
-                Config.setSpotifyClientSecret(context, it)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            textStyle = TextStyle(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            ),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            visualTransformation = PasswordVisualTransformation(),
-            placeholder = {
-                Text(
-                    text = Translations.get(context, "enter_client_secret"),
-                    style = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                )
-            }
-        )
-
-        // Instructions
-        Column(modifier = Modifier.padding(bottom = 16.dp)) {
-            Text(
-                text = Translations.get(context, "how_to_get_credentials"),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.tertiary
-                ),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            listOf(
-                "instruction_1", "instruction_2", "instruction_3",
-                "instruction_4", "instruction_5", "instruction_6",
-                "instruction_7", "instruction_8", "instruction_9"
-            ).forEach { instructionKey ->
-                Text(
-                    text = "        ${Translations.get(context, instructionKey)}",
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    ),
-                    modifier = Modifier.padding(bottom = 2.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = Translations.get(context, "note_local_storage"),
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
-            )
-        }
-    }
-}
-
-@Composable
-fun LastfmApiConfigSection(context: Context) {
-    var apiKey by remember { mutableStateOf(Config.getLastfmApiKey(context) ?: "") }
-    val haptic = LocalHapticFeedback.current
-
-    val hasApiKey = Config.hasLastfmApiKey(context)
-    val statusText = if (hasApiKey) Translations.get(context, "configured") else Translations.get(context, "not_configured")
-    val statusColor = if (hasApiKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-
-    CollapsibleSection(
-        title = Translations.get(context, "lastfm_status"),
-        statusText = statusText,
-        statusColor = statusColor
-    ) {
-        Text(
-            text = "      api_key:",
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-
-        OutlinedTextField(
-            value = apiKey,
-            onValueChange = {
-                apiKey = it
-                Config.setLastfmApiKey(context, it)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            textStyle = TextStyle(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp
-            ),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                focusedTextColor = MaterialTheme.colorScheme.onBackground,
-                unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            placeholder = {
-                Text(
-                    text = Translations.get(context, "enter_lastfm_api_key"),
-                    style = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                )
-            }
-        )
-
-        // Info text
-        Text(
-            text = Translations.get(context, "lastfm_info"),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            ),
-            lineHeight = 14.sp
-        )
-    }
-}
 
 @Composable
 fun GesturesConfigSection(context: Context) {

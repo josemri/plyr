@@ -1,7 +1,7 @@
 package com.plyr.service
 
 import com.plyr.database.TrackEntity
-import com.plyr.network.SpotifyTrack
+import com.plyr.network.AppTrack
 import com.plyr.network.YouTubeManager
 
 /**
@@ -16,7 +16,7 @@ data class CreatedYouTubePlaylist(
 
 /**
  * Crea una playlist de YouTube (local, prefijo "youtube_") a partir de los tracks de
- * una playlist ya existente (p. ej. sincronizada desde Spotify).
+ * una playlist ya existente.
  *
  * La resolución de cada track a su vídeo usa la integración de YouTube ya existente
  * ([YouTubeManager.searchVideoId]); si un track ya tiene `youtubeVideoId`, no se re-busca.
@@ -28,15 +28,15 @@ class YouTubePlaylistCreator(
 ) {
 
     /**
-     * Construye los tracks fuente desde tracks de Spotify seleccionados, manteniendo
-     * nombre, artistas e id de Spotify: la playlist de YouTube será la misma.
+     * Construye los tracks fuente desde tracks seleccionados, manteniendo
+     * nombre, artistas e id: la playlist de YouTube será la misma.
      */
-    fun buildSourceTracks(selectedTracks: List<SpotifyTrack>): List<TrackEntity> {
+    fun buildSourceTracks(selectedTracks: List<AppTrack>): List<TrackEntity> {
         return selectedTracks.mapIndexed { index, track ->
             TrackEntity(
                 id = "source_${track.id}_$index",
                 playlistId = "",
-                spotifyTrackId = track.id,
+                remoteTrackId = track.id,
                 name = track.name,
                 artists = track.getArtistNames(),
                 youtubeVideoId = null,
@@ -49,7 +49,7 @@ class YouTubePlaylistCreator(
 
     /**
      * Construye la playlist de YouTube. Por cada track usa su `youtubeVideoId` si ya lo
-     * tiene; si no, el id resuelto en [resolvedVideoIds] (por `spotifyTrackId`); y solo
+     * tiene; si no, el id resuelto en [resolvedVideoIds] (por `remoteTrackId`); y solo
      * si no hay ninguno, lo busca con la integración existente.
      */
     fun build(
@@ -62,7 +62,7 @@ class YouTubePlaylistCreator(
         val tracks = mutableListOf<TrackEntity>()
         sourceTracks.forEach { track ->
             val videoId = track.youtubeVideoId
-                ?: resolvedVideoIds[track.spotifyTrackId]
+                ?: resolvedVideoIds[track.remoteTrackId]
                 ?: resolveVideoId("${track.name} ${track.artists}".trim())
             if (videoId.isNullOrBlank()) return@forEach
             tracks += track.copy(

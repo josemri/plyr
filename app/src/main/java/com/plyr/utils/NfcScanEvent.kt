@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Evento global para comunicar resultados de escaneo NFC
- * Similar a SpotifyAuthEvent, permite que cualquier componente observe cuando se escanea un NFC
+ * Permite que cualquier componente observe cuando se escanea un NFC
  */
 object NfcScanEvent {
     private val _scanResult = MutableStateFlow<ScanResult?>(null)

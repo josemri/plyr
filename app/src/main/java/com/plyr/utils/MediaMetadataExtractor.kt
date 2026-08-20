@@ -3,10 +3,7 @@ package com.plyr.utils
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.suspendCancellableCoroutine
 import org.schabi.newpipe.extractor.ServiceList
-import com.plyr.network.SpotifyRepository
-import kotlin.coroutines.resume
 
 data class MediaMetadata(
     val title: String,
@@ -18,10 +15,6 @@ data class MediaMetadata(
 enum class MediaType {
     YOUTUBE_VIDEO,
     YOUTUBE_PLAYLIST,
-    SPOTIFY_TRACK,
-    SPOTIFY_PLAYLIST,
-    SPOTIFY_ALBUM,
-    SPOTIFY_ARTIST,
     UNKNOWN
 }
 
@@ -33,23 +26,12 @@ object MediaMetadataExtractor {
     suspend fun extractMetadata(url: String, context: Context? = null): MediaMetadata = withContext(Dispatchers.IO) {
         when {
             isYouTubeUrl(url) -> extractYouTubeMetadata(url)
-            isSpotifyUrl(url) -> {
-                if (context != null && Config.isSpotifyConnected(context)) {
-                    extractSpotifyMetadata(url, context)
-                } else {
-                    extractSpotifyMetadataFallback(url)
-                }
-            }
             else -> MediaMetadata(url, null, null, MediaType.UNKNOWN)
         }
     }
 
     private fun isYouTubeUrl(url: String): Boolean {
         return url.contains("youtube.com") || url.contains("youtu.be")
-    }
-
-    private fun isSpotifyUrl(url: String): Boolean {
-        return url.contains("spotify.com")
     }
 
     private suspend fun extractYouTubeMetadata(url: String): MediaMetadata = withContext(Dispatchers.IO) {
@@ -113,118 +95,5 @@ object MediaMetadataExtractor {
                 MediaMetadata(url, null, null, MediaType.UNKNOWN)
             }
         }
-    }
-
-    private suspend fun extractSpotifyMetadata(url: String, context: Context): MediaMetadata = withContext(Dispatchers.IO) {
-        try {
-            val accessToken = Config.getSpotifyAccessToken(context) ?: return@withContext extractSpotifyMetadataFallback(url)
-
-            when {
-                url.contains("/track/") -> {
-                    val trackId = UrlParser.extractSpotifyId(url).orEmpty()
-                    suspendCancellableCoroutine { continuation ->
-                        SpotifyRepository.getTrack(accessToken, trackId) { track, error ->
-                            if (track != null) {
-                                continuation.resume(
-                                    MediaMetadata(
-                                        title = track.name,
-                                        author = track.getArtistNames(),
-                                        thumbnailUrl = track.album?.images?.firstOrNull()?.url,
-                                        type = MediaType.SPOTIFY_TRACK
-                                    )
-                                )
-                            } else {
-                                continuation.resume(extractSpotifyMetadataFallback(url))
-                            }
-                        }
-                    }
-                }
-                url.contains("/playlist/") -> {
-                    val playlistId = UrlParser.extractSpotifyId(url).orEmpty()
-                    suspendCancellableCoroutine { continuation ->
-                        SpotifyRepository.getPlaylist(accessToken, playlistId) { playlist, error ->
-                            if (playlist != null) {
-                                continuation.resume(
-                                    MediaMetadata(
-                                        title = playlist.name,
-                                        author = playlist.description,
-                                        thumbnailUrl = playlist.getImageUrl(),
-                                        type = MediaType.SPOTIFY_PLAYLIST
-                                    )
-                                )
-                            } else {
-                                continuation.resume(extractSpotifyMetadataFallback(url))
-                            }
-                        }
-                    }
-                }
-                url.contains("/album/") -> {
-                    val albumId = UrlParser.extractSpotifyId(url).orEmpty()
-                    suspendCancellableCoroutine { continuation ->
-                        SpotifyRepository.getAlbum(accessToken, albumId) { album, error ->
-                            if (album != null) {
-                                continuation.resume(
-                                    MediaMetadata(
-                                        title = album.name,
-                                        author = album.getArtistNames(),
-                                        thumbnailUrl = album.getImageUrl(),
-                                        type = MediaType.SPOTIFY_ALBUM
-                                    )
-                                )
-                            } else {
-                                continuation.resume(extractSpotifyMetadataFallback(url))
-                            }
-                        }
-                    }
-                }
-                url.contains("/artist/") -> {
-                    val artistId = UrlParser.extractSpotifyId(url).orEmpty()
-                    suspendCancellableCoroutine { continuation ->
-                        SpotifyRepository.getArtist(accessToken, artistId) { artist, error ->
-                            if (artist != null) {
-                                continuation.resume(
-                                    MediaMetadata(
-                                        title = artist.name,
-                                        author = artist.genres?.joinToString(", "),
-                                        thumbnailUrl = artist.getImageUrl(),
-                                        type = MediaType.SPOTIFY_ARTIST
-                                    )
-                                )
-                            } else {
-                                continuation.resume(extractSpotifyMetadataFallback(url))
-                            }
-                        }
-                    }
-                }
-                else -> extractSpotifyMetadataFallback(url)
-            }
-        } catch (_: Exception) {
-            extractSpotifyMetadataFallback(url)
-        }
-    }
-
-    private fun extractSpotifyMetadataFallback(url: String): MediaMetadata {
-        val type = when {
-            url.contains("/track/") -> MediaType.SPOTIFY_TRACK
-            url.contains("/playlist/") -> MediaType.SPOTIFY_PLAYLIST
-            url.contains("/album/") -> MediaType.SPOTIFY_ALBUM
-            url.contains("/artist/") -> MediaType.SPOTIFY_ARTIST
-            else -> MediaType.UNKNOWN
-        }
-
-        val title = when (type) {
-            MediaType.SPOTIFY_TRACK -> "Spotify Track"
-            MediaType.SPOTIFY_PLAYLIST -> "Spotify Playlist"
-            MediaType.SPOTIFY_ALBUM -> "Spotify Album"
-            MediaType.SPOTIFY_ARTIST -> "Spotify Artist"
-            else -> "Spotify Content"
-        }
-
-        return MediaMetadata(
-            title = title,
-            author = null,
-            thumbnailUrl = null,
-            type = type
-        )
     }
 }
