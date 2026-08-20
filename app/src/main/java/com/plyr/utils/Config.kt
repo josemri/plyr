@@ -40,9 +40,6 @@ object Config {
     // Clave para el nickname del usuario en Feed
     private const val KEY_USER_NICKNAME = "user_nickname"
 
-    // Clave para el modo de API keys (automatic/manual)
-    private const val KEY_API_KEY_MODE = "api_key_mode"
-
     // Valores por defecto
     private const val DEFAULT_THEME = "system" // Por defecto en nuevas instalaciones seguir el tema del sistema
     private const val DEFAULT_SEARCH_ENGINE = "youtube"
@@ -52,9 +49,6 @@ object Config {
     private const val DEFAULT_SWIPE_RIGHT_ACTION = "add_to_liked_songs"
     private const val DEFAULT_SHAKE_ACTION = "off"
     private const val DEFAULT_ORIENTATION_ACTION = "off"
-
-    // Valor por defecto para modo de API keys
-    private const val DEFAULT_API_KEY_MODE = "automatic"
 
     // === CONSTANTES PÚBLICAS DE MODO DE REPETICIÓN ===
 
@@ -352,16 +346,6 @@ object Config {
         }
     }
 
-    /**
-     * Verifica si el usuario tiene una API Key de Last.fm configurada.
-     * @param context Contexto de la aplicación
-     * @return true si tiene la API Key configurada, false en caso contrario
-     */
-    fun hasLastfmApiKey(context: Context): Boolean {
-        val apiKey = getPrefs(context).getString(KEY_LASTFM_API_KEY, null)
-        return !apiKey.isNullOrBlank()
-    }
-
     // === GESTIÓN DE NICKNAME DEL USUARIO PARA FEED ===
 
     /**
@@ -381,48 +365,6 @@ object Config {
     fun setUserNickname(context: Context, nickname: String) {
         getPrefs(context).edit {
             putString(KEY_USER_NICKNAME, nickname.trim())
-        }
-    }
-
-    /**
-     * Verifica si el usuario tiene un nickname configurado.
-     * @param context Contexto de la aplicación
-     * @return true si tiene nickname configurado, false en caso contrario
-     */
-    fun hasUserNickname(context: Context): Boolean {
-        val nickname = getPrefs(context).getString(KEY_USER_NICKNAME, null)
-        return !nickname.isNullOrBlank()
-    }
-
-    // === GESTIÓN DE MODO DE API KEYS ===
-
-    /**
-     * Obtiene el modo actual de API keys (automatic/manual).
-     * @param context Contexto de la aplicación
-     * @return Modo actual (por defecto "manual")
-     */
-    fun getApiKeyMode(context: Context): String {
-        return getPrefs(context).getString(KEY_API_KEY_MODE, DEFAULT_API_KEY_MODE) ?: DEFAULT_API_KEY_MODE
-    }
-
-    /**
-     * Establece el modo de API keys.
-     * @param context Contexto de la aplicación
-     * @param mode Modo a establecer ("automatic" o "manual")
-     */
-    fun setApiKeyMode(context: Context, mode: String) {
-        getPrefs(context).edit {
-            putString(KEY_API_KEY_MODE, mode)
-        }
-    }
-
-    /**
-     * Limpia todas las API keys almacenadas.
-     * @param context Contexto de la aplicación
-     */
-    fun clearAllApiKeys(context: Context) {
-        getPrefs(context).edit {
-            remove(KEY_LASTFM_API_KEY)
         }
     }
 

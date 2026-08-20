@@ -14,7 +14,6 @@ object Translations {
         "español" to mapOf(
             // Config Screen
             "user_nickname" to "> nombre_feed",
-            "username_description" to "tu nombre o apodo para mostrar en el feed",
             "config_title" to "plyr_ajustes",
             "theme" to "> tema",
             "theme_dark" to "oscuro",
@@ -22,29 +21,14 @@ object Translations {
             "theme_system" to "sistema",
             "theme_auto" to "auto",
             "search_engine" to "> motor_de_búsqueda",
-            "search_youtube" to "youtube",
             "language" to "> idioma",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "connected" to "conectado",
-            "disconnected" to "desconectado",
-            "configured" to "configurado",
             "info" to "> información",
             "info_text" to "    ● ¡no piratees música!\n    ● cambia el motor con yt: / sp:",
-            "login" to "<iniciar_sesión>",
-            "albums" to "> álbumes",
-            "similar_songs" to "> recomendaciones",
-            "loading_recommendations" to "<generando recomendaciones...>",
-            "share_with_NFC" to "<compartir con NFC>",
-
-
-            // Last.fm Configuration
-            "lastfm_status" to "> estado_lastfm",
             "lastfm_api_key" to "    ● lastfm_api_key:",
-            "enter_lastfm_api_key" to "introduce tu api key de last.fm",
-            "lastfm_info" to "      Last.fm es un servicio de música para obtener recomendaciones.\n      Cómo obtener tu API Key:\n      1. Ve a https://www.last.fm/api/account/create\n      2. Crea una cuenta o inicia sesión\n      3. Rellena los datos de la aplicación (nombre: 'plyr')\n      4. Copia tu API Key y pégala arriba\n      5. Esta key te permite obtener recomendaciones de artistas",
 
             // Swipe Actions Configuration
             "swipe_actions" to "> acciones_de_deslizamiento",
@@ -52,8 +36,6 @@ object Translations {
             "swipe_right" to "deslizar derecha",
 
             // Main Screen
-            "plyr_title" to "$ plyr", //QUITAR EL TITLE GENERAL
-            "search_hint" to "search...",
             "no_results" to "no results found",
             "loading" to "loading...",
 
@@ -66,83 +48,32 @@ object Translations {
 
             // Feed Screen
             "feed_title" to "plyr_feed",
-            "create_group" to "crear grupo",
-            "join_group" to "unirse a grupo",
             "add_recommendation" to "añadir recomendación",
-            "filter" to "> filtro",
-            "recommendations" to "> recomendaciones",
             "loading" to "cargando...",
             "no_recommendations" to "no hay recomendaciones",
-            "group_name" to "nombre del grupo",
-            "create" to "crear",
-            "cancel" to "cancelar",
             "invite_code" to "código de invitación",
             "nickname" to "apodo",
-            "join" to "unirse",
             "comment" to "comentario (opcional)",
-            "add" to "añadir",
             "enter_nickname" to "introduce tu apodo...",
-            "nickname_required_error" to "⚠️ configura tu apodo en ajustes primero",
-            "join_group_error" to "error al unirse al grupo",
-            "add_recommendation_error" to "error al añadir recomendación",
+            "recommendations" to "> recomendaciones",
 
             // Search Screen
             "search_title" to "plyr_buscar",
             "search_placeholder" to "buscar música...",
             "search_loading" to "cargando...",
-            "search_no_results" to "no se encontraron resultados",
             "search_error" to "error",
-            "search_engine_not_recognized" to "Motor de búsqueda no reconocido",
-            "search_error_loading_tracks" to "Error cargando canciones",
-            "search_loading_tracks" to "cargando canciones...",
-            "search_tracks" to "canciones",
-            "search_albums" to "álbumes",
-            "search_artists" to "artistas",
-            "search_playlists" to "listas",
-            "search_videos" to "videos",
-            "search_youtube_playlists" to "listas youtube",
-            "search_start" to "iniciar",
-            "search_random" to "aleatorio",
-            "search_save" to "guardar",
-            "search_share" to "compartir",
-            "search_saved" to "guardado",
-            "search_error_saving" to "error al guardar",
-            "search_followers" to "seguidores",
-            "search_monthly_listeners" to "oyentes mensuales",
             "search_scan_qr" to "qr",
-            "playlist_cover" to "Portada de la playlist",
             "artist_image" to "Imagen del artista",
-            "search_query_empty_after_prefix" to "Querry vacía después del prefijo",
-            "album_cover" to "Portada del album",
             "search_youtube_results" to "resultados de youtube",
             "search_load_more" to "cargar más",
             "colored by used engine" to "coloreado según el motor usado",
 
             // Search Screen - Additional translations
-            "search_select_playlist" to "Seleccionar playlist",
-            "search_cancel" to "Cancelar",
-            "search_removing" to "eliminando...",
-            "search_removed" to "¡eliminado!",
-            "search_saving_status" to "guardando...",
-            "search_error_no_token" to "error: no hay token",
-            "search_unsave" to "desguardar",
-            "search_youtube_results" to "resultados youtube",
-            "search_load_more" to "cargar más",
-            "search_error_getting_track" to "Error obteniendo track",
-            "search_error_getting_playlist" to "Error obteniendo playlist",
-            "search_error_getting_album" to "Error obteniendo álbum",
-            "search_error_getting_artist" to "Error obteniendo artista",
             "search_error_processing_qr" to "Error procesando QR",
-            "search_adding_to_playlist" to "añadiendo canción a la playlist",
 
             // Player
-            "now_playing" to "now playing",
-            "play" to "play",
-            "pause" to "pause",
             "next" to "siguiente",
             "previous" to "anterior",
-            "repeat" to "repetir",
-            "shuffle" to "mezclar",
 
             // Playlist / Form labels
             "playlist_name" to "Nombre de la playlist",
@@ -150,57 +81,28 @@ object Translations {
             "description_optional" to "Descripción (opcional)",
             "search_tracks_label" to "Buscar canciones",
             "create_playlist" to "Crear playlist",
-            "playlist_name_placeholder" to "Nombre de la playlist",
-
-            // Local Screen
-            "unknown error" to "error desconocido",
-            "No tracks downloaded" to "Ninguna canción descargada",
-            "delete track" to "eliminar canción",
-            "Song {{track_name}} will be removed permanently" to "La canción {{track_name}} será eliminada permanentemente",
-            "delete" to "eliminar",
-            "cancel" to "cancelar",
 
             // Queue Screen
             "plyr_queue" to "plyr_cola",
             "No tracks loaded" to "Ninguna lista cargada",
-            "Play a track to start a playlist" to "Reproduce una canción para iniciar una lista",
             "player_not_available" to "reproductor_no_disponible",
 
             //Playlists Screen
             "Loading tracks..." to "Cargando canciones...",
 
             // ADDITIONAL KEYS (SPANISH)
-            "connected_successfully" to "conectado correctamente",
-            "token_exchange_failed" to "intercambio de token fallido",
-            "cancelled_by_user" to "cancelado por el usuario",
             "error_obtaining_audio" to "No se pudo obtener audio",
             "error_prefix" to "Error: ",
 
             // Playlist actions and dialogs
-            "btn_start" to "<start>",
-            "btn_stop" to "<stop>",
-            "btn_rand" to "<rand>",
             "btn_share" to "<share>",
-            "btn_save" to "<save>",
-            "btn_edit" to "<edit>",
-            "btn_delete" to "<delete>",
-            "creating" to "<creating...>",
-            "create" to "<create>",
             "btn_nfc" to "<nfc>",
-            "delete_playlist_title" to "Eliminar playlist",
-            "delete_playlist_confirm" to "¿Seguro que quieres eliminar '%s'? Esta acción no se puede deshacer.",
-            "unsaved_changes_title" to "Cambios sin guardar",
-            "unsaved_changes_text" to "Tienes cambios sin guardar. ¿Seguro que quieres salir?",
-            "exit_label" to "Salir",
-            "cancel_label" to "Cancelar",
-            "delete_label" to "Eliminar",
 
             // SongListItem
             "add_to_playlist" to "añadir a playlist",
             "add_to_queue" to "añadir a cola",
             "share" to "compartir",
             "add_to_liked_songs" to "añadir a favoritos",
-            "remove_from_liked_songs" to "quitar de favoritos",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "cola",
@@ -210,7 +112,6 @@ object Translations {
 
             // Gestures Configuration
             "gestures_section" to "> gestos",
-            "sensors_section" to "> gestos",
             "shake_for" to "    agitar para:",
             "shake_off" to "off",
             "shake_next" to "next",
@@ -218,31 +119,21 @@ object Translations {
             "shake_play_pause" to "play",
             "swipe_song_left" to "    swipe canción izquierda:",
             "swipe_song_right" to "    swipe canción derecha:",
-            "sensors_description" to "      Agita el dispositivo para ejecutar una acción.\n      Funciona incluso con la pantalla apagada.",
             "orientation_for" to "    orientar para:",
             "orientation_off" to "off",
             "orientation_skip" to "saltar",
             "orientation_volume" to "volumen",
-            "orientation_description" to "      Apunta el teléfono en una dirección cardinal\n      para ejecutar la acción seleccionada.",
 
-            "error_fetching_track_info" to "Error obteniendo info del track",
-            "error_generic" to "Error",
-            "album_colon" to "Álbum: %s",
-            "release_colon" to "Lanzamiento: %s",
-            "duration_colon" to "Duración: %s",
-            "not_available" to "N/A",
-            "error_loading_playlists" to "Error cargando playlists",
-            "track_already_downloaded" to "Track ya descargado",
-            "loading_playlists" to "cargando playlists...",
-            "track_added_successfully" to "¡Canción añadida exitosamente!",
-            "no_playlists_found" to "No se encontraron playlists",
-
-            "auto_suggestions" to "Sugerencias automáticas",
-            "contextual_help" to "Ayuda contextual",
             "enabled" to "Activo",
             "disabled" to "Inactivo",
 
-            "share_me" to "< ¡compárteme! >"
+            "share_me" to "< ¡compárteme! >",
+
+            // NEW MISSING KEYS
+            "app_logo" to "logotipo de plyr",
+            "no_playlists" to "no hay playlists",
+            "plyr_lists" to "plyr_listas",
+            "not_configured" to "no configurado"
 
         ),
 
@@ -250,11 +141,6 @@ object Translations {
         "english" to mapOf(
             // Config Screen
             "user_nickname" to "> nickname_feed",
-            "username_description" to "your name or nickname to show in the feed",
-            "auto_suggestions" to "Auto suggestions",
-            "contextual_help" to "Contextual help",
-            "enabled" to "Enabled",
-            "disabled" to "Disabled",
             "config_title" to "plyr_config",
             "theme" to "> theme",
             "theme_dark" to "dark",
@@ -262,22 +148,14 @@ object Translations {
             "theme_system" to "system",
             "theme_auto" to "auto",
             "search_engine" to "> search_engine",
-            "search_youtube" to "youtube",
             "language" to "> language",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "connected" to "connected",
-            "disconnected" to "disconnected",
-            "configured" to "configured",
             "info" to "> info",
-            "login" to "<login>",
             "info_text" to "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
-            "albums" to "> albums",
-            "similar_songs" to "> recommendations",
-            "loading_recommendations" to "<generating recommendations...>",
-            "share_with_NFC" to "<share with NFC>",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
             "orientation_skip" to "skip",
             "orientation_volume" to "volume",
             "orientation_off" to "off",
@@ -285,20 +163,12 @@ object Translations {
             "share_me" to "< share me! >",
 
 
-            // Last.fm Configuration
-            "lastfm_status" to "> lastfm_status",
-            "lastfm_api_key" to "    ● lastfm_api_key:",
-            "enter_lastfm_api_key" to "enter your last.fm api key",
-            "lastfm_info" to "      Last.fm is a music service for getting recommendations.\n      How to get your API Key:\n      1. Go to https://www.last.fm/api/account/create\n      2. Create an account or log in\n      3. Fill in the application data (name: 'plyr')\n      4. Copy your API Key and paste it above\n      5. This key allows you to get artist recommendations",
-
             // Swipe Actions Configuration
             "swipe_actions" to "> swipe_actions",
             "swipe_left" to "swipe left",
             "swipe_right" to "swipe right",
 
             // Main Screen
-            "plyr_title" to "$ plyr",
-            "search_hint" to "search...",
             "no_results" to "no results found",
             "loading" to "loading...",
 
@@ -311,112 +181,60 @@ object Translations {
 
             // Feed Screen
             "feed_title" to "plyr_feed",
-            "create_group" to "create group",
-            "join_group" to "join group",
             "add_recommendation" to "add recommendation",
-            "filter" to "> filter",
-            "recommendations" to "> recommendations",
             "loading" to "loading...",
             "no_recommendations" to "no recommendations",
-            "group_name" to "group name",
-            "create" to "create",
-            "cancel" to "cancel",
             "invite_code" to "invite code",
             "nickname" to "nickname",
-            "join" to "join",
             "comment" to "comment (optional)",
-            "add" to "add",
+            "enter_nickname" to "enter your nickname...",
+            "recommendations" to "> recommendations",
 
             // Search Screen
             "search_title" to "plyr_search",
             "search_placeholder" to "search music...",
             "search_loading" to "loading...",
-            "search_no_results" to "no results found",
             "search_error" to "error",
-            "search_engine_not_recognized" to "Search engine not recognized",
-            "search_error_loading_tracks" to "Error loading tracks",
-            "search_loading_tracks" to "loading tracks...",
-            "search_tracks" to "tracks",
-            "search_albums" to "albums",
-            "search_artists" to "artists",
-            "search_playlists" to "playlists",
-            "search_videos" to "videos",
-            "search_youtube_playlists" to "youtube playlists",
-            "search_start" to "start",
-            "search_random" to "random",
-            "search_save" to "save",
-            "search_share" to "share",
-            "search_saved" to "saved",
-            "search_error_saving" to "error saving",
-            "search_followers" to "followers",
-            "search_monthly_listeners" to "monthly listeners",
             "search_scan_qr" to "qr",
-            "playlist_cover" to "Playlist cover",
             "artist_image" to "Artist image",
-            "search_query_empty_after_prefix" to "Query empty after prefix",
-            "album_cover" to "Album cover",
             "search_youtube_results" to "youtube results",
             "search_load_more" to "load more",
             "colored by used engine" to "colored by used engine",
 
             // Search Screen - Additional translations
-            "search_select_playlist" to "Select playlist",
-            "search_cancel" to "Cancel",
-            "search_removing" to "removing...",
-            "search_removed" to "removed!",
-            "search_saving_status" to "saving...",
-            "search_error_no_token" to "error: no token",
-            "search_unsave" to "unsave",
-            "search_youtube_results" to "youtube results",
-            "search_load_more" to "load more",
-            "search_error_getting_track" to "Error getting track",
-            "search_error_getting_playlist" to "Error getting playlist",
-            "search_error_getting_album" to "Error getting album",
-            "search_error_getting_artist" to "Error getting artist",
             "search_error_processing_qr" to "Error processing QR",
-            "search_adding_to_playlist" to "adding song to playlist",
 
             // Player
-            "now_playing" to "now playing",
-            "play" to "play",
-            "pause" to "pause",
             "next" to "next",
             "previous" to "previous",
-            "repeat" to "repeat",
-            "shuffle" to "shuffle",
+
+            // Playlist / Form labels
+            "playlist_name" to "Playlist name",
+            "description" to "Description",
+            "description_optional" to "Description (optional)",
+            "search_tracks_label" to "Search songs",
+            "create_playlist" to "Create playlist",
+
+            // Queue Screen
+            "plyr_queue" to "plyr_queue",
+            "No tracks loaded" to "No tracks loaded",
+
+            // Playlists Screen
+            "Loading tracks..." to "Loading tracks...",
 
             // ADDITIONAL KEYS (ENGLISH)
-            "connected_successfully" to "Connected successfully",
-            "token_exchange_failed" to "Token exchange failed",
-            "cancelled_by_user" to "Cancelled by user",
             "error_obtaining_audio" to "Could not obtain audio",
             "error_prefix" to "Error: ",
 
             // Playlist actions and dialogs
-            "btn_start" to "<start>",
-            "btn_stop" to "<stop>",
-            "btn_rand" to "<rand>",
             "btn_share" to "<share>",
-            "btn_save" to "<save>",
-            "btn_edit" to "<edit>",
-            "btn_delete" to "<delete>",
-            "creating" to "<creating...>",
-            "create" to "<create>",
             "btn_nfc" to "<nfc>",
-            "delete_playlist_title" to "Delete playlist",
-            "delete_playlist_confirm" to "Are you sure you want to delete '%s'? This action cannot be undone.",
-            "unsaved_changes_title" to "Unsaved changes",
-            "unsaved_changes_text" to "You have unsaved changes. Are you sure you want to exit?",
-            "exit_label" to "Exit",
-            "cancel_label" to "Cancel",
-            "delete_label" to "Delete",
 
             // SongListItem
             "add_to_playlist" to "add to playlist",
             "add_to_queue" to "add to queue",
             "share" to "share",
             "add_to_liked_songs" to "add to liked songs",
-            "remove_from_liked_songs" to "remove from liked songs",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "queue",
@@ -426,7 +244,6 @@ object Translations {
 
             // Gestures Configuration
             "gestures_section" to "> gestures",
-            "sensors_section" to "> gestures",
             "shake_for" to "    shake for:",
             "shake_off" to "off",
             "shake_next" to "next",
@@ -434,26 +251,16 @@ object Translations {
             "shake_play_pause" to "play",
             "swipe_song_left" to "    swipe song left:",
             "swipe_song_right" to "    swipe song right:",
-            "sensors_description" to "      Shake the device to perform an action.\n      Works even with the screen off.",
 
-            "error_fetching_track_info" to "Error fetching track info",
-            "error_generic" to "Error",
-            "album_colon" to "Album: %s",
-            "release_colon" to "Release: %s",
-            "duration_colon" to "Duration: %s",
-            "not_available" to "N/A",
-            "error_loading_playlists" to "Error loading playlists",
-            "track_already_downloaded" to "Track already downloaded",
-            "loading_playlists" to "loading playlists...",
-            "track_added_successfully" to "Track added successfully!",
-            "no_playlists_found" to "No playlists found",
-
-            "auto_suggestions" to "Auto suggestions",
-            "contextual_help" to "Contextual help",
             "enabled" to "Enabled",
             "disabled" to "Disabled",
 
-            // New command descriptions
+            // NEW MISSING KEYS
+            "app_logo" to "plyr logo",
+            "no_playlists" to "no playlists",
+            "plyr_lists" to "plyr_lists",
+            "not_configured" to "not configured",
+            "player_not_available" to "player not available",
 
         ),
 
@@ -461,11 +268,6 @@ object Translations {
         "català" to mapOf(
             // Config Screen
             "user_nickname" to "> nom_feed",
-            "username_description" to "el teu nom o sobrenom per mostrar al feed",
-            "auto_suggestions" to "Suggeriments automàtics",
-            "contextual_help" to "Ajuda contextual",
-            "enabled" to "Actiu",
-            "disabled" to "Inactiu",
             "config_title" to "plyr_configuració",
             "theme" to "> tema",
             "theme_dark" to "fosc",
@@ -473,22 +275,14 @@ object Translations {
             "theme_system" to "sistema",
             "theme_auto" to "auto",
             "search_engine" to "> motor_cerca",
-            "search_youtube" to "youtube",
             "language" to "> idioma",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "connected" to "connectat",
-            "disconnected" to "desconnectat",
-            "configured" to "configurat",
             "info" to "> info",
             "info_text" to "    ● no piratejis música!\n    ● Canvia motor amb yt: / sp:",
-            "login" to "<iniciar_sessió>",
-            "albums" to "> àlbums",
-            "similar_songs" to "> recomanacions",
-            "loading_recommendations" to "<generant recomanacions...>",
-            "share_with_NFC" to "<compartir amb NFC>",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
             "orientation_skip" to "saltar",
             "orientation_volume" to "volum",
             "orientation_off" to "off",
@@ -496,20 +290,12 @@ object Translations {
             "share_me" to "< Comparteix-me! >",
 
 
-            // Last.fm Configuration
-            "lastfm_status" to "> estat_lastfm",
-            "lastfm_api_key" to "    ● lastfm_api_key:",
-            "enter_lastfm_api_key" to "introdueix la teva api key de last.fm",
-            "lastfm_info" to "      Last.fm és un servei de música per obtenir recomanacions.\n      Com obtenir la teva API Key:\n      1. Ves a https://www.last.fm/api/account/create\n      2. Crea un compte o inicia sessió\n      3. Omple les dades de l'aplicació (nom: 'plyr')\n      4. Copia la teva API Key i enganxa-la a dalt\n      5. Aquesta key et permet obtenir recomanacions d'artistes",
-
             // Swipe Actions Configuration
             "swipe_actions" to "> accions_de_lliscament",
             "swipe_left" to "lliscar esquerra",
             "swipe_right" to "lliscar dreta",
 
             // Main Screen
-            "plyr_title" to "$ plyr",
-            "search_hint" to "cercar...",
             "no_results" to "no s'han trobat resultats",
             "loading" to "carregant...",
 
@@ -522,83 +308,34 @@ object Translations {
 
             // Feed Screen
             "feed_title" to "plyr_feed",
-            "create_group" to "crear grup",
-            "join_group" to "unir-se al grup",
             "add_recommendation" to "afegir recomanació",
-            "filter" to "> filtre",
-            "recommendations" to "> recomanacions",
             "loading" to "carregant...",
             "no_recommendations" to "no hi ha recomanacions",
-            "group_name" to "nom del grup",
-            "create" to "crear",
-            "cancel" to "cancel·lar",
             "invite_code" to "codi d'invitació",
             "nickname" to "apodo",
-            "join" to "unir-se",
             "comment" to "comentari (opcional)",
-            "add" to "afegir",
             "user_nickname" to "apodo de usuario",
             "nickname_description" to "tu apodo se usará en grupos y recomendaciones",
             "enter_nickname" to "introduce tu apodo...",
-            "nickname_required_error" to "⚠️ configura tu apodo en ajustes primero",
-            "join_group_error" to "error al unirse al grupo",
-            "add_recommendation_error" to "error al añadir recomendación",
+            "recommendations" to "> recomanacions",
 
             // Search Screen
             "search_title" to "plyr_cercar",
             "search_placeholder" to "cercar música...",
             "search_loading" to "carregant...",
-            "search_no_results" to "no s'han trobat resultats",
             "search_error" to "error",
-            "search_engine_not_recognized" to "Motor de cerca no reconegut",
-            "search_error_loading_tracks" to "Error carregant cançons",
-            "search_loading_tracks" to "carregant cançons...",
-            "search_tracks" to "cançons",
-            "search_albums" to "àlbums",
-            "search_artists" to "artistes",
-            "search_playlists" to "llistes",
-            "search_videos" to "vídeos",
-            "search_youtube_playlists" to "llistes youtube",
-            "search_start" to "iniciar",
-            "search_random" to "aleatori",
-            "search_save" to "guardar",
-            "search_share" to "compartir",
-            "search_saved" to "guardat",
-            "search_error_saving" to "error en guardar",
-            "search_followers" to "seguidors",
-            "search_monthly_listeners" to "oients mensuals",
             "search_scan_qr" to "qr",
-            "playlist_cover" to "Portada de la playlist",
             "artist_image" to "Imatge de l'artista",
-            "search_query_empty_after_prefix" to "Consulta buida després del prefix",
-            "album_cover" to "Portada de l'àlbum",
             "search_youtube_results" to "resultats de youtube",
             "search_load_more" to "carregar més",
             "colored by used engine" to "colorat segons el motor usat",
 
             // Search Screen - Additional translations
-            "search_select_playlist" to "Seleccionar playlist",
-            "search_cancel" to "Cancel·lar",
-            "search_removing" to "eliminant...",
-            "search_removed" to "eliminat!",
-            "search_saving_status" to "guardant...",
-            "search_error_no_token" to "error: no hi ha token",
-            "search_unsave" to "desguardar",
-            "search_error_getting_track" to "Error obtenint track",
-            "search_error_getting_playlist" to "Error obtenint playlist",
-            "search_error_getting_album" to "Error obtenint àlbum",
-            "search_error_getting_artist" to "Error obtenint artista",
             "search_error_processing_qr" to "Error processant QR",
-            "search_adding_to_playlist" to "afegint cançó a la playlist",
 
             // Player
-            "now_playing" to "reproduint ara",
-            "play" to "reproduir",
-            "pause" to "pausa",
             "next" to "següent",
             "previous" to "anterior",
-            "repeat" to "repetir",
-            "shuffle" to "barrejar",
 
             // Playlist / Form labels
             "playlist_name" to "Nom de la playlist",
@@ -606,112 +343,63 @@ object Translations {
             "description_optional" to "Descripció (opcional)",
             "search_tracks_label" to "Cercar cançons",
             "create_playlist" to "Crear playlist",
-            "playlist_name_placeholder" to "Nom de la playlist",
-
-            // Local Screen
-            "unknown error" to "不明なエラー",
-            "No tracks downloaded" to "ダウンロードされた曲はありません",
-            "delete track" to "曲を削除",
-            "Song {{track_name}} will be removed permanently" to "曲 {{track_name}} は完全に削除されます",
-            "delete" to "削除",
-            "cancel" to "キャンセル",
 
             // Queue Screen
             "plyr_queue" to "plyr_キュー",
             "No tracks loaded" to "曲が読み込まれていません",
-            "Play a track to start a playlist" to "曲を再生してプレイリストを開始します",
-            "player_not_available" to "プレイヤーが利用できません",
+            "player_not_available" to "el reproductor no està disponible",
 
             // Playlists Screen
-            "Loading tracks..." to "曲を読み込み中...",
+            "Loading tracks..." to "Carregant cançons...",
 
-            // ADDITIONAL KEYS (JAPONÉS)
-            "connected_successfully" to "正常に接続されました",
-            "token_exchange_failed" to "トークンの交換に失敗しました",
-            "cancelled_by_user" to "ユーザーによりキャンセルされました",
-            "error_obtaining_audio" to "音声を取得できませんでした",
-            "error_prefix" to "エラー: ",
+            // ADDITIONAL KEYS (CATALÀ)
+            "error_obtaining_audio" to "No s'ha pogut obtenir àudio",
+            "error_prefix" to "Error: ",
 
             // Playlist actions and dialogs
-            "btn_start" to "<開始>",
-            "btn_stop" to "<停止>",
-            "btn_rand" to "<ランダム>",
-            "btn_share" to "<共有>",
-            "btn_save" to "<保存>",
-            "btn_edit" to "<編集>",
-            "btn_delete" to "<削除>",
-            "creating" to "<作成中...>",
-            "create" to "<作成>",
+            "btn_share" to "<compartir>",
             "btn_nfc" to "<nfc>",
-            "delete_playlist_title" to "プレイリストを削除",
-            "delete_playlist_confirm" to "「%s」を削除してもよろしいですか？この操作は元に戻せません。",
-            "unsaved_changes_title" to "未保存の変更",
-            "unsaved_changes_text" to "未保存の変更があります。本当に終了しますか？",
-            "exit_label" to "終了",
-            "cancel_label" to "キャンセル",
-            "delete_label" to "削除",
 
             // SongListItem
-            "add_to_playlist" to "プレイリストに追加",
-            "add_to_queue" to "キューに追加",
-            "share" to "共有",
-            "add_to_liked_songs" to "お気に入りに追加",
-            "remove_from_liked_songs" to "お気に入りから削除",
+            "add_to_playlist" to "afegir a playlist",
+            "add_to_queue" to "afegir a cua",
+            "share" to "compartir",
+            "add_to_liked_songs" to "afegir a favorits",
 
             // Swipe Actions - Short versions for config screen
-            "swipe_action_queue" to "キュー",
-            "swipe_action_liked" to "お気に",
-            "swipe_action_playlist" to "リスト",
-            "swipe_action_share" to "共有",
+            "swipe_action_queue" to "cua",
+            "swipe_action_liked" to "fav",
+            "swipe_action_playlist" to "llista",
+            "swipe_action_share" to "compartir",
 
             // Gestures Configuration
-            "gestures_section" to "> ジェスチャー",
-            "sensors_section" to "> ジェスチャー",
-            "shake_for" to "    振って:",
+            "gestures_section" to "> gestos",
+            "shake_for" to "    agitar per:",
             "shake_off" to "off",
-            "shake_next" to "次",
-            "shake_previous" to "前",
-            "shake_play_pause" to "再生",
-            "swipe_song_left" to "    左にスワイプ:",
-            "swipe_song_right" to "    右にスワイプ:",
-            "sensors_description" to "      デバイスを振ってアクションを実行します。\n      画面がオフでも動作します。",
-            "orientation_for" to "    向けて:",
-            "orientation_skip" to "スキップ",
-            "orientation_volume" to "音量",
-            "orientation_description" to "      電話を基本方向に向けて\n      選択したアクションを実行します。",
+            "shake_next" to "següent",
+            "shake_previous" to "anterior",
+            "shake_play_pause" to "reproduir",
+            "swipe_song_left" to "    lliscar cançó esquerra:",
+            "swipe_song_right" to "    lliscar cançó dreta:",
 
-            "error_fetching_track_info" to "トラック情報の取得エラー",
-            "error_generic" to "エラー",
-            "album_colon" to "アルバム: %s",
-            "release_colon" to "リリース: %s",
-            "duration_colon" to "再生時間: %s",
-            "not_available" to "N/A",
-            "error_loading_playlists" to "プレイリストの読み込みエラー",
-            "track_already_downloaded" to "トラックは既にダウンロードされています",
-            "loading_playlists" to "プレイリストを読み込み中...",
-            "track_added_successfully" to "トラックが正常に追加されました！",
-            "no_playlists_found" to "プレイリストが見つかりません",
+            "enabled" to "Actiu",
+            "disabled" to "Inactiu",
 
-            // NFC & Share
-            "share_app" to "> アプリを共有",
-            "share_via" to "共有方法",
-            "share_app_description" to "      plyrを友達と共有しよう。\n      '共有'で共有メニューを開きます。\n      '<nfc>'でNFCタグにURLを書き込みます。",
-            "nfc_no_url" to "書き込むURLがありません",
-            "nfc_not_available" to "このデバイスではNFCが利用できません",
-            "nfc_disabled" to "NFCが無効です。設定で有効にしてください。",
-            "nfc_write_success" to "NFCタグにURLを書き込みました！",
-            "nfc_write_failed" to "NFCタグへの書き込みに失敗しました",
+            "share_me" to "< Comparteix-me! >",
+
+
+            // NEW MISSING KEYS
+            "app_logo" to "logotip de plyr",
+            "no_playlists" to "no hi ha playlists",
+            "plyr_lists" to "plyr_llistes",
+            "not_configured" to "no configurat",
+
         ),
 
         // 日本語 (JAPONÉS)
         "日本語" to mapOf(
             // Config Screen
             "user_nickname" to "> ユーザーネーム/ニックネーム",
-            "username_description" to "フィードに表示するあなたの名前やニックネーム",
-            "auto_suggestions" to "自動提案",
-            "contextual_help" to "コンテキストヘルプ",
-            "enabled" to "有効",
-            "disabled" to "無効",
             "config_title" to "plyr_設定",
             "theme" to "> テーマ",
             "theme_dark" to "ダーク",
@@ -719,22 +407,14 @@ object Translations {
             "theme_system" to "システム",
             "theme_auto" to "自動",
             "search_engine" to "> 検索エンジン",
-            "search_youtube" to "youtube",
             "language" to "> 言語",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "connected" to "接続済み",
-            "disconnected" to "未接続",
-            "configured" to "設定済み",
             "info" to "> 情報",
             "info_text" to "    ● 音楽の海賊行為はやめよう!\n    ● エンジン切替: yt: / sp:",
-            "login" to "<ログイン>",
-            "albums" to "> アルバム",
-            "similar_songs" to "> おすすめ",
-            "loading_recommendations" to "<おすすめを生成中...>",
-            "share_with_NFC" to "<NFCで共有>",
+            "lastfm_api_key" to "    ● lastfm_api_key:",
             "orientation_skip" to "スキップ",
             "orientation_volume" to "音量",
             "orientation_off" to "オフ",
@@ -742,20 +422,12 @@ object Translations {
             "share_me" to "< 私を共有！ >",
 
 
-            // Last.fm Configuration
-            "lastfm_status" to "> lastfm_ステータス",
-            "lastfm_api_key" to "    ● lastfm_api_key:",
-            "enter_lastfm_api_key" to "last.fm api keyを入力",
-            "lastfm_info" to "      Last.fmはおすすめを取得するための音楽サービスです。\n      API Keyの取得方法:\n      1. https://www.last.fm/api/account/create にアクセス\n      2. アカウントを作成またはログイン\n      3. アプリケーション情報を入力 (名前: 'plyr')\n      4. API Keyをコピーして上に貼り付け\n      5. このkeyでアーティストのおすすめを取得できます",
-
             // Swipe Actions Configuration
             "swipe_actions" to "> スワイプアクション",
             "swipe_left" to "左スワイプ",
             "swipe_right" to "右スワイプ",
 
             // Main Screen
-            "plyr_title" to "$ plyr",
-            "search_hint" to "検索...",
             "no_results" to "結果が見つかりません",
             "loading" to "読み込み中...",
 
@@ -768,83 +440,34 @@ object Translations {
 
             // Feed Screen
             "feed_title" to "plyr_feed",
-            "create_group" to "グループを作成",
-            "join_group" to "グループに参加",
             "add_recommendation" to "おすすめを追加",
-            "filter" to "> フィルター",
-            "recommendations" to "> おすすめ",
             "loading" to "読み込み中...",
             "no_recommendations" to "おすすめはありません",
-            "group_name" to "グループ名",
-            "create" to "作成",
-            "cancel" to "キャンセル",
             "invite_code" to "招待コード",
             "nickname" to "ニックネーム",
-            "join" to "参加",
             "comment" to "コメント (任意)",
-            "add" to "追加",
             "user_nickname" to "ユーザーのニックネーム",
             "nickname_description" to "あなたのニックネームはグループやおすすめに使用されます",
             "enter_nickname" to "ニックネームを入力...",
-            "nickname_required_error" to "⚠️ 先に設定でニックネームを設定してください",
-            "join_group_error" to "グループに参加中にエラーが発生しました",
-            "add_recommendation_error" to "おすすめの追加中にエラーが発生しました",
+            "recommendations" to "> おすすめ",
 
             // Search Screen
             "search_title" to "plyr_検索",
             "search_placeholder" to "音楽を検索...",
             "search_loading" to "読み込み中...",
-            "search_no_results" to "結果が見つかりません",
             "search_error" to "エラー",
-            "search_engine_not_recognized" to "検索エンジンが認識されません",
-            "search_error_loading_tracks" to "曲の読み込みエラー",
-            "search_loading_tracks" to "曲を読み込み中...",
-            "search_tracks" to "曲",
-            "search_albums" to "アルバム",
-            "search_artists" to "アーティスト",
-            "search_playlists" to "プレイリスト",
-            "search_videos" to "動画",
-            "search_youtube_playlists" to "YouTubeプレイリスト",
-            "search_start" to "開始",
-            "search_random" to "ランダム",
-            "search_save" to "保存",
-            "search_share" to "共有",
-            "search_saved" to "保存しました",
-            "search_error_saving" to "保存中にエラー",
-            "search_followers" to "フォロワー",
-            "search_monthly_listeners" to "月間リスナー",
             "search_scan_qr" to "QR",
-            "playlist_cover" to "プレイリストのカバー",
             "artist_image" to "アーティスト画像",
-            "search_query_empty_after_prefix" to "プレフィックス後のクエリが空です",
-            "album_cover" to "アルバムカバー",
             "search_youtube_results" to "YouTubeの結果",
             "search_load_more" to "もっと読み込む",
             "colored by used engine" to "検索エンジン別の色",
 
             // Search Screen - Additional
-            "search_select_playlist" to "プレイリストを選択",
-            "search_cancel" to "キャンセル",
-            "search_removing" to "削除中...",
-            "search_removed" to "削除しました！",
-            "search_saving_status" to "保存中...",
-            "search_error_no_token" to "エラー: トークンがありません",
-            "search_unsave" to "保存を解除",
-            "search_error_getting_track" to "曲の取得エラー",
-            "search_error_getting_playlist" to "プレイリストの取得エラー",
-            "search_error_getting_album" to "アルバムの取得エラー",
-            "search_error_getting_artist" to "アーティストの取得エラー",
             "search_error_processing_qr" to "QRの処理中にエラー",
-            "search_adding_to_playlist" to "プレイリストに曲を追加中...",
 
             // Player
-            "now_playing" to "再生中",
-            "play" to "再生",
-            "pause" to "一時停止",
             "next" to "次へ",
             "previous" to "前へ",
-            "repeat" to "リピート",
-            "shuffle" to "シャッフル",
 
             // Playlist / Form labels
             "playlist_name" to "プレイリスト名",
@@ -852,57 +475,28 @@ object Translations {
             "description_optional" to "説明 (任意)",
             "search_tracks_label" to "曲を検索",
             "create_playlist" to "プレイリストを作成",
-            "playlist_name_placeholder" to "プレイリスト名",
-
-            // Local Screen
-            "unknown error" to "不明なエラー",
-            "No tracks downloaded" to "ダウンロードされた曲はありません",
-            "delete track" to "曲を削除",
-            "Song {{track_name}} will be removed permanently" to "曲 {{track_name}} は完全に削除されます",
-            "delete" to "削除",
-            "cancel" to "キャンセル",
 
             // Queue Screen
             "plyr_queue" to "plyr_キュー",
             "No tracks loaded" to "曲が読み込まれていません",
-            "Play a track to start a playlist" to "曲を再生してプレイリストを開始します",
             "player_not_available" to "プレイヤーが利用できません",
 
             // Playlists Screen
             "Loading tracks..." to "曲を読み込み中...",
 
             // ADDITIONAL KEYS (JAPONÉS)
-            "connected_successfully" to "正常に接続されました",
-            "token_exchange_failed" to "トークンの交換に失敗しました",
-            "cancelled_by_user" to "ユーザーによりキャンセルされました",
             "error_obtaining_audio" to "音声を取得できませんでした",
             "error_prefix" to "エラー: ",
 
             // Playlist actions and dialogs
-            "btn_start" to "<開始>",
-            "btn_stop" to "<停止>",
-            "btn_rand" to "<ランダム>",
             "btn_share" to "<共有>",
-            "btn_save" to "<保存>",
-            "btn_edit" to "<編集>",
-            "btn_delete" to "<削除>",
-            "creating" to "<作成中...>",
-            "create" to "<作成>",
             "btn_nfc" to "<nfc>",
-            "delete_playlist_title" to "プレイリストを削除",
-            "delete_playlist_confirm" to "「%s」を削除してもよろしいですか？この操作は元に戻せません。",
-            "unsaved_changes_title" to "未保存の変更",
-            "unsaved_changes_text" to "未保存の変更があります。本当に終了しますか？",
-            "exit_label" to "終了",
-            "cancel_label" to "キャンセル",
-            "delete_label" to "削除",
 
             // SongListItem
             "add_to_playlist" to "プレイリストに追加",
             "add_to_queue" to "キューに追加",
             "share" to "共有",
             "add_to_liked_songs" to "お気に入りに追加",
-            "remove_from_liked_songs" to "お気に入りから削除",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "キュー",
@@ -912,7 +506,6 @@ object Translations {
 
             // Gestures Configuration
             "gestures_section" to "> ジェスチャー",
-            "sensors_section" to "> ジェスチャー",
             "shake_for" to "    振って:",
             "shake_off" to "off",
             "shake_next" to "次",
@@ -920,33 +513,15 @@ object Translations {
             "shake_play_pause" to "再生",
             "swipe_song_left" to "    左にスワイプ:",
             "swipe_song_right" to "    右にスワイプ:",
-            "sensors_description" to "      デバイスを振ってアクションを実行します。\n      画面がオフでも動作します。",
-            "orientation_for" to "    向けて:",
-            "orientation_skip" to "スキップ",
-            "orientation_volume" to "音量",
-            "orientation_description" to "      電話を基本方向に向けて\n      選択したアクションを実行します。",
 
-            "error_fetching_track_info" to "トラック情報の取得エラー",
-            "error_generic" to "エラー",
-            "album_colon" to "アルバム: %s",
-            "release_colon" to "リリース: %s",
-            "duration_colon" to "再生時間: %s",
-            "not_available" to "N/A",
-            "error_loading_playlists" to "プレイリストの読み込みエラー",
-            "track_already_downloaded" to "トラックは既にダウンロードされています",
-            "loading_playlists" to "プレイリストを読み込み中...",
-            "track_added_successfully" to "トラックが正常に追加されました！",
-            "no_playlists_found" to "プレイリストが見つかりません",
+            "enabled" to "有効",
+            "disabled" to "無効",
 
-            // NFC & Share
-            "share_app" to "> アプリを共有",
-            "share_via" to "共有方法",
-            "share_app_description" to "      plyrを友達と共有しよう。\n      '共有'で共有メニューを開きます。\n      '<nfc>'でNFCタグにURLを書き込みます。",
-            "nfc_no_url" to "書き込むURLがありません",
-            "nfc_not_available" to "このデバイスではNFCが利用できません",
-            "nfc_disabled" to "NFCが無効です。設定で有効にしてください。",
-            "nfc_write_success" to "NFCタグにURLを書き込みました！",
-            "nfc_write_failed" to "NFCタグへの書き込みに失敗しました",
+            // NEW MISSING KEYS
+            "app_logo" to "plyr ロゴ",
+            "no_playlists" to "プレイリストがありません",
+            "plyr_lists" to "plyr_リスト",
+            "not_configured" to "未設定",
         ),
     )
     /**

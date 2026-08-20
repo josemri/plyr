@@ -34,15 +34,6 @@ data class SongMenuData(
 )
 
 /**
- * Helper function para verificar si es un ID remoto válido
- */
-private fun isValidRemoteId(id: String?): Boolean {
-    if (id == null || id.isBlank()) return false
-    if (id.startsWith("recommended_") || id.startsWith("temp_")) return false
-    return true
-}
-
-/**
  * Diálogo de menú de canción reutilizable
  */
 @Composable

@@ -209,15 +209,19 @@ fun PlaylistsScreen(
     // Manejar botón de retroceso del sistema
     BackHandler {
         if (isEditing && hasUnsavedChanges) {
-            // Si estamos en modo edición con cambios sin guardar, mostrar diálogo
             showExitEditDialog = true
-        } else {
-            // Salir de la playlist y volver al Home
+        } else if (selectedPlaylist != null) {
             isEditing = false
             hasUnsavedChanges = false
             selectedPlaylist = null
             selectedPlaylistEntity = null
             playlistTracks = emptyList()
+            if (initialPlaylistId != null) {
+                onBack()
+            }
+        } else {
+            isEditing = false
+            hasUnsavedChanges = false
             onBack()
         }
     }
@@ -969,7 +973,7 @@ fun PlaylistsScreen(
 
 
         // Lista de playlists (visible cuando no hay playlist seleccionada ni creando)
-        if (selectedPlaylist == null && !showCreatePlaylistScreen) {
+        if (selectedPlaylist == null && !showCreatePlaylistScreen && pendingInitialPlaylist == null) {
             Titulo(Translations.get(context, "plyr_lists"))
             Spacer(modifier = Modifier.height(8.dp))
 

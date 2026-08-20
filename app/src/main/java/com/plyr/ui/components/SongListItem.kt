@@ -412,7 +412,4 @@ fun executeSwipeAction(
     }
 }
 
-// Helper para validar si el remoteId es válido (no un placeholder generado localmente)
-private fun isValidRemoteId(sId: String?): Boolean {
-    return sId != null && sId.isNotBlank() && !sId.startsWith("recommended_") && !sId.startsWith("temp_")
-}
+

@@ -1,4 +1,3 @@
-@file:Suppress("unused")
 package com.plyr.ui.theme
 
 import androidx.compose.material3.MaterialTheme
@@ -19,8 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
 
 // === SISTEMA DE COLORES UNIFICADO ===
 
@@ -243,39 +240,6 @@ object PlyrTextStyles {
         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
     )
 }
-
-// === FORMAS UNIFICADAS ===
-object PlyrShapes {
-    val small = RoundedCornerShape(PlyrDimensions.cornerRadiusSmall)
-    val medium = RoundedCornerShape(PlyrDimensions.cornerRadiusMedium)
-    val large = RoundedCornerShape(PlyrDimensions.cornerRadiusLarge)
-    val none = RoundedCornerShape(0.dp)
-}
-
-// === ESTILOS DE BOTONES UNIFICADOS ===
-object PlyrButtonStyles {
-    @Composable
-    fun primaryButton() = ButtonDefaults.buttonColors(
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary
-    )
-
-    @Composable
-    fun secondaryButton() = ButtonDefaults.buttonColors(
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    @Composable
-    fun errorButton() = ButtonDefaults.buttonColors(
-        containerColor = MaterialTheme.colorScheme.error,
-        contentColor = MaterialTheme.colorScheme.onError
-    )
-}
-
-// Mantener función anterior para compatibilidad temporal
-@Composable
-fun adaptiveTypography(isDark: Boolean): Typography = unifiedTypography(isDark)
 
 @Composable
 fun PlyrTheme(

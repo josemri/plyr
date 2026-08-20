@@ -32,8 +32,6 @@ class TranslationsTest {
         val coreKeys = listOf(
             "config_title", "theme", "language",
             "lang_spanish", "lang_english", "lang_catalan", "lang_japanese",
-            "connected", "disconnected", "configured",
-            "search_engine", "search_youtube",
             "info", "exit_message"
         )
         val translations = getTranslationsMap()
@@ -61,7 +59,7 @@ class TranslationsTest {
         val sampleKeys = listOf(
             "config_title", "theme", "language",
             "lang_spanish", "lang_english", "lang_catalan", "lang_japanese",
-            "connected"
+            "exit_message"
         )
         val translations = getTranslationsMap()
         languages.forEach { language ->

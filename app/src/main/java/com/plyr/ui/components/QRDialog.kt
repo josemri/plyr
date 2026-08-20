@@ -47,7 +47,7 @@ data class ShareableItem(
 )
 
 enum class ShareType {
-    TRACK, PLAYLIST, ALBUM, ARTIST, APP
+    TRACK, PLAYLIST, APP
 }
 
 enum class NfcWriteState {

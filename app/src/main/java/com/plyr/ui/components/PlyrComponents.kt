@@ -1,19 +1,12 @@
 package com.plyr.ui.components
 
 import android.annotation.SuppressLint
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.plyr.ui.theme.*
 
 @Composable
@@ -42,22 +35,6 @@ fun PlyrInfoText(
 
 // === COMPONENTES DE SELECCIÓN ===
 
-// === COMPONENTES DE LAYOUT ===
-
-@Composable
-fun PlyrScreenContainer(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(PlyrSpacing.large),
-        verticalArrangement = Arrangement.spacedBy(PlyrSpacing.medium),
-        content = content
-    )
-}
-
 // === COMPONENTES DE BOTONES ===
 
 
@@ -81,65 +58,6 @@ fun PlyrLoadingIndicator(
 }
 
 // === COMPONENTES DE LISTA ===
-
-// === DIÁLOGOS ===
-
-@Composable
-fun PlyrConfirmDialog(
-    title: String,
-    message: String,
-    confirmText: String = "confirm",
-    cancelText: String = "cancel",
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF181818))
-                .padding(24.dp)
-                .fillMaxWidth(0.9f)
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(PlyrSpacing.medium),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = title,
-                    style = PlyrTextStyles.commandTitle(),
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = message,
-                    style = PlyrTextStyles.infoText(),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(PlyrSpacing.small))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Text(
-                        text = cancelText,
-                        style = PlyrTextStyles.menuOption(),
-                        modifier = Modifier
-                            .clickable { onDismiss() }
-                            .padding(PlyrSpacing.small)
-                    )
-                    Text(
-                        text = confirmText,
-                        style = PlyrTextStyles.menuOption(),
-                        color = Color(0xFFFF6B6B),
-                        modifier = Modifier
-                            .clickable { onConfirm() }
-                            .padding(PlyrSpacing.small)
-                    )
-                }
-            }
-        }
-    }
-}
 
 // === ESPACIADORES PREDEFINIDOS ===
 
