@@ -58,8 +58,7 @@ fun HomeScreen(
     onNavigateToScreen: (Screen) -> Unit,
     onOpenPlaylist: (String) -> Unit = {},
     onCreatePlaylist: () -> Unit = {},
-    onSearchSubmitted: (String) -> Unit = {},
-    onShowAllPlaylists: () -> Unit = {}
+    onSearchSubmitted: (String) -> Unit = {}
 ) {
     // Dimensiones responsivas basadas en el tamaño de pantalla
     val dimensions = calculateResponsiveDimensionsFallback()
@@ -94,16 +93,8 @@ fun HomeScreen(
         if (asciiResIds.isNotEmpty()) asciiResIds.random() else 0
     }
 
-    // Botones - queue y feed en la misma línea, settings debajo formando triángulo
+    // Botones - feed en la misma línea
     val buttons = listOf(
-        ActionButtonData(
-            text = "< ${Translations.get(context, "home_queue")} >",
-            color = MaterialTheme.colorScheme.primary,
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onNavigateToScreen(Screen.QUEUE)
-            }
-        ),
         ActionButtonData(
             text = "< ${Translations.get(context, "home_feed")} >",
             color = MaterialTheme.colorScheme.primary,
@@ -230,26 +221,6 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Botón > para ver todas las playlists
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = ">",
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.primary
-                                ),
-                                modifier = Modifier
-                                    .clickable {
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        onShowAllPlaylists()
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-
                         HomePlaylistCarousel(
                             context = context,
                             onOpenPlaylist = onOpenPlaylist,
@@ -304,25 +275,6 @@ fun HomeScreen(
                     }
 
                     // Carrusel de playlists
-                    // Botón > para ver todas las playlists
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = ">",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onShowAllPlaylists()
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
                     HomePlaylistCarousel(
                         context = context,
                         onOpenPlaylist = onOpenPlaylist,

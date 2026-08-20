@@ -31,7 +31,9 @@ fun AudioListScreen(
     context: Context,
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onThemeChanged: (String) -> Unit = {},
-    playerViewModel: PlayerViewModel? = null
+    playerViewModel: PlayerViewModel? = null,
+    navigateToScreenRequest: String? = null,
+    onNavigateHandled: () -> Unit = {}
 ) {
     var currentScreen by rememberSaveable { mutableStateOf(Screen.HOME.name) }
     val currentScreenEnum = Screen.valueOf(currentScreen)
@@ -54,12 +56,19 @@ fun AudioListScreen(
         currentScreen = Screen.HOME.name
     }
 
+    LaunchedEffect(navigateToScreenRequest) {
+        if (navigateToScreenRequest != null) {
+            currentScreen = navigateToScreenRequest
+            onNavigateHandled()
+        }
+    }
+
     when (currentScreenEnum) {
         Screen.HOME -> {
-            val pagerState = rememberPagerState(initialPage = 1) { 2 }
+            val pagerState = rememberPagerState(initialPage = 1) { 3 }
             val pagerScope = rememberCoroutineScope()
 
-            BackHandler(enabled = pagerState.currentPage == 0) {
+            BackHandler(enabled = pagerState.currentPage != 1) {
                 pagerScope.launch {
                     pagerState.animateScrollToPage(1)
                 }
@@ -96,12 +105,16 @@ fun AudioListScreen(
                         onSearchSubmitted = { query ->
                             searchInitialQuery = query
                             currentScreen = Screen.SEARCH.name
-                        },
-                        onShowAllPlaylists = {
-                            playlistToOpenId = null
-                            openPlaylistCreate = false
-                            currentScreen = Screen.PLAYLISTS.name
                         }
+                    )
+                    2 -> PlaylistsScreen(
+                        context = context,
+                        onBack = {
+                            pagerScope.launch {
+                                pagerState.animateScrollToPage(1)
+                            }
+                        },
+                        playerViewModel = playerViewModel
                     )
                 }
             }
@@ -116,11 +129,6 @@ fun AudioListScreen(
         Screen.QUEUE -> QueueScreen(
             onBack = { currentScreen = Screen.HOME.name },
             playerViewModel = playerViewModel
-        )
-        Screen.CONFIG -> ConfigScreen(
-            context = context,
-            onBack = { currentScreen = Screen.HOME.name },
-            onThemeChanged = onThemeChanged
         )
         Screen.PLAYLISTS -> PlaylistsScreen(
             context = context,
@@ -142,5 +150,6 @@ fun AudioListScreen(
             },
             playerViewModel = playerViewModel
         )
+        else -> {}
     }
 }

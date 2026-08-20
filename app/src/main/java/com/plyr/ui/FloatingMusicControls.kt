@@ -113,7 +113,8 @@ fun MarqueeText(
 @Composable
 fun FloatingMusicControls(
     playerViewModel: PlayerViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShowQueue: () -> Unit = {}
 ) {
     // Observar estados del PlayerViewModel
     val currentTitle by playerViewModel.currentTitle.observeAsState()
@@ -187,7 +188,8 @@ fun FloatingMusicControls(
                     isLoading = isLoading,
                     isPlaying = isPlaying,
                     playerViewModel = playerViewModel,
-                    currentTrack = currentTrack
+                    currentTrack = currentTrack,
+                    onShowQueue = onShowQueue
                 )
             }
         }
@@ -361,12 +363,12 @@ private fun PlaybackControls(
     isLoading: Boolean,
     isPlaying: Boolean,
     playerViewModel: PlayerViewModel,
-    currentTrack: TrackEntity?
+    currentTrack: TrackEntity?,
+    onShowQueue: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var currentRepeatMode by remember { mutableStateOf(Config.getRepeatMode(context)) }
-    var showSongMenu by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -380,13 +382,13 @@ private fun PlaybackControls(
                 .align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Espacio izquierdo con el botón * centrado
+            // Espacio izquierdo con el botón ^ centrado
             Box(
                 modifier = Modifier.weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "*",
+                    text = "^",
                     style = MaterialTheme.typography.bodyLarge.copy(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 16.sp
@@ -394,8 +396,8 @@ private fun PlaybackControls(
                     color = if (!isLoading && currentTrack != null) MaterialTheme.colorScheme.primary 
                             else MaterialTheme.colorScheme.outline,
                     modifier = Modifier
-                        .offset(y = (-2).dp) // Ajuste vertical para centrar el asterisco
-                        .clickable(enabled = !isLoading && currentTrack != null) { showSongMenu = true }
+                        .offset(y = (-2).dp)
+                        .clickable(enabled = !isLoading && currentTrack != null) { onShowQueue() }
                         .padding(6.dp)
                 )
             }
@@ -456,21 +458,7 @@ private fun PlaybackControls(
         }
     }
 
-    // Popup del menú de canción usando el componente reutilizable
-    if (showSongMenu && currentTrack != null) {
-        SongMenuDialog(
-            context = context,
-            songData = SongMenuData(
-                title = currentTrack.name,
-                artist = currentTrack.artists,
-                remoteId = currentTrack.remoteTrackId,
-                youtubeId = currentTrack.youtubeVideoId,
-                trackEntity = currentTrack
-            ),
-            playerViewModel = playerViewModel,
-            onDismiss = { showSongMenu = false }
-        )
-    }
+    // Popup del menú de canción usando el componente reutilizable (mantenido para uso futuro)
 }
 
 /**

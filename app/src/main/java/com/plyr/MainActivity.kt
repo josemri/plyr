@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.plyr.service.MusicService
 import com.plyr.ui.AudioListScreen
+import com.plyr.ui.Screen
 import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.PlyrTheme
 import com.plyr.utils.Config
@@ -121,6 +122,8 @@ class MainActivity : ComponentActivity() {
 
             PlyrTheme(darkTheme = effectiveDark) {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    var navigateToScreenRequest by remember { mutableStateOf<String?>(null) }
+
                     Box(Modifier.fillMaxSize().statusBarsPadding()) {
                         Box(
                             Modifier
@@ -129,6 +132,8 @@ class MainActivity : ComponentActivity() {
                         ) {
                             AudioListScreen(
                                 context = this@MainActivity,
+                                navigateToScreenRequest = navigateToScreenRequest,
+                                onNavigateHandled = { navigateToScreenRequest = null },
                                 onVideoSelectedFromSearch = { _, _, results, index ->
                                     playerViewModel.initializePlayer()
 
@@ -169,7 +174,8 @@ class MainActivity : ComponentActivity() {
                         FloatingMusicControls(
                             playerViewModel = playerViewModel,
                             modifier = Modifier.align(Alignment.BottomCenter)
-                                .padding(bottom = dimensions.floatingControlsBottomPadding)
+                                .padding(bottom = dimensions.floatingControlsBottomPadding),
+                            onShowQueue = { navigateToScreenRequest = Screen.QUEUE.name }
                         )
                     }
                 }
