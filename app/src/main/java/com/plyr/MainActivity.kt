@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val playerViewModel = (application as PlyrApp).playerViewModel
+            val importViewModel = (application as PlyrApp).importViewModel
             val theme = remember { mutableStateOf(Config.getTheme(this)) }
 
             // Estado para tema automático basado en sensor de luz
@@ -156,7 +157,8 @@ class MainActivity : ComponentActivity() {
                                         lightSensorDetector?.stop()
                                     }
                                 },
-                                playerViewModel = playerViewModel
+                                playerViewModel = playerViewModel,
+                                importViewModel = importViewModel
                             )
                         }
 

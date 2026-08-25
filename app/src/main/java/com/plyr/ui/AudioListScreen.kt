@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import com.plyr.model.AudioItem
+import com.plyr.viewmodel.ImportViewModel
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.NfcScanEvent
 import kotlinx.coroutines.launch
@@ -33,6 +34,7 @@ fun AudioListScreen(
     onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onThemeChanged: (String) -> Unit = {},
     playerViewModel: PlayerViewModel? = null,
+    importViewModel: ImportViewModel? = null,
     navigateToScreenRequest: String? = null,
     onNavigateHandled: () -> Unit = {}
 ) {
@@ -109,7 +111,8 @@ fun AudioListScreen(
                                             horizontalPagerState.animateScrollToPage(1)
                                         }
                                     },
-                                    onThemeChanged = onThemeChanged
+                                    onThemeChanged = onThemeChanged,
+                                    importViewModel = importViewModel
                                 )
                                 1 -> HomeScreen(
                                     context = context,

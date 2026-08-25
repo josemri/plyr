@@ -2,6 +2,7 @@ package com.plyr.utils
 
 import android.content.Context
 import android.util.Log
+import com.plyr.database.PlaylistDatabase
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
@@ -38,6 +39,12 @@ object SpotifyImporter {
         val tracks: List<SpotifyTrack>
     )
 
+    data class ImportResult(
+        val success: Boolean,
+        val message: String,
+        val skipped: Boolean = false
+    )
+
     fun extractPlaylistId(input: String): String? {
         val cleaned = input.trim()
         val patterns = listOf(
@@ -56,27 +63,69 @@ object SpotifyImporter {
     suspend fun importPlaylistByUri(
         context: Context,
         playlistUri: String,
-        onProgress: (String) -> Unit
-    ): Result<String> = withContext(Dispatchers.IO) {
+        onProgress: (current: Int, total: Int, message: String) -> Unit
+    ): Result<ImportResult> = withContext(Dispatchers.IO) {
         val playlistId = extractPlaylistId(playlistUri)
             ?: return@withContext Result.failure(Exception("Invalid Spotify playlist URL"))
 
-        onProgress("Fetching playlist from Spotify...")
+        onProgress(0, 1, "Fetching playlist...")
         val playlist = fetchPlaylistFromEmbed(playlistId).getOrElse { e ->
             return@withContext Result.failure(e)
         }
 
-        onProgress("Found ${playlist.tracks.size} tracks. Searching YouTube...")
+        val dbPlaylistId = "youtube_$playlistId"
+        val database = PlaylistDatabase.getDatabase(context)
 
+        val existingById = database.playlistDao().getPlaylistById(dbPlaylistId)
+        if (existingById != null) {
+            val existingTracks = database.trackDao().getTracksByPlaylistSync(dbPlaylistId)
+            if (existingTracks.size == playlist.tracks.size) {
+                val nameMatches = existingTracks.take(5).mapIndexed { i, t ->
+                    t.name.equals(playlist.tracks.getOrNull(i)?.name, ignoreCase = true)
+                }.all { it }
+                if (nameMatches) {
+                    return@withContext Result.success(
+                        ImportResult(
+                            success = true,
+                            message = "'${playlist.name}' already imported",
+                            skipped = true
+                        )
+                    )
+                }
+            }
+        }
+
+        val allPlaylists = database.playlistDao().getAllPlaylistsSync()
+        val sameName = allPlaylists.find {
+            it.name.equals(playlist.name, ignoreCase = true) && it.remoteId != dbPlaylistId
+        }
+        if (sameName != null) {
+            val sameNameTracks = database.trackDao().getTracksByPlaylistSync(sameName.remoteId)
+            if (sameNameTracks.size == playlist.tracks.size) {
+                val contentMatches = sameNameTracks.take(5).mapIndexed { i, t ->
+                    t.name.equals(playlist.tracks.getOrNull(i)?.name, ignoreCase = true)
+                }.all { it }
+                if (contentMatches) {
+                    return@withContext Result.success(
+                        ImportResult(
+                            success = true,
+                            message = "'${playlist.name}' already imported",
+                            skipped = true
+                        )
+                    )
+                }
+            }
+        }
+
+        val totalTracks = playlist.tracks.size
         val searchManager = YouTubeSearchManager(context)
         val localRepository = PlaylistLocalRepository(context)
-        val dbPlaylistId = "youtube_$playlistId"
         val trackEntities = mutableListOf<TrackEntity>()
         var foundCount = 0
 
         for ((index, track) in playlist.tracks.withIndex()) {
             val query = "${track.name} - ${track.artists.joinToString(", ")}"
-            onProgress("Searching ${index + 1}/${playlist.tracks.size}: ${track.name}")
+            onProgress(index + 1, totalTracks, track.name)
 
             try {
                 val videoId = searchManager.searchSingleVideoId(query)
@@ -114,7 +163,7 @@ object SpotifyImporter {
             }
         }
 
-        onProgress("Saving playlist...")
+        onProgress(totalTracks, totalTracks, "Saving...")
 
         localRepository.saveCreatedYouTubePlaylist(
             playlistId = playlistId,
@@ -124,12 +173,12 @@ object SpotifyImporter {
             tracks = trackEntities
         )
 
-        val message = "Imported '${playlist.name}' ($foundCount/${playlist.tracks.size} tracks matched)"
+        val message = "Imported '${playlist.name}' ($foundCount/$totalTracks matched)"
         Log.d(TAG, message)
-        Result.success(message)
+        Result.success(ImportResult(success = true, message = message))
     }
 
-    private suspend fun fetchPlaylistFromEmbed(playlistId: String): Result<SpotifyPlaylist> =
+    internal suspend fun fetchPlaylistFromEmbed(playlistId: String): Result<SpotifyPlaylist> =
         withContext(Dispatchers.IO) {
             try {
                 val request = Request.Builder()

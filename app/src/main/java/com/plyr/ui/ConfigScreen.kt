@@ -23,16 +23,18 @@ import androidx.compose.ui.unit.sp
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyImporter
 import com.plyr.utils.Translations
+import com.plyr.viewmodel.ImportViewModel
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @Composable
 fun ConfigScreen(
     context: Context,
     onBack: () -> Unit,
-    onThemeChanged: (String) -> Unit = {}
+    onThemeChanged: (String) -> Unit = {},
+    importViewModel: ImportViewModel? = null
 ) {
     var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
     var selectedLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
@@ -138,7 +140,7 @@ fun ConfigScreen(
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Spotify Import
-            SpotifyImportSection(context = context)
+            SpotifyImportSection(context = context, importViewModel = importViewModel)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -274,134 +276,99 @@ private fun GesturesSection(context: Context) {
 }
 
 @Composable
-private fun SpotifyImportSection(context: Context) {
-    var isImporting by remember { mutableStateOf(false) }
-    var progressMessage by remember { mutableStateOf("") }
-    var resultMessage by remember { mutableStateOf<String?>(null) }
+private fun SpotifyImportSection(context: Context, importViewModel: ImportViewModel? = null) {
+    val vm = importViewModel ?: return
+    val isImporting by vm.isImporting.collectAsState()
+    val progress by vm.progress.collectAsState()
+    val message by vm.message.collectAsState()
+    val resultMessage by vm.resultMessage.collectAsState()
     var playlistUrl by remember { mutableStateOf("") }
-    val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val haptic = LocalHapticFeedback.current
 
-    if (isImporting) {
-        AlertDialog(
-            onDismissRequest = { },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = {
-                Text(
-                    text = "spotify",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp
-                    )
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = progressMessage,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { }) {
-                    Text(text = "...", fontFamily = FontFamily.Monospace)
-                }
-            }
-        )
-    }
-
-    if (resultMessage != null) {
-        AlertDialog(
-            onDismissRequest = { resultMessage = null },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = {
-                Text(
-                    text = "spotify",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp
-                    )
-                )
-            },
-            text = {
-                Text(
-                    text = resultMessage!!,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = if (resultMessage!!.startsWith("error"))
-                            MaterialTheme.colorScheme.error
-                        else
-                            MaterialTheme.colorScheme.primary
-                    )
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { resultMessage = null }) {
-                    Text(text = "ok", fontFamily = FontFamily.Monospace)
-                }
-            }
-        )
+    LaunchedEffect(resultMessage) {
+        if (resultMessage != null) {
+            delay(3000)
+            vm.dismissResult()
+        }
     }
 
     fun startImport() {
         val id = SpotifyImporter.extractPlaylistId(playlistUrl) ?: return
         focusManager.clearFocus()
-        isImporting = true
-        progressMessage = ""
-        resultMessage = null
         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-        scope.launch {
-            val result = SpotifyImporter.importPlaylistByUri(
-                context = context,
-                playlistUri = id,
-                onProgress = { progressMessage = it }
-            )
-            isImporting = false
-            resultMessage = result.getOrElse { e -> "error: ${e.message}" }
-            playlistUrl = ""
-        }
+        playlistUrl = ""
+        vm.startImport(id)
     }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        OutlinedTextField(
-            value = playlistUrl,
-            onValueChange = { playlistUrl = it },
-            placeholder = {
+        if (isImporting) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
                 Text(
-                    text = "spotify playlist url or id",
+                    text = message,
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            },
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-            keyboardActions = KeyboardActions(onGo = { startImport() }),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        )
+                Spacer(modifier = Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        } else if (resultMessage != null) {
+            Text(
+                text = resultMessage!!,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = if (resultMessage!!.startsWith("error"))
+                        MaterialTheme.colorScheme.error
+                    else
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        } else {
+            OutlinedTextField(
+                value = playlistUrl,
+                onValueChange = { playlistUrl = it },
+                placeholder = {
+                    Text(
+                        text = "spotify playlist url or id",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { startImport() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            )
+        }
     }
 }
 
