@@ -16,6 +16,71 @@ class PlaylistLocalRepository(context: Context) {
 
     companion object {
         private const val TAG = "PlaylistLocalRepo"
+        const val LIKED_SONGS_ID = "liked_songs"
+    }
+
+    suspend fun ensureLikedSongsPlaylist() = withContext(Dispatchers.IO) {
+        val existing = playlistDao.getPlaylistById(LIKED_SONGS_ID)
+        if (existing == null) {
+            playlistDao.insertPlaylist(
+                PlaylistEntity(
+                    remoteId = LIKED_SONGS_ID,
+                    name = "liked",
+                    description = null,
+                    trackCount = 0,
+                    imageUrl = null
+                )
+            )
+            Log.d(TAG, "Liked songs playlist created")
+        }
+    }
+
+    suspend fun isTrackLiked(youtubeVideoId: String): Boolean = withContext(Dispatchers.IO) {
+        val tracks = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
+        tracks.any { it.youtubeVideoId == youtubeVideoId }
+    }
+
+    suspend fun toggleLikeTrack(
+        youtubeVideoId: String,
+        name: String,
+        artists: String,
+        remoteTrackId: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        val tracks = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
+        val existing = tracks.find { it.youtubeVideoId == youtubeVideoId }
+
+        if (existing != null) {
+            trackDao.deleteTrackById(existing.id)
+            val remaining = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
+            remaining.sortedBy { it.position }.forEachIndexed { index, t ->
+                trackDao.updateTrack(t.copy(position = index))
+            }
+            val playlist = playlistDao.getPlaylistById(LIKED_SONGS_ID)
+            if (playlist != null) {
+                playlistDao.updatePlaylist(playlist.copy(trackCount = remaining.size))
+            }
+            Log.d(TAG, "Track removed from liked: $name")
+            false
+        } else {
+            val nextPosition = if (tracks.isNotEmpty()) tracks.maxOf { it.position } + 1 else 0
+            val newTrack = TrackEntity(
+                id = "${LIKED_SONGS_ID}_${remoteTrackId}_$nextPosition",
+                playlistId = LIKED_SONGS_ID,
+                remoteTrackId = remoteTrackId,
+                name = name,
+                artists = artists,
+                youtubeVideoId = youtubeVideoId,
+                audioUrl = null,
+                position = nextPosition
+            )
+            trackDao.insertTrack(newTrack)
+            val playlist = playlistDao.getPlaylistById(LIKED_SONGS_ID)
+            if (playlist != null) {
+                playlistDao.updatePlaylist(playlist.copy(trackCount = tracks.size + 1))
+            }
+            Log.d(TAG, "Track added to liked: $name")
+            true
+        }
     }
 
     // === OBSERVATION ===

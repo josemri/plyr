@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.Config
@@ -280,6 +281,14 @@ fun SongListItem(
 
     // Solo mostrar popup si no hay acción personalizada
     if (showPopup && customButtonAction == null) {
+        var isLiked by remember { mutableStateOf(false) }
+        LaunchedEffect(song.youtubeId) {
+            song.youtubeId?.let { id ->
+                val repo = PlaylistLocalRepository(context)
+                isLiked = repo.isTrackLiked(id)
+            }
+        }
+
         Dialog(onDismissRequest = {
             showPopup = false
         }) {
@@ -314,6 +323,32 @@ fun SongListItem(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Like toggle
+                        Text(
+                            text = if (isLiked) "♥ liked" else "♡ like",
+                            color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    song.youtubeId?.let { id ->
+                                        coroutineScope.launch {
+                                            val repo = PlaylistLocalRepository(context)
+                                            isLiked = repo.toggleLikeTrack(
+                                                youtubeVideoId = id,
+                                                name = song.title,
+                                                artists = song.artist,
+                                                remoteTrackId = song.remoteId ?: ""
+                                            )
+                                            onLikedStatusChanged?.invoke()
+                                        }
+                                    }
+                                    showPopup = false
+                                }
+                                .padding(vertical = 4.dp)
+                        )
+
                         // Add to Queue
                         Text(
                             text = Translations.get(context, "add_to_queue"),
@@ -384,8 +419,17 @@ fun executeSwipeAction(
 ) {
     when (action) {
         Config.SWIPE_ACTION_ADD_TO_LIKED -> {
-            Log.d("SongListItem", "Add to liked (no-op): ${song.title}")
-            onLikedStatusChanged?.invoke()
+            coroutineScope.launch {
+                val repo = com.plyr.database.PlaylistLocalRepository(context)
+                val isNowLiked = repo.toggleLikeTrack(
+                    youtubeVideoId = song.youtubeId ?: "",
+                    name = song.title,
+                    artists = song.artist,
+                    remoteTrackId = song.remoteId ?: ""
+                )
+                Log.d("SongListItem", if (isNowLiked) "♥ Liked: ${song.title}" else "♡ Unliked: ${song.title}")
+                onLikedStatusChanged?.invoke()
+            }
         }
         Config.SWIPE_ACTION_ADD_TO_QUEUE -> {
             // Añadir a cola

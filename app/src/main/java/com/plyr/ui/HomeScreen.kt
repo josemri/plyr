@@ -200,9 +200,9 @@ private fun HomePlaylistCarousel(
     val playlistEntities by playlistRepository.getAllPlaylistsLiveData()
         .asFlow()
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    val playlists = playlistEntities.filter {
-        it.remoteId != "liked_songs" && !it.remoteId.startsWith("album_")
-    }
+    val playlists = playlistEntities
+        .filter { !it.remoteId.startsWith("album_") }
+        .sortedBy { if (it.remoteId == "liked_songs") "" else it.name }
 
     val listState = remember { LazyListState() }
     LaunchedEffect(playlists) {
@@ -217,7 +217,8 @@ private fun HomePlaylistCarousel(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(playlists, key = { it.remoteId }) { playlist ->
-            val coverUrl = UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
+            val isLiked = playlist.remoteId == "liked_songs"
+            val coverUrl = if (isLiked) null else UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
             Column(
                 modifier = Modifier
                     .width(140.dp)
@@ -228,7 +229,21 @@ private fun HomePlaylistCarousel(
                     },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (coverUrl != null) {
+                if (isLiked) {
+                    Box(
+                        modifier = Modifier
+                            .size(140.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "♥",
+                            fontSize = 48.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                } else if (coverUrl != null) {
                     AsyncImage(
                         model = coverUrl,
                         contentDescription = playlist.name,
@@ -256,7 +271,7 @@ private fun HomePlaylistCarousel(
                 Text(
                     text = playlist.name,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center

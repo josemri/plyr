@@ -1,13 +1,15 @@
 package com.plyr.utils
 
+import com.plyr.database.PlaylistLocalRepository
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assert.assertFalse
 import org.junit.Test
 
 /**
- * Tests for SpotifyImporter: extractPlaylistId parsing and ImportResult construction.
+ * Tests for SpotifyImporter: extractPlaylistId parsing, ImportResult,
+ * data classes, and progress callback signature.
  */
 class SpotifyImporterTest {
 
@@ -105,6 +107,19 @@ class SpotifyImporterTest {
         )
     }
 
+    @Test
+    fun extractPlaylistId_nonPlaylistSpotifyUrl() {
+        assertNull(SpotifyImporter.extractPlaylistId("https://open.spotify.com/artist/abc123"))
+    }
+
+    @Test
+    fun extractPlaylistId_lowerAndUpperCaseAccepted() {
+        assertEquals(
+            "AbCdEfGhIjKlMnOpQrStUv",
+            SpotifyImporter.extractPlaylistId("AbCdEfGhIjKlMnOpQrStUv")
+        )
+    }
+
     // --- ImportResult ---
 
     @Test
@@ -127,5 +142,50 @@ class SpotifyImporterTest {
         val result = SpotifyImporter.ImportResult(success = false, message = "error: bad url")
         assertFalse(result.success)
         assertFalse(result.skipped)
+    }
+
+    // --- SpotifyTrack ---
+
+    @Test
+    fun spotifyTrack_holdsFields() {
+        val track = SpotifyImporter.SpotifyTrack("Song", listOf("Artist A", "Artist B"), 240000)
+        assertEquals("Song", track.name)
+        assertEquals(listOf("Artist A", "Artist B"), track.artists)
+        assertEquals(240000L, track.durationMs)
+    }
+
+    @Test
+    fun spotifyTrack_equalityByContent() {
+        val a = SpotifyImporter.SpotifyTrack("Song", listOf("Artist"), 100)
+        val b = SpotifyImporter.SpotifyTrack("Song", listOf("Artist"), 100)
+        assertEquals(a, b)
+    }
+
+    // --- SpotifyPlaylist ---
+
+    @Test
+    fun spotifyPlaylist_holdsFields() {
+        val tracks = listOf(
+            SpotifyImporter.SpotifyTrack("One", listOf("A"), 100),
+            SpotifyImporter.SpotifyTrack("Two", listOf("B"), 200)
+        )
+        val playlist = SpotifyImporter.SpotifyPlaylist("id123", "My Playlist", "http://img.jpg", tracks)
+        assertEquals("id123", playlist.id)
+        assertEquals("My Playlist", playlist.name)
+        assertEquals("http://img.jpg", playlist.imageUrl)
+        assertEquals(2, playlist.tracks.size)
+    }
+
+    @Test
+    fun spotifyPlaylist_nullImageUrl() {
+        val playlist = SpotifyImporter.SpotifyPlaylist("id", "Name", null, emptyList())
+        assertNull(playlist.imageUrl)
+    }
+
+    // --- LIKED_SONGS_ID constant ---
+
+    @Test
+    fun likedSongsId_isCorrectValue() {
+        assertEquals("liked_songs", PlaylistLocalRepository.LIKED_SONGS_ID)
     }
 }

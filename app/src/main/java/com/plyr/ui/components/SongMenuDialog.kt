@@ -16,11 +16,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import com.plyr.viewmodel.PlayerViewModel
+import kotlinx.coroutines.launch
 
 /**
  * Data class para pasar información de la canción al menú
@@ -44,6 +46,15 @@ fun SongMenuDialog(
     onDismiss: () -> Unit,
     onLikedStatusChanged: (() -> Unit)? = null
 ) {
+    var isLiked by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(songData.youtubeId) {
+        songData.youtubeId?.let { id ->
+            val repo = PlaylistLocalRepository(context)
+            isLiked = repo.isTrackLiked(id)
+        }
+    }
 
     Dialog(onDismissRequest = {
         onDismiss()
@@ -84,6 +95,33 @@ fun SongMenuDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Like toggle
+                    Text(
+                        text = if (isLiked) "♥ liked" else "♡ like",
+                        color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                songData.youtubeId?.let { id ->
+                                    scope.launch {
+                                        val repo = PlaylistLocalRepository(context)
+                                        isLiked = repo.toggleLikeTrack(
+                                            youtubeVideoId = id,
+                                            name = songData.title,
+                                            artists = songData.artist,
+                                            remoteTrackId = songData.remoteId ?: ""
+                                        )
+                                        Log.d("SongMenuDialog", if (isLiked) "♥ Liked: ${songData.title}" else "♡ Unliked: ${songData.title}")
+                                        onLikedStatusChanged?.invoke()
+                                    }
+                                }
+                                onDismiss()
+                            }
+                            .padding(vertical = 4.dp)
+                    )
+
                     // Add to Queue
                     Text(
                         text = Translations.get(context, "add_to_queue"),

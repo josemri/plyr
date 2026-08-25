@@ -3,6 +3,7 @@ package com.plyr.ui
 import android.content.Context
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -117,9 +118,9 @@ fun PlaylistsScreen(
     var newDesc by remember { mutableStateOf("") }
 
     // Convertir entidades a AppPlaylist para compatibilidad con UI existente
-    // Filtrar liked_songs y álbumes para que no aparezcan duplicados (se muestran como items especiales)
     val playlists = playlistsFromDB
-        .filter { it.remoteId != "liked_songs" && !it.remoteId.startsWith("album_") }
+        .filter { !it.remoteId.startsWith("album_") }
+        .sortedBy { if (it.remoteId == "liked_songs") "" else it.name }
         .map { it.toAppPlaylist() }
 
     // Estado para mostrar tracks de una playlist
@@ -1011,6 +1012,7 @@ fun PlaylistsScreen(
                 ) {
                     items(playlists.size) { index ->
                         val playlist = playlists[index]
+                        val isLiked = playlist.id == "liked_songs"
                         val playlistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
                         val channelName = getYouTubeChannelName(playlistEntity)
 
@@ -1023,22 +1025,38 @@ fun PlaylistsScreen(
                                 },
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            AsyncImage(
-                                model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
-                                contentDescription = "Portada de ${playlist.name}",
-                                modifier = Modifier
-                                    .size(150.dp)
-                                    .clip(RoundedCornerShape(8.dp)),
-                                contentScale = ContentScale.Crop,
-                                placeholder = null,
-                                error = null,
-                                fallback = null
-                            )
+                            if (isLiked) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(150.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "♥",
+                                        fontSize = 48.sp,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                AsyncImage(
+                                    model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
+                                    contentDescription = "Portada de ${playlist.name}",
+                                    modifier = Modifier
+                                        .size(150.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop,
+                                    placeholder = null,
+                                    error = null,
+                                    fallback = null
+                                )
+                            }
                             Text(
                                 text = playlist.name,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.onBackground
+                                    color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
                                 ),
                                 modifier = Modifier.padding(top = 8.dp),
                                 maxLines = 2,
