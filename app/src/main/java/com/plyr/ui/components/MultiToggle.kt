@@ -31,7 +31,6 @@ fun MultiToggle(
 
     Row(
         modifier = modifier
-            .fillMaxWidth()
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.Center
     ) {
@@ -49,7 +48,7 @@ fun MultiToggle(
                     text = option,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
+                        fontSize = 16.sp,
                         color = if (selectedIndex == idx) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
                     )
                 )
@@ -65,7 +64,7 @@ fun MultiToggle(
                         text = "/",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
+                            fontSize = 16.sp,
                             color = MaterialTheme.colorScheme.secondary
                         )
                     )

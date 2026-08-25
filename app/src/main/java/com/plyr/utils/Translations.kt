@@ -15,13 +15,13 @@ object Translations {
             // Config Screen
             "user_nickname" to "> nombre_feed",
             "config_title" to "plyr_ajustes",
-            "theme" to "> tema",
+            "theme" to "tema",
             "theme_dark" to "oscuro",
             "theme_light" to "claro",
             "theme_system" to "sistema",
             "theme_auto" to "auto",
             "search_engine" to "> motor_de_búsqueda",
-            "language" to "> idioma",
+            "language" to "idioma",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
@@ -29,11 +29,6 @@ object Translations {
             "info" to "> información",
             "info_text" to "    ● ¡no piratees música!\n    ● cambia el motor con yt: / sp:",
             "lastfm_api_key" to "    ● lastfm_api_key:",
-
-            // Swipe Actions Configuration
-            "swipe_actions" to "> acciones_de_deslizamiento",
-            "swipe_left" to "deslizar izquierda",
-            "swipe_right" to "deslizar derecha",
 
             // Main Screen
             "no_results" to "no results found",
@@ -110,22 +105,10 @@ object Translations {
             "swipe_action_playlist" to "lista",
             "swipe_action_share" to "share",
 
-            // Gestures Configuration
+            // Swipe Actions
             "gestures_section" to "> gestos",
-            "shake_for" to "    agitar para:",
-            "shake_off" to "off",
-            "shake_next" to "next",
-            "shake_previous" to "prev",
-            "shake_play_pause" to "play",
-            "swipe_song_left" to "    swipe canción izquierda:",
-            "swipe_song_right" to "    swipe canción derecha:",
-            "orientation_for" to "    orientar para:",
-            "orientation_off" to "off",
-            "orientation_skip" to "saltar",
-            "orientation_volume" to "volumen",
-
-            "enabled" to "Activo",
-            "disabled" to "Inactivo",
+            "swipe_left" to "swipe left",
+            "swipe_right" to "swipe right",
 
             "share_me" to "< ¡compárteme! >",
 
@@ -133,7 +116,7 @@ object Translations {
             "app_logo" to "logotipo de plyr",
             "no_playlists" to "no hay playlists",
             "plyr_lists" to "plyr_listas",
-            "not_configured" to "no configurado"
+            "not_configured" to "no configurado",
 
         ),
 
@@ -142,13 +125,13 @@ object Translations {
             // Config Screen
             "user_nickname" to "> nickname_feed",
             "config_title" to "plyr_config",
-            "theme" to "> theme",
+            "theme" to "theme",
             "theme_dark" to "dark",
             "theme_light" to "light",
             "theme_system" to "system",
             "theme_auto" to "auto",
             "search_engine" to "> search_engine",
-            "language" to "> language",
+            "language" to "language",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
@@ -156,17 +139,8 @@ object Translations {
             "info" to "> info",
             "info_text" to "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
             "lastfm_api_key" to "    ● lastfm_api_key:",
-            "orientation_skip" to "skip",
-            "orientation_volume" to "volume",
-            "orientation_off" to "off",
-            "orientation_for" to "    orientation for:",
             "share_me" to "< share me! >",
 
-
-            // Swipe Actions Configuration
-            "swipe_actions" to "> swipe_actions",
-            "swipe_left" to "swipe left",
-            "swipe_right" to "swipe right",
 
             // Main Screen
             "no_results" to "no results found",
@@ -242,18 +216,10 @@ object Translations {
             "swipe_action_playlist" to "list",
             "swipe_action_share" to "share",
 
-            // Gestures Configuration
+            // Swipe Actions
             "gestures_section" to "> gestures",
-            "shake_for" to "    shake for:",
-            "shake_off" to "off",
-            "shake_next" to "next",
-            "shake_previous" to "prev",
-            "shake_play_pause" to "play",
-            "swipe_song_left" to "    swipe song left:",
-            "swipe_song_right" to "    swipe song right:",
-
-            "enabled" to "Enabled",
-            "disabled" to "Disabled",
+            "swipe_left" to "swipe left",
+            "swipe_right" to "swipe right",
 
             // NEW MISSING KEYS
             "app_logo" to "plyr logo",
@@ -269,13 +235,13 @@ object Translations {
             // Config Screen
             "user_nickname" to "> nom_feed",
             "config_title" to "plyr_configuració",
-            "theme" to "> tema",
+            "theme" to "tema",
             "theme_dark" to "fosc",
             "theme_light" to "clar",
             "theme_system" to "sistema",
             "theme_auto" to "auto",
             "search_engine" to "> motor_cerca",
-            "language" to "> idioma",
+            "language" to "idioma",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
@@ -283,17 +249,8 @@ object Translations {
             "info" to "> info",
             "info_text" to "    ● no piratejis música!\n    ● Canvia motor amb yt: / sp:",
             "lastfm_api_key" to "    ● lastfm_api_key:",
-            "orientation_skip" to "saltar",
-            "orientation_volume" to "volum",
-            "orientation_off" to "off",
-            "orientation_for" to "    orientar per:",
             "share_me" to "< Comparteix-me! >",
 
-
-            // Swipe Actions Configuration
-            "swipe_actions" to "> accions_de_lliscament",
-            "swipe_left" to "lliscar esquerra",
-            "swipe_right" to "lliscar dreta",
 
             // Main Screen
             "no_results" to "no s'han trobat resultats",
@@ -372,18 +329,10 @@ object Translations {
             "swipe_action_playlist" to "llista",
             "swipe_action_share" to "compartir",
 
-            // Gestures Configuration
+            // Swipe Actions
             "gestures_section" to "> gestos",
-            "shake_for" to "    agitar per:",
-            "shake_off" to "off",
-            "shake_next" to "següent",
-            "shake_previous" to "anterior",
-            "shake_play_pause" to "reproduir",
-            "swipe_song_left" to "    lliscar cançó esquerra:",
-            "swipe_song_right" to "    lliscar cançó dreta:",
-
-            "enabled" to "Actiu",
-            "disabled" to "Inactiu",
+            "swipe_left" to "lliscar esquerra",
+            "swipe_right" to "lliscar dreta",
 
             "share_me" to "< Comparteix-me! >",
 
@@ -401,13 +350,13 @@ object Translations {
             // Config Screen
             "user_nickname" to "> ユーザーネーム/ニックネーム",
             "config_title" to "plyr_設定",
-            "theme" to "> テーマ",
+            "theme" to "テーマ",
             "theme_dark" to "ダーク",
             "theme_light" to "ライト",
             "theme_system" to "システム",
             "theme_auto" to "自動",
             "search_engine" to "> 検索エンジン",
-            "language" to "> 言語",
+            "language" to "言語",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
@@ -415,17 +364,8 @@ object Translations {
             "info" to "> 情報",
             "info_text" to "    ● 音楽の海賊行為はやめよう!\n    ● エンジン切替: yt: / sp:",
             "lastfm_api_key" to "    ● lastfm_api_key:",
-            "orientation_skip" to "スキップ",
-            "orientation_volume" to "音量",
-            "orientation_off" to "オフ",
-            "orientation_for" to "    向けて:",
             "share_me" to "< 私を共有！ >",
 
-
-            // Swipe Actions Configuration
-            "swipe_actions" to "> スワイプアクション",
-            "swipe_left" to "左スワイプ",
-            "swipe_right" to "右スワイプ",
 
             // Main Screen
             "no_results" to "結果が見つかりません",
@@ -504,18 +444,10 @@ object Translations {
             "swipe_action_playlist" to "リスト",
             "swipe_action_share" to "共有",
 
-            // Gestures Configuration
+            // Swipe Actions
             "gestures_section" to "> ジェスチャー",
-            "shake_for" to "    振って:",
-            "shake_off" to "off",
-            "shake_next" to "次",
-            "shake_previous" to "前",
-            "shake_play_pause" to "再生",
-            "swipe_song_left" to "    左にスワイプ:",
-            "swipe_song_right" to "    右にスワイプ:",
-
-            "enabled" to "有効",
-            "disabled" to "無効",
+            "swipe_left" to "左スワイプ",
+            "swipe_right" to "右スワイプ",
 
             // NEW MISSING KEYS
             "app_logo" to "plyr ロゴ",

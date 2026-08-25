@@ -34,23 +34,18 @@ import com.plyr.ui.Screen
 import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.PlyrTheme
 import com.plyr.utils.Config
-import com.plyr.utils.ShakeDetector
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
-import com.plyr.utils.OrientationDetector
 import com.plyr.utils.LightSensorDetector
 import com.plyr.utils.UrlParser
-import android.media.AudioManager
 
 
 
 class MainActivity : ComponentActivity() {
     private var musicService: MusicService? = null
-    private var shakeDetector: ShakeDetector? = null
-    private var orientationDetector: OrientationDetector? = null
     private var lightSensorDetector: LightSensorDetector? = null
 
     // Estado para el tema automático basado en luz
@@ -78,12 +73,6 @@ class MainActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge()
-
-        // Inicializar ShakeDetector
-        initializeShakeDetector()
-
-        // Inicializar OrientationDetector
-        initializeOrientationDetector()
 
         // Inicializar LightSensorDetector para tema automático
         initializeLightSensorDetector()
@@ -183,66 +172,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun initializeShakeDetector() {
-        val playerViewModel = (application as PlyrApp).playerViewModel
-
-        shakeDetector = ShakeDetector(this) { action ->
-            when (action) {
-                ShakeDetector.ACTION_NEXT -> {
-                    playerViewModel.navigateToNext()
-                }
-                ShakeDetector.ACTION_PREVIOUS -> {
-                    playerViewModel.navigateToPrevious()
-                }
-                ShakeDetector.ACTION_PLAY_PAUSE -> {
-                    val player = playerViewModel.exoPlayer
-                    if (player?.isPlaying == true) {
-                        playerViewModel.pausePlayer()
-                    } else {
-                        playerViewModel.playPlayer()
-                    }
-                }
-            }
-        }
-    }
-
-    private fun initializeOrientationDetector() {
-        val playerViewModel = (application as PlyrApp).playerViewModel
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-
-        orientationDetector = OrientationDetector(
-            context = this,
-            onLeftAction = {
-                // Acción al girar a la IZQUIERDA
-                when (Config.getOrientationAction(this)) {
-                    OrientationDetector.ACTION_VOLUME -> {
-                        // Subir volumen 3 pasos
-                        repeat(3) {
-                            audioManager.adjustVolume(AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
-                        }
-                    }
-                    OrientationDetector.ACTION_SKIP -> {
-                        playerViewModel.navigateToNext()
-                    }
-                }
-            },
-            onRightAction = {
-                // Acción al girar a la DERECHA
-                when (Config.getOrientationAction(this)) {
-                    OrientationDetector.ACTION_VOLUME -> {
-                        // Bajar volumen 3 pasos
-                        repeat(3) {
-                            audioManager.adjustVolume(AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
-                        }
-                    }
-                    OrientationDetector.ACTION_SKIP -> {
-                        playerViewModel.navigateToPrevious()
-                    }
-                }
-            }
-        )
-    }
-
     private fun initializeLightSensorDetector() {
         lightSensorDetector = LightSensorDetector(this) { isDark ->
             // Solo actualizar el estado interno, no cambiar el tema guardado
@@ -252,8 +181,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        shakeDetector?.stop()
-        orientationDetector?.stop()
         lightSensorDetector?.stop()
         if (isFinishing) {
             (application as PlyrApp).playerViewModel.pausePlayer()
@@ -264,13 +191,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Activar automáticamente la lectura de NFC cuando la app está en primer plano
         NfcReader.startReading(this)
-        // Iniciar detección de shake
-        shakeDetector?.start()
-        // Iniciar detección de orientación
-        orientationDetector?.start()
-        // Iniciar detección del sensor de luz solo si el tema es "auto"
         if (Config.getTheme(this) == "auto") {
             lightSensorDetector?.start()
         }
@@ -278,13 +199,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Desactivar la lectura de NFC cuando la app no está en primer plano
         NfcReader.stopReading(this)
-        // Detener detección de shake
-        shakeDetector?.stop()
-        // Detener detección de orientación
-        orientationDetector?.stop()
-        // Detener detección del sensor de luz
         lightSensorDetector?.stop()
     }
 

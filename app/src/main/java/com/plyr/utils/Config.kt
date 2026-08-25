@@ -31,12 +31,6 @@ object Config {
     private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
 
-    // Clave para configuración de shake
-    private const val KEY_SHAKE_ACTION = "shake_action"
-
-    // Clave para configuración de orientación
-    private const val KEY_ORIENTATION_ACTION = "orientation_action"
-
     // Clave para el nickname del usuario en Feed
     private const val KEY_USER_NICKNAME = "user_nickname"
 
@@ -47,8 +41,6 @@ object Config {
     private const val DEFAULT_LANGUAGE = "english"
     private const val DEFAULT_SWIPE_LEFT_ACTION = "add_to_queue"
     private const val DEFAULT_SWIPE_RIGHT_ACTION = "add_to_liked_songs"
-    private const val DEFAULT_SHAKE_ACTION = "off"
-    private const val DEFAULT_ORIENTATION_ACTION = "off"
 
     // === CONSTANTES PÚBLICAS DE MODO DE REPETICIÓN ===
 
@@ -73,21 +65,6 @@ object Config {
     const val SWIPE_ACTION_ADD_TO_LIKED = "add_to_liked_songs"
     const val SWIPE_ACTION_ADD_TO_PLAYLIST = "add_to_playlist"
     const val SWIPE_ACTION_SHARE = "share"
-
-    // === CONSTANTES PÚBLICAS DE ACCIONES DE SHAKE ===
-
-    /** Acciones de shake disponibles */
-    const val SHAKE_ACTION_OFF = "off"
-    const val SHAKE_ACTION_NEXT = "next"
-    const val SHAKE_ACTION_PREVIOUS = "previous"
-    const val SHAKE_ACTION_PLAY_PAUSE = "play_pause"
-
-    // === CONSTANTES PÚBLICAS DE ACCIONES DE ORIENTACIÓN ===
-
-    /** Acciones de orientación disponibles (knob rotativo) */
-    const val ORIENTATION_ACTION_OFF = "off"
-    const val ORIENTATION_ACTION_VOLUME = "volume"
-    const val ORIENTATION_ACTION_SKIP = "skip"
 
     // === MÉTODOS PRIVADOS ===
     
@@ -272,56 +249,6 @@ object Config {
             return DEFAULT_SWIPE_RIGHT_ACTION
         }
         return action
-    }
-
-    // === GESTIÓN DE ACCIÓN DE SHAKE ===
-
-    /**
-     * Establece la acción para el gesto de shake.
-     * @param context Contexto de la aplicación
-     * @param action Acción a establecer ("off", "next", "previous", "play_pause")
-     */
-    fun setShakeAction(context: Context, action: String) {
-        getPrefs(context).edit {
-            putString(KEY_SHAKE_ACTION, action)
-        }
-    }
-
-    /**
-     * Obtiene la acción configurada para el gesto de shake.
-     * @param context Contexto de la aplicación
-     * @return Acción actual (por defecto "off")
-     */
-    fun getShakeAction(context: Context): String {
-        val action = getPrefs(context).getString(KEY_SHAKE_ACTION, DEFAULT_SHAKE_ACTION) ?: DEFAULT_SHAKE_ACTION
-        // Migración: la antigua acción "assistant" del asistente de voz ya no existe
-        if (action == "assistant") {
-            setShakeAction(context, DEFAULT_SHAKE_ACTION)
-            return DEFAULT_SHAKE_ACTION
-        }
-        return action
-    }
-
-    // === GESTIÓN DE ACCIÓN DE ORIENTACIÓN ===
-
-    /**
-     * Establece la acción para el sensor de orientación.
-     * @param context Contexto de la aplicación
-     * @param action Acción a establecer ("off", "volume_up", "volume_down", "next", "previous")
-     */
-    fun setOrientationAction(context: Context, action: String) {
-        getPrefs(context).edit {
-            putString(KEY_ORIENTATION_ACTION, action)
-        }
-    }
-
-    /**
-     * Obtiene la acción configurada para el sensor de orientación.
-     * @param context Contexto de la aplicación
-     * @return Acción actual (por defecto "off")
-     */
-    fun getOrientationAction(context: Context): String {
-        return getPrefs(context).getString(KEY_ORIENTATION_ACTION, DEFAULT_ORIENTATION_ACTION) ?: DEFAULT_ORIENTATION_ACTION
     }
 
     // === GESTIÓN DE LASTFM API KEY ===
