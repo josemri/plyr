@@ -2,14 +2,27 @@ name: Auto Release
 
 on:
   workflow_dispatch:
+    inputs:
+      bump:
+        description: "Tipo de incremento de versión"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
 
 permissions:
   contents: write
 
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -17,94 +30,169 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
           cache: 'gradle'
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Compute next version and changelog
+        id: version
+        run: |
+          GRADLE_FILE="app/build.gradle.kts"
+
+          CURRENT_CODE=$(sed -nE 's/.*versionCode *= *([0-9]+).*/\1/p' "$GRADLE_FILE" | head -n1)
+          CURRENT_NAME=$(sed -nE 's/.*versionName *= *"([^"]+)".*/\1/p' "$GRADLE_FILE" | head -n1)
+
+          if [ -z "$CURRENT_CODE" ] || [ -z "$CURRENT_NAME" ]; then
+            echo "::error::No se pudo leer versionCode/versionName de $GRADLE_FILE"
+            exit 1
+          fi
+
+          BUMP="${{ github.event.inputs.bump }}"
+          BUMP="${BUMP:-patch}"
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_NAME"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            *)     PATCH=$((PATCH + 1)) ;;
+          esac
+
+          NEXT_NAME="${MAJOR}.${MINOR}.${PATCH}"
+          NEXT_CODE=$((CURRENT_CODE + 1))
+          NEXT_TAG="v${NEXT_NAME}"
+
+          if git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
+            echo "::error::El tag ${NEXT_TAG} ya existe. Revisa la versión en $GRADLE_FILE"
+            exit 1
+          fi
+
+          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          CHANGELOG=$(git log -n 50 --pretty=format:'- %s (%h)' --no-merges "$RANGE")
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="- Sin cambios desde ${PREV_TAG:-el inicio}"
+          fi
+          COMMIT_COUNT=$(printf '%s\n' "$CHANGELOG" | grep -c '^- ' || true)
+
+          echo "Versión actual: ${CURRENT_NAME} (code ${CURRENT_CODE})"
+          echo "Nueva versión:  ${NEXT_NAME} (code ${NEXT_CODE}) -> ${NEXT_TAG}"
+          echo "Tag anterior:   ${PREV_TAG:-<ninguno>}"
+
+          {
+            echo "next_tag=${NEXT_TAG}"
+            echo "next_name=${NEXT_NAME}"
+            echo "next_code=${NEXT_CODE}"
+            echo "prev_tag=${PREV_TAG}"
+            echo "commit_count=${COMMIT_COUNT}"
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Bump version in build.gradle.kts
+        run: |
+          sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ steps.version.outputs.next_code }}/" app/build.gradle.kts
+          sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ steps.version.outputs.next_name }}\"/" app/build.gradle.kts
+          grep -E "versionCode|versionName" app/build.gradle.kts
+
+      - name: Check signing secrets
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::Falta el secreto SIGNING_KEY. Configura los secretos de firma (SIGNING_KEY con el .jks en base64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD) antes de publicar."
+            exit 1
+          fi
+
+      - name: Decode keystore
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$SIGNING_KEY" | base64 -d > release.keystore
+          {
+            echo "storeFile=$GITHUB_WORKSPACE/release.keystore"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build Release APK
+      - name: Build signed release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Find APK file
+      - name: Verify and locate APK
         id: find_apk
         run: |
-          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -n 1)
-          if [ -z "$APK_PATH" ]; then
-            echo "❌ APK not found"
+          APK_PATH="app/build/outputs/apk/release/plyr.apk"
+          if [ ! -f "$APK_PATH" ]; then
+            echo "::error::APK no encontrado en $APK_PATH"
             exit 1
           fi
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
-          
-          APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
-          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
 
-      - name: Get version and changelog
-        id: version
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          APKSIGNER=$(find "$SDK/build-tools" -name apksigner -type f 2>/dev/null | sort -V | tail -n1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::No se encontró apksigner en $SDK/build-tools"
+            exit 1
+          fi
+
+          echo "Verificando firma con: $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK_PATH"
+
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "apk_size=$(du -h "$APK_PATH" | cut -f1)" >> "$GITHUB_OUTPUT"
+          echo "apk_sha256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump and push tag
         run: |
-          # Obtener el commit del último release (excluyendo 'latest')
-          LAST_RELEASE_COMMIT=$(gh release list --limit 100 --json tagName,targetCommitish | \
-            jq -r '.[] | select(.tagName != "latest" and .tagName != "Latest") | .targetCommitish' | head -n 1)
-          
-          # Calcular siguiente versión basada en tags existentes
-          LAST_TAG=$(git tag --sort=-version:refname | grep -E "^v[0-9]+\.[0-9]+\.[0-9]+$" | head -n 1)
-          
-          if [ -z "$LAST_TAG" ]; then
-            NEXT_TAG="v1.0.0"
-          else
-            VERSION=${LAST_TAG#v}
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-            PATCH=$((PATCH + 1))
-            NEXT_TAG="v$MAJOR.$MINOR.$PATCH"
-          fi
-          
-          echo "tag=$NEXT_TAG" >> $GITHUB_OUTPUT
-          
-          # Generar changelog desde el último release
-          if [ -z "$LAST_RELEASE_COMMIT" ]; then
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges | head -n 30)
-          else
-            COMMITS=$(git log --pretty=format:"- %s (%h)" --no-merges ${LAST_RELEASE_COMMIT}..HEAD)
-          fi
-          
-          # Si no hay commits nuevos
-          if [ -z "$COMMITS" ]; then
-            COMMITS="- No new changes since last release"
-          fi
-          
-          # Contar commits
-          COMMIT_COUNT=$(echo "$COMMITS" | wc -l)
-          
-          echo "commits<<EOF" >> $GITHUB_OUTPUT
-          echo "$COMMITS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "commit_count=$COMMIT_COUNT" >> $GITHUB_OUTPUT
-        env:
-          GH_TOKEN: ${{ github.token }}
-
+          git add app/build.gradle.kts
+          git commit -m "chore(release): ${{ steps.version.outputs.next_tag }} [skip ci]"
+          git tag -a "${{ steps.version.outputs.next_tag }}" -m "Release ${{ steps.version.outputs.next_tag }}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "${{ steps.version.outputs.next_tag }}"
 
       - name: Create versioned release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "Release ${{ steps.version.outputs.tag }}"
+          tag_name: ${{ steps.version.outputs.next_tag }}
+          name: ${{ steps.version.outputs.next_tag }}
           body: |
-            ## 🚀 plyr ${{ steps.version.outputs.tag }}
-            
-            **APK Size:** ${{ steps.find_apk.outputs.apk_size }}
+            ## plyr ${{ steps.version.outputs.next_tag }}
+
+            **APK size:** ${{ steps.find_apk.outputs.apk_size }}
+            **SHA-256:** `${{ steps.find_apk.outputs.apk_sha256 }}`
             **Commits:** ${{ steps.version.outputs.commit_count }}
-            
-            ### 📝 Changelog
-            ${{ steps.version.outputs.commits }}
-            
+
+            ### Changelog
+            ${{ steps.version.outputs.changelog }}
+
             ---
-            
-            ### 📥 Installation
-            Download `plyr.apk` and install on your Android device.
+
+            ### Installation
+            Download `plyr.apk` and install it on your Android device.
             You may need to enable "Install from unknown sources".
           files: ${{ steps.find_apk.outputs.apk_path }}
           draft: false
@@ -114,16 +202,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: "Latest Release"
+          name: ${{ steps.version.outputs.next_tag }}
           body: |
-            ## 🔄 Latest Release (Auto-updated)
-            
-            **Current version:** ${{ steps.version.outputs.tag }}
-            **APK Size:** ${{ steps.find_apk.outputs.apk_size }}
+            ## plyr (latest)
+
+            **Current version:** ${{ steps.version.outputs.next_tag }}
+            **APK size:** ${{ steps.find_apk.outputs.apk_size }}
+            **SHA-256:** `${{ steps.find_apk.outputs.apk_sha256 }}`
             **Commits:** ${{ steps.version.outputs.commit_count }}
-            
-            ### 📝 Recent changes
-            ${{ steps.version.outputs.commits }}
+
+            ### Recent changes
+            ${{ steps.version.outputs.changelog }}
           files: ${{ steps.find_apk.outputs.apk_path }}
           draft: false
           prerelease: false
@@ -131,8 +220,10 @@ jobs:
       - name: Summary
         if: success()
         run: |
-          echo "## 🎉 Release ${{ steps.version.outputs.tag }} created!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📦 **APK Size:** ${{ steps.find_apk.outputs.apk_size }}" >> $GITHUB_STEP_SUMMARY
-          echo "📝 **Commits:** ${{ steps.version.outputs.commit_count }}" >> $GITHUB_STEP_SUMMARY
-
+          {
+            echo "## Release ${{ steps.version.outputs.next_tag }} created"
+            echo ""
+            echo "- APK size: ${{ steps.find_apk.outputs.apk_size }}"
+            echo "- SHA-256: \`${{ steps.find_apk.outputs.apk_sha256 }}\`"
+            echo "- Commits: ${{ steps.version.outputs.commit_count }}"
+          } >> "$GITHUB_STEP_SUMMARY"
