@@ -3,10 +3,19 @@
 **A minimalist, terminal-inspired music player for Android**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Android](https://img.shields.io/badge/Platform-Android%208.0%2B-green.svg)](https://www.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-1.9+-purple.svg)](https://kotlinlang.org)
+[![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green.svg)](https://www.android.com)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
 
-Built this music player because I wanted something simple with a terminal aesthetic. Streams from YouTube and Spotify, has gesture controls for quick actions. The UI is ASCII-inspired with monospace fonts everywhere.
+Built this music player because I wanted something simple with a terminal aesthetic. Streams audio from YouTube (via NewPipe Extractor, no API key required), manages local playlists, and has gesture controls for quick actions. The UI is ASCII-inspired with monospace fonts everywhere.
+
+## features
+
+- **YouTube streaming** — search and play any song; no API keys needed (NewPipe Extractor under the hood).
+- **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL** (each track is resolved to its YouTube video); **Liked Songs** saved on swipe.
+- **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
+- **Gesture controls** — configurable left/right **swipe** actions on a song, **shake** for transport controls, device **orientation** for volume/skip.
+- **Recommendations feed** — community playlist recommendations synchronized via Supabase.
+- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
 
 ## screenshots
 
@@ -18,69 +27,72 @@ Built this music player because I wanted something simple with a terminal aesthe
 
 ## build from source
 
-There is a bash script in case you want to build from source please take a pick at the `run.sh` file for more details.
+There is a bash script in case you want to build from source; take a look at `./run.sh help` for all available commands.
 ```bash
 git clone https://github.com/josemri/plyr.git
 cd plyr
-./run.sh  # APK will be in app/release/plyr.apk
+./run.sh build        # builds the debug APK
+./run.sh run          # compiles, installs and launches the app on the device
+./run.sh test         # runs the unit tests
 ```
 
+The script mounts its own environment (Java, Android SDK) under `/tmp`, so nothing is written to your home directory. Run `./run.sh clean` to wipe everything it generates.
 
 ## project structure
 
 ```
 plyr/
 ├── app/src/main/java/com/plyr/
-│   ├── assistant/     # Voice assistant integration
-│   ├── database/      # Room entities
-│   ├── network/       # API clients (Spotify, YouTube, AcoustID, Last.fm)
+│   ├── database/      # Room entities, DAOs & migrations
+│   ├── model/         # Pure data models (ScanResult, AppTrack, Recommendation...)
+│   ├── network/       # SupabaseClient, YouTubeManager, SimpleDownloader
+│   ├── receivers/     # MediaButtonReceiver
+│   ├── service/       # MusicService, YouTubeSearchManager, YouTubePlaylistCreator
 │   ├── ui/            # Compose screens & components
-│   ├── viewmodel/     # State management
-│   ├── service/       # Background playback service
-│   └── utils/         # Utilities
-├── gradle/            # Dependencies
-└── run.sh             # Build script
+│   ├── utils/         # Config, UrlParser, Translations, NfcReader, SpotifyImporter
+│   └── viewmodel/     # PlayerViewModel, ImportViewModel
+├── gradle/            # Dependencies (libs.versions.toml)
+└── run.sh             # Build/install/test script
 ```
-
 
 ## permissions
 
 ```xml
-INTERNET              # Stream music and fetch metadata
-FOREGROUND_SERVICE    # Background playback
-WAKE_LOCK             # Keep playing when screen off
-POST_NOTIFICATIONS    # Playback controls
-CAMERA                # QR code sharing
+NFC                       # Tag scanning / sharing of playlists
+INTERNET                  # Stream music and fetch metadata
+FOREGROUND_SERVICE        # Background playback
+WAKE_LOCK                 # Keep playing when screen off
+FOREGROUND_SERVICE_MEDIA_PLAYBACK
+POST_NOTIFICATIONS        # Playback controls
+CAMERA                    # QR code scanning (optional hardware)
 ```
 
+`chmod 600 local.properties` and keep your keystore out of the repo — no secrets are tracked.
 
 ## roadmap
 
-- [x] **Smart Recommendations** - Playlist recommendations based on your music taste
-- [x] **Fix dark Mode** - Some screens have white background or not enough contrast
-- [x] **assistant integration** - User will be able to ask my assistant to play songs, albums etc...
-- [x] **Now Playing Indicator** - Highlight current track with color change in playlists
-- [x] **Fix add to playlist songs** - When swipe song to add to playlist, playlists don't show up
-- [x] **Fix accesibility** - Control bar sometimes does not detect clicks because of this
+- [x] **Recommendations feed** - Community playlist recommendations based on your taste
+- [x] **Fix dark mode** - Consistent contrast/colors across all screens
+- [x] **Now Playing Indicator** - Highlight current track in playlists
+- [x] **Fix add to playlist** - Swipe to add shows the playlists properly
+- [x] **Gesture controls** - Swipe, shake and orientation actions
+- [x] **Playlist import** - Import Spotify playlists by URL, resolved to YouTube
+- [x] **Liked Songs** - One-swipe love, stored locally
 - [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
-- [ ] **Fix loop and repeat** - Loop and repeat buttons don't as expected
 - [ ] **Lyrics Support** - Show lyrics for current song if available
-- [ ] **Sleep Timer** - Stop playback after a set time
 - [ ] **Widget Support** - Home screen widget for playback controls
 - [ ] **Android Auto** - Support for Android Auto interface
-
-
 
 ## license
 
 [![GNU GPLv3](https://www.gnu.org/graphics/gplv3-127x51.png)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
 **_plyr** is Free Software: You can use, study, share, and improve it at will. Specifically you can redistribute and/or modify it under the terms of the [GNU General Public License](https://www.gnu.org/licenses/gpl-3.0.en.html) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
 This project uses:
 
 - [NewPipeExtractor](https://github.com/TeamNewPipe/NewPipeExtractor), originally created by [Team NewPipe](https://github.com/TeamNewPipe), licensed under GPL-3.0.
-- [AcoustID](https://acoustid.org/) by [Lukáš Lalinský](https://oxygene.sk/), uses Chromaprint (LGPL-2.1+) and the AcoustID web service (terms of use apply).
-- [Last.fm](https://www.last.fm/) API by [Last.fm](https://www.last.fm/), subject to their [API Terms of Service](https://www.last.fm/api/tos).
+- [ExoPlayer / Media3](https://developer.android.com/media/media3), [Room](https://developer.android.com/jetpack/androidx/releases/room), [Compose](https://developer.android.com/jetpack/compose), [OkHttp](https://square.github.io/okhttp/), [Coil](https://coil-kt.github.io/coil/) and [CameraX](https://developer.android.com/training/camerax), each under their respective licenses.
 
 ---
 
