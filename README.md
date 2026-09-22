@@ -76,6 +76,8 @@ CAMERA                    # QR code scanning (optional hardware)
 - [ ] **Download lists** - Download playlists for offline use
 - [ ] **Android Auto** - Support for Android Auto interface
 - [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
+- [ ] **Fix timeout crash** - if load a song and wait for the url to timeout app will crash
+- [ ] **Apply report.md** - fix general issues reported
 
 ## license
 
