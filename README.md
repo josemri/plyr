@@ -71,17 +71,11 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-- [x] **Recommendations feed** - Community playlist recommendations based on your taste
-- [x] **Fix dark mode** - Consistent contrast/colors across all screens
-- [x] **Now Playing Indicator** - Highlight current track in playlists
-- [x] **Fix add to playlist** - Swipe to add shows the playlists properly
-- [x] **Gesture controls** - Swipe, shake and orientation actions
-- [x] **Playlist import** - Import Spotify playlists by URL, resolved to YouTube
-- [x] **Liked Songs** - One-swipe love, stored locally
-- [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
-- [ ] **Lyrics Support** - Show lyrics for current song if available
-- [ ] **Widget Support** - Home screen widget for playback controls
+- [ ] **Eliminar warnings** - Clean up compiler/linter warnings
+- [ ] **Export data** - Export app data (playlists, history, etc.)
+- [ ] **Download lists** - Download playlists for offline use
 - [ ] **Android Auto** - Support for Android Auto interface
+- [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
 
 ## license
 
