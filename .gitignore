@@ -19,3 +19,7 @@ keystore.properties
 *.keystore
 release.keystore
 app/release/
+
+# Generado por builds (limpia: ./run.sh clean)
+/app/build
+/.kotlin

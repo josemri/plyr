@@ -116,8 +116,30 @@ env_installed() {
         && [[ -d "$ANDROID_HOME/build-tools/36.0.0" ]]
 }
 
+fix_stale_gradle_daemons() {
+    # El daemon de Gradle usa el entorno de cuando nació, no el del shell.
+    # Si quedó vivo un daemon sin XDG_DATA_HOME, el daemon de Kotlin que lance
+    # escribirá sus ficheros en ~/.local/share. Lo reiniciamos la primera vez.
+    local pid env_ok=1 pids=()
+    mapfile -t pids < <(pgrep -f 'GradleDaemon' 2>/dev/null || true)
+    for pid in "${pids[@]}"; do
+        if ! grep -aq "XDG_DATA_HOME=$XDG_DATA_HOME" "/proc/$pid/environ" 2>/dev/null; then
+            env_ok=0
+            break
+        fi
+    done
+    [[ "$env_ok" -eq 1 ]] && return 0
+
+    echo "[env] Daemon de Gradle con entorno obsoleto detectado; reiniciándolo ..."
+    ( cd "$SCRIPT_DIR" && GRADLE_USER_HOME="$GRADLE_USER_HOME" ./gradlew --stop ) >/dev/null 2>&1 || true
+    sleep 1
+    pkill -f 'GradleDaemon' 2>/dev/null || true
+    pkill -f 'KotlinCompileDaemon' 2>/dev/null || true
+}
+
 ensure_env() {
     export_env
+    fix_stale_gradle_daemons
     if ! env_installed; then
         setup_env
     fi
