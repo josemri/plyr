@@ -72,12 +72,32 @@ CAMERA                    # QR code scanning (optional hardware)
 ## roadmap
 
 - [ ] **Eliminar warnings** - Clean up compiler/linter warnings
+  - [ ] Borrar código muerto (`getLastfmApiKey`, `getAutomaticKeys`, `loadLikedSongs`, dominios obsoletos en `network_security_config`)
+  - [ ] Sustituir APIs deprecadas (`getPackageInfo(...,0)` → `PackageInfoFlags`, `startService` → `startForegroundService`, `searchYouTubeIdsForPlaylist`)
+  - [ ] Limpiar `@Suppress`/`@SuppressLint` innecesarios tras los cambios
 - [ ] **Export data** - Export app data (playlists, history, etc.)
+  - [ ] Serializar playlists y tracks a JSON
+  - [ ] Compartir archivo vía `ACTION_SEND` / SAF
+  - [ ] (Opcional) Exportar historial de búsqueda
 - [ ] **Download lists** - Download playlists for offline use
+  - [ ] Descargar audio de cada track y guardarlo localmente
+  - [ ] Reproducir desde local cuando esté disponible
+  - [ ] Indicador de progreso/estado por track y gestión de espacio
 - [ ] **Android Auto** - Support for Android Auto interface
+  - [ ] Declarar `automotive_app_desc.xml` y permisos de automoción
+  - [ ] Exponer biblioteca (playlists, cola) con el `MediaSession` de Media3
+  - [ ] Pantalla de reproducción y controles en el head unit
 - [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
+  - [ ] Gestos de long-press + arrastre en la lista de tracks
+  - [ ] Persistir el nuevo orden (posición en `TrackEntity`/`TrackDao`)
 - [ ] **Fix timeout crash** - if load a song and wait for the url to timeout app will crash
+  - [ ] Timeout explícito en `YouTubeManager.getAudioUrl` (NewPipe bloqueante sin timeout)
+  - [ ] Fallo de extracción → saltar la pista / mostrar error, sin crash
 - [ ] **Apply report.md** - fix general issues reported
+  - [ ] Bugs: `isValidAudioUrl` (B1), clave `"Player not available"` (B5), `loadingJob`/`loadingJobsActive` (B8-B9), `metadataCache` en Feed (B10), thumbnail `vi/undefined` (B16)
+  - [ ] Seguridad: activar R8 (`isMinifyEnabled`), reducir logs de cuerpos en `SupabaseClient`
+  - [ ] Rendimiento: `shutdown()`/`unbindAll` en `QrScannerDialog`, `key` en LazyLists de PlaylistScreen, `LazyColumn` en Feed
+  - [ ] Pruebas: añadir tests instrumentados (import, QR/cámara, NFC)
 
 ## license
 
