@@ -27,7 +27,6 @@ object Config {
     private const val KEY_SEARCH_ENGINE_MIGRATED = "search_engine_migrated"
     private const val KEY_REPEAT_MODE = "repeat_mode"
     private const val KEY_LANGUAGE = "language"
-    private const val KEY_LASTFM_API_KEY = "lastfm_api_key"
     private const val KEY_SWIPE_LEFT_ACTION = "swipe_left_action"
     private const val KEY_SWIPE_RIGHT_ACTION = "swipe_right_action"
 
@@ -249,28 +248,6 @@ object Config {
             return DEFAULT_SWIPE_RIGHT_ACTION
         }
         return action
-    }
-
-    // === GESTIÓN DE LASTFM API KEY ===
-
-    /**
-     * Obtiene la API Key de Last.fm configurada por el usuario.
-     * @param context Contexto de la aplicación
-     * @return API Key de Last.fm o null si no está configurada
-     */
-    fun getLastfmApiKey(context: Context): String? {
-        return getPrefs(context).getString(KEY_LASTFM_API_KEY, null)
-    }
-
-    /**
-     * Establece la API Key de Last.fm del usuario.
-     * @param context Contexto de la aplicación
-     * @param apiKey API Key de Last.fm
-     */
-    fun setLastfmApiKey(context: Context, apiKey: String) {
-        getPrefs(context).edit {
-            putString(KEY_LASTFM_API_KEY, apiKey.trim())
-        }
     }
 
     // === GESTIÓN DE NICKNAME DEL USUARIO PARA FEED ===

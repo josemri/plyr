@@ -2,6 +2,9 @@ package com.plyr.network
 
 import com.plyr.utils.NewPipeHolder
 import com.plyr.utils.UrlParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
 
@@ -9,6 +12,8 @@ import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExt
  * Gestor unificado de YouTube - Maneja búsqueda y extracción de audio
  */
 object YouTubeManager {
+    private const val EXTRACTION_TIMEOUT_MS = 30_000L
+
     /**
      * Busca un video en YouTube y devuelve su ID
      */
@@ -29,9 +34,19 @@ object YouTubeManager {
     }
 
     /**
-     * Extrae la URL de audio de un video de YouTube
+     * Extrae la URL de audio de un video de YouTube.
+     * La extracción es bloqueante (NewPipe/OkHttp), por lo que se ejecuta en IO
+     * con un timeout explícito: si no responde, devuelve null en lugar de colgarse.
      */
-    fun getAudioUrl(videoId: String): String? {
+    suspend fun getAudioUrl(videoId: String): String? {
+        return withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
+            withContext(Dispatchers.IO) {
+                extractAudioUrl(videoId)
+            }
+        }
+    }
+
+    private fun extractAudioUrl(videoId: String): String? {
         android.util.Log.d("YouTubeManager", "🎵 Iniciando extracción de audio para video ID: $videoId")
         return try {
             NewPipeHolder.ensureInitialized()

@@ -1,6 +1,5 @@
 package com.plyr.ui.components
 
-import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -42,8 +41,8 @@ fun PlyrInfoText(
 
 @Composable
 fun PlyrLoadingIndicator(
-    text: String = "loading",
-    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    text: String = "loading"
 ) {
     Row(
         modifier = modifier,

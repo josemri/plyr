@@ -191,16 +191,6 @@ fun PlaylistsScreen(
         }
     }
 
-    val loadLikedSongs: () -> Unit = { }
-
-
-    // Cleanup del YouTubeSearchManager
-    DisposableEffect(Unit) {
-        onDispose {
-            youtubeSearchManager.cleanup()
-        }
-    }
-
     // Manejar botón de retroceso del sistema
     BackHandler {
         if (isEditing && hasUnsavedChanges) {

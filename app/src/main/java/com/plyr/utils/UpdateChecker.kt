@@ -108,7 +108,7 @@ object UpdateChecker {
      */
     private fun getCurrentVersion(context: Context): String {
         return try {
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            val packageInfo = context.packageManager.getPackageInfoCompat(context.packageName)
             packageInfo.versionName ?: "1.0"
         } catch (e: Exception) {
             "1.0"

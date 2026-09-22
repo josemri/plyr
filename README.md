@@ -71,10 +71,10 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-- [ ] **Eliminar warnings** - Clean up compiler/linter warnings
-  - [ ] Borrar código muerto (`getLastfmApiKey`, `getAutomaticKeys`, `loadLikedSongs`, dominios obsoletos en `network_security_config`)
-  - [ ] Sustituir APIs deprecadas (`getPackageInfo(...,0)` → `PackageInfoFlags`, `startService` → `startForegroundService`, `searchYouTubeIdsForPlaylist`)
-  - [ ] Limpiar `@Suppress`/`@SuppressLint` innecesarios tras los cambios
+- [x] **Eliminar warnings** - Clean up compiler/linter warnings
+  - [x] Borrar código muerto (`getLastfmApiKey`, `getAutomaticKeys`, `loadLikedSongs`, dominios obsoletos en `network_security_config`)
+  - [x] Sustituir APIs deprecadas (`getPackageInfo(...,0)` → `getPackageInfoCompat`, `startService` → `startForegroundService`, `searchYouTubeIdsForPlaylist` eliminada)
+  - [x] Limpiar `@Suppress`/`@SuppressLint` innecesarios (`formatTime` con `Locale.US`, `PlyrLoadingIndicator` con `modifier` primero; los `DEPRECATION` restantes son fallbacks API <33 legítimos)
 - [ ] **Export data** - Export app data (playlists, history, etc.)
   - [ ] Serializar playlists y tracks a JSON
   - [ ] Compartir archivo vía `ACTION_SEND` / SAF
@@ -90,9 +90,9 @@ CAMERA                    # QR code scanning (optional hardware)
 - [ ] **Drag & Drop** - Reorder songs in playlists with long press and drag
   - [ ] Gestos de long-press + arrastre en la lista de tracks
   - [ ] Persistir el nuevo orden (posición en `TrackEntity`/`TrackDao`)
-- [ ] **Fix timeout crash** - if load a song and wait for the url to timeout app will crash
-  - [ ] Timeout explícito en `YouTubeManager.getAudioUrl` (NewPipe bloqueante sin timeout)
-  - [ ] Fallo de extracción → saltar la pista / mostrar error, sin crash
+- [x] **Fix timeout crash** - if load a song and wait for the url to timeout app will crash
+  - [x] Timeout explícito en `YouTubeManager.getAudioUrl` (ahora `suspend` + `withTimeoutOrNull` 30s en IO)
+  - [x] Fallo de extracción → saltar la pista / mostrar error, sin crash (ya gestionado en `PlayerViewModel`)
 - [ ] **Apply report.md** - fix general issues reported
   - [ ] Bugs: `isValidAudioUrl` (B1), clave `"Player not available"` (B5), `loadingJob`/`loadingJobsActive` (B8-B9), `metadataCache` en Feed (B10), thumbnail `vi/undefined` (B16)
   - [ ] Seguridad: activar R8 (`isMinifyEnabled`), reducir logs de cuerpos en `SupabaseClient`

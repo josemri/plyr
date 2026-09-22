@@ -7,7 +7,8 @@ import com.plyr.database.TrackEntity
 import com.plyr.utils.NewPipeHolder
 import com.plyr.utils.UrlParser
 import com.plyr.utils.formatDurationSeconds
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
@@ -27,13 +28,9 @@ class YouTubeSearchManager(private val context: Context) {
     // === DEPENDENCIES ===
     private val localRepository = PlaylistLocalRepository(context)
     
-    // === STATE ===
-    private var searchJob: Job? = null
-    
     // === CONSTANTS ===
     companion object {
         private const val TAG = "YouTubeSearchManager"
-        private const val SEARCH_DELAY = 2000L // Delay entre búsquedas para evitar rate limits
         private const val MAX_RESULTS_DEFAULT = 50
     }
     
@@ -135,77 +132,6 @@ class YouTubeSearchManager(private val context: Context) {
         return searchYouTubeVideos(query, 1).firstOrNull()
     }
 
-    // === PRIVATE HELPER METHODS ===
-    
-    /**
-     * Buscar IDs de YouTube para todos los tracks de una playlist que no los tengan
-     * @deprecated Este método es opcional ya que los IDs se obtienen bajo demanda cuando el usuario hace click en una canción.
-     * Usar getYouTubeIdTransparently() para obtener IDs de forma invisible al usuario.
-     */
-    @Deprecated("Use getYouTubeIdTransparently() for on-demand ID fetching", ReplaceWith("getYouTubeIdTransparently(track)"))
-    fun searchYouTubeIdsForPlaylist(playlistId: String) {
-        searchJob?.cancel()
-        
-        searchJob = CoroutineScope(Dispatchers.IO).launch {
-            try {
-                Log.d(TAG, "Iniciando búsqueda de YouTube IDs para playlist: $playlistId")
-                
-                val tracks = com.plyr.database.PlaylistDatabase.getDatabase(context).trackDao().getTracksByPlaylistSync(playlistId)
-                val tracksWithoutYouTubeId = tracks.filter { it.youtubeVideoId == null }
-                
-                Log.d(TAG, "Encontrados ${tracksWithoutYouTubeId.size} tracks sin YouTube ID")
-                
-                for ((index, track) in tracksWithoutYouTubeId.withIndex()) {
-                    if (!isActive) break // Verificar si la corrutina fue cancelada
-                    
-                    Log.d(TAG, "Buscando YouTube ID para: ${track.name} - ${track.artists} (${index + 1}/${tracksWithoutYouTubeId.size})")
-                    
-                    val youtubeId = searchYouTubeId(track)
-                    if (youtubeId != null) {
-                        Log.d(TAG, "YouTube ID encontrado: $youtubeId")
-                        localRepository.updateTrackYoutubeId(track.id, youtubeId)
-                    } else {
-                        Log.w(TAG, "No se encontró YouTube ID para: ${track.name} - ${track.artists}")
-                    }
-                    
-                    // Esperar antes de la siguiente búsqueda
-                    delay(SEARCH_DELAY)
-                }
-                
-                Log.d(TAG, "Búsqueda de YouTube IDs completada para playlist: $playlistId")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error en búsqueda de YouTube IDs", e)
-            }
-        }
-    }
-    
-    /**
-     * Buscar ID de YouTube para un track específico usando solo NewPipe
-     */
-    private suspend fun searchYouTubeId(track: TrackEntity): String? = withContext(Dispatchers.IO) {
-        try {
-            // Construir query de búsqueda
-            val searchQuery = "${track.name} ${track.artists}".trim()
-            Log.d(TAG, "Query de búsqueda: $searchQuery")
-            
-            // Usar NewPipe para buscar
-            val videoId = searchSingleVideoId(searchQuery)
-            if (videoId != null) {
-                Log.d(TAG, "Video ID encontrado con NewPipe: $videoId")
-                return@withContext videoId
-            }
-            
-            Log.w(TAG, "No se encontró YouTube ID para: $searchQuery")
-            return@withContext null
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error buscando YouTube ID para track: ${track.name}", e)
-            return@withContext null
-        }
-    }
-    
-
-    
     /**
      * Información detallada de un video de YouTube
      */
@@ -389,24 +315,6 @@ class YouTubeSearchManager(private val context: Context) {
         }
     }
 
-    // === MÉTODOS UTILITARIOS PRIVADOS ADICIONALES ===
-
-    /**
-     * Cancelar búsquedas en curso
-     */
-    fun cancelSearch() {
-        searchJob?.cancel()
-        searchJob = null
-        Log.d(TAG, "Búsqueda de YouTube IDs cancelada")
-    }
-
-    /**
-     * Limpiar recursos
-     */
-    fun cleanup() {
-        cancelSearch()
-    }
-    
     // === MÉTODOS UTILITARIOS PRIVADOS ===
     
     /**

@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.plyr.MainActivity
+import com.plyr.R
 import androidx.media3.common.Player
 
 class MusicService : Service() {
@@ -36,6 +37,23 @@ class MusicService : Service() {
     }
 
     override fun onBind(intent: Intent): IBinder = MusicBinder()
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // startForegroundService exige promoverse a foreground en los primeros 5s.
+        if (mediaSession == null) {
+            startForeground(NOTIFICATION_ID, createStartupNotification())
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun createStartupNotification(): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText("Reproduciendo")
+            .setOngoing(true)
+            .build()
+    }
 
     @OptIn(UnstableApi::class)
     fun setupMediaSession(player: ExoPlayer) {

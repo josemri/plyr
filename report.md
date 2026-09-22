@@ -60,11 +60,11 @@ PLYR es una app de música **YouTube-only + local** que compila y funciona. Buen
 |---|---|---|
 | B7 | `network/SupabaseClient.kt:309-328` | `parseTimestamp`: primer formato `"SSSSSS"` no matchea el ISO real, segundo `"SSS'Z'"` duplica el `'Z'`; los fallos degeneran a `System.currentTimeMillis()`. |
 | B12 | `service/YouTubeSearchManager.kt:242-249` | `getFormattedVideoCount`: `else` final inalcanzable (el `when` ya cubre todo); `Double.format` dependiente del locale. |
-| B13 | `utils/UpdateChecker.kt:111`, `ui/ConfigScreen.kt:149` | `getPackageInfo(name, 0)` deprecado en API 33+; usar `PackageInfoFlags`. |
-| B14 | `MainActivity.kt:81` | `startService()` en vez de `startForegroundService()` para MusicService (frágil en Doze/API 26+; `MediaButtonReceiver` sí lo hace bien). |
+| B13 | ~~`utils/UpdateChecker.kt:111`~~, ~~`ui/ConfigScreen.kt:149`~~ | ✅ **RESUELTO** (2026-09-22) — `getPackageInfo(name, 0)` sustituido por `getPackageInfoCompat` (API 33+ `PackageInfoFlags`). |
+| B14 | ~~`MainActivity.kt:81`~~ | ✅ **RESUELTO** (2026-09-22) — `startForegroundService()` + `onStartCommand` en `MusicService` que promueve a foreground en ≤5s. |
 | B16 | `service/YouTubeSearchManager.kt:468-470` | `getPlaylistThumbnailUrl()` hardcodea `https://img.youtube.com/vi/undefined/hqdefault.jpg` (placeholder). |
 
-**Resumen:** 1 crítico (B1), 3 medios (B5, B8-B9, B10), 5 bajos (B7, B12-B14, B16).
+**Resumen:** 1 crítico (B1), 3 medios (B5, B8-B9, B10), 3 bajos (B7, B12, B16).
 
 ---
 
@@ -76,7 +76,6 @@ PLYR es una app de música **YouTube-only + local** que compila y funciona. Buen
 | S6 | Media | `network/SimpleDownloader.kt:101,114-115` | Loguea **cookies y cabeceras completas** (pueden incluir Authorization/cookies de YouTube). |
 | S7 | Media | `network/SupabaseClient.kt:48,92,100,164,169,215,272,280,365` | Loguea cuerpos completos de requests/responses (datos de grupos/usuarios). |
 | S9 | Baja | `network/SupabaseClient.kt:19-20` | Anon key hardcodeada (publishable por diseño, DCL) — no verificables las políticas RLS desde aquí. Revisar RLS en `groups`, `group_members`, `recommendations`, `automatic`. |
-| S10 | Baja | `res/xml/network_security_config.xml:3-4` | Cleartext para `ws.audioscrobbler.com` **sin código que lo llame** (Last.fm eliminado) → config muerta; también quedan dominios `accounts/api.spotify.com` obsoletos. |
 
 ### Resueltos con refactors previos
 - **S2** (OAuth client_secret), **S4** (tokens en prefs), **S5** (`plyr://spotify` BROWSABLE), **S8** (`READ_MEDIA_AUDIO`/`READ_EXTERNAL_STORAGE`): **eliminados** con la migración Spotify.
@@ -104,7 +103,7 @@ PLYR es una app de música **YouTube-only + local** que compila y funciona. Buen
 
 | Severidad | Ubicación | Descripción | Recomendación |
 |---|---|---|---|
-| Media | `ui/PlaylistScreen.kt` (~1370) | Monolito que mezcla UI, red (Supabase), DB y lógica de negocio, con código muerto (`PlaylistScreen.kt:194` `loadLikedSongs = { }`). | Extraer ViewModels y capas por dominio. |
+| Media | `ui/PlaylistScreen.kt` (~1370) | Monolito que mezcla UI, red (Supabase), DB y lógica de negocio. | Extraer ViewModels y capas por dominio. |
 | Media | `ui/SearchScreen.kt` (~477), `ui/ConfigScreen.kt` (~416), `ui/components/SongListItem.kt` (~459) | Composable con estado/carga en `remember` + callbacks a repositorios. | ViewModels por pantalla + repositorios suspend. |
 
 **Nota positiva:** ya hay ViewModels (`PlayerViewModel`, `ImportViewModel` en `PlyrApp`); `Config.kt` sin funciones Spotify; capas puras y testeables (`UrlParser`, `ScanResult`, `CoverCropMath`, `SpotifyImporter`).
@@ -113,13 +112,7 @@ PLYR es una app de música **YouTube-only + local** que compila y funciona. Buen
 
 ## 7. LIMPIEZA / CÓDIGO MUERTO
 
-| Ubicación | Detalle |
-|---|---|
-| `utils/Config.kt:261,270` | `getLastfmApiKey`/`setLastfmApiKey` sin callers (Last.fm eliminado). |
-| `network/SupabaseClient.kt:345` | `getAutomaticKeys()` **sin callers** (tabla `automatic` ya no se consume). |
-| `ui/PlaylistScreen.kt:194` | `loadLikedSongs: () -> Unit = { }` vacío (cargadores muertos de la ventana de listado eliminada en §16). |
-| `service/YouTubeSearchManager.kt:145` | `searchYouTubeIdsForPlaylist` marcada `@Deprecated`. |
-| `res/xml/network_security_config.xml` | Dominios obsoletos (`audioscrobbler`, `spotify`) sin código que los use. |
+Código muerto eliminado el 2026-09-22: `getLastfmApiKey`/`setLastfmApiKey` (`Config.kt`), `getAutomaticKeys()` (`SupabaseClient.kt`), `loadLikedSongs = { }` (`PlaylistScreen.kt`), `searchYouTubeIdsForPlaylist` + helper privado + `searchJob`/`cancelSearch`/`cleanup` (`YouTubeSearchManager.kt`), dominios obsoletos de `network_security_config.xml`. Sin sección de limpieza pendiente.
 
 ---
 
@@ -147,7 +140,7 @@ PLYR es una app de música **YouTube-only + local** que compila y funciona. Buen
 ### Fase 3 — Calidad y limpieza
 9. **S3**: `isMinifyEnabled = true` + `isShrinkResources` con reglas proguard (Room/NewPipe).
 10. **S7**: recortar logs de cuerpos completos en `SupabaseClient`.
-11. Código muerto: eliminar `getLastfmApiKey`/`getAutomaticKeys`/`loadLikedSongs` y depurar `network_security_config.xml` + config cleartext (S10).
-12. **B13**: `PackageInfoFlags` en UpdateChecker y ConfigScreen; **B14**: `startForegroundService` en MainActivity.
+11. Código muerto: ✅ completado (2026-09-22: `getLastfmApiKey`/`getAutomaticKeys`/`loadLikedSongs`/`searchYouTubeIdsForPlaylist` + `network_security_config.xml` depurado).
+12. ✅ **B13** (`getPackageInfoCompat`) y **B14** (`startForegroundService` + `onStartCommand`).
 13. Añadir tests instrumentados de flujos críticos (importación de playlist, cámara QR, NFC).
 14. Sincronizar con la hoja `todo` de la raíz: `eliminar warnings`, `export data`, `download lists`, `update report.md`.

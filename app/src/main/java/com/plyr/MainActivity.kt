@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
         initializeLightSensorDetector()
 
         Intent(this, MusicService::class.java).also {
-            startService(it)
+            startForegroundService(it)
             bindService(it, serviceConnection, BIND_AUTO_CREATE)
         }
 

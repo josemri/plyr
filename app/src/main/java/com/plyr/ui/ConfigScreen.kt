@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.plyr.utils.Config
 import com.plyr.utils.SpotifyImporter
 import com.plyr.utils.Translations
+import com.plyr.utils.getPackageInfoCompat
 import com.plyr.viewmodel.ImportViewModel
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
@@ -146,7 +147,7 @@ fun ConfigScreen(
 
             // Update status
             val currentVersion = try {
-                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
+                context.packageManager.getPackageInfoCompat(context.packageName).versionName ?: "1.0"
             } catch (e: Exception) {
                 "1.0"
             }

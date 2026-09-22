@@ -207,7 +207,7 @@ fun YouTubePlaylistDetailView(
         }
 
         when {
-            isLoading -> PlyrLoadingIndicator("loading playlist")
+            isLoading -> PlyrLoadingIndicator(text = "loading playlist")
             errorMessage != null -> PlyrErrorText(errorMessage!!)
             videos.isEmpty() -> PlyrInfoText("No videos found in this playlist")
             else -> {

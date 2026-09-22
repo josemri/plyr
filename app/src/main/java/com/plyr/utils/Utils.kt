@@ -1,6 +1,11 @@
 package com.plyr.utils
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.os.Build
+import java.util.Locale
 
 /**
  * Utils - Funciones utilitarias para la aplicación
@@ -10,6 +15,20 @@ import android.annotation.SuppressLint
  * - Formateo de tiempo
  * - Otras utilidades comunes
  */
+
+/**
+ * Obtiene el PackageInfo evitando el overload deprecado en API 33+.
+ * En API 33+ usa [PackageManager.PackageInfoFlags].
+ */
+@SuppressLint("NewApi")
+fun PackageManager.getPackageInfoCompat(packageName: String, flags: Int = 0): PackageInfo {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+    } else {
+        @Suppress("DEPRECATION")
+        getPackageInfo(packageName, flags)
+    }
+}
 
 /**
  * Valida si una URL es apropiada para reproducción de audio.
@@ -73,12 +92,11 @@ private fun containsAudioPattern(url: String): Boolean {
  * @param ms Tiempo en milisegundos
  * @return Tiempo formateado como "MM:SS" (ej: "03:45")
  */
-@SuppressLint("DefaultLocale")
 fun formatTime(ms: Long): String {
     val totalSeconds = ms / 1000
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return String.format("%02d:%02d", minutes, seconds)
+    return String.format(Locale.US, "%02d:%02d", minutes, seconds)
 }
 
 /**
