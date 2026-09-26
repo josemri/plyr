@@ -103,6 +103,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.text)
 
     testImplementation(libs.junit)
+    // org.json real en los unit tests: el del android.jar mockable lanza "not mocked"
+    testImplementation(libs.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -499,7 +499,10 @@ fun PlaylistsScreen(
                                             if (selectedPlaylist != null) {
                                                 // Eliminar playlist local
                                                 coroutineScope.launch {
-                                                    localRepository.deleteYouTubePlaylist(selectedPlaylist!!.id.removePrefix("youtube_"))
+                                                    // remoteId completo: deleteYouTubePlaylist
+                                                    // anteponía "youtube_" y no borraba las
+                                                    // listas que no lo llevan
+                                                    localRepository.deletePlaylist(selectedPlaylist!!.id)
                                                     isEditing = false
                                                     hasUnsavedChanges = false
                                                     selectedPlaylist = null

@@ -2,6 +2,8 @@ package com.plyr.ui
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +23,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.utils.Config
+import com.plyr.utils.DataExporter
+import com.plyr.utils.DataImporter
+import com.plyr.utils.EmptyExportException
+import com.plyr.utils.ExportManifest
+import com.plyr.utils.ManifestFormatException
 import com.plyr.utils.SpotifyImporter
 import com.plyr.utils.Translations
 import com.plyr.utils.getPackageInfoCompat
@@ -29,6 +36,10 @@ import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+/** Cuánto se deja visible el mensaje de resultado de importar/exportar datos. */
+private const val RESULT_TIMEOUT_MS = 4000L
 
 @Composable
 fun ConfigScreen(
@@ -142,6 +153,16 @@ fun ConfigScreen(
 
             // Spotify Import
             SpotifyImportSection(context = context, importViewModel = importViewModel)
+
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+            // Export data
+            ExportDataSection(context = context)
+
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+
+            // Import data
+            ImportDataSection(context = context)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -368,6 +389,195 @@ private fun SpotifyImportSection(context: Context, importViewModel: ImportViewMo
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExportDataSection(context: Context) {
+    val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
+    var isExporting by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var statusIsError by remember { mutableStateOf(false) }
+
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument(ExportManifest.ZIP_MIME_TYPE)
+    ) { uri ->
+        if (uri == null || isExporting) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            isExporting = true
+            statusMessage = null
+            DataExporter.exportTo(context, uri).fold(
+                onSuccess = { summary ->
+                    statusIsError = false
+                    statusMessage = Translations.get(context, "export_data_done")
+                        .format(summary.playlistCount, summary.trackCount)
+                },
+                onFailure = { error ->
+                    statusIsError = true
+                    statusMessage = Translations.get(
+                        context,
+                        if (error is EmptyExportException) "export_data_empty" else "export_data_error"
+                    )
+                }
+            )
+            isExporting = false
+        }
+    }
+
+    DataActionRow(
+        context = context,
+        label = Translations.get(context, "export_data"),
+        workingKey = "export_data_working",
+        isWorking = isExporting,
+        statusText = statusMessage,
+        isError = statusIsError,
+        onStatusCleared = { statusMessage = null },
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            createDocumentLauncher.launch(ExportManifest.suggestedFileName())
+        }
+    )
+}
+
+@Composable
+private fun ImportDataSection(context: Context) {
+    val haptic = LocalHapticFeedback.current
+    val coroutineScope = rememberCoroutineScope()
+    var isImporting by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var statusIsError by remember { mutableStateOf(false) }
+
+    val openDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null || isImporting) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            isImporting = true
+            statusMessage = null
+            DataImporter.importFrom(context, uri).fold(
+                onSuccess = { summary ->
+                    statusIsError = false
+                    statusMessage = buildString {
+                        append(
+                            Translations.get(context, "import_data_done")
+                                .format(summary.importedPlaylists, summary.importedTracks)
+                        )
+                        // Los extras solo se detallan cuando hay algo que contar
+                        if (summary.mergedLikedTracks > 0 || summary.skippedPlaylists > 0) {
+                            append(' ')
+                            append(
+                                Translations.get(context, "import_data_extra")
+                                    .format(summary.mergedLikedTracks, summary.skippedPlaylists)
+                            )
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    statusIsError = true
+                    statusMessage = Translations.get(
+                        context,
+                        if (error is ManifestFormatException) {
+                            "import_data_bad_file"
+                        } else {
+                            "import_data_error"
+                        }
+                    )
+                }
+            )
+            isImporting = false
+        }
+    }
+
+    DataActionRow(
+        context = context,
+        label = Translations.get(context, "import_data"),
+        workingKey = "import_data_working",
+        isWorking = isImporting,
+        statusText = statusMessage,
+        isError = statusIsError,
+        onStatusCleared = { statusMessage = null },
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            openDocumentLauncher.launch(ExportManifest.ZIP_MIME_TYPES)
+        }
+    )
+}
+
+/**
+ * Fila de acción de ajustes con los tres estados que comparten la exportación y
+ * la importación: lista para pulsar, trabajando y mensaje de resultado (que se
+ * borra solo a los [RESULT_TIMEOUT_MS] para dejar sitio a reintentar).
+ */
+@Composable
+private fun DataActionRow(
+    context: Context,
+    label: String,
+    workingKey: String,
+    isWorking: Boolean,
+    statusText: String?,
+    isError: Boolean,
+    onStatusCleared: () -> Unit,
+    onClick: () -> Unit
+) {
+    val dimensions = calculateResponsiveDimensionsFallback()
+
+    LaunchedEffect(statusText) {
+        if (statusText != null) {
+            delay(RESULT_TIMEOUT_MS)
+            onStatusCleared()
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (isWorking) {
+            Text(
+                text = Translations.get(context, workingKey),
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        } else if (statusText != null) {
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp,
+                    color = if (isError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    }
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        } else {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = dimensions.bodySize,
+                    color = MaterialTheme.colorScheme.primary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .clickable(onClick = onClick)
+                    .padding(vertical = dimensions.itemSpacing, horizontal = dimensions.contentPadding)
             )
         }
     }

@@ -112,6 +112,21 @@ object Translations {
 
             "share_me" to "< ¡compárteme! >",
 
+            // Export data
+            "export_data" to "< exportar_datos >",
+            "export_data_working" to "exportando...",
+            "export_data_done" to "● exportado: %1\$d listas, %2\$d canciones",
+            "export_data_error" to "● error al exportar",
+            "export_data_empty" to "● no hay listas que exportar",
+
+            // Import data
+            "import_data" to "< importar_datos >",
+            "import_data_working" to "importando...",
+            "import_data_done" to "● importado: %1\$d listas, %2\$d canciones",
+            "import_data_extra" to "(+%1\$d favoritos, %2\$d sin importar)",
+            "import_data_error" to "● error al importar",
+            "import_data_bad_file" to "● el archivo no es una exportación de plyr",
+
             // NEW MISSING KEYS
             "app_logo" to "logotipo de plyr",
             "no_playlists" to "no hay playlists",
@@ -141,6 +156,21 @@ object Translations {
             "lastfm_api_key" to "    ● lastfm_api_key:",
             "share_me" to "< share me! >",
 
+
+            // Export data
+            "export_data" to "< export_data >",
+            "export_data_working" to "exporting...",
+            "export_data_done" to "● exported: %1\$d playlists, %2\$d tracks",
+            "export_data_error" to "● export error",
+            "export_data_empty" to "● no playlists to export",
+
+            // Import data
+            "import_data" to "< import_data >",
+            "import_data_working" to "importing...",
+            "import_data_done" to "● imported: %1\$d playlists, %2\$d tracks",
+            "import_data_extra" to "(+%1\$d favourites, %2\$d skipped)",
+            "import_data_error" to "● import error",
+            "import_data_bad_file" to "● not a plyr export file",
 
             // Main Screen
             "no_results" to "no results found",
@@ -250,6 +280,22 @@ object Translations {
             "info_text" to "    ● no piratejis música!\n    ● Canvia motor amb yt: / sp:",
             "lastfm_api_key" to "    ● lastfm_api_key:",
             "share_me" to "< Comparteix-me! >",
+
+
+            // Export data
+            "export_data" to "< exportar_dades >",
+            "export_data_working" to "exportant...",
+            "export_data_done" to "● exportat: %1\$d llistes, %2\$d cançons",
+            "export_data_error" to "● error en l'exportació",
+            "export_data_empty" to "● no hi ha llistes per exportar",
+
+            // Import data
+            "import_data" to "< importar_dades >",
+            "import_data_working" to "important...",
+            "import_data_done" to "● importat: %1\$d llistes, %2\$d cançons",
+            "import_data_extra" to "(+%1\$d favorits, %2\$d no importades)",
+            "import_data_error" to "● error en la importació",
+            "import_data_bad_file" to "● el fitxer no és una exportació de plyr",
 
 
             // Main Screen
@@ -365,6 +411,22 @@ object Translations {
             "info_text" to "    ● 音楽の海賊行為はやめよう!\n    ● エンジン切替: yt: / sp:",
             "lastfm_api_key" to "    ● lastfm_api_key:",
             "share_me" to "< 私を共有！ >",
+
+
+            // Export data
+            "export_data" to "< データをエクスポート >",
+            "export_data_working" to "エクスポート中...",
+            "export_data_done" to "● エクスポート完了: %1\$d リスト, %2\$d 曲",
+            "export_data_error" to "● エクスポートエラー",
+            "export_data_empty" to "● エクスポートするリストがありません",
+
+            // Import data
+            "import_data" to "< データをインポート >",
+            "import_data_working" to "インポート中...",
+            "import_data_done" to "● インポート完了: %1\$d リスト, %2\$d 曲",
+            "import_data_extra" to "(お気に入り +%1\$d, スキップ %2\$d)",
+            "import_data_error" to "● インポートエラー",
+            "import_data_bad_file" to "● plyr のエクスポートファイルではありません",
 
 
             // Main Screen

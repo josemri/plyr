@@ -13,6 +13,7 @@ Built this music player because I wanted something simple with a terminal aesthe
 - **YouTube streaming** — search and play any song; no API keys needed (NewPipe Extractor under the hood).
 - **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL** (each track is resolved to its YouTube video); **Liked Songs** saved on swipe.
 - **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
+- **Data export & import** — save every playlist (with its cover) as a single `.zip` from settings (`playlists.json` plus the artwork in `covers/`) and restore that same `.zip` on another device.
 - **Gesture controls** — configurable left/right **swipe** actions on a song, **shake** for transport controls, device **orientation** for volume/skip.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase.
 - **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
@@ -76,8 +77,11 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Sustituir APIs deprecadas (`getPackageInfo(...,0)` → `getPackageInfoCompat`, `startService` → `startForegroundService`, `searchYouTubeIdsForPlaylist` eliminada)
   - [x] Limpiar `@Suppress`/`@SuppressLint` innecesarios (`formatTime` con `Locale.US`, `PlyrLoadingIndicator` con `modifier` primero; los `DEPRECATION` restantes son fallbacks API <33 legítimos)
 - [ ] **Export data** - Export app data (playlists, history, etc.)
-  - [ ] Serializar playlists y tracks a JSON
-  - [ ] Compartir archivo vía `ACTION_SEND` / SAF
+  - [x] Serializar playlists y tracks a JSON (`playlists.json` + portadas en `covers/`, dentro de un único `.zip`)
+  - [x] Guardar el ZIP vía SAF (`CreateDocument`), sin permisos de almacenamiento
+  - [x] Importar un ZIP previamente exportado (vía SAF `OpenDocument`): listas nuevas se crean, las existentes se omiten y `liked_songs` se fusiona con los favoritos actuales
+  - [x] Lectura acotada del archivo (límites por entrada y total) y portada opcional si falta o está corrupta
+  - [ ] (Opcional) Compartir el archivo vía `ACTION_SEND`
   - [ ] (Opcional) Exportar historial de búsqueda
 - [ ] **Download lists** - Download playlists for offline use
   - [ ] Descargar audio de cada track y guardarlo localmente

@@ -6,6 +6,7 @@ import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
+import com.plyr.utils.ImportManifest
 
 class PlaylistLocalRepository(context: Context) {
 
@@ -93,6 +94,16 @@ class PlaylistLocalRepository(context: Context) {
         return trackDao.getTracksByPlaylist(playlistId).asLiveData()
     }
 
+    /** Lectura puntual de todas las listas (ordenadas por nombre), para la exportación. */
+    suspend fun getAllPlaylists(): List<PlaylistEntity> = withContext(Dispatchers.IO) {
+        playlistDao.getAllPlaylistsSync()
+    }
+
+    /** Lectura puntual de las pistas de una lista (ordenadas por posición), para la exportación. */
+    suspend fun getTracksByPlaylistSync(playlistId: String): List<TrackEntity> = withContext(Dispatchers.IO) {
+        trackDao.getTracksByPlaylistSync(playlistId)
+    }
+
     // === TRACK MANAGEMENT ===
 
     suspend fun updateTrackYoutubeId(trackId: String, youtubeVideoId: String) {
@@ -173,6 +184,66 @@ class PlaylistLocalRepository(context: Context) {
         trackDao.deleteTracksByPlaylist(localPlaylistId)
         playlistDao.deletePlaylistById(localPlaylistId)
         Log.d(TAG, "YouTube playlist eliminada: $localPlaylistId")
+    }
+
+    /**
+     * Borra la lista cuyo `remoteId` es exactamente [localPlaylistId].
+     *
+     * A diferencia de [deleteYouTubePlaylist], no antepone `youtube_`: sirve para
+     * listas que no llevan ese prefijo, que antes no se podían borrar (la UI
+     * hacía `removePrefix` y la función lo volvía a poner, un no-op silencioso).
+     */
+    suspend fun deletePlaylist(localPlaylistId: String) = withContext(Dispatchers.IO) {
+        trackDao.deleteTracksByPlaylist(localPlaylistId)
+        playlistDao.deletePlaylistById(localPlaylistId)
+        Log.d(TAG, "Playlist eliminada: $localPlaylistId")
+    }
+
+    /**
+     * Restaura una lista tal cual venía de una exportación (ver `DataImporter`).
+     * A diferencia de [saveYouTubePlaylist], no antepone ningún prefijo: el
+     * `remoteId` viaja literal en el manifiesto. Si la lista ya existe, se
+     * reemplaza junto con sus pistas.
+     */
+    suspend fun restorePlaylist(playlist: PlaylistEntity, tracks: List<TrackEntity>): Boolean =
+        saveYouTubePlaylistWithTracks(playlist, tracks)
+
+    /**
+     * Fusiona [tracks] en `liked_songs` sin duplicar: se descartan las que ya
+     * están, comparando por `youtubeVideoId` (el mismo criterio que
+     * [toggleLikeTrack]) y, si no lo tienen, por nombre y artistas.
+     *
+     * Se usa al importar: los favoritos que el usuario tenga ahora siempre ganan
+     * sobre los del archivo. Devuelve cuántas pistas se añadieron.
+     */
+    suspend fun mergeLikedSongsTracks(tracks: List<TrackEntity>): Int = withContext(Dispatchers.IO) {
+        if (tracks.isEmpty()) return@withContext 0
+
+        val existing = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
+        val known = existing.mapTo(mutableSetOf()) { it.youtubeVideoId ?: ImportManifest.fallbackDedupeKey(it) }
+        val fresh = tracks.filter { known.add(it.youtubeVideoId ?: ImportManifest.fallbackDedupeKey(it)) }
+        if (fresh.isEmpty()) {
+            Log.d(TAG, "Importación de favoritos: todo ya estaba en liked_songs")
+            return@withContext 0
+        }
+
+        var nextPosition = (existing.maxOfOrNull { it.position } ?: -1) + 1
+        val newTracks = fresh.map { track ->
+            val position = nextPosition++
+            track.copy(
+                id = "${LIKED_SONGS_ID}_${track.remoteTrackId}_$position",
+                playlistId = LIKED_SONGS_ID,
+                position = position
+            )
+        }
+        trackDao.insertTracks(newTracks)
+
+        val playlist = playlistDao.getPlaylistById(LIKED_SONGS_ID)
+        if (playlist != null) {
+            playlistDao.updatePlaylist(playlist.copy(trackCount = existing.size + newTracks.size))
+        }
+        Log.d(TAG, "Importación de favoritos: ${newTracks.size} añadidas de ${fresh.size}")
+        newTracks.size
     }
 
     suspend fun updatePlaylistImage(
