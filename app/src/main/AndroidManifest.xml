@@ -50,6 +50,15 @@
             android:foregroundServiceType="mediaPlayback">
         </service>
 
+        <!-- Botones de media de auriculares, coche y teclado -->
+        <receiver
+            android:name=".receivers.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

@@ -6,7 +6,7 @@
 [![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green.svg)](https://www.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
 
-Built this music player because I wanted something simple with a terminal aesthetic. Streams audio from YouTube (via NewPipe Extractor, no API key required), manages local playlists, and has gesture controls for quick actions. The UI is ASCII-inspired with monospace fonts everywhere.
+Built this music player because I wanted something simple with a terminal aesthetic. Streams audio from YouTube (via NewPipe Extractor, no API key required), manages local playlists, and has swipe actions for quick operations. The UI is ASCII-inspired with monospace fonts everywhere.
 
 ## features
 
@@ -14,9 +14,10 @@ Built this music player because I wanted something simple with a terminal aesthe
 - **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL** (each track is resolved to its YouTube video); **Liked Songs** saved on swipe.
 - **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
 - **Data export & import** — save every playlist (with its cover) as a single `.zip` from settings (`playlists.json` plus the artwork in `covers/`) and restore that same `.zip` on another device.
-- **Gesture controls** — configurable left/right **swipe** actions on a song, **shake** for transport controls, device **orientation** for volume/skip.
+- **Swipe actions** — configurable left/right swipe on a song: add to queue, like, share. **Auto theme** by ambient light via the device light sensor.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase.
-- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
+- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls. Playback continues with the screen off and stops when the app is closed from recents.
+- **Media buttons** — play/pause, next, previous and 10 s skip from wireless headsets, Bluetooth and the notification.
 
 ## screenshots
 
@@ -47,7 +48,7 @@ plyr/
 │   ├── database/      # Room entities, DAOs & migrations
 │   ├── model/         # Pure data models (ScanResult, AppTrack, Recommendation...)
 │   ├── network/       # SupabaseClient, YouTubeManager, SimpleDownloader
-│   ├── receivers/     # MediaButtonReceiver
+│   ├── receivers/     # MediaButtonReceiver, MediaButtonCommand
 │   ├── service/       # MusicService, YouTubeSearchManager, YouTubePlaylistCreator
 │   ├── ui/            # Compose screens & components
 │   ├── utils/         # Config, UrlParser, Translations, NfcReader, SpotifyImporter
@@ -62,7 +63,7 @@ plyr/
 NFC                       # Tag scanning / sharing of playlists
 INTERNET                  # Stream music and fetch metadata
 FOREGROUND_SERVICE        # Background playback
-WAKE_LOCK                 # Keep playing when screen off
+WAKE_LOCK                 # Reserved: declared, but no wakelock is currently acquired
 FOREGROUND_SERVICE_MEDIA_PLAYBACK
 POST_NOTIFICATIONS        # Playback controls
 CAMERA                    # QR code scanning (optional hardware)
@@ -98,7 +99,13 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Timeout explícito en `YouTubeManager.getAudioUrl` (ahora `suspend` + `withTimeoutOrNull` 30s en IO)
   - [x] Fallo de extracción → saltar la pista / mostrar error, sin crash (ya gestionado en `PlayerViewModel`)
 - [ ] **Apply report.md** - fix general issues reported
-  - [ ] Bugs: `isValidAudioUrl` (B1), clave `"Player not available"` (B5), `loadingJob`/`loadingJobsActive` (B8-B9), `metadataCache` en Feed (B10), thumbnail `vi/undefined` (B16)
+  - [x] Reproducción: `loadingJob`/`loadingJobsActive` (B8-B9) eliminados; la precarga era un bucle secuencial no cancelable cuyo flag se quedaba en `true` para siempre, así que la siguiente canción no se precargaba y la reproducción se detenía al terminar
+  - [x] Reproducción: `STATE_ENDED` gestionado, ventana deslizante de actual + 2 siguientes y `generation` para descartar resoluciones obsoletas (`QueueIndex` + tests)
+  - [x] Reproducción: `onPlayerError` salta a la siguiente en vez de parar la cola, e invalida la URL cacheada ante un 403/410 para re-resolver
+  - [x] Reproducción: `isLoading` ya no puede quedarse en `true` deshabilitando los controles; `setCurrentPlaylist` ya no lanza con lista vacía; el índice ya no se deduce comparando IDs
+  - [x] Rendimiento: caché de URLs de audio en memoria con TTL, para que saltar a la siguiente canción no dependa de una extracción nueva
+  - [x] Auriculares: `MediaButtonReceiver` registrado en el manifiesto y conectado al reproductor (antes era código muerto)
+  - [ ] Bugs: `isValidAudioUrl` (B1), clave `"Player not available"` (B5), `metadataCache` en Feed (B10), thumbnail `vi/undefined` (B16)
   - [ ] Seguridad: activar R8 (`isMinifyEnabled`), reducir logs de cuerpos en `SupabaseClient`
   - [ ] Rendimiento: `shutdown()`/`unbindAll` en `QrScannerDialog`, `key` en LazyLists de PlaylistScreen, `LazyColumn` en Feed
   - [ ] Pruebas: añadir tests instrumentados (import, QR/cámara, NFC)

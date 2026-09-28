@@ -7,12 +7,24 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Gestor unificado de YouTube - Maneja búsqueda y extracción de audio
+ * Gestor unificado de YouTube - Búsqueda, extracción de audio y caché de URLs.
  */
 object YouTubeManager {
     private const val EXTRACTION_TIMEOUT_MS = 30_000L
+
+    /**
+     * Las URLs de audio de googlevideo caducan. Se guardan en caché durante
+     * este plazo: suficiente para toda una sesión de escucha (evita re-resolver
+     * en cada salto) sin arriesgarse a usar una URL caducada.
+     */
+    private const val URL_CACHE_TTL_MS = 2 * 60 * 60 * 1000L
+
+    private data class CacheEntry(val url: String, val resolvedAt: Long)
+
+    private val urlCache = ConcurrentHashMap<String, CacheEntry>()
 
     /**
      * Busca un video en YouTube y devuelve su ID
@@ -34,86 +46,102 @@ object YouTubeManager {
     }
 
     /**
+     * Resuelve el ID de YouTube de una pista, buscando en YouTube si no lo tiene.
+     */
+    suspend fun resolveVideoId(name: String, artists: String, youtubeVideoId: String?): String? {
+        if (!youtubeVideoId.isNullOrBlank()) return youtubeVideoId
+        return withContext(Dispatchers.IO) {
+            searchVideoId("$name $artists")
+        }
+    }
+
+    /**
      * Extrae la URL de audio de un video de YouTube.
+     *
+     * Cache-first: si ya se resolvió este video y la entrada sigue vigente,
+     * devuelve la URL al instante sin tocar la red. Esto es lo que hace que
+     * saltar a la siguiente canción no dependa de una extracción nueva.
+     *
      * La extracción es bloqueante (NewPipe/OkHttp), por lo que se ejecuta en IO
      * con un timeout explícito: si no responde, devuelve null en lugar de colgarse.
      */
     suspend fun getAudioUrl(videoId: String): String? {
-        return withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
+        cachedUrl(videoId)?.let { return it }
+
+        val url = withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
             withContext(Dispatchers.IO) {
                 extractAudioUrl(videoId)
             }
         }
+        if (url != null) {
+            urlCache[videoId] = CacheEntry(url, System.currentTimeMillis())
+        }
+        return url
+    }
+
+    /** URL cacheada aún vigente, o `null` si no hay o ha caducado. */
+    fun cachedUrl(videoId: String): String? {
+        val entry = urlCache[videoId] ?: return null
+        val age = System.currentTimeMillis() - entry.resolvedAt
+        if (age > URL_CACHE_TTL_MS) {
+            urlCache.remove(videoId)
+            return null
+        }
+        return entry.url
+    }
+
+    /**
+     * Descarta la URL cacheada de un video (p. ej. tras un 403), para que el
+     * siguiente intento la vuelva a extraer.
+     */
+    fun invalidate(videoId: String) {
+        urlCache.remove(videoId)
+    }
+
+    /** Vacía la caché (opcionalmente solo las entradas caducadas). */
+    fun clearCache(onlyExpired: Boolean = false) {
+        if (!onlyExpired) {
+            urlCache.clear()
+            return
+        }
+        val now = System.currentTimeMillis()
+        urlCache.entries.removeAll { now - it.value.resolvedAt > URL_CACHE_TTL_MS }
     }
 
     private fun extractAudioUrl(videoId: String): String? {
-        android.util.Log.d("YouTubeManager", "🎵 Iniciando extracción de audio para video ID: $videoId")
         return try {
             NewPipeHolder.ensureInitialized()
-            android.util.Log.d("YouTubeManager", "✅ NewPipe inicializado correctamente")
 
-            val videoUrl = "https://www.youtube.com/watch?v=$videoId"
-            android.util.Log.d("YouTubeManager", "🔗 URL del video: $videoUrl")
-
-            val extractor = ServiceList.YouTube.getStreamExtractor(videoUrl)
-            android.util.Log.d("YouTubeManager", "📡 StreamExtractor creado, enabling iOS client...")
+            val extractor = ServiceList.YouTube
+                .getStreamExtractor("https://www.youtube.com/watch?v=$videoId")
 
             YoutubeStreamExtractor.setFetchIosClient(true)
-            android.util.Log.d("YouTubeManager", "📡 iOS client enabled, fetching page...")
-
             extractor.fetchPage()
-            android.util.Log.d("YouTubeManager", "✅ Página fetched exitosamente")
 
-            // Log detallado de los streams de audio disponibles
             val audioStreams = extractor.audioStreams
-            android.util.Log.d("YouTubeManager", "🎧 Número de audio streams encontrados: ${audioStreams.size}")
-
             if (audioStreams.isEmpty()) {
-                android.util.Log.e("YouTubeManager", "❌ ERROR: No se encontraron audio streams")
-                android.util.Log.e("YouTubeManager", "📊 Video info - Nombre: ${extractor.name}")
-                android.util.Log.e("YouTubeManager", "📊 Video info - Duración: ${extractor.length}")
-                android.util.Log.e("YouTubeManager", "📊 Video info - Edad restringida: ${extractor.ageLimit}")
+                android.util.Log.e("YouTubeManager", "❌ Sin audio streams para $videoId")
                 return null
             }
 
-            // Log de cada stream disponible
-            audioStreams.forEachIndexed { index, stream ->
-                android.util.Log.d("YouTubeManager", "🎵 Stream #$index:")
-                android.util.Log.d("YouTubeManager", "   - Format: ${stream.format}")
-                android.util.Log.d("YouTubeManager", "   - Bitrate: ${stream.averageBitrate}")
-                android.util.Log.d("YouTubeManager", "   - URL disponible: ${stream.content != null}")
-            }
-
-            val firstStream = audioStreams.firstOrNull()
-            if (firstStream == null) {
-                android.util.Log.e("YouTubeManager", "❌ ERROR: No se pudo obtener el primer stream")
-                return null
-            }
+            val firstStream = audioStreams.firstOrNull() ?: return null
 
             val audioUrl = firstStream.content
             if (audioUrl.isNullOrEmpty()) {
-                android.util.Log.e("YouTubeManager", "❌ ERROR: URL de audio está vacía o es null")
-                android.util.Log.e("YouTubeManager", "🔍 Intentando con URL property deprecated...")
                 @Suppress("DEPRECATION")
                 val deprecatedUrl = firstStream.url
                 if (deprecatedUrl != null) {
-                    android.util.Log.w("YouTubeManager", "⚠️ Usando URL deprecated: $deprecatedUrl")
+                    android.util.Log.w("YouTubeManager", "⚠️ Usando URL deprecated para $videoId")
                     return deprecatedUrl
                 }
                 return null
             }
 
-            android.util.Log.d("YouTubeManager", "✅ ¡URL de audio extraída exitosamente!")
-            android.util.Log.d("YouTubeManager", "🔗 Audio URL: $audioUrl")
-            android.util.Log.d("YouTubeManager", "📏 Longitud URL: ${audioUrl.length} caracteres")
-
+            android.util.Log.d("YouTubeManager", "✅ URL de audio resuelta para $videoId")
             audioUrl
 
         } catch (e: Exception) {
-            android.util.Log.e("YouTubeManager", "❌ EXCEPCIÓN capturada durante extracción de audio", e)
-            android.util.Log.e("YouTubeManager", "❌ Tipo de excepción: ${e.javaClass.simpleName}")
-            android.util.Log.e("YouTubeManager", "❌ Mensaje: ${e.message}")
-            android.util.Log.e("YouTubeManager", "❌ Stack trace:", e)
+            android.util.Log.e("YouTubeManager", "❌ Error extrayendo audio de $videoId: ${e.message}")
             null
         }
     }

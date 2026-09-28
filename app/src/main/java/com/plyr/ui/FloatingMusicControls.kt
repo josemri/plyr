@@ -20,6 +20,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.core.*
+import androidx.media3.common.Player
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.utils.Config
@@ -134,18 +135,32 @@ fun FloatingMusicControls(
     // === EFECTOS Y ACTUALIZACIONES DE ESTADO ===
     
     /**
-     * Actualiza el estado del reproductor de forma periódica.
-     * Obtiene información de posición, duración y estado de reproducción.
+     * Refleja el estado del reproductor en la UI.
+     *
+     * Antes se escribía en los estados sin comparar con el valor anterior, así
+     * que cada tick provocaba una recomposición aunque nada hubiera cambiado.
+     * Ahora solo se escribe cuando algún valor difiere, y se lee de una
+     * referencia fija al reproductor para no tocar uno ya liberado.
      */
     LaunchedEffect(playerViewModel.exoPlayer) {
+        val player = playerViewModel.exoPlayer ?: return@LaunchedEffect
+        var lastTotal = 0L
         while (true) {
-            playerViewModel.exoPlayer?.let { player ->
-                isPlaying = player.isPlaying
-                duration = if (player.duration > 0) player.duration else 1L
-                position = player.currentPosition
-                progress = if (duration > 0) position.toFloat() / duration.toFloat() else 0f
+            val active = player.playbackState == Player.STATE_READY ||
+                player.playbackState == Player.STATE_BUFFERING
+            val total = if (active && player.duration > 0) player.duration else 0L
+            val pos = if (active) player.currentPosition else 0L
+            val ratio = if (total > 0) pos.toFloat() / total.toFloat() else 0f
+
+            if (player.isPlaying != isPlaying) isPlaying = player.isPlaying
+            if (total != lastTotal) {
+                lastTotal = total
+                duration = if (total > 0) total else 1L
             }
-            delay(500) // Actualizar cada 500ms
+            if (pos != position) position = pos
+            if (ratio != progress) progress = ratio
+
+            delay(500)
         }
     }
 

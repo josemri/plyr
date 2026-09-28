@@ -1,0 +1,92 @@
+package com.plyr.viewmodel
+
+import com.plyr.utils.Config
+
+/**
+ * Lógica pura de navegación de la cola de reproducción.
+ *
+ * Aísla por completo las decisiones de "a qué canción voy ahora" del
+ * reproductor y de la red, de modo que el comportamiento del salto
+ * (incluido el final de la lista y los modos de repetición) se pueda
+ * verificar con tests unitarios sin depender de Android ni de ExoPlayer.
+ *
+ * Todos los métodos devuelven `null` cuando no hay destino válido, lo que
+ * el reproductor interpreta como "no hay a dónde saltar".
+ */
+object QueueIndex {
+
+    /** Umbral (ms) a partir del cual "anterior" reinicia la canción en vez de retroceder. */
+    const val PREV_RESTART_THRESHOLD_MS = 3_000L
+
+    /**
+     * Índice siguiente para una acción explícita del usuario (botón "siguiente").
+     *
+     * No aplica el modo "repetir uno": saltar hacia delante con `>>` siempre
+     * avanza, y con repetición completa da la vuelta al final de la lista.
+     *
+     * @return índice destino, o `null` si no hay siguiente.
+     */
+    fun nextIndex(current: Int, size: Int, repeatMode: String): Int? {
+        if (size <= 0 || current !in 0 until size) return null
+        return when (repeatMode) {
+            Config.REPEAT_MODE_ALL -> (current + 1) % size
+            else -> if (current + 1 < size) current + 1 else null
+        }
+    }
+
+    /**
+     * Índice anterior para una acción explícita del usuario (botón "anterior").
+     *
+     * Igual que en cualquier reproductor: si la canción ya ha empezado, el
+     * primer "anterior" la reinicia en lugar de retroceder en la cola.
+     *
+     * @return índice destino, o `null` si no hay anterior.
+     */
+    fun previousIndex(
+        current: Int,
+        size: Int,
+        positionMs: Long,
+        repeatMode: String
+    ): Int? {
+        if (size <= 0 || current !in 0 until size) return null
+        if (positionMs > PREV_RESTART_THRESHOLD_MS) return current
+        return when (repeatMode) {
+            Config.REPEAT_MODE_ALL -> if (current == 0) size - 1 else current - 1
+            else -> if (current > 0) current - 1 else null
+        }
+    }
+
+    /**
+     * Índice al que saltar cuando una canción termina de forma natural.
+     *
+     * Es la transición que antes no existía en la app: sin ella, si el
+     * reproductor se quedaba sin canción siguiente preparada, la
+     * reproducción se detenía en silencio.
+     *
+     * @return índice destino, o `null` si la cola ha terminado y hay que parar.
+     */
+    fun onTrackEnded(current: Int, size: Int, repeatMode: String): Int? {
+        if (size <= 0 || current !in 0 until size) return null
+        return when (repeatMode) {
+            Config.REPEAT_MODE_ONE -> current
+            Config.REPEAT_MODE_ALL -> (current + 1) % size
+            else -> if (current + 1 < size) current + 1 else null
+        }
+    }
+
+    /**
+     * Decide si conviene ampliar la ventana de canciones preparadas al
+     * terminar [finishedIndex], contando cuántas quedan detrás de la ventana
+     * actual. Si ya no queda ninguna preparada por delante, hay que rellenar
+     * antes de que el reproductor intente saltar.
+     */
+    fun needsRefillAfterEnd(
+        finishedIndex: Int,
+        windowStart: Int,
+        windowSize: Int,
+        queueSize: Int
+    ): Boolean {
+        if (queueSize <= 0) return false
+        return (windowStart + windowSize) - (finishedIndex + 1) <= 0
+    }
+}

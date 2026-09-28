@@ -5,107 +5,81 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import android.view.KeyEvent
+import androidx.core.content.IntentCompat
+import com.plyr.PlyrApp
 
 /**
- * MediaButtonReceiver - Maneja los eventos de botones de media desde auriculares inalámbricos
+ * MediaButtonReceiver - Atiende los botones de media de auriculares
+ * inalámbricos, del coche y del teclado (play/pause, siguiente, anterior,
+ * avanzar y retroceder).
  *
- * Este receiver intercepta las acciones de botones de auriculares como:
- * - Play/Pause (botón central)
- * - Siguiente canción (doble click o botón específico)
- * - Canción anterior (triple click o botón específico)
- * - Stop, Fast Forward, Rewind, etc.
+ * Se declara en el manifiesto, así que el framework debe poder instanciarlo sin
+ * argumentos: por eso no tiene parámetros de constructor.
+ *
+ * Ejecuta las acciones sobre el [com.plyr.viewmodel.PlayerViewModel] de la
+ * aplicación, que es quien tiene el reproductor. No arranca el
+ * [com.plyr.service.MusicService] a propósito: un receiver del manifiesto
+ * puede ejecutarse en segundo plano y arrancar un servicio allí lanzaría
+ * `ForegroundServiceStartNotAllowedException` en Android 12+.
+ *
+ * `ACTION_AUDIO_BECOMING_NOISY` no se gestiona aquí a propósito: ExoPlayer ya
+ * lo hace con `setHandleAudioBecomingNoisy(true)`, y declararlo otra vez en el
+ * manifiesto provocaría que la pausa se aplicase dos veces.
  */
-class MediaButtonReceiver(private val onKeyEvent: ((KeyEvent) -> Boolean)? = null) : BroadcastReceiver() {
-
-    companion object {
-        private const val TAG = "MediaButtonReceiver"
-    }
+class MediaButtonReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context?, intent: Intent?) {
-        if (intent?.action == Intent.ACTION_MEDIA_BUTTON) {
-            val keyEvent = intent.getParcelableExtra<KeyEvent>(Intent.EXTRA_KEY_EVENT)
+        if (context == null) return
+        if (intent?.action != Intent.ACTION_MEDIA_BUTTON) return
 
-            if (keyEvent != null && keyEvent.action == KeyEvent.ACTION_DOWN) {
-                Log.d(TAG, "🎧 Media button event received: ${keyEvent.keyCode}")
+        val keyEvent = IntentCompat.getParcelableExtra(
+            intent,
+            Intent.EXTRA_KEY_EVENT,
+            KeyEvent::class.java
+        ) ?: return
 
-                // Si hay un callback, usarlo, sino manejar localmente
-                val handled = onKeyEvent?.invoke(keyEvent) ?: handleKeyEvent(context, keyEvent)
+        // Solo se actúa al pulsar: los "key up" repetirían la acción.
+        if (keyEvent.action != KeyEvent.ACTION_DOWN) return
+        if (keyEvent.repeatCount > 0) return
 
-                if (handled) {
-                    // Marcar como manejado para que otros receivers no lo procesen
-                    abortBroadcast()
-                }
-            }
-        } else if (intent?.action == android.media.AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
-            Log.d(TAG, "🔇 Audio becoming noisy - pausando reproducción")
-            handleAudioBecomingNoisy(context)
+        val command = MediaButtonCommand.fromKeyCode(keyEvent.keyCode)
+        if (command == MediaCommand.NONE) {
+            Log.d(TAG, "Botón de media no gestionado: ${keyEvent.keyCode}")
+            return
+        }
+
+        if (execute(context, command)) {
+            Log.d(TAG, "Acción de media aplicada: $command")
         }
     }
 
-    private fun handleKeyEvent(context: Context?, keyEvent: KeyEvent): Boolean {
-        // Si no hay callback personalizado, manejar enviando intents al servicio
-        context?.let { ctx ->
-            val serviceIntent = Intent(ctx, com.plyr.service.MusicService::class.java)
+    /**
+     * Aplica [command] al reproductor.
+     *
+     * @return `true` si hubo un reproductor sobre el que actuar.
+     */
+    private fun execute(context: Context, command: MediaCommand): Boolean {
+        val application = context.applicationContext as? PlyrApp ?: return false
+        val viewModel = application.playerViewModel
 
-            when (keyEvent.keyCode) {
-                KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                    serviceIntent.action = "ACTION_PLAY"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                    serviceIntent.action = "ACTION_PAUSE"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                    // Determinar si debe ser play o pause
-                    // Por simplicidad, alternamos - el servicio manejará la lógica
-                    serviceIntent.action = "ACTION_PLAY_PAUSE"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_NEXT -> {
-                    serviceIntent.action = "ACTION_NEXT"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                    serviceIntent.action = "ACTION_PREV"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_STOP -> {
-                    serviceIntent.action = "ACTION_STOP"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    serviceIntent.action = "ACTION_FAST_FORWARD"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    serviceIntent.action = "ACTION_REWIND"
-                    ctx.startForegroundService(serviceIntent)
-                    return true
-                }
-                else -> {
-                    Log.d(TAG, "🤷 Botón de media no manejado: ${keyEvent.keyCode}")
-                    return false
-                }
+        when (command) {
+            MediaCommand.PLAY -> viewModel.playPlayer()
+            MediaCommand.PAUSE -> viewModel.pausePlayer()
+            MediaCommand.PLAY_PAUSE -> {
+                val player = viewModel.exoPlayer ?: return false
+                if (player.isPlaying) viewModel.pausePlayer() else viewModel.playPlayer()
             }
+            MediaCommand.NEXT -> viewModel.navigateToNext()
+            MediaCommand.PREVIOUS -> viewModel.navigateToPrevious()
+            // Respetan los incrementos de 10 s configurados al crear el reproductor.
+            MediaCommand.FAST_FORWARD -> viewModel.exoPlayer?.seekForward() ?: return false
+            MediaCommand.REWIND -> viewModel.exoPlayer?.seekBack() ?: return false
+            MediaCommand.NONE -> return false
         }
-        return false
+        return true
     }
 
-    private fun handleAudioBecomingNoisy(context: Context?) {
-        // Cuando el audio se vuelve "ruidoso" (ej: auriculares desconectados)
-        // pausar automáticamente la reproducción
-        context?.let { ctx ->
-            val serviceIntent = Intent(ctx, com.plyr.service.MusicService::class.java)
-            serviceIntent.action = "ACTION_PAUSE"
-            ctx.startForegroundService(serviceIntent)
-        }
+    private companion object {
+        const val TAG = "MediaButtonReceiver"
     }
 }
