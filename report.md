@@ -4,11 +4,21 @@
 **Alcance:** `/home/josep/plyr/app/src/main/java/com/plyr` (67 archivos, ~13.452 líneas Kotlin) + Gradle/Manifiesto.
 **Método:** auditoría estática manual + verificación contra el código de cada hallazgo.
 
-> **Nota sobre esta revisión:** los números de línea de todos los hallazgos se han
-> vuelto a verificar contra el código actual, porque el source ha cambiado desde la
-> auditoría original. **No se ha ejecutado ni un solo test ni build**, así que el
-> recuento de tests es estático (`@Test` declarados), no una verificación de que
-> pasen.
+> **Estado de verificación (2026-09-28):** `./run.sh test` → **268/268 tests en
+> verde** (18 clases, 0 fallos, 0 errores, 0 omitidos) y `./run.sh build` →
+> **BUILD SUCCESSFUL**, APK generado. El recuento de tests de §2 y §8 está por
+> tanto **verificado de verdad**, no estimado.
+>
+> La primera ejecución de `./run.sh test` **no llegó a compilar**: `createMediaItem`
+> exige un parámetro `queueIndex` que la ruta de precarga no pasaba
+> (`PlayerViewModel.kt:552`). Ojo con `print_test_summary` de `run.sh`: lee
+> cualquier XML que encuentre en `app/build/test-results/`, así que con la
+> compilación rota llegó a mostrar "237 tests ✔" usando resultados de una corrida
+> anterior. **Un resumen en verde no demuestra que los tests se ejecutaran**;
+> hay que mirar también el `exit code` y que la fecha de los XML sea de ahora.
+>
+> Lo que sigue sin poder verificarse sin dispositivo es el comportamiento en
+> runtime: que el salto entre canciones funcione con red real, con y sin caché.
 
 ---
 
@@ -166,7 +176,7 @@ A eso se sumaban: precarga secuencial de N canciones × hasta 30 s cada una, cer
 
 ## 8. TESTS
 
-- **268 unit tests declarados** en 18 archivos (recuento estático, **no ejecutados** en esta revisión):
+- **268 unit tests, todos en verde** (verificado con `./run.sh test` el 2026-09-28: 0 fallos, 0 errores, 0 omitidos) en 18 archivos:
 
 | Archivo | Tests |
 |---|---|
@@ -222,4 +232,4 @@ A eso se sumaban: precarga secuencial de N canciones × hasta 30 s cada una, cer
 16. **B17**: simplificar `MusicService` dejando claro que solo projectiona la notificación, o migrar a `MediaSessionService` de Media3.
 17. Extraer el estado de la ventana de `PlayerViewModel` a una unidad propia testeable (§6).
 18. Añadir tests instrumentados de flujos críticos (importación de playlist, cámara QR, NFC).
-19. **Ejecutar `./run.sh test`**: el recuento de 268 tests de esta revisión es estático y está sin verificar.
+19. ~~**Ejecutar `./run.sh test`**~~: ✅ **hecho** (2026-09-28) — 268/268 en verde y `./run.sh build` genera el APK. El error de compilación que salió por el camino (`PlayerViewModel.kt:552` sin `queueIndex`) ya está corregido. Queda pendiente la verificación en dispositivo del salto entre canciones con red real.
