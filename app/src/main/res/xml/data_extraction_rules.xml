@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+  Reglas de copia de seguridad y transferencia de dispositivo (API >= 31).
+
+  Mantiene el mismo criterio que `backup_rules.xml` (API <= 30), con la
+  diferencia de que aquí `cloud-backup` y `device-transfer` se controlan por
+  separado. La transferencia entre dispositivos se deja completa a propósito:
+  mover un móvil a otro es justo cuando más falta hacen las listas, y no implica
+  subir nada a la nube.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <include domain="database" path="." />
+        <include domain="file" path="covers/" />
+        <include domain="sharedpref" path="plyr_config.xml" />
+        <exclude domain="file" path="export-covers/" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <include domain="database" path="." />
+        <include domain="file" path="covers/" />
+        <include domain="file" path="export-covers/" />
+        <include domain="sharedpref" path="plyr_config.xml" />
     </device-transfer>
-    -->
 </data-extraction-rules>

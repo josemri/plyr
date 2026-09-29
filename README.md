@@ -13,7 +13,7 @@ Built this music player because I wanted something simple with a terminal aesthe
 - **YouTube streaming** — search and play any song; no API keys needed (NewPipe Extractor under the hood).
 - **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL** (each track is resolved to its YouTube video); **Liked Songs** saved on swipe.
 - **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
-- **Data export & import** — save every playlist (with its cover) as a single `.zip` from settings (`playlists.json` plus the artwork in `covers/`) and restore that same `.zip` on another device.
+- **Data export & import** — save every playlist (with its cover) as a single `.zip` from settings (`playlists.json` plus the artwork in `covers/`) and restore that same `.zip` on another device. Pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own — it works the same in Google Drive as on the device, and can be restored from the same place.
 - **Swipe actions** — configurable left/right swipe on a song: add to queue, like, share. **Auto theme** by ambient light via the device light sensor.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase.
 - **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls. Playback continues with the screen off and stops when the app is closed from recents.
@@ -51,7 +51,7 @@ plyr/
 │   ├── receivers/     # MediaButtonReceiver, MediaButtonCommand
 │   ├── service/       # MusicService, YouTubeSearchManager, YouTubePlaylistCreator
 │   ├── ui/            # Compose screens & components
-│   ├── utils/         # Config, UrlParser, Translations, NfcReader, SpotifyImporter
+│   ├── utils/         # Config, UrlParser, Translations, NfcReader, SpotifyImporter, DataSync, BackupFolder, CoverCache
 │   └── viewmodel/     # PlayerViewModel, ImportViewModel
 ├── gradle/            # Dependencies (libs.versions.toml)
 └── run.sh             # Build/install/test script
@@ -82,6 +82,14 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Guardar el ZIP vía SAF (`CreateDocument`), sin permisos de almacenamiento
   - [x] Importar un ZIP previamente exportado (vía SAF `OpenDocument`): listas nuevas se crean, las existentes se omiten y `liked_songs` se fusiona con los favoritos actuales
   - [x] Lectura acotada del archivo (límites por entrada y total) y portada opcional si falta o está corrupta
+  - [x] **Copia de seguridad automática** en una carpeta elegida una vez (vía SAF `OpenDocumentTree` con permiso persistente), en lugar de un ZIP nuevo por cada exportación
+    - [x] Archivo de nombre fijo `plyr-sync.zip` que se reescribe solo (vale igual para una carpeta de Drive que para una local)
+    - [x] Se vuelca al salir de la app (`onStop`) y con retardo de 30 s si el usuario no hace nada más, no en cada acción
+    - [x] Escritura atómica: primero a `plyr-sync.zip.part` y renombrado al terminar, para que un corte a medias no destruya la copia
+    - [x] Se omite la escritura si la huella SHA-256 del contenido no ha cambiado (`ExportDigest`)
+    - [x] Caché de portadas remotas (`CoverCache`) para no volver a descargarlas en cada volcado
+    - [x] Restaurar desde la misma carpeta sin selector de archivos
+  - [x] **Android Auto Backup** como red de seguridad: `backup_rules.xml` y `data_extraction_rules.xml` dejan de ser las plantillas vacías e incluyen base de datos, portadas y ajustes
   - [ ] (Opcional) Compartir el archivo vía `ACTION_SEND`
   - [ ] (Opcional) Exportar historial de búsqueda
 - [ ] **Download lists** - Download playlists for offline use

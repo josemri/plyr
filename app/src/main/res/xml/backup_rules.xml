@@ -1,13 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample backup rules file; uncomment and customize as necessary.
-   See https://developer.android.com/guide/topics/data/autobackup
-   for details.
-   Note: This file is ignored for devices older than API 31
-   See https://developer.android.com/about/versions/12/backup-restore
+  Reglas de copia de seguridad automática de Android (API <= 30).
+
+  Esto NO es lo mismo que la copia `plyr-sync.zip` de la carpeta elegida
+  (ver `BackupFolder`): el Auto Backup es una red de seguridad que el sistema
+  gestiona por su cuenta y sube a la cuenta de Google del dispositivo. La copia
+  en carpeta sigue siendo la que se puede compartir o abrir desde otro móvil.
+
+  Incluimos solo lo que la app usa:
+  - `database`  las listas y pistas de Room
+  - `covers`    las portadas recortadas por el usuario
+  - `sharedpref` ajustes, incluido el Uri de la carpeta de copia
+
+  Queda excluido `export-caches`, que es una caché reconstruible: subirla por la
+  red no aportaría nada y engordaría la copia.
 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <include domain="database" path="." />
+    <include domain="file" path="covers/" />
+    <include domain="sharedpref" path="plyr_config.xml" />
+    <exclude domain="file" path="export-covers/" />
 </full-backup-content>

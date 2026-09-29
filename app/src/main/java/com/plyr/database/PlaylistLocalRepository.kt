@@ -6,6 +6,7 @@ import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
+import com.plyr.utils.DataSync
 import com.plyr.utils.ImportManifest
 
 class PlaylistLocalRepository(context: Context) {
@@ -20,6 +21,16 @@ class PlaylistLocalRepository(context: Context) {
         const val LIKED_SONGS_ID = "liked_songs"
     }
 
+    /**
+     * Avisa a la copia de seguridad de que los datos cambiaron.
+     *
+     * No hace nada por su cuenta: [DataSync] solo anota que hay cambios y
+     * programa el volcado con retardo, así que es barato llamarlo desde
+     * cualquier mutador. Si el usuario no ha configurado carpeta, se descarta
+     * en la propia llamada.
+     */
+    private fun markDirty() = DataSync.markDirty(appContext)
+
     suspend fun ensureLikedSongsPlaylist() = withContext(Dispatchers.IO) {
         val existing = playlistDao.getPlaylistById(LIKED_SONGS_ID)
         if (existing == null) {
@@ -33,6 +44,7 @@ class PlaylistLocalRepository(context: Context) {
                 )
             )
             Log.d(TAG, "Liked songs playlist created")
+            markDirty()
         }
     }
 
@@ -61,6 +73,7 @@ class PlaylistLocalRepository(context: Context) {
                 playlistDao.updatePlaylist(playlist.copy(trackCount = remaining.size))
             }
             Log.d(TAG, "Track removed from liked: $name")
+            markDirty()
             false
         } else {
             val nextPosition = if (tracks.isNotEmpty()) tracks.maxOf { it.position } + 1 else 0
@@ -80,6 +93,7 @@ class PlaylistLocalRepository(context: Context) {
                 playlistDao.updatePlaylist(playlist.copy(trackCount = tracks.size + 1))
             }
             Log.d(TAG, "Track added to liked: $name")
+            markDirty()
             true
         }
     }
@@ -108,6 +122,7 @@ class PlaylistLocalRepository(context: Context) {
 
     suspend fun updateTrackYoutubeId(trackId: String, youtubeVideoId: String) {
         trackDao.updateYoutubeVideoId(trackId, youtubeVideoId)
+        markDirty()
     }
 
     // === YOUTUBE PLAYLISTS ===
@@ -164,6 +179,7 @@ class PlaylistLocalRepository(context: Context) {
             playlistDao.insertPlaylist(playlist)
             trackDao.deleteTracksByPlaylist(playlist.remoteId)
             trackDao.insertTracks(tracks)
+            markDirty()
 
             Log.d(TAG, "YouTube playlist guardada: ${playlist.name} (${tracks.size} tracks)")
             true
@@ -183,6 +199,7 @@ class PlaylistLocalRepository(context: Context) {
         val localPlaylistId = "youtube_$youtubePlaylistId"
         trackDao.deleteTracksByPlaylist(localPlaylistId)
         playlistDao.deletePlaylistById(localPlaylistId)
+        markDirty()
         Log.d(TAG, "YouTube playlist eliminada: $localPlaylistId")
     }
 
@@ -196,6 +213,7 @@ class PlaylistLocalRepository(context: Context) {
     suspend fun deletePlaylist(localPlaylistId: String) = withContext(Dispatchers.IO) {
         trackDao.deleteTracksByPlaylist(localPlaylistId)
         playlistDao.deletePlaylistById(localPlaylistId)
+        markDirty()
         Log.d(TAG, "Playlist eliminada: $localPlaylistId")
     }
 
@@ -243,6 +261,7 @@ class PlaylistLocalRepository(context: Context) {
             playlistDao.updatePlaylist(playlist.copy(trackCount = existing.size + newTracks.size))
         }
         Log.d(TAG, "Importación de favoritos: ${newTracks.size} añadidas de ${fresh.size}")
+        markDirty()
         newTracks.size
     }
 
@@ -259,6 +278,7 @@ class PlaylistLocalRepository(context: Context) {
                     lastSyncTime = System.currentTimeMillis()
                 )
             )
+            markDirty()
             Log.d(TAG, "Portada actualizada para playlist local: $localPlaylistId")
             true
         } catch (e: Exception) {
@@ -287,6 +307,7 @@ class PlaylistLocalRepository(context: Context) {
                     lastSyncTime = System.currentTimeMillis()
                 )
             )
+            markDirty()
             Log.d(TAG, "Playlist local actualizada: $localPlaylistId")
             true
         } catch (e: Exception) {
@@ -317,6 +338,7 @@ class PlaylistLocalRepository(context: Context) {
             }
 
             Log.d(TAG, "Track anadido a playlist de YouTube: $localPlaylistId")
+            markDirty()
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error anadiendo track a playlist de YouTube: ${e.message}", e)
@@ -346,6 +368,7 @@ class PlaylistLocalRepository(context: Context) {
             }
 
             Log.d(TAG, "Track eliminado de playlist de YouTube: $localPlaylistId ($remoteTrackId)")
+            markDirty()
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error eliminando track de playlist de YouTube: ${e.message}", e)

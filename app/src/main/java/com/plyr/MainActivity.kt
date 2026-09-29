@@ -34,6 +34,7 @@ import com.plyr.ui.Screen
 import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.PlyrTheme
 import com.plyr.utils.Config
+import com.plyr.utils.DataSync
 import com.plyr.database.TrackEntity
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -203,6 +204,17 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         NfcReader.stopReading(this)
         lightSensorDetector?.stop()
+    }
+
+    /**
+     * Último momento fiable para volcar la copia de seguridad: el proceso
+     * sigue vivo y el usuario ya no espera nada. `DataSync` espera al volcado
+     * pendiente en vez de cancelarlo, y no hace nada si no hay carpeta
+     * configurada o no hay cambios.
+     */
+    override fun onStop() {
+        super.onStop()
+        DataSync.flushOnStop(this)
     }
 
     override fun onNewIntent(intent: Intent) {

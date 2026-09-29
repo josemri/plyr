@@ -10,12 +10,10 @@ import com.plyr.database.TrackEntity
 import com.plyr.service.CoverImageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.TimeUnit
+import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -29,6 +27,25 @@ data class ExportSummary(
 /** Se lanza cuando el usuario no tiene ninguna lista que exportar. */
 class EmptyExportException : Exception("nothing_to_export")
 
+/** Una portada ya resuelta, lista para escribir en el ZIP. */
+data class CoverPayload(val entryName: String, val bytes: ByteArray)
+
+/**
+ * Todo lo necesario para escribir un ZIP, más la huella de su contenido.
+ *
+ * [contentHash] es lo que permite a [DataSync] no reescribir el archivo en la
+ * carpeta cuando los datos no han cambiado: cubre el contenido real (listas,
+ * pistas y bytes de las portadas) pero no la marca de tiempo, que cambia en
+ * cada ejecución y siempre daría "ha cambiado".
+ */
+class ExportBundle(
+    val manifestJson: String,
+    val covers: List<CoverPayload>,
+    val contentHash: String,
+    val playlistCount: Int,
+    val trackCount: Int
+)
+
 /**
  * DataExporter - Genera un ZIP autocontenido con todas las listas del usuario:
  *
@@ -38,11 +55,15 @@ class EmptyExportException : Exception("nothing_to_export")
  * └── covers/<id>.jpg     portada de cada lista
  * ```
  *
- * El archivo se escribe en el [Uri] que devuelve SAF (`CreateDocument`), así que
- * no hace falta ningún permiso de almacenamiento. Las portadas se resuelven desde
- * el archivo local (`file://`, las que el usuario recorta) o se descargan de la
- * URL remota guardada por la app; si una falla, la lista se exporta igualmente
- * sin portada.
+ * El trabajo se separa en dos fases ([buildBundle] y [writeTo]) para que el
+ * mismo contenido sirva tanto para el botón de exportar manual (que escribe en
+ * un Uri de SAF de un solo uso) como para la copia automática (que lo escribe en
+ * una carpeta persistente, ver [DataSync]).
+ *
+ * Las portadas se resuelven desde el archivo local (`file://`, las que el
+ * usuario recorta) o se descargan de la URL remota guardada por la app —pasando
+ * por [CoverCache] para no volver a bajarlas en cada sincronización—. Si una
+ * falla, la lista se exporta igualmente sin portada.
  */
 object DataExporter {
 
@@ -51,12 +72,56 @@ object DataExporter {
     /** Las portadas remotas ya son pequeñas; solo reescalamos las que excedan esto. */
     private const val EXPORT_COVER_MAX_SIDE = 512
     private const val EXPORT_COVER_QUALITY = 85
-    private const val COVER_TIMEOUT_SECONDS = 15L
 
-    private val httpClient: OkHttpClient by lazy {
-        OkHttpClient.Builder()
-            .callTimeout(COVER_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .build()
+    /**
+     * Recoge el estado actual de la app y lo deja listo para escribir: el JSON
+     * del manifiesto, las portadas en bytes y una huella del contenido.
+     *
+     * @throws EmptyExportException si no hay ninguna lista.
+     */
+    suspend fun buildBundle(context: Context): ExportBundle = withContext(Dispatchers.IO) {
+        val repository = PlaylistLocalRepository(context)
+        val entities = repository.getAllPlaylists()
+        if (entities.isEmpty()) throw EmptyExportException()
+
+        val accumulator = ExportDigest.Accumulator()
+        val takenCoverEntries = mutableSetOf<String>()
+        val manifests = mutableListOf<ExportPlaylist>()
+        val covers = mutableListOf<CoverPayload>()
+
+        entities.forEach { entity ->
+            val coverBytes = loadCoverBytes(context, entity.imageUrl)
+            val coverEntry = if (coverBytes != null) {
+                ExportManifest.uniqueCoverEntry(entity.remoteId, takenCoverEntries)
+            } else {
+                null
+            }
+            if (coverEntry != null && coverBytes != null) {
+                covers += CoverPayload(coverEntry, coverBytes)
+            }
+
+            val playlist = ExportPlaylist(
+                id = entity.remoteId,
+                name = entity.name,
+                description = entity.description,
+                coverEntry = coverEntry,
+                tracks = repository.getTracksByPlaylistSync(entity.remoteId).map { it.toExportTrack() }
+            )
+            manifests += playlist
+            accumulator.addPlaylist(playlist, coverBytes)
+        }
+
+        ExportBundle(
+            manifestJson = ExportManifest.build(
+                appVersion = appVersion(context),
+                exportedAt = System.currentTimeMillis(),
+                playlists = manifests
+            ),
+            covers = covers,
+            contentHash = accumulator.hex(),
+            playlistCount = manifests.size,
+            trackCount = manifests.sumOf { it.trackCount }
+        )
     }
 
     /**
@@ -70,44 +135,16 @@ object DataExporter {
         destination: Uri
     ): Result<ExportSummary> = withContext(Dispatchers.IO) {
         runCatching {
-            val repository = PlaylistLocalRepository(context)
-            val entities = repository.getAllPlaylists()
-            if (entities.isEmpty()) throw EmptyExportException()
+            val bundle = buildBundle(context)
+            val stream = context.contentResolver.openOutputStream(destination, "w")
+                ?: throw IOException("No se pudo abrir $destination para escritura")
+            stream.use { writeTo(it, bundle) }
 
-            val takenCoverEntries = mutableSetOf<String>()
-            val payloads = entities.map { entity ->
-                val coverBytes = loadCoverBytes(entity.imageUrl)
-                val coverEntry = if (coverBytes != null) {
-                    ExportManifest.uniqueCoverEntry(entity.remoteId, takenCoverEntries)
-                } else {
-                    null
-                }
-                PlaylistPayload(
-                    manifest = ExportPlaylist(
-                        id = entity.remoteId,
-                        name = entity.name,
-                        description = entity.description,
-                        coverEntry = coverEntry,
-                        tracks = repository.getTracksByPlaylistSync(entity.remoteId).map { it.toExportTrack() }
-                    ),
-                    coverEntry = coverEntry,
-                    coverBytes = coverBytes
-                )
-            }
-
-            val manifestJson = ExportManifest.build(
-                appVersion = appVersion(context),
-                exportedAt = System.currentTimeMillis(),
-                playlists = payloads.map { it.manifest }
-            )
-
-            writeArchive(context, destination, manifestJson, payloads)
-
-            Log.d(TAG, "Exportadas ${payloads.size} listas a $destination")
+            Log.d(TAG, "Exportadas ${bundle.playlistCount} listas a $destination")
             ExportSummary(
-                playlistCount = payloads.size,
-                trackCount = payloads.sumOf { it.manifest.trackCount },
-                coverCount = payloads.count { it.coverBytes != null }
+                playlistCount = bundle.playlistCount,
+                trackCount = bundle.trackCount,
+                coverCount = bundle.covers.size
             )
         }
     }
@@ -118,12 +155,13 @@ object DataExporter {
      * Devuelve los bytes JPEG de la portada, o null si no hay portada o no se
      * pudo obtener. Las imágenes grandes se reescalan para no inflar el ZIP.
      */
-    private suspend fun loadCoverBytes(imageUrl: String?): ByteArray? {
+    private suspend fun loadCoverBytes(context: Context, imageUrl: String?): ByteArray? {
         if (imageUrl.isNullOrBlank()) return null
 
         val raw = when {
             imageUrl.startsWith("file://") || imageUrl.startsWith("/") -> readLocalCover(imageUrl)
-            imageUrl.startsWith("http://") || imageUrl.startsWith("https://") -> downloadCover(imageUrl)
+            imageUrl.startsWith("http://") || imageUrl.startsWith("https://") ->
+                CoverCache.load(context, imageUrl)
             else -> null
         }
 
@@ -137,22 +175,6 @@ object DataExporter {
     } catch (e: Exception) {
         Log.w(TAG, "No se pudo leer la portada local: ${e.message}")
         null
-    }
-
-    private suspend fun downloadCover(url: String): ByteArray? = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder().url(url).build()
-            httpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    Log.w(TAG, "Portada remota ${response.code} para $url")
-                    return@use null
-                }
-                response.body.bytes()
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error descargando portada $url: ${e.message}")
-            null
-        }
     }
 
     /**
@@ -197,28 +219,21 @@ object DataExporter {
 
     // === ESCRITURA DEL ZIP ===
 
-    private fun writeArchive(
-        context: Context,
-        destination: Uri,
-        manifestJson: String,
-        payloads: List<PlaylistPayload>
-    ) {
-        val stream = context.contentResolver.openOutputStream(destination, "w")
-            ?: throw IOException("No se pudo abrir $destination para escritura")
+    /**
+     * Vuelca [bundle] como ZIP en [output], que queda abierto: el cierre es de
+     * quien lo pasó. Así el mismo contenido sirve para un Uri de SAF y para un
+     * archivo temporal en la carpeta de copia.
+     */
+    fun writeTo(output: OutputStream, bundle: ExportBundle) {
+        ZipOutputStream(output).use { zip ->
+            zip.putNextEntry(ZipEntry(ExportManifest.FILE_NAME))
+            zip.write(bundle.manifestJson.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
 
-        stream.use { output ->
-            ZipOutputStream(output).use { zip ->
-                zip.putNextEntry(ZipEntry(ExportManifest.FILE_NAME))
-                zip.write(manifestJson.toByteArray(Charsets.UTF_8))
+            bundle.covers.forEach { cover ->
+                zip.putNextEntry(ZipEntry(cover.entryName))
+                zip.write(cover.bytes)
                 zip.closeEntry()
-
-                payloads.forEach { payload ->
-                    val entryName = payload.coverEntry ?: return@forEach
-                    val bytes = payload.coverBytes ?: return@forEach
-                    zip.putNextEntry(ZipEntry(entryName))
-                    zip.write(bytes)
-                    zip.closeEntry()
-                }
             }
         }
     }
@@ -238,12 +253,5 @@ object DataExporter {
         artists = ExportManifest.parseArtists(artists),
         remoteTrackId = remoteTrackId,
         youtubeVideoId = youtubeVideoId
-    )
-
-    /** Una lista del ZIP: su entrada en el manifiesto más su portada en bytes. */
-    private class PlaylistPayload(
-        val manifest: ExportPlaylist,
-        val coverEntry: String?,
-        val coverBytes: ByteArray?
     )
 }
