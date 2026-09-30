@@ -61,8 +61,10 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
+            // El servicio aún puede estar vivo: la desconexión también ocurre al
+            // rotar. Sin mediaSession no se pueden parar las notificaciones
+            // correctamente, así que el callback no se mata aquí (B46).
             musicService = null
-            (application as PlyrApp).playerViewModel.onMediaSessionUpdate = null
         }
     }
 
@@ -186,6 +188,9 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         lightSensorDetector?.stop()
         if (isFinishing) {
+            // El MediaSession del servicio va a morir de verdad: desactivar el
+            // callback para no dejar huecos de notificación (B46).
+            (application as PlyrApp).playerViewModel.onMediaSessionUpdate = null
             (application as PlyrApp).playerViewModel.pausePlayer()
             stopService(Intent(this, MusicService::class.java))
         }

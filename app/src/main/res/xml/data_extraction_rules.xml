@@ -3,15 +3,14 @@
 
   Mantiene el mismo criterio que `backup_rules.xml` (API <= 30), con la
   diferencia de que aquí `cloud-backup` y `device-transfer` se controlan por
-  separado. La transferencia entre dispositivos se deja completa a propósito:
-  mover un móvil a otro es justo cuando más falta hacen las listas, y no implica
-  subir nada a la nube.
+  separado. El Uri de la carpeta SAF (plyr_config.xml) es un *capability handle*
+  ligado al dispositivo: se excluye de la nube (B40) pero se deja en la
+  transferencia entre dispositivos a propósito, que no sube nada a la nube.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="database" path="." />
         <include domain="file" path="covers/" />
-        <include domain="sharedpref" path="plyr_config.xml" />
         <exclude domain="file" path="export-covers/" />
     </cloud-backup>
     <device-transfer>

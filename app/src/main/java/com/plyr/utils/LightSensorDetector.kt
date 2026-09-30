@@ -43,19 +43,23 @@ class LightSensorDetector(
             return
         }
 
-        sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        sensorManager = context.getSystemService(SensorManager::class.java)
         lightSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_LIGHT)
 
         Log.d(TAG, "start() - lightSensor: $lightSensor")
 
-        if (lightSensor == null) {
+        if (sensorManager == null || lightSensor == null) {
             Log.e(TAG, "start() - Light sensor not available!")
             return
         }
 
         // Usamos SENSOR_DELAY_NORMAL ya que no necesitamos actualizaciones frecuentes
-        lightSensor?.let {
-            sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
+        val registered = sensorManager?.registerListener(
+            this, lightSensor, SensorManager.SENSOR_DELAY_NORMAL
+        ) ?: false
+        if (!registered) {
+            Log.e(TAG, "start() - Failed to register light sensor listener")
+            return
         }
 
         isListening = true
@@ -72,7 +76,7 @@ class LightSensorDetector(
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null || event.sensor.type != Sensor.TYPE_LIGHT) return
 
-        val lux = event.values[0]
+        val lux = event.values.getOrNull(0) ?: return
 
         // Log cada lectura del sensor
         Log.d(TAG, "Lux: $lux, Threshold: $DARK_THRESHOLD_LUX, lastIsDark: $lastIsDark")

@@ -32,7 +32,6 @@ object Translations {
 
             // Main Screen
             "no_results" to "no results found",
-            "loading" to "loading...",
 
             // Home Screen
             "home_queue" to "cola",
@@ -65,6 +64,9 @@ object Translations {
 
             // Search Screen - Additional translations
             "search_error_processing_qr" to "Error procesando QR",
+            "permission_denied" to "Permiso de cámara denegado",
+            "retry" to "Reintentar",
+            "close" to "Cerrar",
 
             // Player
             "next" to "siguiente",
@@ -169,7 +171,6 @@ object Translations {
 
             // Main Screen
             "no_results" to "no results found",
-            "loading" to "loading...",
 
             // Home Screen
             "home_queue" to "queue",
@@ -202,6 +203,9 @@ object Translations {
 
             // Search Screen - Additional translations
             "search_error_processing_qr" to "Error processing QR",
+            "permission_denied" to "Camera permission denied",
+            "retry" to "Retry",
+            "close" to "Close",
 
             // Player
             "next" to "next",
@@ -293,7 +297,6 @@ object Translations {
 
             // Main Screen
             "no_results" to "no s'han trobat resultats",
-            "loading" to "carregant...",
 
             // Home Screen
             "home_queue" to "cua",
@@ -310,7 +313,6 @@ object Translations {
             "invite_code" to "codi d'invitació",
             "nickname" to "apodo",
             "comment" to "comentari (opcional)",
-            "user_nickname" to "apodo de usuario",
             "nickname_description" to "tu apodo se usará en grupos y recomendaciones",
             "enter_nickname" to "introduce tu apodo...",
             "recommendations" to "> recomanacions",
@@ -328,6 +330,9 @@ object Translations {
 
             // Search Screen - Additional translations
             "search_error_processing_qr" to "Error processant QR",
+            "permission_denied" to "Permís de càmera denegat",
+            "retry" to "Reintenta",
+            "close" to "Tanca",
 
             // Player
             "next" to "següent",
@@ -341,8 +346,8 @@ object Translations {
             "create_playlist" to "Crear playlist",
 
             // Queue Screen
-            "plyr_queue" to "plyr_キュー",
-            "No tracks loaded" to "曲が読み込まれていません",
+            "plyr_queue" to "plyr_cua",
+            "No tracks loaded" to "Cap cançó carregada",
             "player_not_available" to "el reproductor no està disponible",
 
             // Playlists Screen
@@ -372,8 +377,6 @@ object Translations {
             "gestures_section" to "> gestos",
             "swipe_left" to "lliscar esquerra",
             "swipe_right" to "lliscar dreta",
-
-            "share_me" to "< Comparteix-me! >",
 
 
             // NEW MISSING KEYS
@@ -422,7 +425,6 @@ object Translations {
 
             // Main Screen
             "no_results" to "結果が見つかりません",
-            "loading" to "読み込み中...",
 
             // Home Screen
             "home_queue" to "キュー",
@@ -439,7 +441,6 @@ object Translations {
             "invite_code" to "招待コード",
             "nickname" to "ニックネーム",
             "comment" to "コメント (任意)",
-            "user_nickname" to "ユーザーのニックネーム",
             "nickname_description" to "あなたのニックネームはグループやおすすめに使用されます",
             "enter_nickname" to "ニックネームを入力...",
             "recommendations" to "> おすすめ",
@@ -457,6 +458,9 @@ object Translations {
 
             // Search Screen - Additional
             "search_error_processing_qr" to "QRの処理中にエラー",
+            "permission_denied" to "カメラの許可が拒否されました",
+            "retry" to "再試行",
+            "close" to "閉じる",
 
             // Player
             "next" to "次へ",

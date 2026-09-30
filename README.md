@@ -114,6 +114,7 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Rendimiento: caché de URLs de audio en memoria con TTL, para que saltar a la siguiente canción no dependa de una extracción nueva
   - [x] Auriculares: `MediaButtonReceiver` registrado en el manifiesto y conectado al reproductor (antes era código muerto)
   - [x] Bugs triviales del reporte (1ª tanda): B10 (constante duplicada `MAX_CAUSE_DEPTH`), B24 (literal `$ load_error` en el recorte de portada → mensaje real/clave `loading`), B30 (llamadas NFC sin `try/catch`), B38 (permiso `WAKE_LOCK` sin uso), B43 (aserción `mediaSession!!` en `MusicService`)
+  - [x] Bugs triviales del reporte (2ª–3ª tanda, grupo T2): B17 (doble `onThemeChanged`), B21 (valores japoneses en el mapa `català`), B22 (claves duplicadas en `Translations`), B31 (guardas en `LightSensorDetector`), B34 (`pointerInput` de la barra de progreso con `duration`), B40 (`plyr_config.xml` fuera del cloud-backup), B42 (`ACTION_STOP` en `MusicService`), B46 (MediaSession en rotación), B47 (modal vacío al denegar permiso de cámara)
   - [ ] Bugs: `isValidAudioUrl` (B1), clave `"Player not available"` (B5), `metadataCache` en Feed (B10), thumbnail `vi/undefined` (B16)
   - [ ] Seguridad: activar R8 (`isMinifyEnabled`), reducir logs de cuerpos en `SupabaseClient`
   - [ ] Rendimiento: `shutdown()`/`unbindAll` en `QrScannerDialog`, `key` en LazyLists de PlaylistScreen, `LazyColumn` en Feed

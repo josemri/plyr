@@ -23,6 +23,10 @@ class MusicService : Service() {
     private val NOTIFICATION_ID = 1
     private var mediaSession: MediaSession? = null
 
+    companion object {
+        const val ACTION_STOP = "com.plyr.action.STOP"
+    }
+
     override fun onCreate() {
         super.onCreate()
         NotificationManagerCompat.from(this).createNotificationChannel(
@@ -39,6 +43,11 @@ class MusicService : Service() {
     override fun onBind(intent: Intent): IBinder = MusicBinder()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_STOP) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         // startForegroundService exige promoverse a foreground en los primeros 5s.
         if (mediaSession == null) {
             startForeground(NOTIFICATION_ID, createStartupNotification())

@@ -327,7 +327,7 @@ private fun ProgressBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(4.dp)
-                    .pointerInput(Unit) {
+                    .pointerInput(duration) {
                         detectDragGestures(
                             onDragStart = { offset ->
                                 if (duration > 0) {

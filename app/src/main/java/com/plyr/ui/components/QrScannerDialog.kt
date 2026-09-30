@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -29,6 +30,7 @@ import com.google.zxing.MultiFormatReader
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.plyr.model.ScanResult
+import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
 import java.util.concurrent.Executors
 
@@ -59,7 +61,27 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (ScanResult?) -> Unit) {
                 //Text("Escanea un código QR", style = MaterialTheme.typography.titleMedium)
                 //Spacer(Modifier.height(16.dp))
                 if (!cameraPermissionGranted) {
-                    // No mostrar nada, solo esperar a que el usuario responda la notificación
+                    if (permissionRequested) {
+                        // El permiso se rechazó: mostrar mensaje y botones en vez
+                        // de un modal mudo (B47)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                Translations.get(context, "permission_denied"),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Button(onClick = { launcher.launch(Manifest.permission.CAMERA) }) {
+                                Text(Translations.get(context, "retry"))
+                            }
+                            TextButton(onClick = onDismiss) {
+                                Text(Translations.get(context, "close"))
+                            }
+                        }
+                    }
                 } else {
                     var previewView: PreviewView?
                     Box(

@@ -9,14 +9,14 @@
   Incluimos solo lo que la app usa:
   - `database`  las listas y pistas de Room
   - `covers`    las portadas recortadas por el usuario
-  - `sharedpref` ajustes, incluido el Uri de la carpeta de copia
 
-  Queda excluido `export-caches`, que es una caché reconstruible: subirla por la
-  red no aportaría nada y engordaría la copia.
+  Queda excluido deliberadamente:
+  - `sharedpref/plyr_config.xml`  el Uri de la carpeta SAF, el nickname y el hash
+    de la copia dependen del dispositivo y no deben subirse a la nube (B40)
+  - `export-covers/`  caché reconstruible que solo engordaría la copia.
 -->
 <full-backup-content>
     <include domain="database" path="." />
     <include domain="file" path="covers/" />
-    <include domain="sharedpref" path="plyr_config.xml" />
     <exclude domain="file" path="export-covers/" />
 </full-backup-content>

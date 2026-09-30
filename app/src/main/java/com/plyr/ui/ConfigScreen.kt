@@ -97,7 +97,6 @@ fun ConfigScreen(
                         3 -> "auto"
                         else -> "system"
                     }
-                    onThemeChanged(selectedTheme)
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )

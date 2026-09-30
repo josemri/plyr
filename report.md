@@ -30,10 +30,12 @@
 >   fusionan en la huella `ExportDigest` y en la UI del botón sync. Guardar de
 >   nuevo una lista limpia su tomb, así que es reversible.
 >
-> En una segunda tanda se resolvieron además los 5 bugs más triviales —**B10**,
-> **B24**, **B30**, **B38**, **B43**—, ahora documentados en **§10**; quedan
-> **42 activos**. El resto de hallazgos (B1-B47 salvo esos) no se ha tocado en
-> estas dos rondas; las rutas de "añadir canciones" y de reproducción siguen
+> En una segunda tanda se resolvieron los 5 bugs más triviales —**B10**, **B24**,
+> **B30**, **B38**, **B43**— y en una tercera los 9 del siguiente grupo de
+> dificultad —**B17**, **B21**, **B22**, **B31**, **B34**, **B40**, **B42**,
+> **B46**, **B47**—; todos están documentados en **§10** (14 resueltos en
+> total) y quedan **33 activos**. El resto de hallazgos no se ha tocado en
+> estas tres rondas; las rutas de "añadir canciones" y de reproducción siguen
 > pendientes de lo descrito abajo.
 
 ---
@@ -48,7 +50,8 @@ dependencias están limpias y la lógica pura de cola está extraída y testeada
 El tercero que recordabas —añadir canciones a una lista— también existe, y es
 peor: **ninguna de las cinco rutas para hacerlo funciona** (§1.3). En total
 fueron **47 bugs** verificados contra el código; desde entonces se han resuelto
-**5** (B10, B24, B30, B38, B43 — ver §10), así que quedan **42 activos**.
+**14** (B10, B17, B21, B22, B24, B30, B31, B34, B38, B40, B42, B43, B46, B47 —
+ver §10), así que quedan **33 activos**.
 ### 1.1 El slide a "liked" no funciona → **es un bug de datos, no de gesto**
 
 `PlaylistScreen` construye el `Song` **sin `youtubeId`** en los tres sitios donde
@@ -284,7 +287,7 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **0 bugs críticos**, **10 altos**, **23 medios**, **9 bajos** (§3).
+- **0 bugs críticos**, **10 altos**, **18 medios**, **5 bajos** (§3).
 - **298 tests unitarios** en 21 archivos (`./run.sh test`; todos en verde).
   7 de ellos son nuevos: 4 de la política de tombstones y 3 del formato del
   manifiesto.
@@ -309,7 +312,7 @@ de descartes.
 | Tests unitarios | **298** en 21 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
-| Claves de traducción sin uso | **16 de 101** (verificadas por barrido) |
+| Claves de traducción sin uso | **16 de 104** (verificadas por barrido) |
 | Claves referenciadas que no existen | **1** (`"Player not available"`) |
 
 **Desglose de los 298 tests** (tras `./run.sh test`, todos en verde):
@@ -362,22 +365,17 @@ sí toca la tabla de favoritos, y por eso está en altos).
 | **B14** | `PlaylistScreen.kt:1250-1256` | **Al crear una playlist solo se puede añadir una canción por búsqueda.** Cada pulsación del botón custom hace `selectedTracks + track` y a continuación `searchResults = emptyList(); searchQuery = ""`, borrando la búsqueda entera. El contador de seleccionadas sube, pero para montar una lista de 10 canciones hay que hacer 10 búsquedas independientes. No existe "añadir todo" ni acumulación de resultados. Detalle en §1.3. |
 | **B15** | `YouTubePlaylistCreator.kt:67` + `PlaylistScreen.kt:1344-1350` | **La creación de playlist descarta canciones sin avisar.** `build` hace `if (videoId.isNullOrBlank()) return@forEach`, y el recuento de lo perdido se **calcula y se tira**: `"${created.tracks.size} tracks (… sin vídeo)"` solo se muestra en la rama `else` de fallo. Si 7 de 12 canciones resuelven vídeo, la app crea la playlist, navega atrás sin decir nada, y el usuario descubre las 5 perdidas al reabrirla. Detalle en §1.3. |
 | **B16** | `YouTubePlaylistCreator.kt:66` + `PlaylistScreen.kt:1323-1344` | **La creación de playlist puede colgarse durante minutos sin salida.** Por cada pista sin `youtubeVideoId` y con id de longitud distinta de 11 (p. ej. importadas de Spotify) se lanza una búsqueda bloqueante de YouTube vía NewPipe, **en serie**, sin timeout y sin cancelación. El botón queda en `enabled = !isLoading` y no hay "cancelar", así que el usuario ve el spinner y asume cuelgue. Arreglarlo exige que `build` pase a `suspend` con `ensureActive()`. |
-| **B17** | `ConfigScreen.kt:74-77` y `:119` | `onThemeChanged` se llama **dos veces** por cambio de tema: una en el `LaunchedEffect(selectedTheme)` y otra en el `onSelected` del `MultiToggle`. En `MainActivity:152-160` eso duplica `lightSensorDetector.start()/stop()`. |
 | **B18** | `SearchScreen.kt:152-157` y `:222-227` | `ScanResult.type` no se inspecciona nunca: una **playlist** escaneada se construye como URL de video (`watch?v=<id-de-playlist>`). `FeedScreen.kt:150` emite `ScanResult("youtube", "playlist", playlistId)` justo para este camino. El `else` de la línea 160 convierte el error en "unsupported source" en lugar de abrir la playlist. |
 | **B19** | `QRDialog.kt:164-166` | `DisposableEffect(lifecycleOwner, nfcState)` lee `nfcAdapter`, que se asigna en `LaunchedEffect(Unit)` (`:159-161`). En la primera composición vale `null`, y al asignarse después el efecto **no se reinicia** porque no es clave → `enableForegroundDispatch` nunca se llama y la **escritura de tags NFC no arranca nunca**. El `onDispose` (`:180-189`) sí llega a llamar `disableForegroundDispatch` sin haberlo activado nunca. |
 | **B20** | `QRDialog.kt:223` y `:363-373` | `generateQrBitmap(shareUrl)` se llama **sin `remember`**, en el cuerpo de composición: decodifica y pinta el QR entero (512×512) en el hilo principal en cada recomposición. Y `NfcButton` muta `rings`/`frameCounter` cada 200 ms mientras está en `WAITING`, lo que fuerza esa recomposición 5 veces por segundo mientras se escribe un tag. |
-| **B21** | `Translations.kt:408-409` | El mapa **`català` tiene valores japoneses** en `plyr_queue` (`"plyr_キュー"`) y en `No tracks loaded` (`"曲が読み込まれていません"`): copiado del bloque `日本語` de las líneas 451+. Un usuario en catalán ve japonés en la pantalla de cola. |
-| **B22** | `Translations.kt:35/47, 215/227, 360/372, 510/522, 304/377, 454/527, 320/440` | Claves duplicadas dentro de un mismo `mapOf`: `loading` en los **cuatro** idiomas, `user_nickname` en `català` y `日本語`, `share_me` en `català`. Gana la última ocurrencia; el resto es basura que sugiere dos valores distintos para lo mismo. |
 | **B23** | `ConfigScreen.kt:414/423, 462/471, 525/562, 655, 693` | Exportar, importar y copiar/restaurar se lanzan en `rememberCoroutineScope()`. La pantalla de config vive en un pager (un swipe basta para salir), y `onCleared` **cancela** esas corrutinas a mitad de la escritura → ZIP truncado o base de datos restaurada a medias sin aviso. Necesitan un scope de aplicación. |
 | **B25** | `SupabaseClient.kt:308-334` | `parseTimestamp`: 4 objetos `SimpleDateFormat` por fila; el 2º patrón tiene `'Z'` duplicado (`"…ss.SSS'Z'"`); el 1º (`SSSSSS`) acepta en realidad 1..N dígitos y `format.parse(String)` ignora el texto sobrante, así que un `+HH:MM` real se descarta en silencio; y se fuerza `timeZone = UTC` (`:322`). **Todo fallo devuelve `System.currentTimeMillis()`** (`:311`, `:330`, `:333`): una fecha ilegible se disfraza de "ahora". El `catch` externo (`:331`) es inalcanzable porque el interno (`:325`) se traga todo. Como se usa para `createdAt`/`joinedAt` de grupos y recomendaciones, las sombras de "nuevo". |
 | **B26** | `YouTubeSearchManager.kt:376-378` (y llamada en `:248`) | `getPlaylistThumbnailUrl()` devuelve hardcodeado `https://img.youtube.com/vi/undefined/hqdefault.jpg`, y se invoca **sin argumentos** teniendo el `playlistId` real a mano en esa misma línea. Toda playlist sin portada muestra el mismo placeholder. |
 | **B27** | `YouTubeSearchManager.kt:168-175`, `:184` | `getFormattedVideoCount`: el `else` final es inalcanzable (`== 1`, `< 1000` y `>= 1000` ya particionan todos los `Int`); `"%.${digits}f".format(this)` sin `Locale` → `1,5K` en `es-ES`/`ca-ES`; plurales ingleses fijos y sin sufijo `M`/`B`, así que 1 000 000 de vídeos sale como `1000K videos`. |
 | **B28** | `DatabaseExtensions.kt:17-24` (`AppModels.kt:7,26`) | `toAppTrack()` no puede transportar `youtubeVideoId`, `position` ni `durationMs` porque `AppTrack` no tiene esos campos. Toda ida y vuelta `AppTrack → TrackEntity` (usada en `PlaylistScreen.kt:152` y `:178`) **pierde el id de YouTube** de la pista. Es el mecanismo que hace que B1 sea irrecuperable una vez guardado. |
 | **B29** | `MediaMetadataExtractor.kt:26`, `:34`, `:42-57` | El parámetro `context: Context?` no se usa; `isYouTubeUrl` es sensible a mayúsculas (`HTTPS://WWW.YOUTUBE.COM/…` → `UNKNOWN` con `title = url`); y las heurísticas `v=PL` / `v=UU` / `v=FL` / `v=RD` clasifican como playlist un vídeo normal cuyo id empiece por esos prefijos, con lo que el vídeo no llega a sonar. |
-| **B31** | `LightSensorDetector.kt:75`, `:46`, `:59` | `event.values[0]` sin comprobar el tamaño del array → `ArrayIndexOutOfBoundsException` en el hilo principal; `getSystemService(...) as SensorManager` sin guardia; y `isListening = true` se pone aunque `registerListener` haya devuelto `false`, dejando `start()` como no-op permanente hasta que se llame a `stop()`. |
 | **B32** | `SimpleDownloader.kt:31`, `:49-59`, `:61` | El mapa de cookies es un `mutableMapOf` plano: `setCookie` muta desde el hilo que lo inicializa y `getCookies` lo lee desde **todos** los hilos de red, sin sincronizar. Además se loguean cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir `Authorization`. |
 | **B33** | `SupabaseClient.kt:59,109,179,228,291` | `JSONObject.optString(key, null)` devuelve la **cadena** `"null"` cuando el valor JSON es `null`, no `null`. Un `comment` o `invite_code` nulo se guarda y se muestra como la palabra "null". Además `connection.inputStream` lanza `FileNotFoundException` en cualquier 4xx (`:136`, `:168`, `:279`) y el cuerpo de error nunca se lee → el usuario ve `"error: null"`. Y `invite_code` se interpola sin URL-encoding en el filtro PostgREST (`:130`): un código con `&`, `#` o `,` cambia la semántica de la consulta. |
-| **B34** | `FloatingMusicControls.kt:330-348` | El `pointerInput(Unit)` de la barra de progreso captura `duration` del primer frame en que se compone la rama `else`. Al cambiar de canción el `seekTo((duration * dragProgress).toLong())` usa la **duración de la canción anterior**. |
 | **B35** | `FloatingMusicControls.kt:145` | `LaunchedEffect(playerViewModel.exoPlayer)` usa como clave un `var` normal, no observable. Hoy el bucle de polling arranca porque otras `LiveData` fuerzan recomposición por el camino; si algún día el título deja de cambiar (p. ej. misma canción repetida) el poll no arranca nunca. Frágil por construcción. |
 | **B36** | `PlayerViewModel.kt:390-456` vs `:324-380` | En la ruta de `playIndex` no se pone `resolving = true` (solo en `startAt:335`), así que `isLoading` no refleja la re-resolución de URLs: el spinner no aparece y los controles se reactivan mientras se está volviendo a resolver. Asimetría entre las dos rutas de carga. |
 
@@ -387,14 +385,9 @@ sí toca la tabla de favoritos, y por eso está en altos).
 |---|---|---|
 | **B37** | `Utils.kt:44-50` | `isValidAudioUrl` es código muerto: `return hasAudioPattern \|\| isValidUrlFormat(url)`, y `isValidUrlFormat(url)` ya salió `true` del early-return, así que **toda URL http(s) pasa**. Verificado: **cero** llamadas desde producción, solo desde `UtilsTest` — y `UtilsTest.kt:60-62` fija precisamente el comportamiento incorrecto, de modo que un test impide arreglarlo. Decidir: arreglar + corregir el test, o borrar la función y sus 13 tests. |
 | **B39** | `AndroidManifest.xml:54-60` | `MediaButtonReceiver` es `exported="true"` con intent filter y **sin permiso**: cualquier app del dispositivo puede inyectar `ACTION_MEDIA_BUTTON` y manejar la reproducción. El impacto se limita al transporte (la clase valida acción y keycode), pero no necesita estar exportada. |
-| **B40** | `AndroidManifest.xml:22-24` + `res/xml/data_extraction_rules.xml` | `allowBackup="true"` y las reglas incluyen `sharedpref/plyr_config.xml` en **cloud-backup**. Ese fichero guarda el nickname del usuario en el feed, el Uri del árbol SAF y el hash de la copia (`Config.kt:35-41`). El Uri del árbol es un *capability handle* ligado al dispositivo: no debería subirse a la nube. |
 | **B41** | `app/build.gradle.kts:45` | `isMinifyEnabled = false` en release → los `proguardFiles` de `:49-52` son inertes y **todos** los `Log.d/e` de B32 y B33 llegan tal cual al APK publicado. |
-| **B42** | `MusicService.kt:41-47` | `onStartCommand` ignora `intent?.action` por completo. Hoy nadie le manda intents (los botones de media van por `MediaButtonReceiver` → `PlayerViewModel`), pero sigue siendo una trampa para quien intente controlar la reproducción por servicio. |
 | **B44** | `SearchScreen.kt:58-66`, `:56` | Bucle infinito de `delay(100)` leyendo `SharedPreferences` mientras la pantalla está viva: 10 lecturas de disco por segundo, para siempre. Y `currentLanguage` es *write-only*: se asigna en la línea 63 y no se lee en ningún sitio. |
 | **B45** | `NewPipeHolder.kt:21` | `Localization("es", "ES")` hardcodeado: todos los mensajes de error que produce el extractor de NewPipe salen en español, pase lo que pase el idioma configurado en la app. |
-| **B46** | `MainActivity.kt:186-192` | `unbindService(serviceConnection)` en `onDestroy` pone `onMediaSessionUpdate = null` (`MainActivity:65`) mientras el `MediaSession` del servicio sigue vivo. En una rotación hay una ventana en la que la notificación muestra la pista anterior hasta que `onServiceConnected` vuelve a engancharse. |
-| **B47** | `QrScannerDialog.kt:61-63` | Si se deniega el permiso de cámara, el diálogo se renderiza como un `Box` **vacío**: sin mensaje y sin botón. `LaunchedEffect(Unit)` solo corre una vez, así que el usuario se queda con un modal mudo del que solo sale con "atrás". |
-
 ---
 
 ## 4. SEGURIDAD
@@ -483,7 +476,7 @@ Android. Es el asset de calidad más valioso del repo y el modelo a seguir.
 
 ### 7.1 Traducciones
 
-**16 de las 101 claves del mapa `español` no se referencian en ningún sitio**
+**16 de las 104 claves del mapa `español` no se referencian en ningún sitio**
 (verificado excluyendo el propio `Translations.kt` de la búsqueda):
 
 `artist_image`, `backup_folder_none`, `colored by used engine`, `enter_nickname`,
@@ -625,10 +618,13 @@ Dos casos concretos que se ven sin traducir hoy:
 ### Fase 3 — Datos e i18n
 
 20. **B12** — meter `toggleLikeTrack` en una transacción Room.
-21. **B21** y **B22** — corregir los valores japoneses del mapa `català` y
-    eliminar las claves duplicadas; añadir un test que compare el **conjunto** de
-    claves de los 4 idiomas (no una por una), que es lo que habría pillado ambas
-    cosas.
+21. ~~**B21** y **B22** — corregir los valores japoneses del mapa `català` y
+    eliminar las claves duplicadas.~~ **Hecho** (ver §10). Nota: el "test que
+    compare el conjunto de claves de los 4 idiomas" no se pudo añadir tal cual:
+    `mapOf` colapsa los duplicados al construir el mapa, así que ningún test en
+    runtime puede ver la duplicación de la fuente, y el conjunto real ya difiere
+    por claves sobrantes (`nickname_description` solo en `català`/`日本語`), que es
+    terreno de §7.1 (item 26).
 22. **B25** — `parseTimestamp` con `java.time.Instant.parse` y un único fallback
     explícito; devolver `null` en vez de "ahora" para que el llamante distinga.
 23. **B26**, **B27** — pasar el `playlistId` real a `getPlaylistThumbnailUrl`, y
@@ -640,9 +636,9 @@ Dos casos concretos que se ven sin traducir hoy:
     Añadir a `TranslationsTest` un test que falle si una clave definida no
     aparece en el código, y que detecte claves referenciadas que no existen (el
     que habría pillado B7 al instante).
-27. **B39**, **B40**, **B41** — poner el receiver en `exported="false"`, excluir
-    `plyr_config.xml` del cloud-backup, y activar R8 con reglas para Room/NewPipe.
-    (Quitar `WAKE_LOCK` —B38— ya está hecho, ver §10.)
+27. **B39**, **B41** — poner el receiver en `exported="false"` y activar R8 con
+    reglas para Room/NewPipe. (Excluir `plyr_config.xml` del cloud-backup —B40— ya
+    está hecho, ver §10; quitar `WAKE_LOCK` —B38— ya está hecho, ver §10.)
 
 ### Fase 4 — Estabilidad operativa y limpieza
 
@@ -676,5 +672,23 @@ Todos verificados con `./run.sh test` (**298 tests, en verde**) y
 | **B38** | `AndroidManifest.xml:15` | Retirado el permiso `WAKE_LOCK`, sin uso (verificado: cero `WakeLock`/`setWakeMode`). La reproducción con pantalla apagada la sostiene `foregroundServiceType="mediaPlayback"` + `USAGE_MEDIA`. |
 | **B43** | `MusicService.kt:94` | Eliminada la aserción `mediaSession!!`: `createNotification` recibe el `MediaSession` por parámetro y `updateNotification` usa guarda `mediaSession ?: return`, ambas tras asignarlo en `setupMediaSession`. |
 
+---
+
+Segunda y tercera tanda de arreglos (2026-09-30), los 9 bugs del grupo T2.
+Todos verificados con `./run.sh test` (**298 tests, en verde**) y
+`./run.sh build` (BUILD SUCCESSFUL).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B17** | `ConfigScreen.kt:100` | Quitada la llamada duplicada a `onThemeChanged` del `onSelected` del selector de tema; el `LaunchedEffect(selectedTheme)` ya persiste y notifica, así que cada cambio solo dispara una vez `Config.setTheme` + `onThemeChanged` en lugar de dos. |
+| **B21** | `Translations.kt` (català) | `plyr_queue` → `"plyr_cua"` y `No tracks loaded` → `"Cap cançó carregada"`: el mapa `català` ya no tiene valores japoneses copiados del bloque `日本語`. |
+| **B22** | `Translations.kt` | Eliminadas las claves duplicadas dentro de cada `mapOf`: `loading` en los 4 idiomas, `user_nickname` en `català`/`日本語` y `share_me` en `català` (se conservó la primera ocurrencia, con el valor coherente con el resto de idiomas). |
+| **B31** | `LightSensorDetector.kt:46,:58-64,:79` | `event.values.getOrNull(0)` (sin AIOOBE), `getSystemService(SensorManager::class.java)` con guarda de null, e `isListening = true` solo si `registerListener` devolvió `true` (si falla, `start()` ya no queda como no-op permanente). |
+| **B34** | `FloatingMusicControls.kt:330` | `pointerInput(duration)` en la barra de progreso: el gesto se reinicia al cambiar de canción y el `seekTo` ya no usa la duración de la pista anterior. |
+| **B40** | `res/xml/backup_rules.xml` y `data_extraction_rules.xml` | `sharedpref/plyr_config.xml` (nickname, Uri SAF, hash de la copia) excluido del **cloud-backup**; se mantiene en `device-transfer`, que no sube nada a la nube. Comentarios actualizados. |
+| **B42** | `MusicService.kt:41-51` | Añadida acción `ACTION_STOP` (`com.plyr.action.STOP`): `onStartCommand` la detecta y hace `stopForeground(STOP_FOREGROUND_REMOVE)` + `stopSelf()`, en vez de ignorar `intent?.action`. |
+| **B46** | `MainActivity.kt:63-66,:185-195` | `onServiceDisconnected` ya no anula `onMediaSessionUpdate`; se anula solo en `onDestroy` cuando `isFinishing` (con `pausePlayer()` + `stopService` antes del `unbindService`), de modo que en rotación el `MediaSession` del servicio no deja una ventana con la pista anterior. |
+| **B47** | `QrScannerDialog.kt:61-79` | Si el permiso de cámara se deniega, el diálogo muestra mensaje `permission_denied`, botón `retry` (re-lanza el `RequestPermission`) y botón `close` en lugar de un `Box` vacío. Nuevas claves `permission_denied`/`retry`/`close` en los 4 idiomas. |
+
 Aún pendientes, más difíciles y relacionados con estos: **B19/B20** (NFC y QR),
-**B39/B40/B41** (manifiesto/R8) y las traducciones de **§7.1**.
+**B39/B41** (manifiesto/R8) y las traducciones de **§7.1**.
