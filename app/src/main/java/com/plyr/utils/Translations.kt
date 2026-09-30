@@ -112,39 +112,16 @@ object Translations {
 
             "share_me" to "< ¡compárteme! >",
 
-            // Export data
-            "export_data" to "< exportar_datos >",
-            "export_data_working" to "exportando...",
-            "export_data_done" to "● exportado: %1\$d listas, %2\$d canciones",
-            "export_data_error" to "● error al exportar",
-            "export_data_empty" to "● no hay listas que exportar",
-
-            // Import data
-            "import_data" to "< importar_datos >",
-            "import_data_working" to "importando...",
-            "import_data_done" to "● importado: %1\$d listas, %2\$d canciones",
-            "import_data_extra" to "(+%1\$d favoritos, %2\$d sin importar)",
-            "import_data_error" to "● error al importar",
-            "import_data_bad_file" to "● el archivo no es una exportación de plyr",
-
-            // Copia de seguridad automática
-            "backup_section" to "> copia_auto",
-            "backup_pick_folder" to "< elegir_carpeta >",
-            "backup_folder_set" to "● carpeta: %1\$s",
-            "backup_folder_none" to "● sin carpeta de copia",
-            "backup_folder_denied" to "● no se pudo guardar el acceso a la carpeta",
-            "backup_toggle" to "actualizar al salir",
-            "backup_toggle_on" to "● se actualiza al salir de la app",
-            "backup_toggle_off" to "● copia automática desactivada",
-            "backup_sync_now" to "< sincronizar_ahora >",
-            "backup_syncing" to "sincronizando...",
-            "backup_sync_done" to "● copiado: %1\$d listas, %2\$d canciones",
-            "backup_sync_uptodate" to "● la copia ya estaba al día",
-            "backup_sync_error" to "● no se pudo actualizar la copia",
-            "backup_restore" to "< restaurar_desde_carpeta >",
-            "backup_restore_none" to "● elige primero una carpeta",
-            "backup_stop" to "< dejar_de_sincronizar >",
-            "backup_stopped" to "● copia automática desactivada",
+            // Sync
+            "sync_section" to "[ sync ]",
+            "sync" to "< sync >",
+            "sync_working" to "sincronizando...",
+            "sync_done" to "● copiado: %1\$d listas, %2\$d canciones",
+            "sync_empty" to "● no hay listas que sincronizar",
+            "sync_need_folder" to "● primero elige una carpeta",
+            "sync_error" to "● no se pudo sincronizar",
+            "sync_folder" to "● carpeta: %1\$s",
+            "sync_folder_denied" to "● no se pudo guardar el acceso a la carpeta",
 
             // NEW MISSING KEYS
             "app_logo" to "logotipo de plyr",
@@ -176,39 +153,16 @@ object Translations {
             "share_me" to "< share me! >",
 
 
-            // Export data
-            "export_data" to "< export_data >",
-            "export_data_working" to "exporting...",
-            "export_data_done" to "● exported: %1\$d playlists, %2\$d tracks",
-            "export_data_error" to "● export error",
-            "export_data_empty" to "● no playlists to export",
-
-            // Import data
-            "import_data" to "< import_data >",
-            "import_data_working" to "importing...",
-            "import_data_done" to "● imported: %1\$d playlists, %2\$d tracks",
-            "import_data_extra" to "(+%1\$d favourites, %2\$d skipped)",
-            "import_data_error" to "● import error",
-            "import_data_bad_file" to "● not a plyr export file",
-
-            // Automatic backup
-            "backup_section" to "> auto_backup",
-            "backup_pick_folder" to "< choose_folder >",
-            "backup_folder_set" to "● folder: %1\$s",
-            "backup_folder_none" to "● no backup folder",
-            "backup_folder_denied" to "● folder access could not be saved",
-            "backup_toggle" to "update when closing",
-            "backup_toggle_on" to "● updates when you leave the app",
-            "backup_toggle_off" to "● automatic backup off",
-            "backup_sync_now" to "< sync_now >",
-            "backup_syncing" to "syncing...",
-            "backup_sync_done" to "● copied: %1\$d playlists, %2\$d tracks",
-            "backup_sync_uptodate" to "● backup was already up to date",
-            "backup_sync_error" to "● could not update the backup",
-            "backup_restore" to "< restore_from_folder >",
-            "backup_restore_none" to "● pick a folder first",
-            "backup_stop" to "< stop_syncing >",
-            "backup_stopped" to "● automatic backup off",
+            // Sync
+            "sync_section" to "[ sync ]",
+            "sync" to "< sync >",
+            "sync_working" to "syncing...",
+            "sync_done" to "● copied: %1\$d playlists, %2\$d tracks",
+            "sync_empty" to "● no playlists to sync",
+            "sync_need_folder" to "● pick a folder first",
+            "sync_error" to "● could not sync",
+            "sync_folder" to "● folder: %1\$s",
+            "sync_folder_denied" to "● folder access could not be saved",
 
             // Main Screen
             "no_results" to "no results found",
@@ -320,39 +274,16 @@ object Translations {
             "share_me" to "< Comparteix-me! >",
 
 
-            // Export data
-            "export_data" to "< exportar_dades >",
-            "export_data_working" to "exportant...",
-            "export_data_done" to "● exportat: %1\$d llistes, %2\$d cançons",
-            "export_data_error" to "● error en l'exportació",
-            "export_data_empty" to "● no hi ha llistes per exportar",
-
-            // Import data
-            "import_data" to "< importar_dades >",
-            "import_data_working" to "important...",
-            "import_data_done" to "● importat: %1\$d llistes, %2\$d cançons",
-            "import_data_extra" to "(+%1\$d favorits, %2\$d no importades)",
-            "import_data_error" to "● error en la importació",
-            "import_data_bad_file" to "● el fitxer no és una exportació de plyr",
-
-            // Còpia de seguretat automàtica
-            "backup_section" to "> copia_auto",
-            "backup_pick_folder" to "< tria_carpeta >",
-            "backup_folder_set" to "● carpeta: %1\$s",
-            "backup_folder_none" to "● sense carpeta de còpia",
-            "backup_folder_denied" to "● no es va poder desar l'accés a la carpeta",
-            "backup_toggle" to "actualitza en sortir",
-            "backup_toggle_on" to "● s'actualitza en sortir de l'app",
-            "backup_toggle_off" to "● còpia automàtica desactivada",
-            "backup_sync_now" to "< sincronitza_ara >",
-            "backup_syncing" to "sincronitzant...",
-            "backup_sync_done" to "● copiat: %1\$d llistes, %2\$d cançons",
-            "backup_sync_uptodate" to "● la còpia ja estava al dia",
-            "backup_sync_error" to "● no es va poder actualitzar la còpia",
-            "backup_restore" to "< restaura_des_de_carpeta >",
-            "backup_restore_none" to "● tria primer una carpeta",
-            "backup_stop" to "< deixa_de_sincronitzar >",
-            "backup_stopped" to "● còpia automàtica desactivada",
+            // Sync
+            "sync_section" to "[ sync ]",
+            "sync" to "< sync >",
+            "sync_working" to "sincronitzant...",
+            "sync_done" to "● copiat: %1\$d llistes, %2\$d cançons",
+            "sync_empty" to "● no hi ha llistes per sincronitzar",
+            "sync_need_folder" to "● primer tria una carpeta",
+            "sync_error" to "● no es va poder sincronitzar",
+            "sync_folder" to "● carpeta: %1\$s",
+            "sync_folder_denied" to "● no es va poder desar l'accés a la carpeta",
 
 
             // Main Screen
@@ -470,39 +401,16 @@ object Translations {
             "share_me" to "< 私を共有！ >",
 
 
-            // Export data
-            "export_data" to "< データをエクスポート >",
-            "export_data_working" to "エクスポート中...",
-            "export_data_done" to "● エクスポート完了: %1\$d リスト, %2\$d 曲",
-            "export_data_error" to "● エクスポートエラー",
-            "export_data_empty" to "● エクスポートするリストがありません",
-
-            // Import data
-            "import_data" to "< データをインポート >",
-            "import_data_working" to "インポート中...",
-            "import_data_done" to "● インポート完了: %1\$d リスト, %2\$d 曲",
-            "import_data_extra" to "(お気に入り +%1\$d, スキップ %2\$d)",
-            "import_data_error" to "● インポートエラー",
-            "import_data_bad_file" to "● plyr のエクスポートファイルではありません",
-
-            // 自動バックアップ
-            "backup_section" to "> 自動バックアップ",
-            "backup_pick_folder" to "< フォルダを選ぶ >",
-            "backup_folder_set" to "● フォルダ: %1\$s",
-            "backup_folder_none" to "● バックアップ先なし",
-            "backup_folder_denied" to "● フォルダへのアクセスを保存できませんでした",
-            "backup_toggle" to "終了時に更新",
-            "backup_toggle_on" to "● アプリ終了時に更新されます",
-            "backup_toggle_off" to "● 自動バックアップは無効",
-            "backup_sync_now" to "< 今すぐ同期 >",
-            "backup_syncing" to "同期中...",
-            "backup_sync_done" to "● コピー: %1\$d リスト, %2\$d 曲",
-            "backup_sync_uptodate" to "● バックアップは最新です",
-            "backup_sync_error" to "● バックアップを更新できませんでした",
-            "backup_restore" to "< フォルダから復元 >",
-            "backup_restore_none" to "● 先にフォルダを選んでください",
-            "backup_stop" to "< 同期を停止 >",
-            "backup_stopped" to "● 自動バックアップは無効",
+            // Sync
+            "sync_section" to "[ sync ]",
+            "sync" to "< sync >",
+            "sync_working" to "同期中...",
+            "sync_done" to "● コピー: %1\$d リスト, %2\$d 曲",
+            "sync_empty" to "● 同期するリストがありません",
+            "sync_need_folder" to "● 先にフォルダを選んでください",
+            "sync_error" to "● 同期できませんでした",
+            "sync_folder" to "● フォルダ: %1\$s",
+            "sync_folder_denied" to "● フォルダへのアクセスを保存できませんでした",
 
 
             // Main Screen

@@ -100,6 +100,32 @@ object BackupFolder {
     // === RESOLUCIÓN DEL ARCHIVO ===
 
     /**
+     * Devuelve el Uri del archivo de copia **solo si ya existe** en [treeUri], o
+     * null si no está.
+     *
+     * Es la contraparte de [resolveBackupFile], que crea el archivo si falta.
+     * La usa el botón de sincronizar para distinguir "tengo dónde escribir" de
+     * "el usuario borró el archivo y tengo que volver a preguntarle dónde": crear
+     * el archivo sin permiso dejaría un ZIP vacío donde antes había una copia
+     * buena.
+     */
+    fun findExistingBackupFile(context: Context, treeUri: Uri): Uri? {
+        val resolver = context.contentResolver
+
+        Config.getBackupDocumentId(context)?.let { cachedId ->
+            runCatching { DocumentsContract.buildDocumentUriUsingTree(treeUri, cachedId) }
+                .getOrNull()
+                ?.takeIf { exists(resolver, it) }
+                ?.let { return it }
+        }
+
+        val foundId = findChild(resolver, treeUri, BACKUP_FILE_NAME) ?: return null
+        Config.setBackupDocumentId(context, foundId)
+        return runCatching { DocumentsContract.buildDocumentUriUsingTree(treeUri, foundId) }
+            .getOrNull()
+    }
+
+    /**
      * Devuelve el Uri del archivo de copia dentro de [treeUri], creándolo si
      * hace falta, o null si el proveedor falla.
      *

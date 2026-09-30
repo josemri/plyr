@@ -26,13 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.utils.BackupFolder
 import com.plyr.utils.Config
-import com.plyr.utils.DataExporter
-import com.plyr.utils.DataImporter
 import com.plyr.utils.DataSync
-import com.plyr.utils.EmptyExportException
-import com.plyr.utils.ExportManifest
-import com.plyr.utils.ImportSummary
-import com.plyr.utils.ManifestFormatException
 import com.plyr.utils.SpotifyImporter
 import com.plyr.utils.SyncResult
 import com.plyr.utils.Translations
@@ -47,7 +41,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Cuánto se deja visible el mensaje de resultado de importar/exportar datos. */
+/** Cuánto se deja visible el mensaje de resultado del sync. */
 private const val RESULT_TIMEOUT_MS = 4000L
 
 @Composable
@@ -165,18 +159,8 @@ fun ConfigScreen(
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            // Export data
-            ExportDataSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Import data
-            ImportDataSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Copia de seguridad automática
-            AutoBackupSection(context = context)
+            // Sync
+            SyncSection(context = context)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -408,140 +392,44 @@ private fun SpotifyImportSection(context: Context, importViewModel: ImportViewMo
     }
 }
 
-@Composable
-private fun ExportDataSection(context: Context) {
-    val haptic = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
-    var isExporting by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var statusIsError by remember { mutableStateOf(false) }
-
-    val createDocumentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument(ExportManifest.ZIP_MIME_TYPE)
-    ) { uri ->
-        if (uri == null || isExporting) return@rememberLauncherForActivityResult
-        coroutineScope.launch {
-            isExporting = true
-            statusMessage = null
-            DataExporter.exportTo(context, uri).fold(
-                onSuccess = { summary ->
-                    statusIsError = false
-                    statusMessage = Translations.get(context, "export_data_done")
-                        .format(summary.playlistCount, summary.trackCount)
-                },
-                onFailure = { error ->
-                    statusIsError = true
-                    statusMessage = Translations.get(
-                        context,
-                        if (error is EmptyExportException) "export_data_empty" else "export_data_error"
-                    )
-                }
-            )
-            isExporting = false
-        }
-    }
-
-    DataActionRow(
-        context = context,
-        label = Translations.get(context, "export_data"),
-        workingKey = "export_data_working",
-        isWorking = isExporting,
-        statusText = statusMessage,
-        isError = statusIsError,
-        onStatusCleared = { statusMessage = null },
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            createDocumentLauncher.launch(ExportManifest.suggestedFileName())
-        }
-    )
-}
-
-@Composable
-private fun ImportDataSection(context: Context) {
-    val haptic = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
-    var isImporting by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var statusIsError by remember { mutableStateOf(false) }
-
-    val openDocumentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri == null || isImporting) return@rememberLauncherForActivityResult
-        coroutineScope.launch {
-            isImporting = true
-            statusMessage = null
-            DataImporter.importFrom(context, uri).fold(
-                onSuccess = { summary ->
-                    statusIsError = false
-                    statusMessage = importSummaryText(context, summary)
-                },
-                onFailure = { error ->
-                    statusIsError = true
-                    statusMessage = Translations.get(
-                        context,
-                        if (error is ManifestFormatException) {
-                            "import_data_bad_file"
-                        } else {
-                            "import_data_error"
-                        }
-                    )
-                }
-            )
-            isImporting = false
-        }
-    }
-
-    DataActionRow(
-        context = context,
-        label = Translations.get(context, "import_data"),
-        workingKey = "import_data_working",
-        isWorking = isImporting,
-        statusText = statusMessage,
-        isError = statusIsError,
-        onStatusCleared = { statusMessage = null },
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            openDocumentLauncher.launch(ExportManifest.ZIP_MIME_TYPES)
-        }
-    )
-}
-
 /**
- * Copia de seguridad automática: la app mantiene un único `plyr-sync.zip` al
- * día dentro de una carpeta que el usuario elige una sola vez.
+ * Sync - Un único botón para todo lo relacionado con la copia de seguridad.
  *
- * Es distinta de [ExportDataSection] y [ImportDataSection] a propósito: en lugar
- * de un ZIP nuevo cada vez que el usuario lo pide, aquí el archivo se reescribe
- * solo. Por eso usa `OpenDocumentTree` (una **carpeta** con permiso
- * persistente) y no `CreateDocument` (un archivo con permiso de un solo uso).
+ * Mantiene `plyr-sync.zip` al día dentro de una carpeta que el usuario eligió
+ * una vez. Sustituye a los antiguos botones de exportar, importar y copiar: no
+ * hay nada que elegir más que la carpeta, y el resto ya pasa solo.
  *
- * Los botones manuales siguen existiendo: se necesitan para hacer un archivo
- * con fecha para compartir, o para importar una copia hecha en otro dispositivo.
+ * El botón hace una de dos cosas según el estado, sin preguntar nada:
+ *
+ * - **No hay carpeta guardada**, o el archivo ya no está en ella: se abre el
+ *   selector para elegirla. Es el caso de una instalación nueva, y también del
+ *   usuario que borró el ZIP a mano desde Drive.
+ * - **El archivo está donde se esperaba**: sincroniza y listo.
+ *
+ * Al margen de este botón, la app ya sola: marca los cambios y los vuelca al
+ * salir (`DataSync.flushOnStop`).
  */
 @Composable
-private fun AutoBackupSection(context: Context) {
+private fun SyncSection(context: Context) {
     val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val dimensions = calculateResponsiveDimensionsFallback()
     var isSyncing by remember { mutableStateOf(false) }
-    var isRestoring by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var statusIsError by remember { mutableStateOf(false) }
 
-    val treeUriString = remember { mutableStateOf(Config.getBackupTreeUri(context)) }
-    var autoSyncOn by remember { mutableStateOf(Config.isAutoSyncEnabled(context)) }
+    // Cambia al elegir carpeta, para repintar el estado.
+    var treeUri by remember { mutableStateOf(Config.getBackupTreeUri(context)) }
 
     // Resolver el nombre de la carpeta es una consulta al proveedor de
     // documentos: con Drive es una llamada de red, así que va fuera de la
     // composición o congelaría la pantalla al abrir los ajustes.
     var folderName by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(treeUriString.value) {
-        folderName = treeUriString.value?.let { loadFolderName(context, Uri.parse(it)) }
+    LaunchedEffect(treeUri) {
+        folderName = treeUri?.let { loadFolderName(context, Uri.parse(it)) }
     }
 
-    // Un solo mensaje para todas las filas: si cada una guardara el suyo, el
-    // resultado de "restaurar" aparecería debajo del botón de "sincronizar".
+    // Un solo mensaje para la sección, en vez de uno por botón.
     LaunchedEffect(statusMessage) {
         if (statusMessage != null) {
             delay(RESULT_TIMEOUT_MS)
@@ -549,61 +437,69 @@ private fun AutoBackupSection(context: Context) {
         }
     }
 
-    fun report(message: String, isError: Boolean) {
-        statusMessage = message
-        statusIsError = isError
+    suspend fun syncNow() {
+        isSyncing = true
+        when (val result = DataSync.flush(context, force = true)) {
+            is SyncResult.Written -> {
+                statusIsError = false
+                statusMessage = Translations.get(context, "sync_done")
+                    .format(result.summary.playlistCount, result.summary.trackCount)
+            }
+            // "force" solo salta la comparación de huellas, no la falta de
+            // listas: sin listas no hay nada que copiar.
+            SyncResult.UpToDate -> {
+                statusIsError = false
+                statusMessage = Translations.get(context, "sync_empty")
+            }
+            SyncResult.NotConfigured -> {
+                statusIsError = true
+                statusMessage = Translations.get(context, "sync_need_folder")
+            }
+            is SyncResult.Failed -> {
+                statusIsError = true
+                statusMessage = Translations.get(context, "sync_error")
+            }
+        }
+        isSyncing = false
     }
 
     val folderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
-    ) { treeUri ->
-        if (treeUri == null) return@rememberLauncherForActivityResult
+    ) { selected ->
+        if (selected == null) return@rememberLauncherForActivityResult
 
         coroutineScope.launch {
             // Sin este permiso el acceso se pierde al reiniciar y la copia
             // automática solo funcionaría hasta que apagues el móvil.
-            if (!BackupFolder.persistAccess(context, treeUri)) {
-                report(Translations.get(context, "backup_folder_denied"), isError = true)
+            if (!BackupFolder.persistAccess(context, selected)) {
+                statusIsError = true
+                statusMessage = Translations.get(context, "sync_folder_denied")
                 return@launch
             }
 
             // Se suelta la carpeta anterior: dejar permisos huérfanos en el
             // sistema solo ocupa cuota y confunde al usuario.
-            val previous = Config.getBackupTreeUri(context)
-            if (previous != null && previous != treeUri.toString()) {
+            treeUri?.takeIf { it != selected.toString() }?.let { previous ->
                 runCatching { BackupFolder.releaseAccess(context, Uri.parse(previous)) }
             }
 
-            Config.setBackupTree(context, treeUri.toString(), documentId = null)
-            treeUriString.value = treeUri.toString()
-            autoSyncOn = true
-            Config.setAutoSyncEnabled(context, true)
+            Config.setBackupTree(context, selected.toString(), documentId = null)
+            treeUri = selected.toString()
+
+            // Elegir carpeta y sincronizar es una sola acción: no tiene
+            // sentido pedirla y dejar el archivo sin crear.
+            syncNow()
         }
     }
 
-    Subtitulo(Translations.get(context, "backup_section"))
+    Subtitulo(Translations.get(context, "sync_section"))
 
     Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
-    val folder = treeUriString.value
-    if (folder == null) {
-        DataActionRow(
-            context = context,
-            label = Translations.get(context, "backup_pick_folder"),
-            workingKey = "backup_pick_folder",
-            isWorking = false,
-            statusText = null,
-            isError = false,
-            onStatusCleared = {},
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                folderLauncher.launch(null)
-            }
-        )
-    } else {
+    val folder = treeUri
+    if (folder != null) {
         Text(
-            text = Translations.get(context, "backup_folder_set")
-                .format(folderName ?: folder),
+            text = Translations.get(context, "sync_folder").format(folderName ?: folder),
             style = MaterialTheme.typography.bodySmall.copy(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
@@ -615,125 +511,32 @@ private fun AutoBackupSection(context: Context) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
         )
-
-        Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-        // Interruptor de copia automática
-        DataActionRow(
-            context = context,
-            label = Translations.get(context, "backup_toggle") + if (autoSyncOn) " [x]" else " [ ]",
-            workingKey = "backup_syncing",
-            isWorking = false,
-            statusText = null,
-            isError = false,
-            onStatusCleared = {},
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                val enabled = !autoSyncOn
-                autoSyncOn = enabled
-                Config.setAutoSyncEnabled(context, enabled)
-                report(
-                    Translations.get(context, if (enabled) "backup_toggle_on" else "backup_toggle_off"),
-                    isError = false
-                )
-            }
-        )
-
-        Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-        DataActionRow(
-            context = context,
-            label = Translations.get(context, "backup_sync_now"),
-            workingKey = "backup_syncing",
-            isWorking = isSyncing,
-            statusText = null,
-            isError = false,
-            onStatusCleared = {},
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                if (isSyncing) return@DataActionRow
-                coroutineScope.launch {
-                    isSyncing = true
-                    when (val result = DataSync.flush(context, force = true)) {
-                        is SyncResult.Written -> report(
-                            Translations.get(context, "backup_sync_done")
-                                .format(result.summary.playlistCount, result.summary.trackCount),
-                            isError = false
-                        )
-                        // "force" solo salta la comparación de huellas, no la
-                        // falta de listas: sin listas no hay nada que copiar.
-                        SyncResult.UpToDate -> report(
-                            Translations.get(context, "backup_sync_uptodate"), isError = false
-                        )
-                        SyncResult.NotConfigured -> report(
-                            Translations.get(context, "backup_restore_none"), isError = true
-                        )
-                        is SyncResult.Failed -> report(
-                            Translations.get(context, "backup_sync_error"), isError = true
-                        )
-                    }
-                    isSyncing = false
-                }
-            }
-        )
-
-        Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-        DataActionRow(
-            context = context,
-            label = Translations.get(context, "backup_restore"),
-            workingKey = "import_data_working",
-            isWorking = isRestoring,
-            statusText = null,
-            isError = false,
-            onStatusCleared = {},
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                if (isRestoring) return@DataActionRow
-                coroutineScope.launch {
-                    isRestoring = true
-                    DataSync.importFromBackupFolder(context).fold(
-                        onSuccess = { report(importSummaryText(context, it), isError = false) },
-                        onFailure = { error ->
-                            report(
-                                Translations.get(
-                                    context,
-                                    if (error is ManifestFormatException) {
-                                        "import_data_bad_file"
-                                    } else {
-                                        "import_data_error"
-                                    }
-                                ),
-                                isError = true
-                            )
-                        }
-                    )
-                    isRestoring = false
-                }
-            }
-        )
-
-        Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-        DataActionRow(
-            context = context,
-            label = Translations.get(context, "backup_stop"),
-            workingKey = "backup_stopped",
-            isWorking = false,
-            statusText = null,
-            isError = false,
-            onStatusCleared = {},
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                DataSync.forgetBackupFolder(context)
-                treeUriString.value = null
-                autoSyncOn = false
-                report(Translations.get(context, "backup_stopped"), isError = false)
-            }
-        )
     }
 
-    // Mensaje único de la sección, debajo de todo lo anterior.
+    DataActionRow(
+        context = context,
+        label = Translations.get(context, "sync"),
+        workingKey = "sync_working",
+        isWorking = isSyncing,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            if (isSyncing) return@DataActionRow
+
+            val known = treeUri
+            val target = known?.let {
+                runCatching { BackupFolder.findExistingBackupFile(context, Uri.parse(it)) }.getOrNull()
+            }
+
+            if (target == null) {
+                // O no hay carpeta, o el archivo ya no está donde se esperaba.
+                // En ambos casos solo el usuario puede decir dónde escribir.
+                folderLauncher.launch(null)
+            } else {
+                coroutineScope.launch { syncNow() }
+            }
+        }
+    )
+
     statusMessage?.let { message ->
         Spacer(modifier = Modifier.height(dimensions.itemSpacing))
         Text(
@@ -781,27 +584,8 @@ private suspend fun loadFolderName(context: Context, treeUri: Uri): String? =
     }
 
 /**
- * Mensaje de resumen de una importación. Compartido por el import manual y el
- * que viene de la carpeta, porque cuenta exactamente lo mismo.
- */
-private fun importSummaryText(context: Context, summary: ImportSummary): String = buildString {
-    append(
-        Translations.get(context, "import_data_done")
-            .format(summary.importedPlaylists, summary.importedTracks)
-    )
-    if (summary.mergedLikedTracks > 0 || summary.skippedPlaylists > 0) {
-        append(' ')
-        append(
-            Translations.get(context, "import_data_extra")
-                .format(summary.mergedLikedTracks, summary.skippedPlaylists)
-        )
-    }
-}
-
-/**
- * Fila de acción de ajustes con los tres estados que comparten la exportación y
- * la importación: lista para pulsar, trabajando y mensaje de resultado (que se
- * borra solo a los [RESULT_TIMEOUT_MS] para dejar sitio a reintentar).
+ * Fila de acción de ajustes con dos estados: lista para pulsar y trabajando.
+ * Comparte con [SyncSection] tanto el estilo como el indicador de progreso.
  */
 @Composable
 private fun DataActionRow(
@@ -809,19 +593,9 @@ private fun DataActionRow(
     label: String,
     workingKey: String,
     isWorking: Boolean,
-    statusText: String?,
-    isError: Boolean,
-    onStatusCleared: () -> Unit,
     onClick: () -> Unit
 ) {
     val dimensions = calculateResponsiveDimensionsFallback()
-
-    LaunchedEffect(statusText) {
-        if (statusText != null) {
-            delay(RESULT_TIMEOUT_MS)
-            onStatusCleared()
-        }
-    }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -841,22 +615,6 @@ private fun DataActionRow(
             )
             Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        } else if (statusText != null) {
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = if (isError) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                    }
-                ),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
         } else {
             Text(
                 text = label,

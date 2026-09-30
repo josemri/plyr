@@ -24,11 +24,11 @@ sealed interface SyncResult {
     /** Los datos no habían cambiado desde la última vez: no se tocó nada. */
     data object UpToDate : SyncResult
 
-    /** No hay carpeta configurada, o la copia automática está desactivada. */
+    /** No hay carpeta de copia configurada todavía. */
     data object NotConfigured : SyncResult
 
     /**
-     * Falló la escritura. Solo lo ve el botón "sincronizar ya"; la copia
+     * Falló la escritura. Solo lo ve el botón de sincronizar; la copia
      * automática lo ignora a propósito (ver [DataSync.flush]).
      */
     data class Failed(val error: Throwable) : SyncResult
@@ -116,7 +116,7 @@ object DataSync {
 
     /**
      * Escribe la copia ahora. [force] ignora la comparación de huellas, para el
-     * botón "sincronizar ya" de los ajustes, donde el usuario quiere
+     * botón de sincronizar de los ajustes, donde el usuario quiere
      * confirmación de que se ha escrito.
      */
     suspend fun flush(context: Context, force: Boolean): SyncResult = writeLock.withLock {
@@ -269,20 +269,4 @@ object DataSync {
 
     private fun Uri.documentIdOrEmpty(): String =
         runCatching { DocumentsContract.getDocumentId(this) }.getOrNull().orEmpty()
-
-    /**
-     * Libera la carpeta: olvida el Uri, suelta el permiso persistente y apaga
-     * la copia automática. Lo usa el botón de dejar de sincronizar.
-     */
-    fun forgetBackupFolder(context: Context) {
-        val appContext = context.applicationContext
-        debounceJob?.cancel()
-        debounceJob = null
-        isDirty.set(false)
-
-        Config.getBackupTreeUri(appContext)?.let { stored ->
-            runCatching { BackupFolder.releaseAccess(appContext, Uri.parse(stored)) }
-        }
-        Config.clearBackupTree(appContext)
-    }
 }

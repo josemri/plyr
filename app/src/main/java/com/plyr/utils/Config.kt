@@ -35,7 +35,6 @@ object Config {
     private const val KEY_BACKUP_TREE_URI = "backup_tree_uri"
     private const val KEY_BACKUP_DOC_ID = "backup_doc_id"
     private const val KEY_BACKUP_HASH = "backup_hash"
-    private const val KEY_AUTO_SYNC = "auto_sync"
 
     // Clave para el nickname del usuario en Feed
     private const val KEY_USER_NICKNAME = "user_nickname"
@@ -333,16 +332,13 @@ object Config {
 
     /**
      * Si la app debe volcar los cambios a la carpeta por su cuenta al salir.
-     * Desactivado por defecto: hasta que el usuario no elija una carpeta no hay
-     * nada adónde escribir, y algunos no quieren gastar datos con la copia.
+     *
+     * No hay interruptor: basta con que haya carpeta. Tenerla *es* la
+     * decisión del usuario, y un flag aparte solo servía para poder
+     * desincronizar, que ya no se ofrece en la interfaz.
      */
     fun isAutoSyncEnabled(context: Context): Boolean =
-        getPrefs(context).getBoolean(KEY_AUTO_SYNC, false) &&
-            getPrefs(context).getString(KEY_BACKUP_TREE_URI, null) != null
-
-    fun setAutoSyncEnabled(context: Context, enabled: Boolean) {
-        getPrefs(context).edit { putBoolean(KEY_AUTO_SYNC, enabled) }
-    }
+        getPrefs(context).getString(KEY_BACKUP_TREE_URI, null) != null
 
     /**
      * Olvida la carpeta de copia: se usa cuando el permiso SAF deja de ser
@@ -354,7 +350,6 @@ object Config {
             remove(KEY_BACKUP_TREE_URI)
             remove(KEY_BACKUP_DOC_ID)
             remove(KEY_BACKUP_HASH)
-            putBoolean(KEY_AUTO_SYNC, false)
         }
     }
 
