@@ -49,10 +49,12 @@
             android:foregroundServiceType="mediaPlayback">
         </service>
 
-        <!-- Botones de media de auriculares, coche y teclado -->
+        <!-- Botones de media de auriculares, coche y teclado.
+             No necesita estar exportada: el sistema y la propia app pueden
+             entregarle ACTION_MEDIA_BUTTON sin exponerla a otras apps (B39). -->
         <receiver
             android:name=".receivers.MediaButtonReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>

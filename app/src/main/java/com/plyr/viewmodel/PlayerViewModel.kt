@@ -25,6 +25,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import androidx.annotation.OptIn
 
 /**
@@ -102,7 +103,28 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var currentVideoId: String? = null
     private var queueRepeatMode: String = Config.REPEAT_MODE_OFF
 
+    /**
+     * Video de YouTube realmente usado por cada pista, indexado por `track.id`.
+     *
+     * Para las pistas resueltas por búsqueda, `track.youtubeVideoId` es `null`,
+     * así que aquí es donde queda el id que sirvió la URL que se acaba de
+     * caducar: `invalidate()` no llegaba a llamarse y el reintento recibía de la
+     * caché la misma URL muerta (B4).
+     */
+    private val resolvedVideoId = ConcurrentHashMap<String, String>()
+
     private var prefetchJob: Job? = null
+
+    /**
+     * Rango de índices que [prefetchJob] está rellenando ahora mismo.
+     *
+     * `growWindow()` se llama dos veces por transición (una al saltar y otra al
+     * entrar en el item). Sin esta marca, la segunda cancelaba la primera y
+     * relanzaba la misma extracción, y como la de la primera no se puede
+     * interrumpir, las dos acababan añadiendo los mismos items a la ventana
+     * (B5).
+     */
+    private var prefetchRange: String? = null
 
     // ------------------------------------------------------------------ //
     // Ciclo de vida del reproductor
@@ -154,6 +176,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                         if (mediaItem == null || this@apply.mediaItemCount == 0) return
                         syncIndexFromWindow()
                         publishCurrentTrack()
+                        // Un item arranca a reproducirse: el error anterior era
+                        // de la pista que ya no suena, así que se retira. Sin
+                        // esto el mensaje se quedaba pegado y los controles
+                        // quedaban deshabilitados para siempre (B6).
+                        _error.publish(null)
                         onMediaSessionUpdate?.invoke(this@apply)
 
                         // Transición automática: es el momento de reponer la
@@ -276,6 +303,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         transitionInFlight = false
         consecutiveFailures = 0
         currentVideoId = null
+        resolvedVideoId.clear()
+        prefetchRange = null
         windowStart = 0
 
         _exoPlayer?.let { player ->
@@ -338,8 +367,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         val track = queue[index]
         try {
+            val knownId = track.youtubeVideoId ?: resolvedVideoId[track.id]
             val videoId = withContext(Dispatchers.IO) {
-                YouTubeManager.resolveVideoId(track.name, track.artists, track.youtubeVideoId)
+                YouTubeManager.resolveVideoId(track.name, track.artists, knownId)
             }
             val audioUrl = videoId?.let {
                 withContext(Dispatchers.IO) { YouTubeManager.getAudioUrl(it) }
@@ -354,6 +384,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             windowStart = index
+            resolvedVideoId[track.id] = videoId
             setCurrentIndex(index)
             currentVideoId = videoId
             transitionInFlight = false
@@ -423,7 +454,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                 while (resolved.isEmpty()) {
                     val endExclusive = minOf(candidate + WINDOW_AHEAD, queue.size - 1) + 1
-                    resolved = resolveItems(candidate, endExclusive, gen)
+                    resolved = resolveItems(candidate, endExclusive, gen, forceRefresh = reResolve)
                     if (resolved.isNotEmpty()) break
 
                     // Ninguna se pudo resolver: se prueban las siguientes antes de
@@ -492,25 +523,39 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val lastNew = minOf(minOf(lastCovered + missing, queue.size - 1), from + WINDOW_AHEAD - 1)
         if (from > lastNew) return
 
-        prefetchJob?.cancel()
         val gen = generation
+        val range = "$gen:$from-$lastNew"
+
+        // La transición llama a growWindow() dos veces (salto + entrada en el
+        // item). Si el relleno que hace falta es el mismo, se deja terminar el
+        // que ya está en marcha en vez de relanzarlo: la extracción anterior no
+        // se puede interrumpir, así que relanzar la repetía y las dos acababan
+        // añadiendo los mismos items a la ventana (B5).
+        if (prefetchRange == range) return
+
+        prefetchJob?.cancel()
+        prefetchRange = range
         prefetchJob = viewModelScope.launch {
-            val resolved = resolveItems(from, lastNew + 1, gen)
-            if (gen != generation) return@launch
+            try {
+                val resolved = resolveItems(from, lastNew + 1, gen)
+                if (gen != generation) return@launch
 
-            // Solo se añaden los items desde `from` sin huecos: si uno falla, la
-            // ventana debe dejar de crecer ahí o la posición de ExoPlayer
-            // dejaría de corresponder con el índice de la cola.
-            var expected = from
-            val contiguous = ArrayList<MediaItem>(resolved.size)
-            for (item in resolved) {
-                if (item.index != expected) break
-                contiguous.add(item.mediaItem)
-                expected++
+                // Solo se añaden los items desde `from` sin huecos: si uno falla, la
+                // ventana debe dejar de crecer ahí o la posición de ExoPlayer
+                // dejaría de corresponder con el índice de la cola.
+                var expected = from
+                val contiguous = ArrayList<MediaItem>(resolved.size)
+                for (item in resolved) {
+                    if (item.index != expected) break
+                    contiguous.add(item.mediaItem)
+                    expected++
+                }
+                if (contiguous.isEmpty()) return@launch
+
+                _exoPlayer?.addMediaItems(contiguous)
+            } finally {
+                if (prefetchRange == range) prefetchRange = null
             }
-            if (contiguous.isEmpty()) return@launch
-
-            _exoPlayer?.addMediaItems(contiguous)
         }
     }
 
@@ -532,11 +577,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * poca concurrencia. Solo devuelve items cuyo índice se conoce, y nunca si
      * la cola cambió durante la resolución: un resultado obsoleto no debe
      * aplicarse. Los índices ausentes se ignoran (huecos), no se comprimen.
+     *
+     * [forceRefresh] salta la caché de URLs: lo usa el reintento tras una URL
+     * caducada, que si no volvería a recibir la misma URL muerta (B4).
      */
     private suspend fun resolveItems(
         from: Int,
         toExclusive: Int,
-        gen: Int
+        gen: Int,
+        forceRefresh: Boolean = false
     ): List<ResolvedItem> {
         val start = from.coerceAtLeast(0)
         val end = toExclusive.coerceAtMost(queue.size)
@@ -549,12 +598,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .map { chunk ->
                     async(Dispatchers.IO) {
                         chunk.map { track ->
+                            // Si la pista ya se resolvió antes (por búsqueda),
+                            // se reutiliza ese video en vez de volver a buscarlo.
+                            val knownId = track.youtubeVideoId ?: resolvedVideoId[track.id]
                             val videoId = YouTubeManager.resolveVideoId(
                                 track.name,
                                 track.artists,
-                                track.youtubeVideoId
+                                knownId
                             )
-                            videoId to videoId?.let { YouTubeManager.getAudioUrl(it) }
+                            if (videoId != null) resolvedVideoId[track.id] = videoId
+                            videoId to videoId?.let {
+                                YouTubeManager.getAudioUrl(it, forceRefresh = forceRefresh)
+                            }
                         }
                     }
                 }
@@ -673,7 +728,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (absolute !in queue.indices) return
 
         currentIndex = absolute
-        currentVideoId = queue[absolute].youtubeVideoId
+        val track = queue[absolute]
+        currentVideoId = resolvedVideoId[track.id] ?: track.youtubeVideoId
     }
 
     private fun trackAt(index: Int): TrackEntity? = queue.getOrNull(index)
@@ -681,7 +737,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /** Fija la posición actual y refleja el cambio en la UI. */
     private fun setCurrentIndex(index: Int) {
         currentIndex = index
-        currentVideoId = trackAt(index)?.youtubeVideoId
+        val track = trackAt(index)
+        // El id que cuenta es el que sirvió la URL, no el de la pista: si la
+        // canción se resolvió por búsqueda, el de la pista es null (B4).
+        currentVideoId = track?.let { resolvedVideoId[it.id] ?: it.youtubeVideoId }
         consecutiveFailures = 0
         publishCurrentTrack()
     }

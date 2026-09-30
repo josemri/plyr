@@ -220,4 +220,107 @@ class DatabaseMappingsTest {
         assertNotNull(match)
         assertEquals("Song", match!!.name)
     }
+
+    // --- B1: identidad de la fila de liked_songs ---
+
+    private fun likedRow(
+        id: String,
+        name: String,
+        artists: String,
+        youtubeVideoId: String? = null,
+        position: Int = 0
+    ) = TrackEntity(
+        id = id,
+        playlistId = PlaylistLocalRepository.LIKED_SONGS_ID,
+        remoteTrackId = "r_$id",
+        name = name,
+        artists = artists,
+        youtubeVideoId = youtubeVideoId,
+        audioUrl = null,
+        position = position
+    )
+
+    @Test
+    fun likedTrackOf_findsRowByYoutubeVideoId() {
+        val tracks = listOf(
+            likedRow("a", "Song A", "Artist A", youtubeVideoId = "vidA"),
+            likedRow("b", "Song B", "Artist B", youtubeVideoId = "vidB", position = 1)
+        )
+
+        val found = PlaylistLocalRepository.likedTrackOf(
+            tracks, "Song B", "Artist B", "remoteB", "vidB"
+        )
+
+        assertNotNull(found)
+        assertEquals("b", found!!.id)
+    }
+
+    @Test
+    fun likedTrackOf_blankId_fallsBackToNameAndArtists() {
+        // Fila guardada por el bug anterior: liked sin youtubeVideoId.
+        val tracks = listOf(likedRow("legacy", "Legacy Song", "Legacy Artist"))
+
+        val found = PlaylistLocalRepository.likedTrackOf(
+            tracks, "Legacy Song", "Legacy Artist", "remote", ""
+        )
+
+        assertNotNull("Sin id debe encontrar la fila por nombre+artista", found)
+        assertEquals("legacy", found!!.id)
+    }
+
+    @Test
+    fun likedTrackOf_nullId_fallsBackToNameAndArtists() {
+        val tracks = listOf(likedRow("legacy", "Legacy Song", "Legacy Artist"))
+
+        val found = PlaylistLocalRepository.likedTrackOf(
+            tracks, "Legacy Song", "Legacy Artist", "remote", null
+        )
+
+        assertEquals("legacy", found?.id)
+    }
+
+    @Test
+    fun likedTrackOf_emptyId_doesNotMatchAnotherSong() {
+        val tracks = listOf(likedRow("a", "Song A", "Artist A", youtubeVideoId = "vidA"))
+
+        val found = PlaylistLocalRepository.likedTrackOf(
+            tracks, "Otra canción", "Otro artista", "remote", ""
+        )
+
+        assertNull("Sin coincidencia no debe tocar ninguna fila", found)
+    }
+
+    @Test
+    fun likedTrackOf_videoIdTakesPrecedenceOverSameName() {
+        val tracks = listOf(
+            likedRow("byName", "Shared Name", "Shared Artist", youtubeVideoId = null),
+            likedRow("byId", "Shared Name", "Shared Artist", youtubeVideoId = "vidX", position = 1)
+        )
+
+        val found = PlaylistLocalRepository.likedTrackOf(
+            tracks, "Shared Name", "Shared Artist", "remote", "vidX"
+        )
+
+        assertEquals("Con id, manda el id", "byId", found?.id)
+    }
+
+    @Test
+    fun likedTrackOf_unknownId_fallsBackToNameAndArtists() {
+        val tracks = listOf(likedRow("a", "Song A", "Artist A"))
+
+        val found = PlaylistLocalRepository.likedTrackOf(
+            tracks, "Song A", "Artist A", "remote", "vidResueltoDespues"
+        )
+
+        assertEquals("El id guardado puede venir de otra resolución", "a", found?.id)
+    }
+
+    @Test
+    fun likedTrackOf_emptyList_returnsNull() {
+        val found = PlaylistLocalRepository.likedTrackOf(
+            emptyList(), "Song", "Artist", "remote", "vid"
+        )
+
+        assertNull(found)
+    }
 }

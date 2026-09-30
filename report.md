@@ -37,19 +37,21 @@
 > **B29**, **B36**, **B37**, **B44**, **B45**— y en una quinta los 11 del grupo
 > T4 —**B3**, **B9**, **B12**, **B13**, **B18**, **B19**, **B20**, **B25**,
 > **B33**, **B35**, **B41**— y en una sexta los 7 del grupo T5 —**B7**, **B8**,
-> **B11**, **B15**, **B16**, **B23**, **B28**—; todos están documentados en
-> **§10** (40 resueltos en total) y quedan **7 activos** (5 altos, 1 medio,
-> 1 bajo). El total de tests pasó de 288 a **294** (con B25 se retiró el test
+> **B11**, **B15**, **B16**, **B23**, **B28**— y en una séptima los 7 que
+> quedaban de reproducción, favoritos, swipe y manifiesto —**B1**, **B2**,
+> **B4**, **B5**, **B6**, **B39**, **B48**—; todos están documentados en
+> **§10** (47 resueltos en total) y queda **1 activo** (los datos, **B32**). El
+> total de tests pasó de 288 a **310** (con B25 se retiró el test
 > que consolidaba el "ahora falso" de `parseTimestamp` y se añadieron 4:
 > `isoWithOffset`, `invalidReturnsZeroNotNow`, `blankReturnsZero`,
 > `rejectsTrailingGarbage`; en T5 se añadieron `build_reportsDiscardedTracks`
 > y `build_cancelledScopeStopsResolving` en `YouTubePlaylistCreatorTest` y
 > `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition` en
-> `DatabaseMappingsTest`). El resto de hallazgos no se ha tocado en estas seis
-> rondas; el swipe "añadir a playlist" (**B2**), la reproducción y la cola
-> (**B1**, **B4**, **B5**, **B6**), los datos (**B32**), **B39** (manifiesto),
-> la animación de `NfcButton` (resto de B20) y las traducciones de **§7.1**
-> siguen pendientes de lo descrito abajo.
+> `DatabaseMappingsTest`; en T6 se añadió el fichero nuevo
+> `AudioUrlExtractionTest` (9) y 7 tests de identidad de favoritos en
+> `DatabaseMappingsTest`, que pasa a 21). Los datos (**B32**), la animación de
+> `NfcButton` (resto de B20) y las traducciones de **§7.1** siguen pendientes de
+> lo descrito abajo.
 
 ---
 
@@ -60,27 +62,36 @@ migración Spotify → YouTube está hecha, no queda `runBlocking`, las
 dependencias están limpias y la lógica pura de cola está extraída y testeada.
 
 **Los dos fallos que has reportado están encontrados, y no son el mismo bug.**
-El tercero que recordabas —añadir canciones a una lista— también existe, y es
-peor: **ninguna de las cinco rutas para hacerlo funciona** (§1.3). En total
-fueron **47 bugs** verificados contra el código; desde entonces se han resuelto
-**40** (B3, B7, B8, B9, B10, B11, B12, B13, B14, B15, B16, B17, B18, B19, B20,
-B21, B22, B23, B24, B25, B26, B27, B28, B29, B30, B31, B33, B34, B35, B36, B37,
-B38, B40, B41, B42, B43, B44, B45, B46, B47 — ver §10), así que quedan **7
-activos** (5 altos, 1 medio, 1 bajo).
-### 1.1 El slide a "liked" no funciona → **es un bug de datos, no de gesto**
+El tercero que recordabas —añadir canciones a una lista— también existía, y era
+peor: **ninguna de las cinco rutas para hacerlo funcionaba** (§1.3). **Las tres
+cosas están ya arregladas**: los dos fallos reportados y las cinco rutas. En total
+fueron **48 bugs** verificados contra el código; desde entonces se han resuelto
+**47** (B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15, B16, B17,
+B18, B19, B20, B21, B22, B23, B24, B25, B26, B27, B28, B29, B30, B31, B33, B34, B35,
+B36, B37, B38, B39, B40, B41, B42, B43, B44, B45, B46, B47, B48 — ver §10), así
+que queda **1 activo** (**B32**, los datos). El último hallazgo (**B48**, el
+refresco de la lista *Liked*) salió de revisar el flujo de favoritos que
+reportaste ("no puedo quitar canciones de Liked"), y quedó arreglado en la misma
+séptima tanda que **B1**: quitar un favorito de la lista *Liked* abierta es
+justamente el caso que fallaba.
+### 1.1 El slide a "liked" no funciona → **es un bug de datos, no de gesto** (~~B1~~, **resuelto** → §10)
 
-`PlaylistScreen` construye el `Song` **sin `youtubeId`** en los tres sitios donde
-se lista una playlist (`PlaylistScreen.kt:719`, `:793`, `:853`):
+`PlaylistScreen` construía el `Song` **sin `youtubeId`** en los tres sitios donde
+se lista una playlist (`PlaylistScreen.kt:721`, `:794`, `:856`):
 
 ```kotlin
 val song = Song(number = index + 1, title = track.name,
                 artist = track.getArtistNames(),
-                remoteId = track.id,                       // ← no hay youtubeId
+                remoteId = track.id,                       // ← no había youtubeId
                 shareUrl = "https://www.youtube.com/watch?v=${track.id}")
 ```
 
-`SongListItem.executeSwipeAction` no lo comprueba y lo sustituye por cadena
-vacía (`SongListItem.kt:421-432`):
+Los tres pasan ya `youtubeId` (el de la pista, o el id de YouTube del resultado
+de búsqueda en la lista del modo edición), así que el `youtubeId` ya no llega
+nulo a ninguna fila.
+
+`SongListItem.executeSwipeAction` tampoco lo sustituía por cadena vacía
+(`SongListItem.kt:421-432`):
 
 ```kotlin
 Config.SWIPE_ACTION_ADD_TO_LIKED -> {
@@ -89,7 +100,7 @@ Config.SWIPE_ACTION_ADD_TO_LIKED -> {
         ...
 ```
 
-Y `toggleLikeTrack` busca por `youtubeVideoId` con **igualdad exacta**
+y `toggleLikeTrack` buscaba por `youtubeVideoId` con **igualdad exacta**
 (`PlaylistLocalRepository.kt:61-63`):
 
 ```kotlin
@@ -97,44 +108,73 @@ val tracks = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
 val existing = tracks.find { it.youtubeVideoId == youtubeVideoId }
 ```
 
-Consecuencias, en orden:
+La identidad de la fila de *liked* vive ahora en una función pura,
+`PlaylistLocalRepository.likedTrackOf`, usada por el toggle **y** por la
+consulta de estado: primero busca por `youtubeVideoId` y, si la canción llega
+sin id, cae a nombre+artista con `ImportManifest.fallbackDedupeKey` —el mismo
+criterio que ya usaba `mergeLikedSongsTracks`—, de modo que las filas corruptas
+que quedaron guardadas con `""` también se encuentran y se pueden quitar. El
+`""` ya no se envía nunca, y el popup (`SongListItem.kt:287-292`) consulta
+`isTrackLikedByKey`, así que la fila muestra el estado real y el corazón actúa
+aunque la canción no tenga id.
 
-1. El primer swipe guarda una pista con `youtubeVideoId = ""` en `liked_songs`.
-2. El swipe sobre **otra** canción sin `youtubeId` encuentra esa misma fila
+Consecuencias, en orden (todas ~~desaparecidas~~ con el arreglo):
+
+1. ~~El primer swipe guarda una pista con `youtubeVideoId = ""` en `liked_songs`.~~
+2. ~~El swipe sobre **otra** canción sin `youtubeId` encuentra esa misma fila
    (`"" == ""`) y **la borra** en lugar de marcar la nueva. Por eso "a veces no
-   funciona": depende del estado previo de la lista de favoritos.
-3. `isTrackLiked("")` devuelve `true` para cualquier canción, así que el popup
-   de la fila muestra siempre `♥ liked` (`SongListItem.kt:285-290`).
+   funciona": depende del estado previo de la lista de favoritos.~~
+3. ~~El popup de la fila nunca consulta el estado real: `LaunchedEffect` corre con
+   `song.youtubeId` nulo y no llama a `isTrackLiked`, así que `isLiked` se queda
+   en `false` y la fila muestra **"♡ like" aunque ya esté en favoritos**
+   (`SongListItem.kt:287-292`). Y como el pulso también va en
+   `song.youtubeId?.let { … }`, **el botón no hace nada** (no-op silencioso).
+   (Solo las filas corruptas con `youtubeVideoId=""` salen `true`.)~~
 4. La pista guardada sin id de YouTube luego hay que resolverla por
    nombre/artista en cada reproducción (`YouTubeManager.resolveVideoId`), lo que
-   además hace que dos canciones parecidas colisionen en la misma fila.
+   además hace que dos canciones parecidas colisionen en la misma fila. Esto ya
+   no ocurre al guardar desde las listas de reproducción, que ahora llevan el id
+   real; sigue siendo el caso para las pistas importadas que nunca resolverán
+   (offline), por eso `PlayerViewModel` recuerda el video que resolvió cada pista
+   (§1.2, **B4**).
 
-Las pantallas de **búsqueda** sí pasan el id real (`SearchScreen.kt:447`,
+Las pantallas de **búsqueda** sí pasaban el id real (`SearchScreen.kt:447`,
 `YouTubeSearchResults.kt:226`, `YouTubePlaylistDetailView.kt:226`,
-`QueueScreen.kt:65`), y ahí el like sí funciona. Por eso parece intermitente: en
-la lista de reproducción no funciona, en la búsqueda sí.
+`QueueScreen.kt:65`), y ahí el like siempre funcionó. Por eso parecía
+intermitente: en la lista de reproducción no funcionaba, en la búsqueda sí.
 
-**Hay un segundo defecto en el mismo gesto, independiente del anterior:** el
-`pointerInput` del swipe está fijado a `Unit` (`SongListItem.kt:148`), así que
-captura `song`, `index` y `trackEntities` en la primera composición y **nunca se
-reinicia**. En las cuatro pantallas que lo usan, cualquier reordenación de la
-lista deja el swipe actuando sobre la pista que había en ese índice en el primer
-frame, no sobre la que se ve.
+**Y por eso mismo "quitar" de la lista *Liked* no funcionaba** (el síntoma que
+reportaste): abierta esa lista, el `Song` volvía a ir sin `youtubeId`, así que el
+corazón del detalle era un no-op silencioso y el swipe "a liked" llamaba a
+`toggleLikeTrack("")`, que **no encontraba** la fila real (su `youtubeVideoId`
+está bien guardado, no es `""`) y entraba en la rama de **añadir**: creaba una
+fila fantasma con id vacío en lugar de borrar la que se ve. La canción nunca
+salía de la lista. Añadir era fácil porque se hace desde las pantallas de
+búsqueda/crear (que sí llevan `youtubeId`); quitar se hace desde dentro de
+*Liked* (que no lo llevaba). Con el `youtubeId` real en las filas y el fallback
+por nombre+artista, **quitar funciona**; y con **B48** la lista abierta se
+refresca sola tras el toggle (ver §3.3).
 
-Y un tercero, en la propia mecánica del gesto (`SongListItem.kt:194-199`): cada
-evento de drag lanza una corrutina que hace `offsetX.snapTo(...)`. `Animatable`
-serializa con `MutatorMutex`, de modo que las corrutinas lanzadas se cancelan
-entre sí y el desplazamiento acumulado se pierde. Además `onDragEnd` evalúa el
-umbral **dentro** de una corrutina (`SongListItem.kt:150-153`), con el `snapTo`
-pendiente aún en vuelo, así que la comparación se hace sobre un valor que aún no
-es el final. Juntas, estas dos cosas producen exactamente el "a veces sí, a veces
-no" del swipe.
+**Hay un segundo defecto en el mismo gesto, independiente del anterior:**
+~~el `pointerInput` del swipe estaba fijado a `Unit` (`SongListItem.kt:148`), así
+que captura `song`, `index` y `trackEntities` en la primera composición y nunca
+se reinicia~~ (**B7**, ~~resuelto~~ → §10): se pasa
+`pointerInput(song.youtubeId, index, trackEntities)`, así que el gesto ya se
+reinicia al cambiar la pista, su índice o el set de pistas.
 
-### 1.2 La canción carga dos veces → tu hipótesis es correcta, y hay dos causas
+Y un tercero, en la propia mecánica del gesto (**B8**, ~~resuelto~~ → §10):
+~~cada evento de drag lanzaba una corrutina que hace `offsetX.snapTo(...)`.
+`Animatable` serializa con `MutatorMutex`, de modo que las corrutinas lanzadas se
+cancelan entre sí y el desplazamiento acumulado se pierde. Además `onDragEnd`
+evaluaba el umbral dentro de una corrutina, con el `snapTo` pendiente aún en
+vuelo, así que la comparación se hacía sobre un valor que aún no es el final.~~ El
+offset ahora se acumula de forma síncrona y `onDragEnd` lee el valor real.
+Juntas, producían exactamente el "a veces sí, a veces no" del swipe.
 
-**Causa 1: la invalidación de la URL caducada casi nunca se ejecuta.**
-Cuando el reproductor falla, `onItemUnplayable` intenta tirar la URL de la caché
-(`PlayerViewModel.kt:589-592`):
+### 1.2 La canción carga dos veces → tu hipótesis es correcta, y había dos causas (~~B4~~, ~~B5~~, **resueltos** → §10)
+
+**Causa 1: la invalidación de la URL caducada casi nunca se ejecutaba.**
+Cuando el reproductor falla, `onItemUnplayable` intenta tirar la URL de la caché:
 
 ```kotlin
 val expiredUrl = isHttpStatusError(error)
@@ -143,45 +183,64 @@ if (expiredUrl) {
 }
 ```
 
-Pero `currentVideoId` se sobrescribe con `queue[i].youtubeVideoId` en
-`syncIndexFromWindow` (`:660`) y en `setCurrentIndex` (`:668`), y ese campo es
-**`null` para toda pista que no venía con id de YouTube de origen** — o sea,
-casi todas, porque las que se resuelven por búsqueda guardan el id solo en
-memoria. Solo `startAt` lo repone con el id realmente resuelto (`:358`). En la
-práctica, cuando salta de canción el valor vuelve a `null`, la invalidación es un
-no-op, y el `playIndex(reResolve = true)` posterior (`:390`, `:608`) vuelve a
-pedir la URL... que `getAudioUrl` le devuelve **de la caché, la misma URL
-muerta** (`YouTubeManager.kt:68-80`). El `MediaItem` nuevo falla otra vez, la
-cola salta, y el ciclo se repite hasta agotar `MAX_CONSECUTIVE_FAILURES`.
+Pero `currentVideoId` se sobrescribía con `queue[i].youtubeVideoId` en
+`syncIndexFromWindow` y en `setCurrentIndex`, y ese campo es **`null` para toda
+pista que no venía con id de YouTube de origen** — o sea, casi todas, porque las
+que se resuelven por búsqueda guardan el id solo en memoria. Solo `startAt` lo
+reponía con el id realmente resuelto. En la práctica, cuando saltaba de canción
+el valor volvía a `null`, la invalidación era un no-op, y el
+`playIndex(reResolve = true)` posterior volvía a pedir la URL... que
+`getAudioUrl` le devolvía **de la caché, la misma URL muerta**. El `MediaItem`
+nuevo fallaba otra vez, la cola saltaba, y el ciclo se repetía hasta agotar
+`MAX_CONSECUTIVE_FAILURES`.
 
-**Causa 2: no hay deduplicación de extracciones en vuelo.** `getAudioUrl` no
-tiene *single-flight*: dos llamadas concurrentes del mismo `videoId` lanzan dos
-extracciones de red y la segunda sobrescribe a la primera en la caché. Y eso
-ocurre en cada transición, porque `growWindow()` se llama **dos veces por
+Ahora hay un `ConcurrentHashMap<String, String>` en `PlayerViewModel` con el
+video **realmente usado** por cada pista, indexado por `track.id`: se rellena
+tanto en `startAt` como en `resolveItems`, y tanto `syncIndexFromWindow` como
+`setCurrentIndex` leen de ahí primero. `invalidate()` recibe por fin el id
+correcto. Además `getAudioUrl` acepta `forceRefresh`, que salta la caché, y
+`resolveItems` lo propaga en el camino `reResolve = true`: el reintento ya no
+puede recibir la URL que acaba de morir. De paso, `resolveItems` reutiliza el
+video ya resuelto para esa pista en vez de volver a buscarlo en YouTube.
+
+**Causa 2: no había deduplicación de extracciones en vuelo.** `getAudioUrl` no
+tenía *single-flight*: dos llamadas concurrentes del mismo `videoId` lanzaban
+dos extracciones de red y la segunda sobrescribía a la primera en la caché. Y eso
+ocurría en cada transición, porque `growWindow()` se llamaba **dos veces por
 salto**:
 
-- `onMediaItemTransition(reason = AUTO)` → `growWindow()` (`PlayerViewModel.kt:163`)
-- `onTrackEnded()` → `playIndex()` → `growWindow()` (`:403`)
+- `onMediaItemTransition(reason = AUTO)` → `growWindow()`
+- `onTrackEnded()` → `playIndex()` → `growWindow()`
 
 y en la carga inicial, `onMediaItemTransition` (por el `setMediaItem` de
-`startAt`) más el `growWindow()` explícito de `startAt` (`:366`). Cada llamada
-hace `prefetchJob?.cancel()` y relanza (`:479-481`), y como la extracción es
+`startAt`) más el `growWindow()` explícito de `startAt`. Cada llamada hacía
+`prefetchJob?.cancel()` y relanzaba, y como la extracción es
 `withContext(Dispatchers.IO)` sobre OkHttp/NewPipe, **no es interrumpible**: la
-corrutina cancelada sigue extrayendo hasta el final pero ya no rellena la caché a
-tiempo, así que la relanzada vuelve a empezar de cero. Dos extracciones, misma
-canción, misma transición.
+corrutina cancelada seguía extrayendo hasta el final pero ya no rellenaba la
+caché a tiempo, así que la relanzada volvía a empezar de cero. Dos extracciones,
+misma canción, misma transición.
+
+`YouTubeManager` mantiene ahora un registro de extracciones en vuelo por
+`videoId` con un `CompletableDeferred`: la primera corre y las demás esperan su
+resultado, así que ocho peticiones simultáneas del mismo video hacen **una**
+extracción. Y `growWindow()` ya no relanza un relleno idéntico que está en
+marcha (`prefetchRange`): con la extracción indestructible, duplicarla era
+además una forma de **añadir dos veces los mismos items a la ventana**, no solo
+de repetir el trabajo de red.
 
 ### 1.3 Añadir canciones a una lista → sí falla, por **cinco** mecanismos distintos
 
-Tu intuición era correcta, y el problema es peor de lo que recuerdas: **no hay
-ninguna ruta de "añadir canciones a una lista" que funcione de principio a
-fin**. Hay cinco, y las cinco están rotas o son no-ops. Detalle por mecanismo:
+Tu intuición era correcta, y el problema era peor de lo que recuerdas: **no había
+ninguna ruta de "añadir canciones a una lista" que funcionase de principio a
+fin**. Hay cinco, y las cinco estaban rotas o eran no-ops. **Las cinco están ya
+resueltas** (B2, B3, B13, B14, B15/B16 → §10); lo que sigue es el análisis del
+estado que se encontró. Detalle por mecanismo:
 
-#### 1. El swipe "añadir a playlist" no hace nada (no-op puro) — **B2**
+#### 1. El swipe "añadir a playlist" no hace nada (no-op puro) — **B2** (~~resuelto~~ → §10)
 
-`ConfigScreen.kt:266,274,296,304` ofrece `swipe_action_playlist` como opción
-válida de swipe izquierda **y** derecha. `SongListItem.kt:56` le dibuja el icono
-`≡`, y `SongListItem.kt:446-448` la implementa así:
+`ConfigScreen.kt` ofrece `swipe_action_playlist` como opción válida de swipe
+izquierda **y** derecha, y `SongListItem.kt:57` le dibuja el icono `≡`, pero la
+implementación era solo un log (`SongListItem.kt:449-451`):
 
 ```kotlin
 Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> {
@@ -189,13 +248,19 @@ Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> {
 }
 ```
 
-Solo un log. Ni diálogo, ni escritura, ni navegación. Encima, el parámetro
-`onShowPlaylistDialog` que recibe la función **está cableado a `{}` en las dos
-ramas del gesto** (`SongListItem.kt:165` y `:182`), así que la única vía por la
-que el diálogo podría abrirse está muerta antes de empezar. Si en Ajustes
-configuraste esa acción, llevas meses viendo un icono que no hace nada.
+Ni diálogo, ni escritura, ni navegación. Encima, el parámetro
+`onShowPlaylistDialog` que recibe la función **estaba cableado a `{}` en las dos
+ramas del gesto** (`SongListItem.kt:171` y `:188`), así que la única vía por la
+que el diálogo podía abrirse estaba muerta antes de empezar. Si en Ajustes
+configuraste esa acción, llevabas meses viendo un icono que no hacía nada.
 
-#### 2. El `+` del modo edición escribe en la base de datos pero no recarga la lista — **B3**
+Ahora la rama llama a `onShowPlaylistDialog()`, las dos ramas del gesto la
+cablean a un diálogo de selección de playlist, y el diálogo lista las playlists
+locales (excluyendo *liked* y los álbumes) y añade la canción con
+`addTrackToYouTubePlaylist`, que ya deduplica (B13). Si no hay ninguna playlist,
+lo dice con `no_playlists`; el log de "no-op" ha desaparecido.
+
+#### 2. El `+` del modo edición escribe en la base de datos pero no recarga la lista — **B3** (~~resuelto~~ → §10)
 
 Este es el que más fácilmente se percibe como "no funciona". El flujo es
 `PlaylistScreen.kt:736` → `addTrackToYouTubePlaylist` (escritura correcta en
@@ -219,7 +284,7 @@ Hay una ironía útil: el `LiveData` de `playlists` **sí** se refresca, así qu
 el contador de la rejilla de la izquierda sube. Verás "+1 canciones" con la
 lista de dentro sin cambios. Eso es lo que hace el bug tan confuso.
 
-#### 3. `addTrackToYouTubePlaylist` no deduplica — **B13**
+#### 3. `addTrackToYouTubePlaylist` no deduplica — **B13** (~~resuelto~~ → §10)
 
 `PlaylistLocalRepository.kt:331-346` construye el id como
 `"${localPlaylistId}_${track.remoteTrackId}_$nextPosition"`, con
@@ -282,33 +347,36 @@ sin salida. El usuario ve el spinner y asume que la app se ha colgado.
 
 Las cinco rutas fallan, así que el síntoma depende de cuál uses:
 
-| Ruta | Síntoma que ve el usuario |
-|---|---|
-| Swipe "añadir a playlist" (Ajustes) | Nada. Un icono `≡` inerte. |
-| `<edit>` → buscar → `+` | La búsqueda se vacía y la canción no aparece. |
-| `<edit>` → `x` para quitar | La fila no desaparece. |
-| Crear playlist → `+` | Hay que repetir la búsqueda por cada canción. |
-| Crear playlist → `<create>` | Faltan canciones, sin ningún aviso. |
-| `<guardar>` en detalle de playlist de YouTube | **Este sí funciona**: cambia a `<saved>` (`:176-180`). Es la única ruta con feedback. |
+| Ruta | Síntoma que veía el usuario | Ahora |
+|---|---|---|
+| Swipe "añadir a playlist" (Ajustes) | Nada. Un icono `≡` inerte. | Diálogo de selección y añade (B2) |
+| `<edit>` → buscar → `+` | La búsqueda se vacía y la canción no aparece. | La lista se recarga (B3) |
+| `<edit>` → `x` para quitar | La fila no desaparece. | La fila desaparece (B3) |
+| Crear playlist → `+` | Hay que repetir la búsqueda por cada canción. | La búsqueda no se borra (B14) |
+| Crear playlist → `<create>` | Faltan canciones, sin ningún aviso. | Avisa cuántas y cuáles (B15/B16) |
+| `<guardar>` en detalle de playlist de YouTube | **Este sí funcionaba**: cambia a `<saved>` (`:176-180`). Única ruta con feedback. | Sin cambios |
 
-**La buena noticia:** la escritura en la base de datos es correcta en las cinco
-rutas. Los datos sí se guardan. Es la capa de UI la que miente — no refresca,
-no avisa, y en dos casos directamente no ejecuta nada. Eso significa que la
-mayoría de estas Playlist se arreglan con cambios de estado y de refresco, sin
-tocar el esquema ni la lógica de persistencia. Excepción: B13 necesita un
-índice único o una comprobación de duplicado, y B15/B16 necesitan que
-`YouTubePlaylistCreator.build` pase a ser `suspend` con cancelación y reporte
+**La buena noticia:** la escritura en la base de datos era correcta en las cinco
+rutas. Los datos sí se guardaban. Era la capa de UI la que mentía — no refrescaba,
+no avisaba, y en dos casos directamente no ejecutaba nada. Por eso la mayoría se
+arreglaron con cambios de estado y de refresco, sin tocar el esquema ni la lógica
+de persistencia. Excepción: B13 necesitó una comprobación de duplicado por
+identidad en `addTrackToYouTubePlaylist`, y B15/B16 que
+`YouTubePlaylistCreator.build` pasase a ser `suspend` con cancelación y reporte
 de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **0 bugs críticos**, **5 altos**, **1 medio**, **1 bajo** (§3).
-- **294 tests unitarios** en 21 archivos (`./run.sh test`; todos en verde).
+- **0 bugs críticos**, **0 altos**, **1 medio** (§3): solo **B32** (datos).
+- **310 tests unitarios** en 22 archivos (`./run.sh test`; todos en verde).
   Respecto a la tanda anterior: +4 de `parseTimestamp` (B25: `isoWithOffset`,
   `invalidReturnsZeroNotNow`, `blankReturnsZero`, `rejectsTrailingGarbage`), −1
-  que consolidaba el "ahora falso" (`parseTimestamp_invalidFallsBackToNow`) y +3
+  que consolidaba el "ahora falso" (`parseTimestamp_invalidFallsBackToNow`), +3
   en T5 (`build_reportsDiscardedTracks`, `build_cancelledScopeStopsResolving` y
-  `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition`).
+  `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition`) y **+16 en T6**:
+  el fichero nuevo `AudioUrlExtractionTest` (9, single-flight y salto de caché de
+  `YouTubeManager`) y 7 de identidad de favoritos en `DatabaseMappingsTest`, que
+  pasa de 14 a 21.
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
 - **~700 líneas muertas** entre `SongMenuDialog`, `CollapsibleSection`,
   `PlyrDimensions` y funciones sin uso (§7).
@@ -322,52 +390,60 @@ de descartes.
 | Métrica | Valor |
 |---|---|
 | Archivos Kotlin (main) | 71 (~14.757 líneas) |
-| Archivos de test | 21 (~3.177 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (1363), `ConfigScreen.kt` (919), `PlayerViewModel.kt` (712), `Translations.kt` (617), `FloatingMusicControls.kt` (536), `SearchScreen.kt` (477), `SongListItem.kt` (459), `QRDialog.kt` (449) |
+| Archivos de test | 22 (~3.300 líneas) |
+| Archivos más grandes | `PlaylistScreen.kt` (1363), `ConfigScreen.kt` (919), `PlayerViewModel.kt` (785), `Translations.kt` (617), `FloatingMusicControls.kt` (536), `SearchScreen.kt` (477), `SongListItem.kt` (545), `QRDialog.kt` (449) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **294** en 21 archivos (ejecutados y en verde) |
+| Tests unitarios | **310** en 22 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso | **16 de 104** (verificadas por barrido) |
 | Claves referenciadas que no existen | **1** (`"Player not available"`) |
 
-**Desglose de los 294 tests** (tras `./run.sh test`, todos en verde):
+**Desglose de los 310 tests** (tras `./run.sh test`, todos en verde):
 
 | Archivo | @Test | Archivo | @Test |
 |---|---|---|---|
 | `UrlParserTest` | 33 | `ExportDigestTest` | 11 |
-| `UtilsTest` | 17 | `MediaButtonCommandTest` | 9 |
-| `ImportManifestTest` | 30 | `AppModelsTest` | 8 |
-| `CoverCropMathTest` | 24 | `YouTubeFormattingTest` | 11 |
+| `ImportManifestTest` | 30 | `AudioUrlExtractionTest` | 9 |
+| `CoverCropMathTest` | 24 | `MediaButtonCommandTest` | 9 |
+| `ExportManifestTest` | 24 | `AppModelsTest` | 8 |
 | `SpotifyImporterTest` | 23 | `ModelDefaultsTest` | 7 |
-| `ExportManifestTest` | 24 | `SupabaseClientTest` | 10 |
 | `QueueIndexTest` | 22 | `CoverCacheTest` | 6 |
-| `YouTubePlaylistCreatorTest` | 17 | `BackupFolderTest` | 5 |
-| `ImportArchiveTest` | 14 | `TranslationsTest` | 5 |
-| `DatabaseMappingsTest` | 14 | `NewPipeHolderTest` | 3 |
+| `DatabaseMappingsTest` | 21 | `BackupFolderTest` | 5 |
+| `UtilsTest` | 17 | `TranslationsTest` | 5 |
+| `YouTubePlaylistCreatorTest` | 17 | `SupabaseClientTest` | 10 |
+| `ImportArchiveTest` | 14 | `NewPipeHolderTest` | 3 |
+| | | `YouTubeFormattingTest` | 11 |
 | | | `ExampleUnitTest` | 1 |
 
 ---
 
 ## 3. BUGS ACTIVOS
 
+Solo queda **B32**. Los altos (B1, B2, B4, B5, B6), el medio B48 y el bajo B39 se
+resolvieron en la séptima tanda; sus filas se conservan abajo con la referencia
+de dónde estaba el fallo, y el detalle de lo hecho está en §10.
+
 ### 3.1 Críticos
 
-Ninguno. La reproducción tiene errores reales (§3.2) pero todos degradan o se
-recuperan solos; ninguno corrompe datos de forma irreversible salvo B1 (que
-sí toca la tabla de favoritos, y por eso está en altos).
+Ninguno. La reproducción tenía errores reales (§3.2) pero todos degradaban o se
+recuperaban solos; ninguno corrompía datos de forma irreversible salvo B1 (que sí
+tocaba la tabla de favoritos, y por eso estaba en altos).
 
 ### 3.2 Altos
 
+Ninguno activo. ~~B1, B2, B4, B5 y B6~~ se resolvieron en la séptima tanda
+(→ §10). Se conservan aquí las filas originales como referencia:
+
 | # | Ubicación | Descripción |
 |---|---|---|
-| **B1** | `PlaylistScreen.kt:719,793,853` → `SongListItem.kt:425` → `PlaylistLocalRepository.kt:61-63` | **El swipe a "liked" borra la canción que se había marcado antes.** `PlaylistScreen` no pasa `youtubeId`, así que `executeSwipeAction` manda `""` a `toggleLikeTrack`, que compara por igualdad exacta. La 1.ª llamada guarda una pista con `youtubeVideoId=""`; la 2.ª, sobre otra canción, la encuentra y la **borra**. `isTrackLiked("")` sale `true` para todo. Detalle completo en §1.1. |
-| **B2** | `SongListItem.kt:446-448` + `:165,:182` + `ConfigScreen.kt:266,274,296,304` | **La acción de swipe "añadir a playlist" es un no-op.** Es una opción seleccionable en Ajustes para ambos lados y dibuja el icono `≡` (`SongListItem.kt:56`), pero la implementación solo hace `Log.d(...)`. El parámetro `onShowPlaylistDialog` está cableado a `{}` en las dos ramas del gesto, así que no existe ninguna vía de diálogo. Detalle en §1.3. |
-| **B4** | `PlayerViewModel.kt:589-592`, `:660`, `:668` | **La invalidación de URL caducada es un no-op.** `currentVideoId` se rellena con `queue[i].youtubeVideoId` (null para toda pista resuelta por búsqueda), así que `YouTubeManager.invalidate()` casi nunca se llama y el re-intento recibe de la caché **la misma URL muerta**. Detalle en §1.2. |
-| **B5** | `YouTubeManager.kt:68-80` + `PlayerViewModel.kt:163,366,403,479-481` | **Doble extracción por transición.** `getAudioUrl` no deduplica en vuelo y `growWindow()` se invoca dos veces por salto, con `prefetchJob?.cancel()` + relanzamiento. La extracción cancelada (OkHttp sobre `Dispatchers.IO`, no interrumpible) no llega a escribir caché y la relanzada repite el trabajo. Es la "carga doble" que se oye. |
-| **B6** | `PlayerViewModel.kt:611`, `:390` | **`_error` nunca se limpia en la ruta de error.** `_error.publish(null)` solo existe en `startAt:337` y `clearPlayerState:290`. Tras un `onPlayerError` recuperable, el estado de error se queda pegado para siempre: los controles quedan deshabilitados y el texto de error no desaparece aunque la canción vuelva a sonar. |
+| **B1** | `PlaylistScreen.kt:721,794,856` → `SongListItem.kt:425` → `PlaylistLocalRepository.kt:61-63` | **El swipe a "liked" borra la canción que se había marcado antes, y desde la lista *Liked* no se puede quitar nada.** `PlaylistScreen` no pasaba `youtubeId`, así que `executeSwipeAction` mandaba `""` a `toggleLikeTrack`, que compara por igualdad exacta. La 1.ª llamada guarda una pista con `youtubeVideoId=""`; la 2.ª, sobre otra canción, la encuentra y la **borra**. Dentro de la lista *Liked*, el corazón del popup es un no-op silencioso (id nulo) y el swipe no encuentra la fila real (su id no es `""`), así que **creaba una fila fantasma en vez de quitar** la canción visible. `isTrackLiked("")` salía `true` para todo. Detalle completo en §1.1. |
+| **B2** | `SongListItem.kt:449-451` + `:171,:188` + `ConfigScreen.kt` | **La acción de swipe "añadir a playlist" era un no-op.** Es una opción seleccionable en Ajustes para ambos lados y dibuja el icono `≡`, pero la implementación solo hacía `Log.d(...)`. El parámetro `onShowPlaylistDialog` estaba cableado a `{}` en las dos ramas del gesto, así que no existía ninguna vía de diálogo. Detalle en §1.3. |
+| **B4** | `PlayerViewModel.kt` (`onItemUnplayable`, `syncIndexFromWindow`, `setCurrentIndex`) | **La invalidación de URL caducada era un no-op.** `currentVideoId` se rellenaba con `queue[i].youtubeVideoId` (null para toda pista resuelta por búsqueda), así que `YouTubeManager.invalidate()` casi nunca se llamaba y el re-intento recibía de la caché **la misma URL muerta**. Detalle en §1.2. |
+| **B5** | `YouTubeManager.kt` (`getAudioUrl`) + `PlayerViewModel.kt` (`growWindow`) | **Doble extracción por transición.** `getAudioUrl` no deduplicaba en vuelo y `growWindow()` se invocaba dos veces por salto, con `prefetchJob?.cancel()` + relanzamiento. La extracción cancelada (OkHttp sobre `Dispatchers.IO`, no interrumpible) no llegaba a escribir caché y la relanzada repetía el trabajo. Es la "carga doble" que se oye. |
+| **B6** | `PlayerViewModel.kt` (`onItemUnplayable`, `playIndex`) | **`_error` nunca se limpiaba en la ruta de error.** `_error.publish(null)` solo existía en `startAt` y `clearPlayerState`. Tras un `onPlayerError` recuperable, el estado de error se quedaba pegado para siempre: los controles quedaban deshabilitados y el texto de error no desaparecía aunque la canción volviera a sonar. |
 
 ### 3.3 Medios
 
@@ -375,11 +451,17 @@ sí toca la tabla de favoritos, y por eso está en altos).
 |---|---|---|
 | **B32** | `SimpleDownloader.kt:31`, `:49-59`, `:61` | El mapa de cookies es un `mutableMapOf` plano: `setCookie` muta desde el hilo que lo inicializa y `getCookies` lo lee desde **todos** los hilos de red, sin sincronizar. Además se loguean cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir `Authorization`. |
 
+~~**B48**~~ (`PlaylistScreen.kt` + `SongListItem.kt`) estaba aquí: las filas de
+*Liked* salían de un snapshot que no se recargaba con el toggle. Resuelto en la
+séptima tanda junto con B1 (→ §10).
+
 ### 3.4 Bajos
 
-| # | Ubicación | Descripción |
-|---|---|---|
-| **B39** | `AndroidManifest.xml:54-60` | `MediaButtonReceiver` es `exported="true"` con intent filter y **sin permiso**: cualquier app del dispositivo puede inyectar `ACTION_MEDIA_BUTTON` y manejar la reproducción. El impacto se limita al transporte (la clase valida acción y keycode), pero no necesita estar exportada. |
+Ninguno activo. ~~**B39**~~ (`AndroidManifest.xml:54-60`) —`MediaButtonReceiver`
+exportada con intent filter y sin permiso, de modo que cualquier app podía
+inyectar `ACTION_MEDIA_BUTTON`— se resolvió en la séptima tanda poniéndola a
+`exported="false"`: el sistema y la propia app siguen llegándole con los botones
+de medios sin exponerla a otras apps (→ §10). |
 
 ---
 
@@ -392,7 +474,7 @@ sí toca la tabla de favoritos, y por eso está en altos).
 | S7 | Media | `SupabaseClient.kt` (≈42 `Log.*`) | Vuelca cuerpos completos de requests/responses: nicknames, códigos de invitación, nombres de grupo, URLs y comentarios de recomendaciones. PII en logcat. |
 | S9 | Baja | `SupabaseClient.kt:19-20` | URL y anon key en el código. La key es `sb_publishable_…` (publishable por diseño de DCL), así que no es un secreto, pero **las políticas RLS de `groups`, `group_members`, `recommendations` y `automatic` no son verificables desde aquí** y son la única defensa de esos datos. |
 | S10 | Baja | `SimpleDownloader.kt:19` | Cookie de YouTube hardcodeada (`PREF=f2=8000000`): caduca en servidor sin aviso y el "bypass" es en consecuencia poco fiable. |
-| S11 | Baja | `AndroidManifest.xml:54-60` | Receiver exportado sin permiso (ver B39). |
+| S11 | Baja | `AndroidManifest.xml:54-60` | ~~Receiver exportado sin permiso (ver B39).~~ **Resuelto** en la séptima tanda: `exported="false"` (ver §10). |
 | S12 | Baja | `AndroidManifest.xml:22-24` + `data_extraction_rules.xml` | La copia de seguridad se lleva el Uri del árbol SAF a la nube (ver B40). |
 
 **Nada que resolver aquí.** Las piezas que quedaban de Spotify
@@ -426,11 +508,11 @@ prefs, `client_secret` de OAuth) ya no están en el manifiesto ni en el código.
 
 | Severidad | Ubicación | Descripción |
 |---|---|---|
-| Media | `viewmodel/PlayerViewModel.kt` (712) | Monolito con estado mutable repartido entre el hilo principal y las corrutinas. `generation` + `windowStart` + `transitionInFlight` son 3 banderas que hay que mantener coherentes a mano; B4 y B6 son consecuencia directa de que la invalidación de caché y el estado de error se gestionen en un sitio y no en otro. La lógica pura ya está aislada en `QueueIndex`, pero el estado de la ventana no. |
-| Media | `ui/PlaylistScreen.kt` (1363) | Mezcla UI, red (Supabase/YouTube), DB y lógica de negocio; además construye el modelo de UI (`Song`) sin el campo que la propia UI necesita (B1), lo que es exactamente el tipo de error que un ViewModel por pantalla habría hecho imposible. |
+| Media | `viewmodel/PlayerViewModel.kt` (785) | Monolito con estado mutable repartido entre el hilo principal y las corrutinas. `generation` + `windowStart` + `transitionInFlight` son 3 banderas que hay que mantener coherentes a mano; B4 y B6 eran consecuencia directa de que la invalidación de caché y el estado de error se gestionasen en un sitio y no en otro. La lógica pura ya está aislada en `QueueIndex` (y ahora también en `PlaylistLocalRepository.likedTrackOf` y en el núcleo de `YouTubeManager.getAudioUrl`), pero el estado de la ventana no. |
+| Media | `ui/PlaylistScreen.kt` (1363) | Mezcla UI, red (Supabase/YouTube), DB y lógica de negocio; además construía el modelo de UI (`Song`) sin el campo que la propia UI necesitaba (B1), lo que es exactamente el tipo de error que un ViewModel por pantalla habría hecho imposible. |
 | Media | `service/MusicService.kt` | No es dueño del reproductor: solo proyecta la notificación sobre el `ExoPlayer` que vive en el `PlayerViewModel` de `PlyrApp`. **No registra ningún `MediaSession.Callback`**, así que `seekToNext`/`seekToPrevious` desde la notificación o el lockscreen los mueve ExoPlayer directamente, no `QueueIndex`; el índice se reconcilia después por la aritmética de `syncIndexFromWindow`. Funciona por casualidad, no por diseño. |
 | Media | `ui/ConfigScreen.kt` (919), `ui/SearchScreen.kt` (477) | Composables con carga, red y estado en `remember`/`rememberCoroutineScope`. |
-| Baja | `ui/components/SongListItem.kt` (459) | `pointerInput(Unit)` sin claves y `Animatable` mutado desde corrutinas lanzadas a mano: el componente no se puede reutilizar en ninguna lista que cambie sin romper el gesto (B7, B8). |
+| Baja | `ui/components/SongListItem.kt` (545) | ~~`pointerInput(Unit)` sin claves y `Animatable` mutado desde corrutinas lanzadas a mano~~ (B7, B8, ya resueltos → §10): el gesto ahora se reinicia por clave y el offset se acumula de forma síncrona. |
 
 **Nota positiva:** el patrón de **extraer lógica pura testeable** está
 consolidado y bien aplicado en `QueueIndex`, `MediaButtonCommand`,
@@ -464,7 +546,7 @@ Android. Es el asset de calidad más valioso del repo y el modelo a seguir.
 | `ResponsiveDimensions`: `titleSize`, `iconSize*`, `buttonHeight`, `buttonMinWidth` | `ResponsiveUtils.kt:31-51` | Calculados en cada llamada y nunca leídos. |
 | `PlyrSymbols.COMMAND/SEPARATOR/BULLET/ARROW/BACK` | `Theme.kt:74-82` | Sin referencias. |
 | `MediaMetadataExtractor.extractMetadata(context = …)` | `MediaMetadataExtractor.kt:26` | ~~Parámetro muerto en los dos call sites.~~ **Eliminado en B29** (ver §10). |
-| `SongListItem.onShowPlaylistDialog` | `SongListItem.kt:417` | Ambos callers pasan `{}`. |
+| `SongListItem.onShowPlaylistDialog` | `SongListItem.kt` | ~~Ambos callers pasan `{}`.~~ **Conectado en B2** (ver §10): el swipe "añadir a playlist" abre el diálogo de selección. |
 | `MediaCommand` sin `STOP` | `MediaButtonCommand.kt` | `KEYCODE_MEDIA_STOP` se mapea a `PAUSE` y el `NONE` de `execute` (`:77`) es rama inalcanzable. |
 | `CollapsibleSection.statusColor` | `CollapsibleSection.kt:32` | Parámetro con default que llama a `MaterialTheme.colorScheme` en el argumento por defecto. |
 | `ActionButtonData.enabled` | `ActionBttn.kt:25` | Ningún `ActionButtonData(...)` del source pone `enabled = false`; el render de deshabilitado (`:54`, `:65`) es inalcanzable. |
@@ -510,30 +592,37 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ## 8. TESTS
 
-- **294 tests unitarios en 21 archivos** (`./run.sh test`, todos en verde;
+- **310 tests unitarios en 22 archivos** (`./run.sh test`, todos en verde;
   +7 respecto al recuento estático de esta revisión por la cobertura de
   tombstones/`deletedPlaylistIds`, luego +4 de formato de vídeo en B27, −13 al
   retirar los de `isValidAudioUrl` en B37, −1/+4 con `parseTimestamp` en B25
   (el test que certificaba el "ahora falso" se retiró y se añadieron
   `isoWithOffset`, `invalidReturnsZeroNotNow`, `blankReturnsZero` y
-  `rejectsTrailingGarbage`) y +3 en T5:
-  `build_reportsDiscardedTracks` y `build_cancelledScopeStopsResolving`
+  `rejectsTrailingGarbage`), +3 en T5
+  (`build_reportsDiscardedTracks` y `build_cancelledScopeStopsResolving`
   (B15/B16) en `YouTubePlaylistCreatorTest` y
   `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition` (B28) en
-  `DatabaseMappingsTest`).
+  `DatabaseMappingsTest`) y **+16 en T6**: `AudioUrlExtractionTest` (9, nuevo
+  fichero: *single-flight*, salto de caché y no-cacheo de fallos en
+  `YouTubeManager.getAudioUrl`) y 7 de identidad de favoritos en
+  `DatabaseMappingsTest`, que pasa de 14 a 21.
 - 0 tests instrumentados útiles: solo `ExampleInstrumentedTest`.
 
 **Gaps relevantes, en orden de daño que hacen:**
 
-1. **`PlayerViewModel` no tiene ningún test.** Es donde están B4, B5, B6 y B36,
-   es decir los 4 bugs de reproducción de la lista. `QueueIndex` sí está
-   cubierta (22 tests) y es correcta; lo que no está cubierta es la
-   *orquestación*: `generation`, `windowStart`, `transitionInFlight`,
-   `currentVideoId` y la derivación de `isLoading`/`error`. La lógica que
-    decide si una URL caducada se invalida, cuándo se limpia `_error` y si hay que
-   recargar la ventana es exactamente la que no se puede ejercitar sin Android.
+1. **`PlayerViewModel` no tiene ningún test.** Sigue siendo el mayor gap: B4, B5,
+   B6 y B36 eran los 4 bugs de reproducción de la lista y ninguno se puede
+   seguir ejercitando sin Android. `QueueIndex` sí está cubierta (22 tests) y es
+   correcta; lo que no está cubierta es la *orquestación*: `generation`,
+   `windowStart`, `transitionInFlight`, `currentVideoId` y la derivación de
+   `isLoading`/`error`. La lógica que decide si una URL caducada se invalida,
+   cuándo se limpia `_error` y si hay que recargar la ventana es exactamente la
+   que no se puede ejercitar sin Android. Lo que sí se ha hecho en T6 es
+   **aislar la política de caché**: `getAudioUrl` delega en un núcleo con la
+   extracción inyectada, que ya tiene sus 9 tests; lo que queda sin cubrir es
+   la coreografía de la ventana.
 2. **`SongListItem` no tiene ningún test**, y su lógica de swipe (umbral,
-   dirección, acción) está embebida en lambdas de `pointerInput`. B1, B7 y B8
+   dirección, acción) está embebida en lambdas de `pointerInput`. B1, B2, B7 y B8
    son inaccesibles a un test JVM tal como está el código. Extraer la decisión
    "offset → acción" a una función pura (como se hizo con `QueueIndex` y
    `MediaButtonCommand`) es el primer paso para poder probarlo.
@@ -543,7 +632,8 @@ Dos casos concretos que se ven sin traducir hoy:
 4. **Los módulos más valiosos del repo están bien cubiertos** (`CoverCropMath` 24,
    `ImportManifest` 30, `ExportManifest` 24, `ImportArchive` 14, `ExportDigest` 11,
    `QueueIndex` 22, `MediaButtonCommand` 9). El patrón funciona; el problema es
-   que no se ha extendido a la capa de orquestación.
+   que no se ha extendido a la capa de orquestación. T6 añade el noveno módulo,
+   `AudioUrlExtractionTest` (9), con el mismo enfoque.
 5. `QueueIndexTest` cubre 4 tests de `needsRefillAfterEnd`, una función que
    producción no llama (ver §7): 4 tests que certifican código muerto.
 6. `TranslationsTest` valida consistencia entre idiomas pero **no** detecta ni
@@ -555,12 +645,18 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ### Fase 1 — Lo que has reportado (impacto directo)
 
-1. **B1** — pasar `youtubeId` en los tres `Song(...)` de `PlaylistScreen.kt:719,793,853`
+1. ~~**B1** — pasar `youtubeId` en los tres `Song(...)` de `PlaylistScreen.kt:721,794,856`
    (`youtubeVideoId = track.youtubeVideoId`) **y** hacer que `executeSwipeAction`
    no llame a `toggleLikeTrack` con `""` (si no hay id, buscar por
    nombre+artista con `ImportManifest.fallbackDedupeKey`, que ya existe y se usa
    en `mergeLikedSongsTracks`). Sin la segunda mitad, volver a abrir la lista de
    favoritos sigue encontrando las filas corruptas que ya están guardadas.
+   Al tocar el like hay que refrescar también la lista abierta de *Liked*
+   (**B48**): `playlistTracks` es un snapshot que no se recarga con el toggle.~~
+   **Hecho** (ver §10): los tres `Song` llevan `youtubeId`, la identidad de la
+   fila de *Liked* es la función pura `PlaylistLocalRepository.likedTrackOf`
+   (id → nombre+artista) y `PlaylistScreen` pasa `onLikedStatusChanged =
+   { tracksRevision++ }`, que resuelve **B48** en el mismo cambio.
 2. ~~**B7** — `pointerInput(song.youtubeId, index, trackEntities)` en
    `SongListItem.kt:148`, o mejor: sacar la decisión del gesto a una función pura.~~
    **Hecho** (ver §10). (Extraer la decisión del gesto a una función pura queda
@@ -571,19 +667,27 @@ Dos casos concretos que se ven sin traducir hoy:
    (ver §10): acumulador `mutableFloatStateOf` con la animación de retorno en un
    único `Animatable`; la opción `swipeable`/`anchoredDraggable` queda como
    refactor futuro.
-4. **B4** — que `invalidate()` reciba el id **realmente usado** (el que resolvió
+4. ~~**B4** — que `invalidate()` reciba el id **realmente usado** (el que resolvió
    `startAt`, no `track.youtubeVideoId`), y persistirlo en la `MediaItem` para
    poder recuperarlo en el handler de error. Además, `getAudioUrl` debería
    aceptar un flag "forzar re-extracción" para que `reResolve = true` no pueda
-   recibir la URL caducada de la caché.
-5. **B5** — *single-flight* en `YouTubeManager.getAudioUrl` (un
+   recibir la URL caducada de la caché.~~ **Hecho** (ver §10): mapa
+   `resolvedVideoId` por `track.id` que `startAt`, `resolveItems`,
+   `syncIndexFromWindow` y `setCurrentIndex` leen y escriben (no hace falta
+   meterlo en el `MediaItem`: el id se recupera del estado), más
+   `getAudioUrl(videoId, forceRefresh)` propagado desde `resolveItems`.
+5. ~~**B5** — *single-flight* en `YouTubeManager.getAudioUrl` (un
    `ConcurrentHashMap<String, Deferred<String?>>` o `Mutex` por `videoId`), y
-   dejar de llamar `growWindow()` dos veces por transición.
-6. **B2** — implementar `SWIPE_ACTION_ADD_TO_PLAYLIST`: quitar el `{}` de
+   dejar de llamar `growWindow()` dos veces por transición.~~ **Hecho** (ver §10):
+   registro de extracciones en vuelo con `CompletableDeferred` y marca
+   `prefetchRange` para que el segundo `growWindow()` de la transición no
+   relance un relleno idéntico. Cubierto por `AudioUrlExtractionTest`.
+6. ~~**B2** — implementar `SWIPE_ACTION_ADD_TO_PLAYLIST`: quitar el `{}` de
    `onShowPlaylistDialog` en `SongListItem.kt:165,182`, cablear un diálogo de
    selección de playlist, y borrar el `Log.d` de `:446-448`. Mientras tanto,
    **ocultar la opción en Ajustes** si no se va a implementar, porque hoy es la
-   opción que más engaña.
+   opción que más engaña.~~ **Hecho** (ver §10): implementada, así que no hace
+   falta ocultarla en Ajustes.
 7. ~~**B3** — extraer la carga de `trackEntities`/`playlistTracks` a un
    `suspend fun refreshTracks()` (o a un `ViewModel`) y llamarla **después** de
    `addTrackToYouTubePlaylist` y de `removeTrackFromYouTubePlaylist`, además de
@@ -603,8 +707,10 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ### Fase 2 — Estabilidad
 
-11. **B6** — limpiar `_error` al recuperar en `playIndex` (y al empezar cualquier
-    carga), no solo en `startAt`.
+11. ~~**B6** — limpiar `_error` al recuperar en `playIndex` (y al empezar cualquier
+    carga), no solo en `startAt`.~~ **Hecho** (ver §10): `onMediaItemTransition`
+    publica `null` cuando entra un item, que es el punto por el que pasa toda
+    recuperación.
 12. ~~**B36** — poner `resolving = true` en `playIndex` para que `isLoading` refleje
     la re-resolución y los controles no se reactiven a mitad.~~ **Hecho**
     (ver §10).
@@ -656,10 +762,11 @@ Dos casos concretos que se ven sin traducir hoy:
     Añadir a `TranslationsTest` un test que falle si una clave definida no
     aparece en el código, y que detecte claves referenciadas que no existen (el
     que habría pillado B7 al instante).
-27. **B39**, ~~**B41**~~ — poner el receiver en `exported="false"` y ~~activar R8 con
-    reglas para Room/NewPipe~~ (B41 **Hecho**, ver §10: `isMinifyEnabled = true`
-    con `-keep` para NewPipe y `-assumenosideeffects` para `Log.*`; pendiente de
-    verificar en `./run.sh build release` por falta de keystore local). (Excluir
+27. ~~**B39**, **B41**~~ — poner el receiver en `exported="false"` y activar R8 con
+    reglas para Room/NewPipe (**ambos Hechos**, ver §10: B39 con
+    `android:exported="false"`; B41 con `isMinifyEnabled = true` más `-keep` para
+    NewPipe y `-assumenosideeffects` para `Log.*`, pendiente de verificar en
+    `./run.sh build release` por falta de keystore local). (Excluir
     `plyr_config.xml` del cloud-backup —B40— ya está hecho, ver §10; quitar
     `WAKE_LOCK` —B38— ya está hecho, ver §10.)
 
@@ -770,7 +877,25 @@ Todos verificados con `./run.sh test` (**294 tests, en verde**) y
 | **B23** | `PlyrApp.kt` + `ConfigScreen.kt` | `PlyrApp` expone `backgroundScope` (`SupervisorJob() + Dispatchers.Main.immediate`); `SyncSection` lanza exportación/importación/copia en ese scope (`applicationContext as PlyrApp`) en vez de `rememberCoroutineScope()`: un swipe en el pager ya no corta el trabajo a mitad. |
 | **B28** | `AppModels.kt` + `DatabaseExtensions.kt` | `AppTrack` gana `youtubeVideoId` y `position`; `toAppTrack()` los propaga desde `TrackEntity` y `buildSourceTracks` los conserva, así que la ida y vuelta `AppTrack → TrackEntity` ya no pierde el id de YouTube. |
 
-Aún pendientes, más difíciles: **B2** (swipe "añadir a playlist"), la reproducción
-y la cola (**B1**, **B4**, **B5**, **B6**), **B32** (logs con datos sensibles),
-**B39** (manifiesto), la optimización de la animación de `NfcButton` (resto de
-B20) y las traducciones de **§7.1**.
+---
+
+Séptima tanda de arreglos (2026-09-30), los 7 bugs que quedaban: los 5 altos
+(B1, B2, B4, B5, B6), el medio B48 y el bajo B39.
+Todos verificados con `./run.sh test` (**310 tests, en verde**) y
+`./run.sh build` (BUILD SUCCESSFUL).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B1** | `PlaylistScreen.kt` (los 3 `Song`) + `SongListItem.kt` + `PlaylistLocalRepository.kt` | Los tres `Song(...)` de la pantalla pasan ahora `youtubeId` (el de la pista, o el id de YouTube del resultado de búsqueda en la lista de edición), así que el gesto ya no manda `""` a `toggleLikeTrack`. La identidad de la fila de *Liked* se extrajo a la función pura `PlaylistLocalRepository.likedTrackOf(tracks, name, artists, remoteTrackId, youtubeVideoId)`: primero `youtubeVideoId` y, si no hay, nombre+artista con `ImportManifest.fallbackDedupeKey`, con lo que **las filas corruptas ya guardadas también se pueden quitar**. El popup consulta `isTrackLikedByKey` (misma identidad) y hace el toggle aunque no haya id, así que la fila ya no miente con "♡ like". 7 tests nuevos en `DatabaseMappingsTest`. |
+| **B2** | `SongListItem.kt` | `SWIPE_ACTION_ADD_TO_PLAYLIST` llama a `onShowPlaylistDialog()` (ya no a un `Log.d`) y las dos ramas del gesto cablean ese parámetro a un diálogo de selección de playlist, que lista las playlists locales (excluye *liked* y álbumes), añade con `addTrackToYouTubePlaylist` —que ya deduplica, B13— y avisa con `no_playlists` si no hay ninguna. |
+| **B4** | `PlayerViewModel.kt` + `YouTubeManager.kt` | Nuevo `resolvedVideoId: ConcurrentHashMap<String, String>` con el video **realmente usado** por pista (indexado por `track.id`), que se rellena en `startAt` y en `resolveItems` y se lee en `syncIndexFromWindow`/`setCurrentIndex`: `invalidate()` recibe por fin el id correcto en vez de `null`. `getAudioUrl(videoId, forceRefresh)` salta la caché y `resolveItems` propaga el flag en la ruta `reResolve = true`, así que el reintento tras un 403/410 ya no puede recibir la URL muerta. `resolveItems` reutiliza además el video ya resuelto para esa pista en vez de volver a buscarlo en YouTube. |
+| **B5** | `YouTubeManager.kt` + `PlayerViewModel.growWindow` | *Single-flight* en `getAudioUrl`: registro `inFlight` de `CompletableDeferred` por `videoId`; la primera extracción corre y las demás esperan su resultado, y un fallo no queda en caché. En `growWindow`, la marca `prefetchRange` evita relanzar un relleno idéntico que ya está en marcha (con la extracción indestructible, duplicarlo además añadía los mismos items dos veces a la ventana). 9 tests nuevos en `AudioUrlExtractionTest`, que ejercita el núcleo con la extracción inyectada. |
+| **B6** | `PlayerViewModel.kt` | `onMediaItemTransition` publica `_error = null` cuando entra un item, que es el punto por el que pasa toda recuperación: el mensaje de error ya no se queda pegado y los controles no quedan deshabilitados para siempre tras un `onPlayerError` recuperable. |
+| **B48** | `PlaylistScreen.kt` | La lista abierta de *Liked* pasa `onLikedStatusChanged = { tracksRevision++ }` al `SongListItem` de la vista normal, de modo que el popup y el swipe recarga `playlistTracks`/`trackEntities` y la fila quitada desaparece sin salir y reentrar. |
+| **B39** | `AndroidManifest.xml:53-61` | `MediaButtonReceiver` a `android:exported="false"`: el sistema y la propia app siguen entregándole `ACTION_MEDIA_BUTTON`, pero ninguna otra app puede inyectarlo. |
+
+Pendientes ahora: **B32** (único bug activo: mapa de cookies sin sincronizar y
+logs con datos sensibles en `SimpleDownloader`), la optimización de la animación
+de `NfcButton` (resto de B20), las traducciones de **§7.1** (16 claves sin uso y
+la clave `"Player not available"` que no existe) y la verificación de **B41** en
+`./run.sh build release` (no hay keystore local).

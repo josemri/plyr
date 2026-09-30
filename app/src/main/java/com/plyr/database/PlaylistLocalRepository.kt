@@ -21,6 +21,40 @@ class PlaylistLocalRepository(context: Context) {
     companion object {
         private const val TAG = "PlaylistLocalRepo"
         const val LIKED_SONGS_ID = "liked_songs"
+
+        /**
+         * Fila de *liked* que corresponde a una canción, o `null` si no está.
+         *
+         * La identidad es el `youtubeVideoId`; si la canción llega sin id, se
+         * recurre a nombre+artista con [ImportManifest.fallbackDedupeKey], que
+         * es la única clave disponible y la misma que usa `mergeLikedSongsTracks`.
+         * Sin ese recurso, un `""` no encontraba nunca la fila guardada y cada
+         * intento de quitar un favorito acababa **añadiendo** otra fila (B1).
+         */
+        fun likedTrackOf(
+            tracks: List<TrackEntity>,
+            name: String,
+            artists: String,
+            remoteTrackId: String,
+            youtubeVideoId: String?
+        ): TrackEntity? {
+            if (!youtubeVideoId.isNullOrBlank()) {
+                tracks.firstOrNull { it.youtubeVideoId == youtubeVideoId }?.let { return it }
+            }
+            val key = ImportManifest.fallbackDedupeKey(
+                TrackEntity(
+                    id = "",
+                    playlistId = LIKED_SONGS_ID,
+                    remoteTrackId = remoteTrackId,
+                    name = name,
+                    artists = artists,
+                    youtubeVideoId = youtubeVideoId,
+                    audioUrl = null,
+                    position = 0
+                )
+            )
+            return tracks.firstOrNull { ImportManifest.fallbackDedupeKey(it) == key }
+        }
     }
 
     /**
@@ -55,6 +89,11 @@ class PlaylistLocalRepository(context: Context) {
         tracks.any { it.youtubeVideoId == youtubeVideoId }
     }
 
+    suspend fun isTrackLikedByKey(name: String, artists: String, remoteTrackId: String, youtubeVideoId: String?): Boolean = withContext(Dispatchers.IO) {
+        val tracks = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
+        likedTrackOf(tracks, name, artists, remoteTrackId, youtubeVideoId) != null
+    }
+
     suspend fun toggleLikeTrack(
         youtubeVideoId: String,
         name: String,
@@ -62,7 +101,7 @@ class PlaylistLocalRepository(context: Context) {
         remoteTrackId: String
     ): Boolean = database.withTransaction {
         val tracks = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
-        val existing = tracks.find { it.youtubeVideoId == youtubeVideoId }
+        val existing = likedTrackOf(tracks, name, artists, remoteTrackId, youtubeVideoId)
 
         if (existing != null) {
             trackDao.deleteTrackById(existing.id)

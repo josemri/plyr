@@ -22,11 +22,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontFamily
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+import com.plyr.database.PlaylistEntity
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
@@ -78,6 +82,9 @@ fun SongListItem(
     val context = LocalContext.current
     var showPopup by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
+    var showPlaylistPicker by remember { mutableStateOf(false) }
+    var targetPlaylists by remember { mutableStateOf<List<PlaylistEntity>>(emptyList()) }
+    var playlistsLoading by remember { mutableStateOf(false) }
 
     // Obtener las acciones configuradas y sus iconos/colores
     val swipeRightAction = Config.getSwipeRightAction(context)
@@ -168,7 +175,7 @@ fun SongListItem(
                                             index = index,
                                             coroutineScope = coroutineScope,
                                             onLikedStatusChanged = onLikedStatusChanged,
-                                            onShowPlaylistDialog = {},
+                                            onShowPlaylistDialog = { showPlaylistPicker = true },
                                             onShowShareDialog = { showShareDialog = true }
                                         )
                                         resetSwipe()
@@ -185,7 +192,7 @@ fun SongListItem(
                                             index = index,
                                             coroutineScope = coroutineScope,
                                             onLikedStatusChanged = onLikedStatusChanged,
-                                            onShowPlaylistDialog = {},
+                                            onShowPlaylistDialog = { showPlaylistPicker = true },
                                             onShowShareDialog = { showShareDialog = true }
                                         )
                                         resetSwipe()
@@ -286,9 +293,9 @@ fun SongListItem(
     if (showPopup && customButtonAction == null) {
         var isLiked by remember { mutableStateOf(false) }
         LaunchedEffect(song.youtubeId) {
-            song.youtubeId?.let { id ->
+            coroutineScope.launch {
                 val repo = PlaylistLocalRepository(context)
-                isLiked = repo.isTrackLiked(id)
+                isLiked = repo.isTrackLikedByKey(song.title, song.artist, song.remoteId ?: song.title, song.youtubeId)
             }
         }
 
@@ -335,18 +342,17 @@ fun SongListItem(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    song.youtubeId?.let { id ->
-                                        coroutineScope.launch {
-                                            val repo = PlaylistLocalRepository(context)
-                                            isLiked = repo.toggleLikeTrack(
-                                                youtubeVideoId = id,
-                                                name = song.title,
-                                                artists = song.artist,
-                                                remoteTrackId = song.remoteId ?: ""
-                                            )
-                                            onLikedStatusChanged?.invoke()
-                                        }
-                                    }
+                                     coroutineScope.launch {
+                                         val repo = PlaylistLocalRepository(context)
+                                         val id = song.youtubeId ?: ""
+                                         isLiked = repo.toggleLikeTrack(
+                                             youtubeVideoId = id,
+                                             name = song.title,
+                                             artists = song.artist,
+                                             remoteTrackId = song.remoteId ?: song.title
+                                         )
+                                         onLikedStatusChanged?.invoke()
+                                     }
                                     showPopup = false
                                 }
                                 .padding(vertical = 4.dp)
@@ -406,6 +412,103 @@ fun SongListItem(
             onDismiss = { showShareDialog = false }
         )
     }
+
+    if (showPlaylistPicker) {
+        LaunchedEffect(Unit) {
+            playlistsLoading = true
+            val repo = PlaylistLocalRepository(context)
+            targetPlaylists = repo.getAllPlaylists()
+                .filter { it.remoteId != PlaylistLocalRepository.LIKED_SONGS_ID && !it.remoteId.startsWith("album_") }
+                .sortedBy { it.name.lowercase() }
+            playlistsLoading = false
+        }
+
+        Dialog(onDismissRequest = { showPlaylistPicker = false }) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(24.dp)
+                    .fillMaxWidth(0.9f)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = Translations.get(context, "add_to_playlist"),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+
+                    if (playlistsLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 2.dp
+                        )
+                    } else if (targetPlaylists.isEmpty()) {
+                        Text(
+                            text = Translations.get(context, "no_playlists"),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                            )
+                        )
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 320.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            targetPlaylists.forEach { playlist ->
+                                Text(
+                                    text = playlist.name,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            val track = trackEntities.getOrNull(index) ?: TrackEntity(
+                                                id = "",
+                                                playlistId = playlist.remoteId,
+                                                remoteTrackId = song.remoteId ?: song.title,
+                                                name = song.title,
+                                                artists = song.artist,
+                                                youtubeVideoId = song.youtubeId,
+                                                audioUrl = null,
+                                                position = 0
+                                            )
+                                            coroutineScope.launch {
+                                                val repo = PlaylistLocalRepository(context)
+                                                repo.addTrackToYouTubePlaylist(playlist.remoteId, track)
+                                                showPlaylistPicker = false
+                                            }
+                                        }
+                                        .padding(vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    TextButton(
+                        onClick = { showPlaylistPicker = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = Translations.get(context, "close"),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 fun executeSwipeAction(
@@ -428,7 +531,7 @@ fun executeSwipeAction(
                     youtubeVideoId = song.youtubeId ?: "",
                     name = song.title,
                     artists = song.artist,
-                    remoteTrackId = song.remoteId ?: ""
+                    remoteTrackId = song.remoteId ?: song.title
                 )
                 Log.d("SongListItem", if (isNowLiked) "♥ Liked: ${song.title}" else "♡ Unliked: ${song.title}")
                 onLikedStatusChanged?.invoke()
@@ -447,7 +550,7 @@ fun executeSwipeAction(
             } ?: Log.e("SongListItem", "✗ PlayerViewModel is null")
         }
         Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> {
-            Log.d("SongListItem", "Add to playlist (no-op): ${song.title}")
+            onShowPlaylistDialog()
         }
         Config.SWIPE_ACTION_SHARE -> {
             // Compartir

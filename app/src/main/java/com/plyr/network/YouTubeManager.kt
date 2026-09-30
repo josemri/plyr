@@ -2,6 +2,7 @@ package com.plyr.network
 
 import com.plyr.utils.NewPipeHolder
 import com.plyr.utils.UrlParser
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -25,6 +26,17 @@ object YouTubeManager {
     private data class CacheEntry(val url: String, val resolvedAt: Long)
 
     private val urlCache = ConcurrentHashMap<String, CacheEntry>()
+
+    /**
+     * Extracciones en vuelo, por video (B5).
+     *
+     * Sin esto, dos corrutinas que piden el mismo video lanzaban dos
+     * extracciones contra YouTube: la segunda porque la primera se canceló, y
+     * la cancelada no se puede interrumpir (OkHttp sobre `Dispatchers.IO`), así
+     * que el trabajo se hacía dos veces. Aquí corre una sola y las demás esperan
+     * su resultado.
+     */
+    private val inFlight = ConcurrentHashMap<String, CompletableDeferred<String?>>()
 
     /**
      * Busca un video en YouTube y devuelve su ID
@@ -62,19 +74,41 @@ object YouTubeManager {
      * devuelve la URL al instante sin tocar la red. Esto es lo que hace que
      * saltar a la siguiente canción no dependa de una extracción nueva.
      *
+     * [forceRefresh] salta la caché: lo usa el reintento tras un 403/410, que
+     * si no volvería a recibir la URL muerta que acaba de fallar (B4).
+     *
      * La extracción es bloqueante (NewPipe/OkHttp), por lo que se ejecuta en IO
      * con un timeout explícito: si no responde, devuelve null en lugar de colgarse.
      */
-    suspend fun getAudioUrl(videoId: String): String? {
-        cachedUrl(videoId)?.let { return it }
+    suspend fun getAudioUrl(videoId: String, forceRefresh: Boolean = false): String? =
+        getAudioUrl(videoId, forceRefresh) { extractAudioUrl(videoId) }
 
-        val url = withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
-            withContext(Dispatchers.IO) {
-                extractAudioUrl(videoId)
+    /**
+     * Núcleo de [getAudioUrl] con la extracción inyectada, para poder ejercitar
+     * la deduplicación y el salto de caché sin red.
+     */
+    internal suspend fun getAudioUrl(
+        videoId: String,
+        forceRefresh: Boolean,
+        extract: () -> String?
+    ): String? {
+        if (!forceRefresh) cachedUrl(videoId)?.let { return it }
+
+        val mine = CompletableDeferred<String?>()
+        val pending = inFlight.putIfAbsent(videoId, mine)
+        if (pending != null) return pending.await()
+
+        var url: String? = null
+        try {
+            url = withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
+                withContext(Dispatchers.IO) { extract() }
             }
-        }
-        if (url != null) {
-            urlCache[videoId] = CacheEntry(url, System.currentTimeMillis())
+        } finally {
+            if (url != null) {
+                urlCache[videoId] = CacheEntry(url, System.currentTimeMillis())
+            }
+            inFlight.remove(videoId, mine)
+            if (!mine.isCompleted) mine.complete(url)
         }
         return url
     }

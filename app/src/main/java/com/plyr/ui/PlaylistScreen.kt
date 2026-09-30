@@ -717,48 +717,49 @@ fun PlaylistsScreen(
                                     items(searchResults.take(10).size) { index ->
                                         val track = searchResults[index]
                                         val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                                        SongListItem(
-                                            song = Song(
-                                                number = index + 1,
-                                                title = track.name,
-                                                artist = track.getArtistNames(),
-                                                remoteId = track.id,
-                                                shareUrl = "https://www.youtube.com/watch?v=${track.id}"
-                                            ),
-                                            trackEntities = searchTrackEntities,
-                                            index = index,
-                                            playerViewModel = playerViewModel,
-                                            coroutineScope = coroutineScope,
-                                            isCurrentlyPlaying = isPlaying,
-                                            customButtonIcon = "+",
-                                            customButtonAction = {
-                                                if (selectedPlaylist != null) {
-                                                    // Añadir track a la playlist de YouTube local (videoId ya resuelto)
-                                                    coroutineScope.launch {
-                                                        val success = localRepository.addTrackToYouTubePlaylist(
-                                                            localPlaylistId = selectedPlaylist!!.id,
-                                                            track = TrackEntity(
-                                                                id = "",
-                                                                playlistId = selectedPlaylist!!.id,
-                                                                remoteTrackId = track.id,
-                                                                name = track.name,
-                                                                artists = track.getArtistNames(),
-                                                                youtubeVideoId = track.id.takeIf { it.length == 11 },
-                                                                audioUrl = null,
-                                                                position = 0,
-                                                                lastSyncTime = System.currentTimeMillis()
-                                                            )
-                                                        )
-                                                        if (success) {
-                                                            tracksRevision++
-                                                        } else {
-                                                            editError = "Error adding track"
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
+                                         SongListItem(
+                                             song = Song(
+                                                 number = index + 1,
+                                                 title = track.name,
+                                                 artist = track.getArtistNames(),
+                                                 remoteId = track.id,
+                                                 youtubeId = track.id.takeIf { it.length == 11 },
+                                                 shareUrl = "https://www.youtube.com/watch?v=${track.id}"
+                                             ),
+                                             trackEntities = searchTrackEntities,
+                                             index = index,
+                                             playerViewModel = playerViewModel,
+                                             coroutineScope = coroutineScope,
+                                             isCurrentlyPlaying = isPlaying,
+                                             customButtonIcon = "+",
+                                             customButtonAction = {
+                                                 if (selectedPlaylist != null) {
+                                                     // Añadir track a la playlist de YouTube local (videoId ya resuelto)
+                                                     coroutineScope.launch {
+                                                         val success = localRepository.addTrackToYouTubePlaylist(
+                                                             localPlaylistId = selectedPlaylist!!.id,
+                                                             track = TrackEntity(
+                                                                 id = "",
+                                                                 playlistId = selectedPlaylist!!.id,
+                                                                 remoteTrackId = track.id,
+                                                                 name = track.name,
+                                                                 artists = track.getArtistNames(),
+                                                                 youtubeVideoId = track.id.takeIf { it.length == 11 },
+                                                                 audioUrl = null,
+                                                                 position = 0,
+                                                                 lastSyncTime = System.currentTimeMillis()
+                                                             )
+                                                         )
+                                                         if (success) {
+                                                             tracksRevision++
+                                                         } else {
+                                                             editError = "Error adding track"
+                                                         }
+                                                     }
+                                                 }
+                                             },
+                                             modifier = Modifier.fillMaxWidth()
+                                         )
                                     }
                                 }
 
@@ -790,38 +791,39 @@ fun PlaylistsScreen(
                                     items(playlistTracks.size) { index ->
                                         val track = playlistTracks[index]
                                         val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                                        SongListItem(
-                                            song = Song(
-                                                number = index + 1,
-                                                title = track.name,
-                                                artist = track.getArtistNames(),
-                                                remoteId = track.id,
-                                                shareUrl = "https://www.youtube.com/watch?v=${track.id}"
-                                            ),
-                                            trackEntities = trackEntities,
-                                            index = index,
-                                            playerViewModel = playerViewModel,
-                                            coroutineScope = coroutineScope,
-                                            isCurrentlyPlaying = isPlaying,
-                                            customButtonIcon = "x",
-                                            customButtonAction = {
-                                                if (selectedPlaylist != null) {
-                                                    // Eliminar track de la playlist de YouTube local
-                                                    coroutineScope.launch {
-                                                        val success = localRepository.removeTrackFromYouTubePlaylist(
-                                                            localPlaylistId = selectedPlaylist!!.id,
-                                                            remoteTrackId = track.id
-                                                        )
-                                                        if (success) {
-                                                            tracksRevision++
-                                                        } else {
-                                                            editError = "Error removing track"
-                                                        }
-                                                    }
-                                                }
-                                            },
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
+                                         SongListItem(
+                                             song = Song(
+                                                 number = index + 1,
+                                                 title = track.name,
+                                                 artist = track.getArtistNames(),
+                                                 remoteId = track.id,
+                                                 youtubeId = track.youtubeVideoId,
+                                                 shareUrl = "https://www.youtube.com/watch?v=${track.id}"
+                                             ),
+                                             trackEntities = trackEntities,
+                                             index = index,
+                                             playerViewModel = playerViewModel,
+                                             coroutineScope = coroutineScope,
+                                             isCurrentlyPlaying = isPlaying,
+                                             customButtonIcon = "x",
+                                             customButtonAction = {
+                                                 if (selectedPlaylist != null) {
+                                                     // Eliminar track de la playlist de YouTube local
+                                                     coroutineScope.launch {
+                                                         val success = localRepository.removeTrackFromYouTubePlaylist(
+                                                             localPlaylistId = selectedPlaylist!!.id,
+                                                             remoteTrackId = track.id
+                                                         )
+                                                         if (success) {
+                                                             tracksRevision++
+                                                         } else {
+                                                             editError = "Error removing track"
+                                                         }
+                                                     }
+                                                 }
+                                             },
+                                             modifier = Modifier.fillMaxWidth()
+                                         )
                                     }
                                 }
                             }
@@ -853,13 +855,14 @@ fun PlaylistsScreen(
 
                                 items(playlistTracks.size) { index ->
                                     val track = playlistTracks[index]
-                                    val song = Song(
-                                        number = index + 1,
-                                        title = track.name,
-                                        artist = track.getArtistNames(),
-                                        remoteId = track.id,
-                                        shareUrl = "https://www.youtube.com/watch?v=${track.id}"
-                                    )
+                                     val song = Song(
+                                         number = index + 1,
+                                         title = track.name,
+                                         artist = track.getArtistNames(),
+                                         remoteId = track.id,
+                                         youtubeId = track.youtubeVideoId,
+                                         shareUrl = "https://www.youtube.com/watch?v=${track.id}"
+                                     )
                                     val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                                     SongListItem(
                                         song = song,
@@ -868,7 +871,8 @@ fun PlaylistsScreen(
                                         playerViewModel = playerViewModel,
                                         coroutineScope = coroutineScope,
                                         modifier = Modifier.fillMaxWidth(),
-                                        isCurrentlyPlaying = isPlaying
+                                        isCurrentlyPlaying = isPlaying,
+                                        onLikedStatusChanged = { tracksRevision++ }
                                     )
                                 }
                             }
