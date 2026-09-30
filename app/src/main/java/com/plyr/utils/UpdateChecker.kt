@@ -30,13 +30,15 @@ object UpdateChecker {
             val lastCheck = getLastCheckTime(context)
             val now = System.currentTimeMillis()
 
-            // For debugging: Always fetch fresh data (comment out cache check)
-            // Check if we need to check again (avoid too frequent checks)
-            // if (now - lastCheck < CHECK_INTERVAL_MS) {
-            //     // Return cached result if available
-            //     val cached = getCachedUpdateInfo(context)
-            //     return@withContext cached
-            // }
+            // Evita pedir datos en cada arranque: solo refresca una vez cada 24h.
+            // La disponibilidad se recalcula siempre contra la versión instalada,
+            // para que un resultado cacheado no pueda quedar obsoleto al actualizar.
+            if (now - lastCheck < CHECK_INTERVAL_MS) {
+                val cached = getCachedUpdateInfo(context) ?: return@withContext null
+                return@withContext cached.copy(
+                    isUpdateAvailable = isNewerVersion(currentVersion, cached.latestVersion)
+                )
+            }
 
             val url = URL(GITHUB_API_URL)
             val connection = url.openConnection() as HttpURLConnection
@@ -63,8 +65,9 @@ object UpdateChecker {
                     if (matchResult != null) {
                         matchResult.value
                     } else {
-                        // Last resort: assume latest means a very high version to trigger update
-                        "999.999.999"
+                        // Sin versión legible en la release: no damos por hecho que
+                        // haya update, así que la app se considera al día.
+                        currentVersion
                     }
                 } else {
                     tagName.removePrefix("v")

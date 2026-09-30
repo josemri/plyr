@@ -30,7 +30,6 @@ import com.plyr.utils.DataSync
 import com.plyr.utils.SpotifyImporter
 import com.plyr.utils.SyncResult
 import com.plyr.utils.Translations
-import com.plyr.utils.getPackageInfoCompat
 import com.plyr.viewmodel.ImportViewModel
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Subtitulo
@@ -53,17 +52,6 @@ fun ConfigScreen(
 ) {
     var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
     var selectedLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
-
-    var updateInfo by remember { mutableStateOf<com.plyr.utils.UpdateChecker.UpdateInfo?>(null) }
-
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val info = com.plyr.utils.UpdateChecker.checkForUpdate(context)
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                updateInfo = info
-            }
-        }
-    }
 
     LaunchedEffect(selectedTheme) {
         Config.setTheme(context, selectedTheme)
@@ -161,35 +149,6 @@ fun ConfigScreen(
 
             // Sync
             SyncSection(context = context)
-
-            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
-
-            // Update status
-            val currentVersion = try {
-                context.packageManager.getPackageInfoCompat(context.packageName).versionName ?: "1.0"
-            } catch (e: Exception) {
-                "1.0"
-            }
-
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = updateInfo?.let { info ->
-                        if (info.isUpdateAvailable) {
-                            "● new update available! (v${info.latestVersion})"
-                        } else {
-                            "● using latest version (v${currentVersion})"
-                        }
-                    } ?: "",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = dimensions.bodySize,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 

@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -34,9 +35,12 @@ import coil.compose.AsyncImage
 import com.plyr.database.PlaylistDatabase
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.ui.components.*
+import com.plyr.ui.theme.PlyrSymbols
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import com.plyr.utils.Translations
+import com.plyr.utils.UpdateChecker
 import com.plyr.utils.UrlParser
+import com.plyr.utils.getPackageInfoCompat
 import com.plyr.viewmodel.PlayerViewModel
 
 @SuppressLint("DiscouragedApi")
@@ -94,17 +98,24 @@ fun HomeScreen(
                     var imgModifier = Modifier
                         .widthIn(max = dimensions.imageMaxWidth)
                         .heightIn(max = dimensions.imageMaxHeight)
-                        .padding(end = 16.dp)
                     if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
                         imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
                     }
-                    Image(
-                        painter = painter,
-                        contentDescription = Translations.get(context, "app_logo"),
-                        contentScale = ContentScale.Fit,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                        modifier = imgModifier
-                    )
+                    Column(
+                        modifier = Modifier
+                            .widthIn(max = dimensions.imageMaxWidth)
+                            .padding(end = 16.dp),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Image(
+                            painter = painter,
+                            contentDescription = Translations.get(context, "app_logo"),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                            modifier = imgModifier
+                        )
+                        VersionBadge(context = context)
+                    }
                 }
 
                 Column(
@@ -150,13 +161,19 @@ fun HomeScreen(
                     if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
                         imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
                     }
-                    Image(
-                        painter = painter,
-                        contentDescription = Translations.get(context, "app_logo"),
-                        contentScale = ContentScale.Fit,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                        modifier = imgModifier
-                    )
+                    Column(
+                        modifier = Modifier.widthIn(max = dimensions.imageMaxWidth),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Image(
+                            painter = painter,
+                            contentDescription = Translations.get(context, "app_logo"),
+                            contentScale = ContentScale.Fit,
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                            modifier = imgModifier
+                        )
+                        VersionBadge(context = context)
+                    }
                     Spacer(modifier = Modifier.height(40.dp))
                 }
 
@@ -184,6 +201,62 @@ fun HomeScreen(
             }
         }
     }
+}
+
+/**
+ * Indicador compacto de versión, colocado bajo el logo.
+ *
+ * Si la app está al día muestra solo "v1.1.0". Si hay una release nueva muestra
+ * "● actualiza v1.1.0 → v1.2.0" y, si la release trae APK, es pulsable para abrir
+ * la descarga. Ocupa una sola línea en cualquier caso.
+ */
+@Composable
+private fun VersionBadge(context: Context) {
+    val uriHandler = LocalUriHandler.current
+
+    val currentVersion = remember(context) {
+        runCatching {
+            context.packageManager.getPackageInfoCompat(context.packageName).versionName
+        }.getOrNull() ?: "1.0"
+    }
+
+    var updateInfo by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
+    LaunchedEffect(context) {
+        updateInfo = UpdateChecker.checkForUpdate(context)
+    }
+
+    val latestVersion = updateInfo
+        ?.takeIf { it.isUpdateAvailable && it.latestVersion.isNotBlank() }
+        ?.latestVersion
+
+    val downloadUrl = if (latestVersion != null) updateInfo?.downloadUrl.orEmpty() else ""
+
+    val text = if (latestVersion != null) {
+        "${PlyrSymbols.BULLET} ${Translations.get(context, "update_available")} " +
+            "v$currentVersion ${PlyrSymbols.ARROW} v$latestVersion"
+    } else {
+        "v$currentVersion"
+    }
+
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            color = if (latestVersion != null) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        ),
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .clickable(enabled = downloadUrl.isNotBlank()) { uriHandler.openUri(downloadUrl) }
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    )
 }
 
 /**
