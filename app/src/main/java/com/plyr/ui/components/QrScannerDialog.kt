@@ -33,6 +33,8 @@ import com.plyr.model.ScanResult
 import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 @Composable
 fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (ScanResult?) -> Unit) {
@@ -41,6 +43,17 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (ScanResult?) -> Unit) {
     var permissionRequested by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     var cameraError by remember { mutableStateOf<String?>(null) }
+    val scannerExecutor = remember { Executors.newSingleThreadExecutor() }
+    val cameraProviderRef = remember { AtomicReference<ProcessCameraProvider?>(null) }
+    val scanHandled = remember { AtomicBoolean(false) }
+
+    DisposableEffect(lifecycleOwner, context) {
+        onDispose {
+            // B11: teardown real — desligar la cámara y cerrar el hilo del analizador
+            cameraProviderRef.get()?.unbindAll()
+            scannerExecutor.shutdown()
+        }
+    }
 
     // Solicitar permiso de cámara al abrir el escáner
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -101,18 +114,21 @@ fun QrScannerDialog(onDismiss: () -> Unit, onQrScanned: (ScanResult?) -> Unit) {
                                 cameraProviderFuture.addListener({
                                     try {
                                         val cameraProvider = cameraProviderFuture.get()
+                                        cameraProviderRef.set(cameraProvider)
                                         val preview = Preview.Builder().build().also {
                                             it.surfaceProvider = previewView.surfaceProvider
                                         }
                                         val imageAnalysis = ImageAnalysis.Builder()
                                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                             .build()
-                                        imageAnalysis.setAnalyzer(Executors.newSingleThreadExecutor()) { imageProxy ->
+                                        imageAnalysis.setAnalyzer(scannerExecutor) { imageProxy ->
                                             val qrText = scanQrFromImageProxy(imageProxy)
-                                            if (qrText != null) {
+                                            if (qrText != null && scanHandled.compareAndSet(false, true)) {
                                                 val result = UrlParser.parseScanText(qrText)
-                                                onQrScanned(result)
-                                                onDismiss()
+                                                ContextCompat.getMainExecutor(ctx).execute {
+                                                    onQrScanned(result)
+                                                    onDismiss()
+                                                }
                                                 imageProxy.close()
                                             } else {
                                                 imageProxy.close()

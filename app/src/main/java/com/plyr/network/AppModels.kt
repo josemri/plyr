@@ -28,7 +28,9 @@ data class AppTrack(
     val name: String,
     val artists: List<AppArtist>,
     val durationMs: Int? = null,
-    val album: AppAlbumSimple? = null
+    val album: AppAlbumSimple? = null,
+    val youtubeVideoId: String? = null,
+    val position: Int? = null
 ) {
     fun getArtistNames(): String {
         return artists.artistNames()

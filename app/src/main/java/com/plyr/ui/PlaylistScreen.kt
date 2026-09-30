@@ -1114,6 +1114,8 @@ fun CreatePlaylistScreen(
     var playlistDesc by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var discardWarning by remember { mutableStateOf<Int?>(null) }
+    var createJob by remember { mutableStateOf<Job?>(null) }
 
     // Estados para el buscador de canciones
     var searchQuery by remember { mutableStateOf("") }
@@ -1319,36 +1321,44 @@ fun CreatePlaylistScreen(
                     // Acción de crear playlist con las canciones seleccionadas
                     isLoading = true
                     error = null
-                    // Crear playlist de YouTube usando la integración existente
-                    coroutineScope.launch {
-                        val (saved, message) = withContext(Dispatchers.IO) {
-                            val creator = YouTubePlaylistCreator()
-                            val rawId = "yt_${System.currentTimeMillis()}"
-                            // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
-                            val resolvedVideoIds = selectedTracks
-                                .filter { it.id.length == 11 }
-                                .associate { it.id to it.id }
-                            val created = creator.build(
-                                title = playlistName,
-                                description = playlistDesc.ifBlank { null },
-                                sourceTracks = creator.buildSourceTracks(selectedTracks),
-                                targetPlaylistId = "youtube_$rawId",
-                                resolvedVideoIds = resolvedVideoIds
-                            )
-                            val ok = localRepository.saveCreatedYouTubePlaylist(
+                    discardWarning = null
+                    // Crear playlist de YouTube usando la integración existente.
+                    // build es suspend (B16): se puede cancelar, tiene timeout por
+                    // resolución y reporta cuántas canciones se descartan (B15).
+                    createJob = coroutineScope.launch {
+                        val creator = YouTubePlaylistCreator()
+                        val rawId = "yt_${System.currentTimeMillis()}"
+                        // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
+                        val resolvedVideoIds = selectedTracks
+                            .filter { it.id.length == 11 }
+                            .associate { it.id to it.id }
+                        val created = creator.build(
+                            title = playlistName,
+                            description = playlistDesc.ifBlank { null },
+                            sourceTracks = creator.buildSourceTracks(selectedTracks),
+                            targetPlaylistId = "youtube_$rawId",
+                            resolvedVideoIds = resolvedVideoIds
+                        )
+                        val saved = withContext(Dispatchers.IO) {
+                            localRepository.saveCreatedYouTubePlaylist(
                                 playlistId = rawId,
                                 title = created.title,
                                 description = created.description,
                                 imageUrl = null,
                                 tracks = created.tracks
                             )
-                            ok to "${created.tracks.size} tracks (${selectedTracks.size - created.tracks.size} sin vídeo)"
                         }
                         isLoading = false
                         if (saved) {
-                            onPlaylistCreated()
+                            if (created.discardedTracks > 0) {
+                                // No se navega sin avisar (B15): el usuario decide
+                                // si continuar sabiendo que faltan canciones.
+                                discardWarning = created.discardedTracks
+                            } else {
+                                onPlaylistCreated()
+                            }
                         } else {
-                            error = message
+                            error = "${created.tracks.size} tracks (${created.discardedTracks} sin vídeo)"
                         }
                     }
                 }
@@ -1357,6 +1367,33 @@ fun CreatePlaylistScreen(
         error?.let {
             Spacer(Modifier.height(8.dp))
             Text("${Translations.get(context, "error_prefix")}$it", color = MaterialTheme.colorScheme.error)
+        }
+        discardWarning?.let { discarded ->
+            Spacer(Modifier.height(8.dp))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "${selectedTracks.size - discarded} de ${selectedTracks.size} canciones se añadieron ($discarded sin vídeo)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+                TextButton(onClick = {
+                    discardWarning = null
+                    onPlaylistCreated()
+                }) {
+                    Text("Continuar")
+                }
+            }
+        }
+        if (isLoading) {
+            Spacer(Modifier.height(4.dp))
+            TextButton(
+                onClick = {
+                    createJob?.cancel()
+                    isLoading = false
+                }
+            ) {
+                Text("Cancelar")
+            }
         }
     }
 }

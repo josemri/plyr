@@ -46,6 +46,23 @@ class DatabaseMappingsTest {
         assertEquals(listOf("Solo Artist"), entity.toAppTrack().artists.map { it.name })
     }
 
+    @Test
+    fun trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition() {
+        // B28: la ida y vuelta AppTrack -> TrackEntity no debe perder el id de YouTube
+        val entity = TrackEntity(
+            id = "id3",
+            playlistId = "youtube_abc",
+            remoteTrackId = "vid789",
+            name = "Song",
+            artists = "Artist",
+            youtubeVideoId = "youtube12345",
+            position = 4
+        )
+        val app = entity.toAppTrack()
+        assertEquals("youtube12345", app.youtubeVideoId)
+        assertEquals(4, app.position)
+    }
+
     // --- liked_songs playlist entity ---
 
     @Test

@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.plyr.PlyrApp
 import com.plyr.utils.BackupFolder
 import com.plyr.utils.Config
 import com.plyr.utils.DataSync
@@ -373,7 +374,9 @@ private fun SpotifyImportSection(context: Context, importViewModel: ImportViewMo
 @Composable
 private fun SyncSection(context: Context) {
     val haptic = LocalHapticFeedback.current
-    val coroutineScope = rememberCoroutineScope()
+    // Scope de aplicación (B23): si el usuario sale de Ajustes con un swipe
+    // mientras se sincroniza, la escritura del ZIP no debe cortarse a medias.
+    val coroutineScope = remember { (context.applicationContext as PlyrApp).backgroundScope }
     val dimensions = calculateResponsiveDimensionsFallback()
     var isSyncing by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }

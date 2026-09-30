@@ -3,8 +3,13 @@ package com.plyr.service
 import com.plyr.database.TrackEntity
 import com.plyr.network.AppArtist
 import com.plyr.network.AppTrack
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -31,11 +36,11 @@ class YouTubePlaylistCreatorTest {
         lastSyncTime = 0L
     )
 
-    private fun creator(resolve: (String) -> String? = { "video_$it" }): YouTubePlaylistCreator =
+    private fun creator(resolve: suspend (String) -> String? = { "video_$it" }): YouTubePlaylistCreator =
         YouTubePlaylistCreator(resolveVideoId = resolve)
 
     @Test
-    fun build_keepsTitleDescriptionAndTrackOrder() {
+    fun build_keepsTitleDescriptionAndTrackOrder() = runBlocking {
         val result = creator().build(
             title = "Rock Hits",
             description = "Los mejores temas",
@@ -48,13 +53,13 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_nullDescriptionStaysNull() {
+    fun build_nullDescriptionStaysNull() = runBlocking {
         val result = creator().build("T", null, listOf(track("One")), "youtube_123")
         assertNull(result.description)
     }
 
     @Test
-    fun build_resolvesEachTrackWithNameAndArtistsQuery() {
+    fun build_resolvesEachTrackWithNameAndArtistsQuery() = runBlocking {
         val queries = mutableListOf<String>()
         val creator = creator { query ->
             queries.add(query)
@@ -66,7 +71,7 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_setsVideoIdPlaylistIdAndRebuiltId() {
+    fun build_setsVideoIdPlaylistIdAndRebuiltId() = runBlocking {
         val result = creator().build("T", null, listOf(track("One")), "youtube_123")
         val out = result.tracks.single()
         assertEquals("video_One Artist", out.youtubeVideoId)
@@ -75,7 +80,7 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_keepsAlreadyResolvedVideoIdWithoutSearching() {
+    fun build_keepsAlreadyResolvedVideoIdWithoutSearching() = runBlocking {
         var searches = 0
         val creator = creator { searches++; "ignored" }
         val source = listOf(track("One", youtubeVideoId = "already_resolved"))
@@ -85,7 +90,7 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_usesResolvedVideoIdsWithoutSearching() {
+    fun build_usesResolvedVideoIdsWithoutSearching() = runBlocking {
         var searches = 0
         val creator = creator { searches++; "ignored" }
         val source = listOf(track("One", remoteTrackId = "abcdefghijk"))
@@ -98,7 +103,7 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_resolvedVideoIdsOverridesSearchOnlyForKnownIds() {
+    fun build_resolvedVideoIdsOverridesSearchOnlyForKnownIds() = runBlocking {
         var searches = 0
         val creator = creator { searches++; "searched_$it" }
         val source = listOf(track("One", remoteTrackId = "knownid1"), track("Two", remoteTrackId = "spotify_id_2"))
@@ -111,7 +116,7 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_mixesResolvedAndUnresolvedSources() {
+    fun build_mixesResolvedAndUnresolvedSources() = runBlocking {
         val creator = creator { "video_$it" }
         val source = listOf(
             track("One", youtubeVideoId = "resolved"),
@@ -122,7 +127,7 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_dropsTracksWithoutMatchAndReindexes() {
+    fun build_dropsTracksWithoutMatchAndReindexes() = runBlocking {
         val creator = creator { query -> if (query.startsWith("Missing")) null else "video_$query" }
         val source = listOf(track("One"), track("Missing"), track("Two"))
         val result = creator.build("T", null, source, "youtube_123")
@@ -131,13 +136,24 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun build_emptySourceProducesEmptyTracks() {
-        val result = creator().build("T", "d", emptyList(), "youtube_123")
-        assertEquals(0, result.tracks.size)
+    fun build_reportsDiscardedTracks() = runBlocking {
+        // B15: el recuento de canciones que no resuelven vídeo se propaga a la UI
+        val creator = creator { query -> if (query.startsWith("Missing")) null else "video_$query" }
+        val source = listOf(track("One"), track("MissingA"), track("Two"), track("MissingB"))
+        val result = creator.build("T", null, source, "youtube_123")
+        assertEquals(listOf("One", "Two"), result.tracks.map { it.name })
+        assertEquals(2, result.discardedTracks)
     }
 
     @Test
-    fun build_preservesNameArtistsAndAppTrackId() {
+    fun build_emptySourceProducesEmptyTracks() = runBlocking {
+        val result = creator().build("T", "d", emptyList(), "youtube_123")
+        assertEquals(0, result.tracks.size)
+        assertEquals(0, result.discardedTracks)
+    }
+
+    @Test
+    fun build_preservesNameArtistsAndAppTrackId() = runBlocking {
         val source = track("One", "Artist A, Artist B", remoteTrackId = "spotify_1")
         val result = creator().build("T", null, listOf(source), "youtube_123")
         val out = result.tracks.single()
@@ -176,7 +192,7 @@ class YouTubePlaylistCreatorTest {
     }
 
     @Test
-    fun buildFromAppTracks_resolvesSamePlaylistEndToEnd() {
+    fun buildFromAppTracks_resolvesSamePlaylistEndToEnd() = runBlocking {
         val creator = creator { "video_$it" }
         val selected = listOf(
             AppTrack("sp1", "One", listOf(AppArtist("A"))),
@@ -194,5 +210,24 @@ class YouTubePlaylistCreatorTest {
         assertEquals(listOf("sp1", "sp2"), created.tracks.map { it.remoteTrackId })
         assertEquals(listOf("One", "Two"), created.tracks.map { it.name })
         assertEquals(listOf("youtube_yt_1", "youtube_yt_1"), created.tracks.map { it.playlistId })
+    }
+
+    @Test
+    fun build_cancelledScopeStopsResolving() = runBlocking {
+        // B16: al cancelar la corrutina (navegar atrás), build no continúa
+        // resolviendo las pistas restantes.
+        var resolved = 0
+        val creator = creator {
+            resolved++
+            delay(50)
+            "video_$it"
+        }
+        val buildJob = launch {
+            creator.build("T", null, List(20) { track("Song$it") }, "youtube_x")
+        }
+        delay(10)
+        buildJob.cancel()
+        yield()
+        assertTrue("resolved=$resolved", resolved < 20)
     }
 }

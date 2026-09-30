@@ -33,6 +33,7 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import com.plyr.ui.theme.PlyrSpacing
 import com.plyr.ui.theme.PlyrTextStyles
@@ -85,17 +86,21 @@ fun SongListItem(
     val (leftIcon, leftColor) = getSwipeIconAndColor(swipeLeftAction)
 
     // Swipe gesture state
-    val offsetX = remember { Animatable(0f) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
     val swipeThreshold = with(density) { 30.dp.toPx() } // Umbral muy bajo, solo para detectar intención
+    var settleJob by remember { mutableStateOf<Job?>(null) }
 
-    // Reset swipe position
+    // Reset swipe position (un solo job: un drag nuevo lo cancela)
     fun resetSwipe() {
-        coroutineScope.launch {
-            offsetX.animateTo(
+        settleJob?.cancel()
+        settleJob = coroutineScope.launch {
+            val start = dragOffset
+            if (start == 0f) return@launch
+            Animatable(start).animateTo(
                 targetValue = 0f,
                 animationSpec = tween(durationMillis = 300)
-            )
+            ) { dragOffset = value }
         }
     }
 
@@ -105,11 +110,11 @@ fun SongListItem(
             .height(32.dp)
     ) {
         // Background actions - Right swipe (like/favorite)
-        if (offsetX.value > 0) {
+        if (dragOffset > 0) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(with(density) { offsetX.value.toDp() })
+                    .width(with(density) { dragOffset.toDp() })
                     .background(Color.Transparent),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -123,11 +128,11 @@ fun SongListItem(
         }
 
         // Background actions - Left swipe (add to queue)
-        if (offsetX.value < 0) {
+        if (dragOffset < 0) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(with(density) { (-offsetX.value).toDp() })
+                    .width(with(density) { (-dragOffset).toDp() })
                     .align(Alignment.CenterEnd)
                     .background(Color.Transparent),
                 contentAlignment = Alignment.Center
@@ -144,13 +149,14 @@ fun SongListItem(
         // Main content (draggable)
         Row(
             modifier = Modifier
-                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
+                .offset { IntOffset(dragOffset.roundToInt(), 0) }
+                .pointerInput(song.youtubeId, index, trackEntities) {
                     detectHorizontalDragGestures(
+                        onDragStart = { settleJob?.cancel() },
                         onDragEnd = {
                             coroutineScope.launch {
                                 when {
-                                    offsetX.value > swipeThreshold -> {
+                                    dragOffset > swipeThreshold -> {
                                         val action = Config.getSwipeRightAction(context)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         executeSwipeAction(
@@ -167,7 +173,7 @@ fun SongListItem(
                                         )
                                         resetSwipe()
                                     }
-                                    offsetX.value < -swipeThreshold -> {
+                                    dragOffset < -swipeThreshold -> {
                                         val action = Config.getSwipeLeftAction(context)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         executeSwipeAction(
@@ -192,15 +198,12 @@ fun SongListItem(
                             }
                         },
                         onHorizontalDrag = { _, dragAmount ->
-                            coroutineScope.launch {
-                                val newValue = (offsetX.value + dragAmount).coerceIn(-200f, 150f)
-                                offsetX.snapTo(newValue)
-                            }
+                            dragOffset = (dragOffset + dragAmount).coerceIn(-200f, 150f)
                         }
                     )
                 }
                 .clickable {
-                    if (offsetX.value.absoluteValue < 10f) {
+                    if (dragOffset.absoluteValue < 10f) {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         playerViewModel?.let { viewModel ->
                             if (trackEntities.isNotEmpty() && index in trackEntities.indices) {

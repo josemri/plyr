@@ -20,6 +20,8 @@ fun TrackEntity.toAppTrack(): AppTrack {
         name = this.name,
         artists = this.artists.split(", ").map { artistName ->
             com.plyr.network.AppArtist(name = artistName)
-        }
+        },
+        youtubeVideoId = this.youtubeVideoId,
+        position = this.position
     )
 }

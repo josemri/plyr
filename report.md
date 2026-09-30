@@ -36,14 +36,20 @@
 > **B46**, **B47**—, en una cuarta los 8 del grupo T3 —**B14**, **B26**, **B27**,
 > **B29**, **B36**, **B37**, **B44**, **B45**— y en una quinta los 11 del grupo
 > T4 —**B3**, **B9**, **B12**, **B13**, **B18**, **B19**, **B20**, **B25**,
-> **B33**, **B35**, **B41**—; todos están documentados en **§10** (33 resueltos en
-> total) y quedan **14 activos** (8 altos, 5 medios, 1 bajo). El total de tests
-> pasó de 288 a **291** (con B25 se retiró el test que consolidaba el "ahora
-> falso" de `parseTimestamp` y se añadieron 4: `isoWithOffset`,
-> `invalidReturnsZeroNotNow`, `blankReturnsZero`, `rejectsTrailingGarbage`).
-> El resto de hallazgos no se ha tocado en estas cinco rondas; las rutas de
-> "añadir canciones" (B2, B15, B16), la cola (B1, B4, B5, B6, B7, B8) y la
-> UI de búsqueda (B11, B23, B28) siguen pendientes de lo descrito abajo.
+> **B33**, **B35**, **B41**— y en una sexta los 7 del grupo T5 —**B7**, **B8**,
+> **B11**, **B15**, **B16**, **B23**, **B28**—; todos están documentados en
+> **§10** (40 resueltos en total) y quedan **7 activos** (5 altos, 1 medio,
+> 1 bajo). El total de tests pasó de 288 a **294** (con B25 se retiró el test
+> que consolidaba el "ahora falso" de `parseTimestamp` y se añadieron 4:
+> `isoWithOffset`, `invalidReturnsZeroNotNow`, `blankReturnsZero`,
+> `rejectsTrailingGarbage`; en T5 se añadieron `build_reportsDiscardedTracks`
+> y `build_cancelledScopeStopsResolving` en `YouTubePlaylistCreatorTest` y
+> `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition` en
+> `DatabaseMappingsTest`). El resto de hallazgos no se ha tocado en estas seis
+> rondas; el swipe "añadir a playlist" (**B2**), la reproducción y la cola
+> (**B1**, **B4**, **B5**, **B6**), los datos (**B32**), **B39** (manifiesto),
+> la animación de `NfcButton` (resto de B20) y las traducciones de **§7.1**
+> siguen pendientes de lo descrito abajo.
 
 ---
 
@@ -57,9 +63,10 @@ dependencias están limpias y la lógica pura de cola está extraída y testeada
 El tercero que recordabas —añadir canciones a una lista— también existe, y es
 peor: **ninguna de las cinco rutas para hacerlo funciona** (§1.3). En total
 fueron **47 bugs** verificados contra el código; desde entonces se han resuelto
-**33** (B3, B9, B10, B12, B13, B14, B17, B18, B19, B20, B21, B22, B24, B25, B26,
-B27, B29, B30, B31, B33, B34, B35, B36, B37, B38, B40, B41, B42, B43, B44, B45,
-B46, B47 — ver §10), así que quedan **14 activos** (8 altos, 5 medios, 1 bajo).
+**40** (B3, B7, B8, B9, B10, B11, B12, B13, B14, B15, B16, B17, B18, B19, B20,
+B21, B22, B23, B24, B25, B26, B27, B28, B29, B30, B31, B33, B34, B35, B36, B37,
+B38, B40, B41, B42, B43, B44, B45, B46, B47 — ver §10), así que quedan **7
+activos** (5 altos, 1 medio, 1 bajo).
 ### 1.1 El slide a "liked" no funciona → **es un bug de datos, no de gesto**
 
 `PlaylistScreen` construye el `Song` **sin `youtubeId`** en los tres sitios donde
@@ -242,7 +249,7 @@ todo" ni accumulation: es un flujo diseñado para un solo elemento y colocado
 donde se espera un selector múltiple. La UI dice "N seleccionadas" y el
 usuario asume que puede seguir añadiendo.
 
-#### 5. Al crear la playlist se pierden canciones **sin avisar** — **B15** y **B16**
+#### 5. Al crear la playlist se pierden canciones **sin avisar** — **B15** y **B16** (~~resueltos~~ → §10)
 
 `YouTubePlaylistCreator.build` descarta en silencio toda pista que no resuelva
 un vídeo (`YouTubePlaylistCreator.kt:67`):
@@ -295,11 +302,13 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **0 bugs críticos**, **8 altos**, **5 medios**, **1 bajo** (§3).
-- **291 tests unitarios** en 21 archivos (`./run.sh test`; todos en verde).
+- **0 bugs críticos**, **5 altos**, **1 medio**, **1 bajo** (§3).
+- **294 tests unitarios** en 21 archivos (`./run.sh test`; todos en verde).
   Respecto a la tanda anterior: +4 de `parseTimestamp` (B25: `isoWithOffset`,
-  `invalidReturnsZeroNotNow`, `blankReturnsZero`, `rejectsTrailingGarbage`) y −1
-  que consolidaba el "ahora falso" (`parseTimestamp_invalidFallsBackToNow`).
+  `invalidReturnsZeroNotNow`, `blankReturnsZero`, `rejectsTrailingGarbage`), −1
+  que consolidaba el "ahora falso" (`parseTimestamp_invalidFallsBackToNow`) y +3
+  en T5 (`build_reportsDiscardedTracks`, `build_cancelledScopeStopsResolving` y
+  `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition`).
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
 - **~700 líneas muertas** entre `SongMenuDialog`, `CollapsibleSection`,
   `PlyrDimensions` y funciones sin uso (§7).
@@ -318,13 +327,13 @@ de descartes.
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **291** en 21 archivos (ejecutados y en verde) |
+| Tests unitarios | **294** en 21 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso | **16 de 104** (verificadas por barrido) |
 | Claves referenciadas que no existen | **1** (`"Player not available"`) |
 
-**Desglose de los 291 tests** (tras `./run.sh test`, todos en verde):
+**Desglose de los 294 tests** (tras `./run.sh test`, todos en verde):
 
 | Archivo | @Test | Archivo | @Test |
 |---|---|---|---|
@@ -335,9 +344,9 @@ de descartes.
 | `SpotifyImporterTest` | 23 | `ModelDefaultsTest` | 7 |
 | `ExportManifestTest` | 24 | `SupabaseClientTest` | 10 |
 | `QueueIndexTest` | 22 | `CoverCacheTest` | 6 |
-| `YouTubePlaylistCreatorTest` | 15 | `BackupFolderTest` | 5 |
+| `YouTubePlaylistCreatorTest` | 17 | `BackupFolderTest` | 5 |
 | `ImportArchiveTest` | 14 | `TranslationsTest` | 5 |
-| `DatabaseMappingsTest` | 13 | `NewPipeHolderTest` | 3 |
+| `DatabaseMappingsTest` | 14 | `NewPipeHolderTest` | 3 |
 | | | `ExampleUnitTest` | 1 |
 
 ---
@@ -359,18 +368,11 @@ sí toca la tabla de favoritos, y por eso está en altos).
 | **B4** | `PlayerViewModel.kt:589-592`, `:660`, `:668` | **La invalidación de URL caducada es un no-op.** `currentVideoId` se rellena con `queue[i].youtubeVideoId` (null para toda pista resuelta por búsqueda), así que `YouTubeManager.invalidate()` casi nunca se llama y el re-intento recibe de la caché **la misma URL muerta**. Detalle en §1.2. |
 | **B5** | `YouTubeManager.kt:68-80` + `PlayerViewModel.kt:163,366,403,479-481` | **Doble extracción por transición.** `getAudioUrl` no deduplica en vuelo y `growWindow()` se invoca dos veces por salto, con `prefetchJob?.cancel()` + relanzamiento. La extracción cancelada (OkHttp sobre `Dispatchers.IO`, no interrumpible) no llega a escribir caché y la relanzada repite el trabajo. Es la "carga doble" que se oye. |
 | **B6** | `PlayerViewModel.kt:611`, `:390` | **`_error` nunca se limpia en la ruta de error.** `_error.publish(null)` solo existe en `startAt:337` y `clearPlayerState:290`. Tras un `onPlayerError` recuperable, el estado de error se queda pegado para siempre: los controles quedan deshabilitados y el texto de error no desaparece aunque la canción vuelva a sonar. |
-| **B7** | `SongListItem.kt:148` | **`pointerInput(Unit)` con estado capturado.** El bloque de drag fija `song`, `index` y `trackEntities` en la primera composición y no se reinicia nunca. Afecta a `QueueScreen:69`, `YouTubePlaylistDetailView:231`, `YouTubeSearchResults:221` y `SearchScreen:451`: tras reordenar o añadir, el swipe y el clic actúan sobre la pista del primer frame. |
-| **B8** | `SongListItem.kt:194-199` y `:150-153` | **`Animatable` + `launch` por evento de drag.** Cada `onHorizontalDrag` lanza una corrutina con `snapTo`; `MutatorMutex` hace que se cancelen entre sí y el offset acumulado se pierde. `onDragEnd` lee `offsetX.value` dentro de otra corrutina, con el `snapTo` pendiente en vuelo, así que el umbral se evalúa sobre un valor provisional. Resultado: el gesto se "come" desplazamientos y a veces no supera el umbral. |
-| **B11** | `QrScannerDialog.kt:88`, `:99` | **Fuga de cámara y de hilo por cada apertura del escáner.** `Executors.newSingleThreadExecutor()` se crea en línea y nunca se hace `shutdown()`; el `unbindAll()` de la línea 99 es limpieza previa a `bindToLifecycle`, **no teardown**: no hay `DisposableEffect` ni `onDispose` en el archivo, así que la cámara sigue ligada a la Activity y el analizador sigue corriendo con el diálogo cerrado. Encima, `onQrScanned()` y `onDismiss()` se invocan desde el **hilo del analizador** (`:92-93`), lo que hace que `SearchScreen` escriba estado de Compose desde él, y no hay guarda de reentrada: cada frame posterior vuelve a disparar el callback. |
 
 ### 3.3 Medios
 
 | # | Ubicación | Descripción |
 |---|---|---|
-| **B15** | `YouTubePlaylistCreator.kt:67` + `PlaylistScreen.kt:1344-1350` | **La creación de playlist descarta canciones sin avisar.** `build` hace `if (videoId.isNullOrBlank()) return@forEach`, y el recuento de lo perdido se **calcula y se tira**: `"${created.tracks.size} tracks (… sin vídeo)"` solo se muestra en la rama `else` de fallo. Si 7 de 12 canciones resuelven vídeo, la app crea la playlist, navega atrás sin decir nada, y el usuario descubre las 5 perdidas al reabrirla. Detalle en §1.3. |
-| **B16** | `YouTubePlaylistCreator.kt:66` + `PlaylistScreen.kt:1323-1344` | **La creación de playlist puede colgarse durante minutos sin salida.** Por cada pista sin `youtubeVideoId` y con id de longitud distinta de 11 (p. ej. importadas de Spotify) se lanza una búsqueda bloqueante de YouTube vía NewPipe, **en serie**, sin timeout y sin cancelación. El botón queda en `enabled = !isLoading` y no hay "cancelar", así que el usuario ve el spinner y asume cuelgue. Arreglarlo exige que `build` pase a `suspend` con `ensureActive()`. |
-| **B23** | `ConfigScreen.kt:414/423, 462/471, 525/562, 655, 693` | Exportar, importar y copiar/restaurar se lanzan en `rememberCoroutineScope()`. La pantalla de config vive en un pager (un swipe basta para salir), y `onCleared` **cancela** esas corrutinas a mitad de la escritura → ZIP truncado o base de datos restaurada a medias sin aviso. Necesitan un scope de aplicación. |
-| **B28** | `DatabaseExtensions.kt:17-24` (`AppModels.kt:7,26`) | `toAppTrack()` no puede transportar `youtubeVideoId`, `position` ni `durationMs` porque `AppTrack` no tiene esos campos. Toda ida y vuelta `AppTrack → TrackEntity` (usada en `PlaylistScreen.kt:152` y `:178`) **pierde el id de YouTube** de la pista. Es el mecanismo que hace que B1 sea irrecuperable una vez guardado. |
 | **B32** | `SimpleDownloader.kt:31`, `:49-59`, `:61` | El mapa de cookies es un `mutableMapOf` plano: `setCookie` muta desde el hilo que lo inicializa y `getCookies` lo lee desde **todos** los hilos de red, sin sincronizar. Además se loguean cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir `Authorization`. |
 
 ### 3.4 Bajos
@@ -508,13 +510,17 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ## 8. TESTS
 
-- **291 tests unitarios en 21 archivos** (`./run.sh test`, todos en verde;
+- **294 tests unitarios en 21 archivos** (`./run.sh test`, todos en verde;
   +7 respecto al recuento estático de esta revisión por la cobertura de
   tombstones/`deletedPlaylistIds`, luego +4 de formato de vídeo en B27, −13 al
-  retirar los de `isValidAudioUrl` en B37, y −1/+4 con `parseTimestamp` en B25:
-  el test que certificaba el "ahora falso" se retiró y se añadieron
+  retirar los de `isValidAudioUrl` en B37, −1/+4 con `parseTimestamp` en B25
+  (el test que certificaba el "ahora falso" se retiró y se añadieron
   `isoWithOffset`, `invalidReturnsZeroNotNow`, `blankReturnsZero` y
-  `rejectsTrailingGarbage`).
+  `rejectsTrailingGarbage`) y +3 en T5:
+  `build_reportsDiscardedTracks` y `build_cancelledScopeStopsResolving`
+  (B15/B16) en `YouTubePlaylistCreatorTest` y
+  `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition` (B28) en
+  `DatabaseMappingsTest`).
 - 0 tests instrumentados útiles: solo `ExampleInstrumentedTest`.
 
 **Gaps relevantes, en orden de daño que hacen:**
@@ -555,11 +561,16 @@ Dos casos concretos que se ven sin traducir hoy:
    nombre+artista con `ImportManifest.fallbackDedupeKey`, que ya existe y se usa
    en `mergeLikedSongsTracks`). Sin la segunda mitad, volver a abrir la lista de
    favoritos sigue encontrando las filas corruptas que ya están guardadas.
-2. **B7** — `pointerInput(song.youtubeId, index, trackEntities)` en
-   `SongListItem.kt:148`, o mejor: sacar la decisión del gesto a una función pura.
-3. **B8** — sustituir el `launch { snapTo }` por un acumulador sin suspender
+2. ~~**B7** — `pointerInput(song.youtubeId, index, trackEntities)` en
+   `SongListItem.kt:148`, o mejor: sacar la decisión del gesto a una función pura.~~
+   **Hecho** (ver §10). (Extraer la decisión del gesto a una función pura queda
+   como mejora futura, resuena con §8 gap 3.)
+3. ~~**B8** — sustituir el `launch { snapTo }` por un acumulador sin suspender
    (guardar el offset en un `mutableFloatStateOf` y hacer un único `snapTo` en
-   `onDragEnd`), o usar `Modifier.swipeable` / `anchoredDraggable`.
+   `onDragEnd`), o usar `Modifier.swipeable` / `anchoredDraggable`.~~ **Hecho**
+   (ver §10): acumulador `mutableFloatStateOf` con la animación de retorno en un
+   único `Animatable`; la opción `swipeable`/`anchoredDraggable` queda como
+   refactor futuro.
 4. **B4** — que `invalidate()` reciba el id **realmente usado** (el que resolvió
    `startAt`, no `track.youtubeVideoId`), y persistirlo en la `MediaItem` para
    poder recuperarlo en el handler de error. Además, `getAudioUrl` debería
@@ -580,10 +591,11 @@ Dos casos concretos que se ven sin traducir hoy:
    `tracksRevision` como clave del `LaunchedEffect` (no hace falta un ViewModel).
 8. ~~**B14** — no borrar `searchResults`/`searchQuery` al añadir.~~ **Hecho**
    (ver §10). Pendiente solo la mejora de "añadir los N resultados" de golpe.
-9. **B15** — propagar el recuento de descartes a la UI **también en el camino de
+9. ~~**B15** — propagar el recuento de descartes a la UI **también en el camino de
    éxito** (`PlaylistScreen.kt:1347-1350`), Idealmente bloqueando `<create>` si
    se ha perdido alguna canción, o al menos mostrando el aviso antes de
-   navegar atrás.
+   navegar atrás.~~ **Hecho** (ver §10): aviso "%N de %M canciones se añadieron
+   (%D sin vídeo)" + botón "Continuar" antes de volver.
 10. ~~**B13** — comprobación de duplicado por `remoteTrackId` en
     `addTrackToYouTubePlaylist` antes de insertar, reutilizando la lógica de
     `mergeLikedSongsTracks:230-240`.~~ **Hecho** (ver §10). Pendiente a medio
@@ -600,8 +612,10 @@ Dos casos concretos que se ven sin traducir hoy:
     `SongListItem` reciba) para que `<rnd>` no desincronice la UI.~~ **Hecho**
     (ver §10).
 14. ~~**B10** — borrar la constante duplicada de `PlayerViewModel.kt:713`.~~ **Hecho** (ver §10).
-15. **B11** — `DisposableEffect` en `QrScannerDialog` con `shutdown()` del executor
-    y `unbindAll()`, y devolver el resultado del analizador al hilo principal.
+15. ~~**B11** — `DisposableEffect` en `QrScannerDialog` con `shutdown()` del executor
+    y `unbindAll()`, y devolver el resultado del analizador al hilo principal.~~
+    **Hecho** (ver §10): `onDispose` con `unbindAll()` + `shutdown()`, guarda de
+    reentrada con `AtomicBoolean` y callbacks al hilo principal.
 16. ~~**B19** — `DisposableEffect(lifecycleOwner, nfcState, nfcAdapter)` para que la
     escritura NFC arranque de verdad.~~ **Hecho** (ver §10). (La protección de
     `NfcReader.enableForegroundDispatch` —B30— ya está hecha, ver §10.)
@@ -611,9 +625,11 @@ Dos casos concretos que se ven sin traducir hoy:
     (ver §10): el QR ya no se regenera en cada recomposición. Queda pendiente la
     segunda mitad (optimización): sacar la animación de `NfcButton` de la
     composición (Canvas con `withFrameNanos` en un `LaunchedEffect`).
-19. **B16** — hacer `YouTubePlaylistCreator.build` `suspend`, meter un
+19. ~~**B16** — hacer `YouTubePlaylistCreator.build` `suspend`, meter un
     `ensureActive()` por pista y un timeout por resolución, y añadir un botón
-    "cancelar" mientras `isLoading`.
+    "cancelar" mientras `isLoading`.~~ **Hecho** (ver §10): `build` es `suspend`
+    con `ensureActive()` y timeout `withTimeoutOrNull(15s)` por resolución; el
+    botón "Cancelar" cancela el `Job` del create.
 
 ### Fase 3 — Datos e i18n
 
@@ -632,8 +648,9 @@ Dos casos concretos que se ven sin traducir hoy:
     offset explícito) y `0L` en fallo; `formatTimestamp` muestra "unknown".
 23. ~~**B26**, **B27** — pasar la miniatura real a `getPlaylistThumbnailUrl` y
     limpiar `getFormattedVideoCount`.~~ **Hecho** (ver §10).
-24. **B28** — añadir `youtubeVideoId` a `AppTrack` o dejar de hacer la ida y vuelta
-    por `AppTrack` en `PlaylistScreen`.
+24. ~~**B28** — añadir `youtubeVideoId` a `AppTrack` o dejar de hacer la ida y vuelta
+    por `AppTrack` en `PlaylistScreen`.~~ **Hecho** (ver §10): `AppTrack` ya
+    transporta `youtubeVideoId` y `position`, y `toAppTrack()` los propaga.
 25. ~~**B24** — `"$ load_error"` → clave de traducción real.~~ **Hecho** (ver §10).
 26. **§7.1** — borrar las 16 claves sin uso y arreglar `QueueScreen.kt:87,103`.
     Añadir a `TranslationsTest` un test que falle si una clave definida no
@@ -648,8 +665,10 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ### Fase 4 — Estabilidad operativa y limpieza
 
-28. **B23** — mover exportación, importación y copia de seguridad a un scope de
-    aplicación (o a un `ViewModel`) para que un swipe en el pager no las corte.
+28. ~~**B23** — mover exportación, importación y copia de seguridad a un scope de
+    aplicación (o a un `ViewModel`) para que un swipe en el pager no las corte.~~
+    **Hecho** (ver §10): `backgroundScope` expuesto por `PlyrApp` y usado por
+    `SyncSection` en config.
 29. **§7** — borrar `SongMenuDialog.kt` (171), `CollapsibleSection.kt` (88),
     `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd` + sus 4
     tests y `YouTubeManager.clearCache`. (`isValidAudioUrl` —B37— ya se borró con
@@ -735,8 +754,23 @@ Todos verificados con `./run.sh test` (**291 tests, en verde**) y
 | **B35** | `FloatingMusicControls.kt:145` | `LaunchedEffect(playerViewModel.exoPlayer)` sustituido por un `LaunchedEffect(Unit)` autosostenido que relee `exoPlayer` en cada vuelta (`?: run { delay(500); continue }`): el polling ya no depende de que otras `LiveData` fuerzen recomposición. |
 | **B41** | `app/build.gradle.kts` + `app/proguard-rules.pro` | `isMinifyEnabled = true` en release + `-keep class org.schabi.newpipe.** { *; }` (no se puede ofuscar el extractor) y `-assumenosideeffects` para `android.util.Log` (v/d/i/w/e), de modo que los `Log.*` con cuerpos/cookies de B32 vuelven de la mano del shrinking. **Sin verificar en build release** (no hay keystore local): probar con `./run.sh build release`. |
 
-Aún pendientes, más difíciles: las rutas de "añadir canciones" (**B2**, **B15**,
-**B16**), la reproducción y la cola (**B1**, **B4**, **B5**, **B6**, **B7**,
-**B8**), la UI de búsqueda/escáner (**B11**, **B23**), los datos (**B28**,
-**B32**), **B39** (manifiesto), la optimización de la animación de `NfcButton`
-(resto de B20) y las traducciones de **§7.1**.
+---
+
+Sexta tanda de arreglos (2026-09-30), los 7 bugs del grupo T5.
+Todos verificados con `./run.sh test` (**294 tests, en verde**) y
+`./run.sh build` (BUILD SUCCESSFUL).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B7** | `SongListItem.kt:148` | `.pointerInput(Unit)` → `.pointerInput(song.youtubeId, index, trackEntities)`: el gesto ya se reinicia cuando cambia la pista, su índice o el set de pistas (tras reordenar o añadir), en las cuatro listas que usan `SongListItem`. |
+| **B8** | `SongListItem.kt:150-153,:194-199` | El drag ya no lanza una corrutina con `snapTo` por evento: el offset se acumula de forma síncrona en un `mutableFloatStateOf` (`dragOffset`), `onDragStart` cancela la animación de retorno y `onDragEnd` evalúa el umbral con el valor real acumulado; la vuelta al reposo se anima una sola vez con `Animatable` (`tween(300)`). El gesto ya no se "come" desplazamientos. |
+| **B11** | `QrScannerDialog.kt` | `DisposableEffect(lifecycleOwner, context)` cuyo `onDispose` hace `cameraProviderRef.unbindAll()` y `scannerExecutor.shutdown()` (executor remembered a nivel de diálogo, no en línea); `scanHandled` (`AtomicBoolean`) evita que cada frame posterior del analizador vuelva a disparar `onQrScanned`/`onDismiss`; ambos callbacks se devuelven al hilo principal con `ContextCompat.getMainExecutor`. |
+| **B15** | `YouTubePlaylistCreator.kt` + `PlaylistScreen.kt` | El recuento de descartes viaja en la firma (`CreatedYouTubePlaylist.discardedTracks`). Con canciones sin vídeo, `CreatePlaylistScreen` muestra "%N de %M canciones se añadieron (%D sin vídeo)" con un botón "Continuar" explícito antes de volver atrás; el mensaje de fallo también lo usa. |
+| **B16** | `YouTubePlaylistCreator.kt` + `PlaylistScreen.kt` | `build` pasa a `suspend` con `coroutineContext.ensureActive()` por pista; cada resolución tiene timeout `withTimeoutOrNull(15 s)`; `resolveVideoId` es un `suspend` inyectable (testeable sin red). En la UI, el botón "Cancelar" (visible mientras `isLoading`) cancela el `Job` del create. |
+| **B23** | `PlyrApp.kt` + `ConfigScreen.kt` | `PlyrApp` expone `backgroundScope` (`SupervisorJob() + Dispatchers.Main.immediate`); `SyncSection` lanza exportación/importación/copia en ese scope (`applicationContext as PlyrApp`) en vez de `rememberCoroutineScope()`: un swipe en el pager ya no corta el trabajo a mitad. |
+| **B28** | `AppModels.kt` + `DatabaseExtensions.kt` | `AppTrack` gana `youtubeVideoId` y `position`; `toAppTrack()` los propaga desde `TrackEntity` y `buildSourceTracks` los conserva, así que la ida y vuelta `AppTrack → TrackEntity` ya no pierde el id de YouTube. |
+
+Aún pendientes, más difíciles: **B2** (swipe "añadir a playlist"), la reproducción
+y la cola (**B1**, **B4**, **B5**, **B6**), **B32** (logs con datos sensibles),
+**B39** (manifiesto), la optimización de la animación de `NfcButton` (resto de
+B20) y las traducciones de **§7.1**.
