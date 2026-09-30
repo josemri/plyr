@@ -113,14 +113,15 @@ object Translations {
             "share_me" to "< ¡compárteme! >",
 
             // Sync
-            "sync_section" to "[ sync ]",
             "sync" to "< sync >",
+            "sync_synced" to "synced w/ %1\$s",
             "sync_working" to "sincronizando...",
             "sync_done" to "● copiado: %1\$d listas, %2\$d canciones",
+            "sync_merged" to "+%1\$d listas, %2\$d canciones, %3\$d borradas del archivo",
             "sync_empty" to "● no hay listas que sincronizar",
             "sync_need_folder" to "● primero elige una carpeta",
             "sync_error" to "● no se pudo sincronizar",
-            "sync_folder" to "● carpeta: %1\$s",
+            "sync_archive_unreadable" to "● no se pudo leer la copia de la carpeta, no se ha tocado nada",
             "sync_folder_denied" to "● no se pudo guardar el acceso a la carpeta",
 
             // NEW MISSING KEYS
@@ -155,14 +156,15 @@ object Translations {
 
 
             // Sync
-            "sync_section" to "[ sync ]",
             "sync" to "< sync >",
+            "sync_synced" to "synced w/ %1\$s",
             "sync_working" to "syncing...",
             "sync_done" to "● copied: %1\$d playlists, %2\$d tracks",
+            "sync_merged" to "+%1\$d playlists, %2\$d tracks, %3\$d deleted from the archive",
             "sync_empty" to "● no playlists to sync",
             "sync_need_folder" to "● pick a folder first",
             "sync_error" to "● could not sync",
-            "sync_folder" to "● folder: %1\$s",
+            "sync_archive_unreadable" to "● couldn't read the copy in the folder, nothing was touched",
             "sync_folder_denied" to "● folder access could not be saved",
 
             // Main Screen
@@ -277,14 +279,15 @@ object Translations {
 
 
             // Sync
-            "sync_section" to "[ sync ]",
             "sync" to "< sync >",
+            "sync_synced" to "synced w/ %1\$s",
             "sync_working" to "sincronitzant...",
             "sync_done" to "● copiat: %1\$d llistes, %2\$d cançons",
+            "sync_merged" to "+%1\$d llistes, %2\$d cançons, %3\$d esborrades de l'arxiu",
             "sync_empty" to "● no hi ha llistes per sincronitzar",
             "sync_need_folder" to "● primer tria una carpeta",
             "sync_error" to "● no es va poder sincronitzar",
-            "sync_folder" to "● carpeta: %1\$s",
+            "sync_archive_unreadable" to "● no es va poder llegir la còpia de la carpeta, no s'ha tocat res",
             "sync_folder_denied" to "● no es va poder desar l'accés a la carpeta",
 
 
@@ -405,14 +408,15 @@ object Translations {
 
 
             // Sync
-            "sync_section" to "[ sync ]",
             "sync" to "< sync >",
+            "sync_synced" to "synced w/ %1\$s",
             "sync_working" to "同期中...",
             "sync_done" to "● コピー: %1\$d リスト, %2\$d 曲",
+            "sync_merged" to "アーカイブから +%1\$d リスト、%2\$d 曲、%3\$d 削除",
             "sync_empty" to "● 同期するリストがありません",
             "sync_need_folder" to "● 先にフォルダを選んでください",
             "sync_error" to "● 同期できませんでした",
-            "sync_folder" to "● フォルダ: %1\$s",
+            "sync_archive_unreadable" to "● フォルダのコピーを読み込めませんでした。何も変更していません",
             "sync_folder_denied" to "● フォルダへのアクセスを保存できませんでした",
 
 

@@ -36,6 +36,10 @@ object Config {
     private const val KEY_BACKUP_DOC_ID = "backup_doc_id"
     private const val KEY_BACKUP_HASH = "backup_hash"
 
+    // Tombs de borrado: ids de listas que se borraron y no deben resucitar al
+    // sincronizar (ver `DataSync`).
+    private const val KEY_DELETED_PLAYLIST_IDS = "deleted_playlist_ids"
+
     // Clave para el nickname del usuario en Feed
     private const val KEY_USER_NICKNAME = "user_nickname"
 
@@ -351,6 +355,38 @@ object Config {
             remove(KEY_BACKUP_DOC_ID)
             remove(KEY_BACKUP_HASH)
         }
+    }
+
+    // === TOMBS DE BORRADO ===
+
+    /**
+     * Ids de las listas que el usuario borró en algún momento.
+     *
+     * Borrar no es solo quitar la fila de Room: también hay que recordarlo,
+     * porque la copia de la carpeta guarda cada lista y la fusión la devolvería
+     * en la siguiente sincronización. El id viaja en el manifiesto del ZIP y la
+     * unión local+archivo es lo que se aplica al importar.
+     */
+    fun getDeletedPlaylistIds(context: Context): Set<String> =
+        getPrefs(context).getStringSet(KEY_DELETED_PLAYLIST_IDS, emptySet())
+            ?.toSet()
+            ?: emptySet()
+
+    fun setDeletedPlaylistIds(context: Context, ids: Collection<String>) {
+        getPrefs(context).edit {
+            if (ids.isEmpty()) remove(KEY_DELETED_PLAYLIST_IDS)
+            else putStringSet(KEY_DELETED_PLAYLIST_IDS, ids.toSet())
+        }
+    }
+
+    /** Marca [id] como borrada. Idempotente. */
+    fun addDeletedPlaylistId(context: Context, id: String) {
+        setDeletedPlaylistIds(context, getDeletedPlaylistIds(context) + id)
+    }
+
+    /** Olvida que [id] se borró: la lista vuelve a poder sincronizarse. */
+    fun removeDeletedPlaylistId(context: Context, id: String) {
+        setDeletedPlaylistIds(context, getDeletedPlaylistIds(context) - id)
     }
 
 }

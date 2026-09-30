@@ -88,6 +88,7 @@ object DataExporter {
         val takenCoverEntries = mutableSetOf<String>()
         val manifests = mutableListOf<ExportPlaylist>()
         val covers = mutableListOf<CoverPayload>()
+        val deletedPlaylistIds = Config.getDeletedPlaylistIds(context)
 
         entities.forEach { entity ->
             val coverBytes = loadCoverBytes(context, entity.imageUrl)
@@ -110,12 +111,14 @@ object DataExporter {
             manifests += playlist
             accumulator.addPlaylist(playlist, coverBytes)
         }
+        accumulator.addDeletedPlaylistIds(deletedPlaylistIds)
 
         ExportBundle(
             manifestJson = ExportManifest.build(
                 appVersion = appVersion(context),
                 exportedAt = System.currentTimeMillis(),
-                playlists = manifests
+                playlists = manifests,
+                deletedPlaylistIds = deletedPlaylistIds
             ),
             covers = covers,
             contentHash = accumulator.hex(),

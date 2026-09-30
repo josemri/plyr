@@ -22,7 +22,7 @@ class ImportManifestTest {
 
     @Test
     fun parse_readsEveryPlaylistAndTrackField() {
-        val playlists = ImportManifest.parse(MANIFEST)
+        val playlists = ImportManifest.parse(MANIFEST).playlists
 
         assertEquals(3, playlists.size)
 
@@ -47,13 +47,13 @@ class ImportManifestTest {
 
     @Test
     fun parse_keepsPlaylistOrder() {
-        val ids = ImportManifest.parse(MANIFEST).map { it.id }
+        val ids = ImportManifest.parse(MANIFEST).playlists.map { it.id }
         assertEquals(listOf("youtube_PL1", "liked_songs", "youtube_PL2"), ids)
     }
 
     @Test
     fun parse_readsPlaylistWithoutDescriptionCoverOrTracks() {
-        val playlists = ImportManifest.parse(MANIFEST)
+        val playlists = ImportManifest.parse(MANIFEST).playlists
         val empty = playlists[2]
 
         assertNull(empty.description)
@@ -67,7 +67,7 @@ class ImportManifestTest {
             """{"position": 0, "name": "Con video", "artists": [], "remoteTrackId": "  ", "youtubeVideoId": "yt-9"}""",
             """{"position": 1, "name": "Sin nada", "artists": [], "remoteTrackId": "", "youtubeVideoId": ""}"""
         )
-        val tracks = ImportManifest.parse(json).single().tracks
+        val tracks = ImportManifest.parse(json).playlists.single().tracks
 
         assertEquals("yt-9", tracks[0].remoteTrackId)
         assertEquals("imported_1", tracks[1].remoteTrackId)
@@ -76,13 +76,13 @@ class ImportManifestTest {
     @Test
     fun parse_artistsWithoutValidEntries_becomesEmptyString() {
         val json = manifestWithTracks("""{"name": "S", "artists": ["A", "", "  ", "B"]}""")
-        assertEquals("A, B", ImportManifest.parse(json).single().tracks.single().artists)
+        assertEquals("A, B", ImportManifest.parse(json).playlists.single().tracks.single().artists)
     }
 
     @Test
     fun parse_playlistWithoutTracksArray_givesEmptyList() {
         val json = """{"app":"_plyr","formatVersion":1,"playlists":[{"id":"x","name":"X"}]}"""
-        assertTrue(ImportManifest.parse(json).single().tracks.isEmpty())
+        assertTrue(ImportManifest.parse(json).playlists.single().tracks.isEmpty())
     }
 
     // === VALIDACIÓN DEL FORMATO ===
@@ -182,6 +182,93 @@ class ImportManifestTest {
         assertEquals(PlaylistAction.MergeLikedSongs, actions[1])
         assertEquals(SkipReason.LEGACY_ALBUM, (actions[2] as PlaylistAction.Skip).reason)
         assertEquals(SkipReason.ALREADY_EXISTS, (actions[3] as PlaylistAction.Skip).reason)
+    }
+
+    @Test
+    fun plan_freshInstallSyncBringsBackEveryArchivePlaylist() {
+        // Regresión del sync "de cero a cero": tras instalar la app la única
+        // lista del dispositivo es liked_songs vacía, así que la política de
+        // fusión tiene que crear todas las del archivo (y fusionar los
+        // favoritos), sin descartar ninguna. Es lo que evita que sincronizar
+        // pise una copia buena con una vacía.
+        val actions = ImportManifest.plan(
+            playlists = listOf(
+                playlist("youtube_PL1"),
+                playlist(PlaylistLocalRepository.LIKED_SONGS_ID),
+                playlist("youtube_PL2")
+            ),
+            existingIds = setOf(PlaylistLocalRepository.LIKED_SONGS_ID)
+        )
+
+        assertEquals(3, actions.size)
+        assertTrue(actions[0] is PlaylistAction.Create)
+        assertEquals((actions[0] as PlaylistAction.Create).playlist.id, "youtube_PL1")
+        assertEquals(PlaylistAction.MergeLikedSongs, actions[1])
+        assertTrue(actions[2] is PlaylistAction.Create)
+        assertEquals((actions[2] as PlaylistAction.Create).playlist.id, "youtube_PL2")
+    }
+
+    // === TOMBS DE BORRADO ===
+
+    @Test
+    fun parse_archiveWithoutDeletedPlaylistIds_isValidAndEmpty() {
+        val manifest = ImportManifest.parse(MANIFEST)
+        assertTrue(manifest.deletedPlaylistIds.isEmpty())
+    }
+
+    @Test
+    fun parse_deletedPlaylistIds_readsIdsAndFiltersNoise() {
+        val json = """
+            {
+              "app": "_plyr",
+              "formatVersion": 1,
+              "deletedPlaylistIds": [" youtube_PL1 ", "", "  ", "liked_songs", "youtube_PL2"],
+              "playlists": []
+            }
+        """.trimIndent()
+
+        val parsed = ImportManifest.parse(json)
+        assertEquals(setOf("youtube_PL1", "youtube_PL2"), parsed.deletedPlaylistIds)
+    }
+
+    @Test
+    fun plan_ignoresPlaylistsMarkedAsDeleted() {
+        val actions = ImportManifest.plan(
+            listOf(playlist("youtube_PL1")),
+            existingIds = emptySet(),
+            deletedPlaylistIds = setOf("youtube_PL1")
+        )
+
+        val action = actions.single()
+        assertTrue(action is PlaylistAction.Skip)
+        assertEquals(SkipReason.IGNORED_DELETED, (action as PlaylistAction.Skip).reason)
+    }
+
+    @Test
+    fun plan_deleteTakesPrecedenceEvenIfPlaylistExists() {
+        // El tomb gana aunque la lista siga en el dispositivo: el archivo o el
+        // propio usuario la marcó como borrada, y recrearla sería resucitarla.
+        val actions = ImportManifest.plan(
+            listOf(playlist("youtube_PL1")),
+            existingIds = setOf("youtube_PL1"),
+            deletedPlaylistIds = setOf("youtube_PL1")
+        )
+
+        assertEquals(
+            SkipReason.IGNORED_DELETED,
+            (actions.single() as PlaylistAction.Skip).reason
+        )
+    }
+
+    @Test
+    fun plan_likedSongsIsNeverTombstoned() {
+        val actions = ImportManifest.plan(
+            listOf(playlist(PlaylistLocalRepository.LIKED_SONGS_ID)),
+            existingIds = setOf(PlaylistLocalRepository.LIKED_SONGS_ID),
+            deletedPlaylistIds = setOf(PlaylistLocalRepository.LIKED_SONGS_ID)
+        )
+
+        assertEquals(PlaylistAction.MergeLikedSongs, actions.single())
     }
 
     // === CONVERSIÓN A ENTIDADES ===
@@ -292,23 +379,29 @@ class ImportManifestTest {
             ),
             ExportPlaylist("liked_songs", "liked", null, null, emptyList())
         )
-        val json = ExportManifest.build(appVersion = "1.1.0", exportedAt = 0L, playlists = original)
+        val json = ExportManifest.build(
+            appVersion = "1.1.0",
+            exportedAt = 0L,
+            playlists = original,
+            deletedPlaylistIds = listOf("youtube_PL2", "youtube_PL1")
+        )
 
         val parsed = ImportManifest.parse(json)
 
-        assertEquals(2, parsed.size)
-        assertEquals("youtube_PL1", parsed[0].id)
-        assertEquals("Rock \"n\" Roll", parsed[0].name)
-        assertEquals("línea1\nlínea2", parsed[0].description)
-        assertEquals("covers/youtube_PL1.jpg", parsed[0].coverEntry)
-        assertEquals(2, parsed[0].tracks.size)
-        assertEquals("Song \"One\"", parsed[0].tracks[0].name)
-        assertEquals("A, B", parsed[0].tracks[0].artists)
-        assertEquals("Cañón", parsed[0].tracks[1].name)
-        assertEquals("", parsed[0].tracks[1].artists)
-        assertNull(parsed[0].tracks[1].youtubeVideoId)
-        assertEquals("liked_songs", parsed[1].id)
-        assertNull(parsed[1].description)
+        assertEquals(setOf("youtube_PL1", "youtube_PL2"), parsed.deletedPlaylistIds)
+        assertEquals(2, parsed.playlists.size)
+        assertEquals("youtube_PL1", parsed.playlists[0].id)
+        assertEquals("Rock \"n\" Roll", parsed.playlists[0].name)
+        assertEquals("línea1\nlínea2", parsed.playlists[0].description)
+        assertEquals("covers/youtube_PL1.jpg", parsed.playlists[0].coverEntry)
+        assertEquals(2, parsed.playlists[0].tracks.size)
+        assertEquals("Song \"One\"", parsed.playlists[0].tracks[0].name)
+        assertEquals("A, B", parsed.playlists[0].tracks[0].artists)
+        assertEquals("Cañón", parsed.playlists[0].tracks[1].name)
+        assertEquals("", parsed.playlists[0].tracks[1].artists)
+        assertNull(parsed.playlists[0].tracks[1].youtubeVideoId)
+        assertEquals("liked_songs", parsed.playlists[1].id)
+        assertNull(parsed.playlists[1].description)
     }
 
     // === HELPERS ===

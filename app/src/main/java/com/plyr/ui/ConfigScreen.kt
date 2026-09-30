@@ -32,7 +32,6 @@ import com.plyr.utils.SyncResult
 import com.plyr.utils.Translations
 import com.plyr.viewmodel.ImportViewModel
 import com.plyr.ui.components.MultiToggle
-import com.plyr.ui.components.Subtitulo
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import kotlinx.coroutines.Dispatchers
@@ -365,6 +364,10 @@ private fun SpotifyImportSection(context: Context, importViewModel: ImportViewMo
  *   usuario que borró el ZIP a mano desde Drive.
  * - **El archivo está donde se esperaba**: sincroniza y listo.
  *
+ * El botón también dice en qué estado está: `< sync >` mientras no haya un ZIP
+ * escrito, y `synced w/ <carpeta>` cuando ya lo hay, con el nombre de la última
+ * carpeta de la ruta, no la ruta entera.
+ *
  * Al margen de este botón, la app ya sola: marca los cambios y los vuelca al
  * salir (`DataSync.flushOnStop`).
  */
@@ -380,12 +383,18 @@ private fun SyncSection(context: Context) {
     // Cambia al elegir carpeta, para repintar el estado.
     var treeUri by remember { mutableStateOf(Config.getBackupTreeUri(context)) }
 
-    // Resolver el nombre de la carpeta es una consulta al proveedor de
-    // documentos: con Drive es una llamada de red, así que va fuera de la
-    // composición o congelaría la pantalla al abrir los ajustes.
+    // Resolver el nombre de la carpeta y comprobar que el ZIP sigue ahí son
+    // consultas al proveedor de documentos: con Drive es una llamada de red, así
+    // que va fuera de la composición o congelaría la pantalla al abrir los
+    // ajustes.
     var folderName by remember { mutableStateOf<String?>(null) }
+    var hasBackupFile by remember { mutableStateOf(false) }
     LaunchedEffect(treeUri) {
-        folderName = treeUri?.let { loadFolderName(context, Uri.parse(it)) }
+        val tree = treeUri?.let { Uri.parse(it) }
+        folderName = tree?.let { loadFolderName(context, it) }
+        hasBackupFile = tree != null && runCatching {
+            BackupFolder.findExistingBackupFile(context, tree) != null
+        }.getOrDefault(false)
     }
 
     // Un solo mensaje para la sección, en vez de uno por botón.
@@ -401,11 +410,23 @@ private fun SyncSection(context: Context) {
         when (val result = DataSync.flush(context, force = true)) {
             is SyncResult.Written -> {
                 statusIsError = false
-                statusMessage = Translations.get(context, "sync_done")
+                val copiadas = Translations.get(context, "sync_done")
                     .format(result.summary.playlistCount, result.summary.trackCount)
+                val recuperadas = result.merged
+                    ?.let { merged ->
+                        Translations.get(context, "sync_merged")
+                            .format(merged.importedPlaylists, merged.mergedLikedTracks, merged.deletedPlaylists)
+                    }
+                statusMessage = listOfNotNull(recuperadas, copiadas).joinToString(" ")
+                // El botón pasa a indicar que ya hay copia. El nombre se vuelve
+                // a resolver porque puede ser una carpeta nueva.
+                val tree = treeUri?.let { Uri.parse(it) }
+                folderName = tree?.let { loadFolderName(context, it) }
+                hasBackupFile = true
             }
             // "force" solo salta la comparación de huellas, no la falta de
-            // listas: sin listas no hay nada que copiar.
+            // listas: sin listas no hay nada que copiar. El estado del botón no
+            // se toca, porque no se ha escrito nada.
             SyncResult.UpToDate -> {
                 statusIsError = false
                 statusMessage = Translations.get(context, "sync_empty")
@@ -413,6 +434,10 @@ private fun SyncSection(context: Context) {
             SyncResult.NotConfigured -> {
                 statusIsError = true
                 statusMessage = Translations.get(context, "sync_need_folder")
+            }
+            is SyncResult.ArchiveUnreadable -> {
+                statusIsError = true
+                statusMessage = Translations.get(context, "sync_archive_unreadable")
             }
             is SyncResult.Failed -> {
                 statusIsError = true
@@ -451,30 +476,20 @@ private fun SyncSection(context: Context) {
         }
     }
 
-    Subtitulo(Translations.get(context, "sync_section"))
-
-    Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-
-    val folder = treeUri
-    if (folder != null) {
-        Text(
-            text = Translations.get(context, "sync_folder").format(folderName ?: folder),
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-        )
+    // El estado vive en la propia etiqueta del botón: sin ZIP escrito pone
+    // "< sync >", y con ZIP puesto el nombre de la carpeta donde vive. Si el
+    // proveedor no resuelve el nombre, se muestra el del archivo, que al menos
+    // dice dónde está la copia.
+    val syncLabel = if (hasBackupFile) {
+        Translations.get(context, "sync_synced")
+            .format(folderName ?: BackupFolder.BACKUP_FILE_NAME)
+    } else {
+        Translations.get(context, "sync")
     }
 
     DataActionRow(
         context = context,
-        label = Translations.get(context, "sync"),
+        label = syncLabel,
         workingKey = "sync_working",
         isWorking = isSyncing,
         onClick = {
@@ -509,7 +524,7 @@ private fun SyncSection(context: Context) {
                     MaterialTheme.colorScheme.primary
                 }
             ),
-            maxLines = 2,
+            maxLines = 3,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .fillMaxWidth()
@@ -519,28 +534,40 @@ private fun SyncSection(context: Context) {
 }
 
 /**
- * Nombre legible de la carpeta elegida, o su Uri entero si el proveedor no lo
- * resuelve. Hace una consulta al `DocumentsProvider`, que con Drive es una
- * llamada de red: nunca llamar a esto desde la composición.
+ * Nombre de la **última** carpeta de [treeUri] ("plyr" de "primary:Download/plyr"),
+ * o null si no hay forma de averiguarlo.
+ *
+ * Hace una consulta al `DocumentsProvider`, que con Drive es una llamada de red:
+ * nunca llamar a esto desde la composición. El respaldo es el último segmento
+ * del `documentId`, nunca el Uri entero, porque en el botón solo cabe el nombre
+ * de la carpeta: una ruta completa lo deja ilegible.
  */
-private suspend fun loadFolderName(context: Context, treeUri: Uri): String? =
-    withContext(Dispatchers.IO) {
-        try {
-            val documentId = DocumentsContract.getTreeDocumentId(treeUri)
-            val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, documentId)
-            context.contentResolver.query(
-                docUri,
-                arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) cursor.getString(0) else null
-            } ?: documentId.substringAfterLast(':').ifBlank { treeUri.toString() }
-        } catch (e: Exception) {
-            treeUri.toString()
+private suspend fun loadFolderName(context: Context, treeUri: Uri): String? = withContext(Dispatchers.IO) {
+    val treeDocumentId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }
+        .getOrNull()
+        ?.substringAfterLast(':')
+        ?.trim('/')
+        ?.takeIf { it.isNotBlank() }
+
+    val displayName = try {
+        context.contentResolver.query(
+            DocumentsContract.buildDocumentUriUsingTree(
+                treeUri,
+                DocumentsContract.getTreeDocumentId(treeUri)
+            ),
+            arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
+            null,
+            null,
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
         }
+    } catch (e: Exception) {
+        null
     }
+
+    displayName?.trim()?.takeIf { it.isNotBlank() } ?: treeDocumentId
+}
 
 /**
  * Fila de acción de ajustes con dos estados: lista para pulsar y trabajando.

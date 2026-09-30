@@ -156,12 +156,18 @@ object ExportManifest {
     /**
      * Construye el documento `playlists.json` completo. El resultado es estable
      * (mismos datos → mismo texto), lo que facilita comparar exportaciones.
+     *
+     * [deletedPlaylistIds] son los ids de listas que el usuario borró y no deben
+     * resucitar al importar. Viaja siempre (aunque sea vacío) para que dos
+     * exportaciones con los mismos datos sean idénticas.
      */
     fun build(
         appVersion: String,
         exportedAt: Long,
-        playlists: List<ExportPlaylist>
+        playlists: List<ExportPlaylist>,
+        deletedPlaylistIds: Collection<String> = emptyList()
     ): String {
+        val deleted = deletedPlaylistIds.sorted()
         val trackCount = playlists.sumOf { it.tracks.size }
         return buildString {
             appendLine("{")
@@ -171,6 +177,12 @@ object ExportManifest {
             appendLine("  \"exportedAt\": $exportedAt,")
             appendLine("  \"playlistCount\": ${playlists.size},")
             appendLine("  \"trackCount\": $trackCount,")
+            append("  \"deletedPlaylistIds\": [")
+            deleted.forEachIndexed { index, id ->
+                if (index > 0) append(", ")
+                append(jsonString(id))
+            }
+            appendLine("],")
             append("  \"playlists\": [")
             if (playlists.isNotEmpty()) appendLine()
             playlists.forEachIndexed { index, playlist ->

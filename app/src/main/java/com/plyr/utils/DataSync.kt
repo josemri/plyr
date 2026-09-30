@@ -7,6 +7,7 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -18,8 +19,17 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Resultado de intentar volcar los cambios a la carpeta de copia. */
 sealed interface SyncResult {
-    /** Se escribió un archivo nuevo. */
-    data class Written(val summary: ExportSummary) : SyncResult
+    /**
+     * Se escribió un archivo nuevo.
+     *
+     * [merged] es lo que entró en el dispositivo desde la copia anterior de la
+     * carpeta, cuando la sincronización trajo algo de ahí ([ArchiveUnreadable]
+     * es el caso contrario: no se pudo leer y no se escribió nada).
+     */
+    data class Written(
+        val summary: ExportSummary,
+        val merged: ImportSummary? = null
+    ) : SyncResult
 
     /** Los datos no habían cambiado desde la última vez: no se tocó nada. */
     data object UpToDate : SyncResult
@@ -28,11 +38,24 @@ sealed interface SyncResult {
     data object NotConfigured : SyncResult
 
     /**
+     * El archivo de la carpeta existe pero no se pudo leer. No se escribe
+     * nada: podría ser la única copia de los datos.
+     */
+    data class ArchiveUnreadable(val error: Throwable) : SyncResult
+
+    /**
      * Falló la escritura. Solo lo ve el botón de sincronizar; la copia
      * automática lo ignora a propósito (ver [DataSync.flush]).
      */
     data class Failed(val error: Throwable) : SyncResult
 }
+
+/**
+ * Hay un archivo en la carpeta y no se puede leer. Se distingue del fallo de
+ * escritura para poder dejar la copia vieja intacta en vez de pisarla sin haber
+ * visto qué había dentro.
+ */
+private class UnreadableArchiveException(cause: Throwable) : Exception(cause)
 
 /**
  * DataSync - Mantiene un único archivo de copia de seguridad siempre al día en
@@ -54,6 +77,24 @@ sealed interface SyncResult {
  *
  * Se omite la escritura si la huella del contenido no ha cambiado: escribir en
  * Drive son varias llamadas de red y no puede ser gratis.
+ *
+ * ## Qué hace con la copia que ya estaba
+ *
+ * Sincronizar va en los dos sentidos. Antes de escribir, el archivo de la
+ * carpeta se lee y lo que haya en él que la app no tenga entra en el
+ * dispositivo (ver [mergeArchiveFromFolder]); después se exporta el estado ya
+ * fusionado, de modo que el archivo y la app terminan con todo.
+ *
+ * Sin ese paso, instalar la app de cero y pulsar el botón—sobre todo,
+ * eligiendo la carpeta de siempre— pisaba la copia buena con una copia vacía:
+ * una instalación nueva solo tiene `liked_songs` sin canciones, y el archivo
+ * anterior se renombraba a `.old` y se borraba sin llegar a leerlo.
+ *
+ * La fusión solo añade: las listas que ya están en el dispositivo no se tocan y
+ * `liked_songs` se une a los favoritos actuales sin duplicar. Una excepción son
+ * las listas borradas (tombs): borrar queda registrado y viaja en el archivo,
+ * así un borrado hecho aquí se aplica en cualquier otro dispositivo y no
+ * resucita al sincronizar. Y si el archivo no se puede leer, no se escribe nada.
  *
  * ## Cómo escribe
  *
@@ -126,18 +167,33 @@ object DataSync {
         try {
             val treeUri = BackupFolder.requireTree(appContext)
 
-            val bundle = try {
+            // null si la app no tiene ninguna lista. El archivo de la carpeta
+            // puede traerlas de vuelta, así que aún no se rinde aquí.
+            val current = try {
                 DataExporter.buildBundle(appContext)
             } catch (e: EmptyExportException) {
-                // Sin listas no hay nada que respaldar. No es un error: la
-                // carpeta simplemente se deja como está.
-                Log.d(TAG, "No hay listas que sincronizar")
+                null
+            }
+
+            if (current != null && !force && Config.getBackupHash(appContext) == current.contentHash) {
+                Log.d(TAG, "La copia ya estaba al dia")
                 isDirty.set(false)
                 return@withLock SyncResult.UpToDate
             }
 
-            if (!force && Config.getBackupHash(appContext) == bundle.contentHash) {
-                Log.d(TAG, "La copia ya estaba al dia")
+            // La fusión va antes que la huella: importar cambia el estado local,
+            // que es lo que luego se exporta.
+            //
+            // NonCancellable: importar marca los datos como sucios y eso cancela
+            // el trabajo de debounce, que puede ser el que esté ejecutando esta
+            // misma sincronización (markDirty -> flush). Cancelado en mitad de la
+            // fusión, la llamada a buildBundle de abajo abortaría la escritura.
+            val merge = withContext(NonCancellable) { mergeArchiveFromFolder(appContext, treeUri, current) }
+
+            val bundle = merge?.bundle ?: current
+            if (bundle == null) {
+                // Ni la app ni la carpeta tienen listas que copiar.
+                Log.d(TAG, "No hay listas que sincronizar")
                 isDirty.set(false)
                 return@withLock SyncResult.UpToDate
             }
@@ -156,8 +212,14 @@ object DataSync {
                     playlistCount = bundle.playlistCount,
                     trackCount = bundle.trackCount,
                     coverCount = bundle.covers.size
-                )
+                ),
+                merged = merge?.takeIf { it.summary.broughtAnything() }?.summary
             )
+        } catch (e: UnreadableArchiveException) {
+            // Se prefiere la copia antigua, que puede ser la única, a escribir
+            // encima sin haber podido leer qué había dentro.
+            Log.w(TAG, "No se pudo leer la copia de la carpeta; no se escribe: ${e.cause?.message}")
+            SyncResult.ArchiveUnreadable(e.cause ?: e)
         } catch (e: Exception) {
             // Un fallo de red no puede escalar a un crash ni dejar al usuario
             // con un error en pantalla: la copia es una función de fondo. Se
@@ -165,6 +227,68 @@ object DataSync {
             Log.w(TAG, "No se pudo actualizar la copia: ${e.message}")
             SyncResult.Failed(e)
         }
+    }
+
+    /**
+     * Lo que entró en el dispositivo desde la copia anterior de la carpeta.
+     */
+    private class ArchiveMerge(
+        val summary: ImportSummary,
+        val bundle: ExportBundle
+    )
+
+    /**
+     * Lee el archivo de la carpeta y deja en la app todo lo que hubiera en él y
+     * la app no tuviera. Cuando hay algo que traer, [ArchiveMerge.bundle] refleja
+     * el estado ya fusionado (se vuelve a recoger); si no, se reutiliza
+     * [current], que sigue siendo válido.
+     *
+     * Devuelve null si no hay archivo en la carpeta, o si existe pero no es una
+     * copia de plyr: no hay nada que fusionar y el archivo lleva el nombre de la
+     * app, así que se puede reescribir.
+     *
+     * La fusión sigue la política de [DataImporter], pensada para repetirse sin
+     * daño: las listas que ya están en el dispositivo se dejan intactas (la app
+     * gana), `liked_songs` se une a los favoritos actuales sin duplicar y las
+     * filas legacy `album_*` se ignoran.
+     *
+     * @throws UnreadableArchiveException si el archivo existe pero no se puede
+     *   leer (sin red, permiso, ZIP a medias). Entonces no se debe escribir
+     *   nada: el archivo viejo puede ser la única copia de los datos.
+     */
+    private suspend fun mergeArchiveFromFolder(
+        context: Context,
+        treeUri: Uri,
+        current: ExportBundle?
+    ): ArchiveMerge? {
+        val documentUri = BackupFolder.findExistingBackupFile(context, treeUri) ?: return null
+
+        val result = DataImporter.importFrom(context, documentUri)
+        val summary = result.getOrNull()
+        if (summary == null) {
+            val cause = result.exceptionOrNull() ?: IOException("Fallo desconocido al leer la copia")
+            if (cause !is ManifestFormatException) throw UnreadableArchiveException(cause)
+            Log.w(TAG, "El archivo de la carpeta no es una copia de plyr; se reescribe: ${cause.message}")
+            return null
+        }
+
+        if (!summary.broughtAnything()) {
+            // No había nada que traer: el estado ya recogido sigue valiendo.
+            return current?.let { ArchiveMerge(summary, it) }
+        }
+
+        val merged = try {
+            DataExporter.buildBundle(context)
+        } catch (e: EmptyExportException) {
+            return null
+        }
+
+        Log.d(
+            TAG,
+            "Copia de la carpeta fusionada: ${summary.importedPlaylists} listas nuevas, " +
+                "${summary.mergedLikedTracks} favoritos"
+        )
+        return ArchiveMerge(summary, merged)
     }
 
     /**
@@ -266,6 +390,10 @@ object DataSync {
         }
 
     // === UTILIDADES ===
+
+    /** Si el archivo de la carpeta aportó algo que la app no tuviera. */
+    private fun ImportSummary.broughtAnything(): Boolean =
+        importedPlaylists > 0 || mergedLikedTracks > 0 || deletedPlaylists > 0
 
     private fun Uri.documentIdOrEmpty(): String =
         runCatching { DocumentsContract.getDocumentId(this) }.getOrNull().orEmpty()

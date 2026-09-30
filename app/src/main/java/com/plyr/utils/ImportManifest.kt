@@ -40,8 +40,20 @@ enum class SkipReason {
     LEGACY_ALBUM,
 
     /** Sin id no se puede crear: `remoteId` es la clave primaria. */
-    INVALID_ID
+    INVALID_ID,
+
+    /** El id está tombado: el usuario lo borró y no debe resucitar. */
+    IGNORED_DELETED
 }
+
+/**
+ * Manifiesto ya interpretado: las listas que hay que tratar más los ids que
+ * se marcaron como borrados (tombs) esa misma vez.
+ */
+data class ParsedManifest(
+    val playlists: List<ImportedPlaylist>,
+    val deletedPlaylistIds: Set<String>
+)
 
 /** Qué hay que hacer con cada lista del ZIP. */
 sealed interface PlaylistAction {
@@ -72,12 +84,13 @@ object ImportManifest {
     const val LEGACY_ALBUM_PREFIX = "album_"
 
     /**
-     * Lee el contenido de [json] y devuelve sus listas en el mismo orden.
+     * Lee el contenido de [json] y devuelve las listas (en su orden) junto con
+     * los ids borrados que el manifiesto recuerda.
      *
      * @throws ManifestFormatException si no es un manifiesto de plyr o su
      *   versión no es la que entiende esta app.
      */
-    fun parse(json: String): List<ImportedPlaylist> {
+    fun parse(json: String): ParsedManifest {
         val root = try {
             JSONObject(json)
         } catch (e: Exception) {
@@ -97,8 +110,27 @@ object ImportManifest {
         val playlistsJson = root.optJSONArray("playlists")
             ?: throw ManifestFormatException("El manifiesto no tiene la lista \"playlists\"")
 
-        return (0 until playlistsJson.length()).mapNotNull { playlistIndex ->
+        val playlists = (0 until playlistsJson.length()).mapNotNull { playlistIndex ->
             playlistsJson.optJSONObject(playlistIndex)?.let { parsePlaylist(it) }
+        }
+
+        return ParsedManifest(
+            playlists = playlists,
+            deletedPlaylistIds = parseDeletedPlaylistIds(root)
+        )
+    }
+
+    /**
+     * Los tombs son opcionales: un archivo antiguo no los lleva, y no
+     * sincronizar borrados es más conservador que borrar de más.
+     */
+    private fun parseDeletedPlaylistIds(root: JSONObject): Set<String> {
+        val array = root.optJSONArray("deletedPlaylistIds") ?: return emptySet()
+        return buildSet {
+            for (i in 0 until array.length()) {
+                val id = array.optString(i).trim()
+                if (id.isNotEmpty() && id != PlaylistLocalRepository.LIKED_SONGS_ID) add(id)
+            }
         }
     }
 
@@ -106,16 +138,22 @@ object ImportManifest {
      * Decide qué hacer con cada lista según lo que ya hay en el dispositivo.
      * [existingIds] son los `remoteId` presentes; `liked_songs` siempre existe
      * (se crea al arrancar la app) y por eso nunca se da por importada.
+     *
+     * [deletedPlaylistIds] son los tombs que se aplican en esta importación
+     * (los propios de la app más los que traía el archivo): una lista borrada
+     * no se recrea, pase lo que pase con el resto de la política.
      */
     fun plan(
         playlists: List<ImportedPlaylist>,
-        existingIds: Set<String>
+        existingIds: Set<String>,
+        deletedPlaylistIds: Set<String> = emptySet()
     ): List<PlaylistAction> = playlists.map { playlist ->
         when {
             playlist.id.isBlank() -> PlaylistAction.Skip(playlist.id, SkipReason.INVALID_ID)
             playlist.id.startsWith(LEGACY_ALBUM_PREFIX) ->
                 PlaylistAction.Skip(playlist.id, SkipReason.LEGACY_ALBUM)
             playlist.id == PlaylistLocalRepository.LIKED_SONGS_ID -> PlaylistAction.MergeLikedSongs
+            playlist.id in deletedPlaylistIds -> PlaylistAction.Skip(playlist.id, SkipReason.IGNORED_DELETED)
             playlist.id in existingIds -> PlaylistAction.Skip(playlist.id, SkipReason.ALREADY_EXISTS)
             else -> PlaylistAction.Create(playlist)
         }

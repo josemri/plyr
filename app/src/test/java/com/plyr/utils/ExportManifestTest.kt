@@ -141,6 +141,29 @@ class ExportManifestTest {
         )
     }
 
+    @Test
+    fun build_includesDeletedPlaylistIdsSortedAndStable() {
+        val playlists = listOf(samplePlaylist())
+        val first = ExportManifest.build(
+            "1.0.0", 0L, playlists,
+            deletedPlaylistIds = setOf("youtube_PL2", "youtube_PL1")
+        )
+        val second = ExportManifest.build(
+            "1.0.0", 0L, playlists,
+            deletedPlaylistIds = listOf("youtube_PL1", "youtube_PL2")
+        )
+
+        val json = JSONObject(first).getJSONArray("deletedPlaylistIds")
+        assertEquals(listOf("youtube_PL1", "youtube_PL2"), (0 until json.length()).map { json.getString(it) })
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun build_withoutDeletedPlaylists_emitsEmptyArray() {
+        val json = JSONObject(ExportManifest.build("1.0.0", 0L, listOf(samplePlaylist())))
+        assertEquals(0, json.getJSONArray("deletedPlaylistIds").length())
+    }
+
     /**
      * Snapshot del formato. Si esto falla, el archivo exportado ha cambiado de
      * forma incompatible para quien lo consume: o se actualiza el snapshot a
@@ -169,7 +192,8 @@ class ExportManifestTest {
                     coverEntry = "covers/youtube_PL1.jpg",
                     tracks = emptyList()
                 )
-            )
+            ),
+            deletedPlaylistIds = listOf("youtube_PL3")
         )
 
         val expected = """
@@ -180,6 +204,7 @@ class ExportManifestTest {
               "exportedAt": 1735689600000,
               "playlistCount": 2,
               "trackCount": 2,
+              "deletedPlaylistIds": ["youtube_PL3"],
               "playlists": [
                 {
                   "id": "liked_songs",

@@ -55,6 +55,18 @@ object ExportDigest {
             if (coverBytes != null) digest.update(coverBytes)
         }
 
+        /**
+         * Añade los tombs de borrado. Un borrado cambia la huella aunque el
+         * resto del manifiesto sea idéntico: si no, un tomb que llega del
+         * archivo sin tocar ninguna lista local nunca forzaría reescribir la
+         * copia.
+         */
+        fun addDeletedPlaylistIds(ids: Collection<String>) = apply {
+            val sorted = ids.sorted()
+            updateField(sorted.size.toString())
+            sorted.forEach { updateField(it) }
+        }
+
         /** Huella acumulada hasta ahora, en minúsculas hexadecimal. */
         fun hex(): String = digest.digest().joinToString(separator = "") { byte -> "%02x".format(byte) }
 

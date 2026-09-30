@@ -6,6 +6,7 @@ import androidx.lifecycle.asLiveData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
+import com.plyr.utils.Config
 import com.plyr.utils.DataSync
 import com.plyr.utils.ImportManifest
 
@@ -179,6 +180,9 @@ class PlaylistLocalRepository(context: Context) {
             playlistDao.insertPlaylist(playlist)
             trackDao.deleteTracksByPlaylist(playlist.remoteId)
             trackDao.insertTracks(tracks)
+            // Guardar es la forma de re-añadir una lista: se deshace el tomb
+            // para que vuelva a poder sincronizarse.
+            Config.removeDeletedPlaylistId(appContext, playlist.remoteId)
             markDirty()
 
             Log.d(TAG, "YouTube playlist guardada: ${playlist.name} (${tracks.size} tracks)")
@@ -199,6 +203,7 @@ class PlaylistLocalRepository(context: Context) {
         val localPlaylistId = "youtube_$youtubePlaylistId"
         trackDao.deleteTracksByPlaylist(localPlaylistId)
         playlistDao.deletePlaylistById(localPlaylistId)
+        rememberDeletion(localPlaylistId)
         markDirty()
         Log.d(TAG, "YouTube playlist eliminada: $localPlaylistId")
     }
@@ -213,8 +218,20 @@ class PlaylistLocalRepository(context: Context) {
     suspend fun deletePlaylist(localPlaylistId: String) = withContext(Dispatchers.IO) {
         trackDao.deleteTracksByPlaylist(localPlaylistId)
         playlistDao.deletePlaylistById(localPlaylistId)
+        rememberDeletion(localPlaylistId)
         markDirty()
         Log.d(TAG, "Playlist eliminada: $localPlaylistId")
+    }
+
+    /**
+     * Registra el borrado de [localPlaylistId] para que la sincronización no
+     * devuelva la lista: borrar es un cambio que también tiene que viajar.
+     * `liked_songs` nunca se borra, así que tampoco puede tener tomb.
+     */
+    private fun rememberDeletion(localPlaylistId: String) {
+        if (localPlaylistId != LIKED_SONGS_ID) {
+            Config.addDeletedPlaylistId(appContext, localPlaylistId)
+        }
     }
 
     /**
