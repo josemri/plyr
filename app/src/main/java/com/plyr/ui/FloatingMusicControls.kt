@@ -25,8 +25,6 @@ import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.utils.Config
 import com.plyr.database.TrackEntity
-import com.plyr.ui.components.SongMenuData
-import com.plyr.ui.components.SongMenuDialog
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.background
 import androidx.compose.material3.LinearProgressIndicator

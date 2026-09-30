@@ -43,10 +43,16 @@
 > **B20** (animación de `NfcButton`), **B32** (los datos), **B41** (build release,
 > que estaba roto), **§7.1** (traducciones)—; todos están documentados en
 > **§10** (**48 resueltos, 0 activos**) y el total de tests pasó de 288 a
-> **343**. En T8 se añadieron tres ficheros nuevos —
+> **339**. En T8 se añadieron tres ficheros nuevos —
 > `SimpleDownloaderLogRedactionTest` (18), `NfcPulseTest` (11) y
 > `TranslationKeysUsageTest` (4)— y `TranslationsTest` dejó de exigir la clave
-> `info` que se borró. El histórico de tests por tanda: con B25 se retiró el test
+> `info` que se borró. En una novena tanda, sin bugs nuevos, se borró el código
+> muerto que la propia auditoría listaba en §7: `SongMenuDialog.kt` (171),
+> `CollapsibleSection.kt` (88), `PlyrDimensions`, tres constantes de
+> `PlyrSymbols`, `loadPlaylists` y `QueueIndex.needsRefillAfterEnd` con sus 4
+> tests, que certificaban una función que producción nunca llama:
+> **−301 líneas y −4 tests**, y `./run.sh test`, `./run.sh build` y
+> `./run.sh build release` quedan en verde. El histórico de tests por tanda: con B25 se retiró el test
 > que consolidaba el "ahora falso" de `parseTimestamp` y se añadieron 4:
 > `isoWithOffset`, `invalidReturnsZeroNotNow`, `blankReturnsZero`,
 > `rejectsTrailingGarbage`; en T5 se añadieron `build_reportsDiscardedTracks`
@@ -377,7 +383,7 @@ de descartes.
 ### 1.4 Estado de la deuda
 
 - **0 bugs de cualquier severidad**: los 48 están resueltos (§3 y §10).
-- **343 tests unitarios** en 25 archivos (`./run.sh test`; todos en verde).
+- **339 tests unitarios** en 25 archivos (`./run.sh test`; todos en verde).
   Respecto a la tanda anterior: +4 de `parseTimestamp` (B25: `isoWithOffset`,
   `invalidReturnsZeroNotNow`, `blankReturnsZero`, `rejectsTrailingGarbage`), −1
   que consolidaba el "ahora falso" (`parseTimestamp_invalidFallsBackToNow`), +3
@@ -388,8 +394,11 @@ de descartes.
   (`SimpleDownloaderLogRedactionTest` 18, `NfcPulseTest` 11,
   `TranslationKeysUsageTest` 4).
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
-- **~700 líneas muertas** entre `SongMenuDialog`, `CollapsibleSection`,
-  `PlyrDimensions` y funciones sin uso (§7).
+- **Código muerto: el que la auditoría listeó, borrado en T9** (`SongMenuDialog`,
+  `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`,
+  `QueueIndex.needsRefillAfterEnd` y 3 constantes de `PlyrSymbols`). Queda lo
+  pequeño: previews de Android Studio, `ActionButtonData.enabled` y los campos
+  muertos de `ResponsiveDimensions` (§7).
 - **0 claves de traducción sin uso** y **0 claves referenciadas que no existen**
   (§7.1), con dos tests que lo garantizan. Queda la lista de literales sueltos
   fuera de `Translations`, que es refactor y no bug.
@@ -402,20 +411,20 @@ de descartes.
 
 | Métrica | Valor |
 |---|---|
-| Archivos Kotlin (main) | 72 (~15.169 líneas) |
-| Archivos de test | 25 (~3.935 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (1405), `PlayerViewModel.kt` (786), `ConfigScreen.kt` (665), `SongListItem.kt` (565), `FloatingMusicControls.kt` (540), `SearchScreen.kt` (483), `PlaylistLocalRepository.kt` (445), `Translations.kt` (437) |
+| Archivos Kotlin (main) | 70 (~14.872 líneas) |
+| Archivos de test | 25 (~3.910 líneas) |
+| Archivos más grandes | `PlaylistScreen.kt` (1403), `PlayerViewModel.kt` (786), `ConfigScreen.kt` (665), `SongListItem.kt` (565), `FloatingMusicControls.kt` (538), `SearchScreen.kt` (483), `PlaylistLocalRepository.kt` (445), `Translations.kt` (437) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **343** en 25 archivos (ejecutados y en verde) |
+| Tests unitarios | **339** en 25 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso | **0** (antes 22; `TranslationKeysUsageTest`) |
 | Claves referenciadas que no existen | **0** (antes 1: `"Player not available"`) |
 | Build release | **BUILD SUCCESSFUL** (R8 + lint), APK 4,9 MB sin firmar |
 
-**Desglose de los 343 tests** (tras `./run.sh test`, todos en verde):
+**Desglose de los 339 tests** (tras `./run.sh test`, todos en verde):
 
 | Archivo | @Test | Archivo | @Test |
 |---|---|---|---|
@@ -424,7 +433,7 @@ de descartes.
 | `CoverCropMathTest` | 24 | `AppModelsTest` | 8 |
 | `ExportManifestTest` | 24 | `ModelDefaultsTest` | 7 |
 | `SpotifyImporterTest` | 23 | `CoverCacheTest` | 6 |
-| `QueueIndexTest` | 22 | `BackupFolderTest` | 5 |
+| `QueueIndexTest` | 18 | `BackupFolderTest` | 5 |
 | `DatabaseMappingsTest` | 21 | `TranslationsTest` | 5 |
 | `SimpleDownloaderLogRedactionTest` | 18 | `SupabaseClientTest` | 10 |
 | `UtilsTest` | 17 | `ImportArchiveTest` | 14 |
@@ -506,15 +515,15 @@ prefs, `client_secret` de OAuth) ya no están en el manifiesto ni en el código.
 
 | Severidad | Ubicación | Descripción |
 |---|---|---|
-| Alta | `QrScannerDialog.kt:88,99` | Executor sin `shutdown()` y cámara sin `unbindAll()` en `onDispose` (ver B11). |
+| Alta | `QrScannerDialog.kt` | ~~Executor sin `shutdown()` y cámara sin `unbindAll()` en `onDispose` (B11).~~ **Resuelto** en la sexta tanda: `onDispose` con `unbindAll()` + `shutdown()`, guarda de reentrada con `AtomicBoolean` y callbacks al hilo principal (→ §10). |
 | Alta | `QRDialog.kt:223` | ~~QR de 512×512 regenerado sin `remember` en el hilo principal.~~ **Resuelto** en la quinta tanda con un bitmap cacheado por contenido (→ §10). La otra mitad de B20, la animación de `NfcButton`, se cerró en la octava tanda: el dibujo es ahora una función pura del frame (`NfcPulse`), el frame lo marca `withFrameNanos` (vsync) en vez de un `delay(200L)` a 5 fps, y el estado de animación pasa de una `SnapshotStateList` mutada por frame a un único `Int` (11 tests). |
-| Media | `ConfigScreen.kt:414-693` | Exportación/importación/copia en scope de composición, cancelable (ver B23). |
+| Media | `ConfigScreen.kt` | ~~Exportación/importación/copia en scope de composición, cancelable (B23).~~ **Resuelto** en la sexta tanda con `backgroundScope` (→ §10). |
 | Media | `FeedScreen.kt:47`, `:65` | `metadataCache = metadataCache + (...)` reconstruye el mapa entero en cada insert (**O(n²)**) y es un read-modify-write no atómico ejecutado desde N corrutinas concurrentes (`:63`). Además esos `scope.launch` cuelgan de `rememberCoroutineScope()`, no del `LaunchedEffect` que los lanza: sobreviven a la cancelación del efecto y escriben estado cuando ya no aplica. |
 | Media | `FeedScreen.kt:74-107` | `Column` + `verticalScroll` + `forEach`: se componen todas las recomendaciones a la vez, y sin límite de concurrencia (una extracción de red por fila, `:107`). |
 | Media | `YouTubeSearchResults.kt:217-218` | `Column` + `forEachIndexed` en vez de `LazyColumn`: todo el set de resultados se compone de golpe, y cada `SongListItem` lanza una consulta a la DB en su `LaunchedEffect` (`SongListItem.kt:285-290`). |
 | Media | `ConfigScreen.kt:184-188` | `packageManager.getPackageInfoCompat(...)` se ejecuta **dentro de la composición**: `PackageManager` + reflexión en cada recomposición. |
 | Media | `Theme.kt:136-140` | `unifiedTypography()` es `@Composable` y hace `return Typography(...)` **sin `remember`**: se reconstruyen la `Typography` y 14 `TextStyle` en cada recomposición, invalidando todos los nodos de texto de la app. |
-| Baja | `PlaylistScreen.kt:715,789,851,1006` y `YouTubePlaylistDetailView.kt:220` | **5 `items(...)` de listas perezosas sin `key`**, 4 de ellas en el monolito de `PlaylistScreen` (0 ocurrencias de `key =` en el archivo): al reordenar o añadir, cada item se recrea y pierde su estado y su animación. Las listas de `HomeScreen` y `YouTubeSearchResults` sí van keyadas; la de `QueueScreen` va keyada pero con una clave inestable (siguiente fila). |
+| Baja | `PlaylistScreen.kt` y `YouTubePlaylistDetailView.kt:220` | **5 `items(...)` de listas perezosas sin `key`**, 4 de ellas en el monolito de `PlaylistScreen` (0 ocurrencias de `key =` en el archivo): al reordenar o añadir, cada item se recrea y pierde su estado y su animación. Las listas de `HomeScreen` y `YouTubeSearchResults` sí van keyadas; la de `QueueScreen` va keyada pero con una clave inestable (siguiente fila). |
 | Baja | `QueueScreen.kt:53-54`, `:71` | `key = { index -> "${currentPlaylist!![index].id}_$index" }` **no es estable** (incorpora la posición: cualquier reordenación cambia todas las claves y destruye el estado de los items) y `currentPlaylist!!` se re-deriva tres veces, dos de ellas dentro de la lambda de composición, con la posibilidad de desborde si la lista cambia entremedias. |
 | Baja | `SearchScreen.kt:425-437` | `trackEntities` se reconstruye **en cada recomposición** (no está en `remember`) y con `lastSyncTime = System.currentTimeMillis()`, así que las identidades de objeto son siempre nuevas y los `SongListItem` de debajo recomponen sin parar. |
 | Baja | `CoverCropDialog.kt:235-236` | `crop()` + `resizeToSquare()` se ejecutan **de forma síncrona en el hilo principal** dentro del manejador del clic: decodifica, escala y recorta un bitmap a tamaño completo en la UI. Además `:113-115` escribe estado de snapshot **durante la composición**, y `:140` usa esas medidas como claves del `pointerInput`, con lo que el gesto se reinicia en cada recomposición. |
@@ -528,9 +537,9 @@ prefs, `client_secret` de OAuth) ya no están en el manifiesto ni en el código.
 | Severidad | Ubicación | Descripción |
 |---|---|---|
 | Media | `viewmodel/PlayerViewModel.kt` (785) | Monolito con estado mutable repartido entre el hilo principal y las corrutinas. `generation` + `windowStart` + `transitionInFlight` son 3 banderas que hay que mantener coherentes a mano; B4 y B6 eran consecuencia directa de que la invalidación de caché y el estado de error se gestionasen en un sitio y no en otro. La lógica pura ya está aislada en `QueueIndex` (y ahora también en `PlaylistLocalRepository.likedTrackOf` y en el núcleo de `YouTubeManager.getAudioUrl`), pero el estado de la ventana no. |
-| Media | `ui/PlaylistScreen.kt` (1363) | Mezcla UI, red (Supabase/YouTube), DB y lógica de negocio; además construía el modelo de UI (`Song`) sin el campo que la propia UI necesitaba (B1), lo que es exactamente el tipo de error que un ViewModel por pantalla habría hecho imposible. |
+| Media | `ui/PlaylistScreen.kt` (1403) | Mezcla UI, red (Supabase/YouTube), DB y lógica de negocio; además construía el modelo de UI (`Song`) sin el campo que la propia UI necesitaba (B1), lo que es exactamente el tipo de error que un ViewModel por pantalla habría hecho imposible. |
 | Media | `service/MusicService.kt` | No es dueño del reproductor: solo proyecta la notificación sobre el `ExoPlayer` que vive en el `PlayerViewModel` de `PlyrApp`. **No registra ningún `MediaSession.Callback`**, así que `seekToNext`/`seekToPrevious` desde la notificación o el lockscreen los mueve ExoPlayer directamente, no `QueueIndex`; el índice se reconcilia después por la aritmética de `syncIndexFromWindow`. Funciona por casualidad, no por diseño. |
-| Media | `ui/ConfigScreen.kt` (919), `ui/SearchScreen.kt` (477) | Composables con carga, red y estado en `remember`/`rememberCoroutineScope`. |
+| Media | `ui/ConfigScreen.kt` (665), `ui/SearchScreen.kt` (483) | Composables con carga, red y estado en `remember`/`rememberCoroutineScope`. |
 | Baja | `ui/components/SongListItem.kt` (545) | ~~`pointerInput(Unit)` sin claves y `Animatable` mutado desde corrutinas lanzadas a mano~~ (B7, B8, ya resueltos → §10): el gesto ahora se reinicia por clave y el offset se acumula de forma síncrona. |
 
 **Nota positiva:** el patrón de **extraer lógica pura testeable** está
@@ -541,34 +550,38 @@ Android. Es el asset de calidad más valioso del repo y el modelo a seguir.
 
 ---
 
-## 7. LIMPIEZA / CÓDIGO MUERTO
+## 7. LIMPIEZA / CÓDIGO MUERTO — lo grande, borrado en la novena tanda
 
-**Archivos enteros sin ninguna llamada** (verificado con barrido de `app/src`):
+**Archivos enteros sin ninguna llamada: 0 (antes 2).** Los dos que quedaban se
+borraron en T9 (→ §10), junto con sus imports muertos:
 
-| Archivo | Líneas | Nota |
+| Archivo | Líneas | Qué era |
 |---|---|---|
-| `ui/components/SongMenuDialog.kt` | 171 | Solo aparece un `import` sin usar en `FloatingMusicControls.kt:29`. Duplica el popup de like que sí vive dentro de `SongListItem`. |
-| `ui/components/CollapsibleSection.kt` | 88 | Cero referencias. |
+| ~~`ui/components/SongMenuDialog.kt`~~ | −171 | Solo quedaban dos `import` sin usar en `FloatingMusicControls.kt:28-29`; el diálogo en sí no se llamaba desde ningún sitio (duplicaba el popup que vive dentro de `SongListItem`). |
+| ~~`ui/components/CollapsibleSection.kt`~~ | −88 | Cero referencias. |
 
-**Símbolos y miembros sin uso en producción:**
+**Símbolos y miembros sin uso en producción:** quedan 4, y todos son menores.
 
 | Símbolo | Ubicación | Nota |
 |---|---|---|
-| `PlyrDimensions` (objeto completo) | `Theme.kt:53-71` | 19 constantes (`floatingControlsHeight`, `buttonHeight`, `listItemHeight`, …) sin una sola referencia. |
-| `QueueIndex.needsRefillAfterEnd` | `QueueIndex.kt:83-91` | Probado (4 tests) pero **nunca llamado** por `PlayerViewModel`: `growWindow()` se encarga por su cuenta. Test que verifica código muerto. |
-| `YouTubeManager.clearCache` | `YouTubeManager.kt:102-109` | Cero llamadas. La caché solo se invalida por `videoId`. |
-
-> `isValidAudioUrl` + `containsAudioPattern` (`Utils.kt:44-50`) ya **no existen**:
-> eran código muerto y se borraron en **B37** junto con sus 13 tests (ver §10).
-| `val loadPlaylists = { }` | `PlaylistScreen.kt:160` | No-op asignado y nunca invocado. |
-| `TerminalColorsPreview`, `PreviewTerminalThemeDark/Light` | `Theme.kt:266,314` | Previews de Android Studio, inalcanzables en runtime. |
+| `TerminalColorsPreview`, `PreviewTerminalThemeDark/Light` | `Theme.kt` | Previews de Android Studio, inalcanzables en runtime. **Se dejan**: son herramientas de desarrollo. |
 | `ResponsiveDimensions`: `titleSize`, `iconSize*`, `buttonHeight`, `buttonMinWidth` | `ResponsiveUtils.kt:31-51` | Calculados en cada llamada y nunca leídos. |
-| `PlyrSymbols.COMMAND/SEPARATOR/BULLET/ARROW/BACK` | `Theme.kt:74-82` | Sin referencias. |
-| `MediaMetadataExtractor.extractMetadata(context = …)` | `MediaMetadataExtractor.kt:26` | ~~Parámetro muerto en los dos call sites.~~ **Eliminado en B29** (ver §10). |
-| `SongListItem.onShowPlaylistDialog` | `SongListItem.kt` | ~~Ambos callers pasan `{}`.~~ **Conectado en B2** (ver §10): el swipe "añadir a playlist" abre el diálogo de selección. |
-| `MediaCommand` sin `STOP` | `MediaButtonCommand.kt` | `KEYCODE_MEDIA_STOP` se mapea a `PAUSE` y el `NONE` de `execute` (`:77`) es rama inalcanzable. |
-| `CollapsibleSection.statusColor` | `CollapsibleSection.kt:32` | Parámetro con default que llama a `MaterialTheme.colorScheme` en el argumento por defecto. |
 | `ActionButtonData.enabled` | `ActionBttn.kt:25` | Ningún `ActionButtonData(...)` del source pone `enabled = false`; el render de deshabilitado (`:54`, `:65`) es inalcanzable. |
+| `MediaCommand` sin `STOP` | `MediaButtonCommand.kt` | `KEYCODE_MEDIA_STOP` se mapea a `PAUSE` y el `NONE` de `execute` (`:77`) es rama inalcanzable. |
+
+**Borrados ya (resueltos):**
+
+| Símbolo | Qué se hizo |
+|---|---|
+| ~~`PlyrDimensions` (objeto completo)~~ | 12 constantes sin una sola referencia → borrado en T9 (→ §10). |
+| ~~`QueueIndex.needsRefillAfterEnd`~~ | Probado con 4 tests pero **nunca llamado** por `PlayerViewModel` (`growWindow()` se encarga por su cuenta) → función **y sus 4 tests** borrados en T9 (→ §10). |
+| ~~`val loadPlaylists = { }`~~ | No-op asignado y nunca invocado → borrado en T9. |
+| ~~`PlyrSymbols.COMMAND/SEPARATOR/BACK`~~ | Sin referencias → borrados en T9. (`BULLET` y `ARROW` sí se usan en `HomeScreen.kt:235-236` y se conservan.) |
+| `YouTubeManager.clearCache` | **Se conserva**: producción no la llama (la caché solo se invalida por `videoId` con `invalidate`), pero `AudioUrlExtractionTest` la usa en el `setUp` para partir de una caché limpia. Documentado en su KDoc. |
+| `isValidAudioUrl` + `containsAudioPattern` | Ya no existen: borrados en **B37** con sus 13 tests (ver §10). |
+| `MediaMetadataExtractor.extractMetadata(context = …)` | Parámetro muerto eliminado en **B29** (ver §10). |
+| `SongListItem.onShowPlaylistDialog` | ~~Ambos callers pasan `{}`.~~ **Conectado en B2** (ver §10): el swipe "añadir a playlist" abre el diálogo de selección. |
+| `CollapsibleSection.statusColor` | Parámetro con default que llamaba a `MaterialTheme.colorScheme` en el argumento por defecto; desapareció con el fichero en T9. |
 
 ### 7.1 Traducciones — **cerrado en la octava tanda**
 
@@ -627,7 +640,7 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ## 8. TESTS
 
-- **343 tests unitarios en 25 archivos** (`./run.sh test`, todos en verde;
+- **339 tests unitarios en 25 archivos** (`./run.sh test`, todos en verde;
   +7 respecto al recuento estático de esta revisión por la cobertura de
   tombstones/`deletedPlaylistIds`, luego +4 de formato de vídeo en B27, −13 al
   retirar los de `isValidAudioUrl` en B37, −1/+4 con `parseTimestamp` en B25
@@ -640,14 +653,18 @@ Dos casos concretos que se ven sin traducir hoy:
   `DatabaseMappingsTest`) y **+16 en T6**: `AudioUrlExtractionTest` (9, nuevo
   fichero: *single-flight*, salto de caché y no-cacheo de fallos en
   `YouTubeManager.getAudioUrl`) y 7 de identidad de favoritos en
-  `DatabaseMappingsTest`, que pasa de 14 a 21.
+  `DatabaseMappingsTest`, que pasa de 14 a 21, **+33 en T8**
+  (`SimpleDownloaderLogRedactionTest` 18, `NfcPulseTest` 11 y
+  `TranslationKeysUsageTest` 4, los tres ficheros nuevos) y **−4 en T9**: los
+  tests de `QueueIndex.needsRefillAfterEnd`, que solo verificaban código que no
+  llama nadie y que se borró con la función.
 - 0 tests instrumentados útiles: solo `ExampleInstrumentedTest`.
 
 **Gaps relevantes, en orden de daño que hacen:**
 
 1. **`PlayerViewModel` no tiene ningún test.** Sigue siendo el mayor gap: B4, B5,
    B6 y B36 eran los 4 bugs de reproducción de la lista y ninguno se puede
-   seguir ejercitando sin Android. `QueueIndex` sí está cubierta (22 tests) y es
+   seguir ejercitando sin Android. `QueueIndex` sí está cubierta (18 tests) y es
    correcta; lo que no está cubierta es la *orquestación*: `generation`,
    `windowStart`, `transitionInFlight`, `currentVideoId` y la derivación de
    `isLoading`/`error`. La lógica que decide si una URL caducada se invalida,
@@ -672,8 +689,9 @@ Dos casos concretos que se ven sin traducir hoy:
    (`SimpleDownloaderLogRedactionTest` 18, `NfcPulseTest` 11,
    `TranslationKeysUsageTest` 4), extrayendo antes la lógica a funciones puras
    (`buildCookieHeader`, `describeHeaders`, `NfcPulse`).
-5. `QueueIndexTest` cubre 4 tests de `needsRefillAfterEnd`, una función que
-   producción no llama (ver §7): 4 tests que certifican código muerto.
+5. ~~`QueueIndexTest` cubre 4 tests de `needsRefillAfterEnd`, una función que
+   producción no llama (ver §7): 4 tests que certifican código muerto.~~
+   **Hecho en T9**: función y tests borrados (ver §10).
 6. ~~`TranslationsTest` valida consistencia entre idiomas pero **no** detecta ni
    claves sin uso (16) ni claves referenciadas inexistentes (1).~~ **Hecho en
    T8**: `TranslationKeysUsageTest` recorre `src/main/java` y cubre las dos
@@ -828,10 +846,14 @@ Dos casos concretos que se ven sin traducir hoy:
     aplicación (o a un `ViewModel`) para que un swipe en el pager no las corte.~~
     **Hecho** (ver §10): `backgroundScope` expuesto por `PlyrApp` y usado por
     `SyncSection` en config.
-29. **§7** — borrar `SongMenuDialog.kt` (171), `CollapsibleSection.kt` (88),
+29. ~~**§7** — borrar `SongMenuDialog.kt` (171), `CollapsibleSection.kt` (88),
     `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd` + sus 4
-    tests y `YouTubeManager.clearCache`. (`isValidAudioUrl` —B37— ya se borró con
-    sus 13 tests, ver §10.)
+    tests y `YouTubeManager.clearCache`.~~ **Hecho en T9**, con una salvedad:
+    `YouTubeManager.clearCache` **se conserva** porque `AudioUrlExtractionTest` la
+    usa (ver §7). Lo que queda en §7 son 3 entradas menores, que no se tocan:
+    previews de Android Studio, campos muertos de `ResponsiveDimensions` y
+    `ActionButtonData.enabled` + la rama inalcanzable de `MediaCommand.NONE`.
+    (`isValidAudioUrl` —B37— ya se borró con sus 13 tests, ver §10.)
 30. ~~**B32** — dejar de loguear cookies, cabeceras y cuerpos completos (y
     sincronizar el mapa de cookies).~~ **Hecho** en T8 (ver §10).
     ~~**B33** — corregir `optString(key, null)`, leer el cuerpo de error en los
@@ -963,6 +985,29 @@ Verificado con `./run.sh test` (**343 tests, en verde**), `./run.sh build`
 | **B41** (verificación) | `proguard-rules.pro` + `backup_rules.xml` + `data_extraction_rules.xml` | El build de release **nunca se había compilado** y estaba roto por dos motivos. 1) R8 abortaba: `Missing class java.beans.*` referenciado desde `org.mozilla.javascript.JavaToJSONConverters` (Rhino, dependencia de NewPipeExtractor) — `java.beans` es de `java.desktop` y no existe en Android, y la ruta no se ejecuta nunca; se añade `-dontwarn java.beans.**` y `-dontwarn javax.script.**` (que además silencia el aviso de `META-INF/services/javax.script.ScriptEngineFactory`). 2) Lint es fatal en release y marcaba `export-covers/ is not in an included path`: el `<exclude>` era redundante, porque con reglas solo de `include` (`covers/`) esa caché ya quedaba fuera. Se quitan los dos `<exclude>`; el comportamiento de copia es idéntico y `device-transfer` sigue incluyendo la caché a propósito. Resultado: `./run.sh build release` → `BUILD SUCCESSFUL`, y los `Log.*` con datos sensibles desaparecen del APK (comprobado: las cadenas de log están en el dex de debug y no en el de release). |
 | **§7.1** | `Translations.kt`, `QueueScreen.kt`, `PlaylistScreen.kt`, `TranslationsTest.kt` | 22 claves muertas eliminadas en los 4 idiomas (88 líneas), 7 más de las que listaba este informe, porque el barrido original contaba como "usadas" las claves de `SharedPreferences` de `Config.kt` (`search_engine`, `user_nickname`) y los campos JSON de `SupabaseClient` (`invite_code`, `nickname`, `comment`, `recommendations`). `QueueScreen.kt:103` pasa a usar `player_not_available` (antes pasaba el texto inglés como clave, así que salía sin traducir) y su valor español era en sí una clave, `"reproductor_no_disponible"`, corregido. Las dos claves que eran texto se renombran: `"No tracks loaded"` → `no_tracks_loaded` y `"Loading tracks..."` → `loading_tracks`. `TranslationKeysUsageTest` (nuevo, 4 tests) recorre `src/main/java` y falla si una clave usada falta en algún idioma, si queda alguna sin usar, si esas dos no traducen o si una clave vuelve a ser un texto. `TranslationsTest` deja de exigir `info`, que ya no existe. |
 
+---
+
+Novena tanda (2026-09-30), **sin bugs nuevos**: el código muerto que esta misma
+auditoría dejó listado en §7, borrado de raíz. Sin tocar una sola ruta de
+ejecución — todo lo eliminado estaba sin referencias, verificado con barrido de
+`app/src` antes de borrar, y los imports muertos que quedaban también.
+Verificado con `./run.sh test` (**339 tests, en verde**), `./run.sh build`
+(BUILD SUCCESSFUL) y `./run.sh build release` (BUILD SUCCESSFUL).
+**−301 líneas de código, −2 ficheros, −4 tests.**
+
+| Qué se borró | Por qué se podía borrar |
+|---|---|
+| `ui/components/SongMenuDialog.kt` (−171) | El diálogo no se llamaba desde ningún sitio: en `FloatingMusicControls.kt` solo quedaban los dos `import` (`SongMenuDialog` y `SongMenuData`) sin usar. El diálogo de canción que sí vive dentro de `SongListItem` no se toca. También se corrigió el comentario de `formatDuration` en `Utils.kt`, que lo citaba. |
+| `ui/components/CollapsibleSection.kt` (−88) | Cero referencias en todo el repo. |
+| `PlyrDimensions` (`Theme.kt`) (−21) | Objeto completo con 12 constantes (`floatingControlsHeight`, `buttonHeight`, `listItemHeight`, `elevationLarge`, …) sin una sola referencia, más su cabecera de sección. |
+| `PlyrSymbols.COMMAND/SEPARATOR/BACK` (−3) | Sin referencias. **Cuidado**: `BULLET` y `ARROW` sí se usan en `HomeScreen.kt:235-236` y se conservan. |
+| `val loadPlaylists = { }` (`PlaylistScreen.kt`) (−2) | No-op asignado y nunca invocado. |
+| `QueueIndex.needsRefillAfterEnd` (−16) + sus **4 tests** (−25) | `PlayerViewModel` nunca la llama: `growWindow()` ya se encarga por su cuenta. Los 4 tests certificaban exactamente eso — código muerto — así que se van con la función, no con el `PlayerViewModel`. `QueueIndexTest` pasa de 22 a 18 y el resto de la cobertura de `QueueIndex` no se toca. |
+| KDoc de `YouTubeManager.clearCache` | **No se borra la función**: `AudioUrlExtractionTest` la usa en el `setUp` para partir de una caché limpia. Se documenta que producción no la llama y por qué sigue ahí, en vez de inventar una vía nueva para los tests. |
+
 Pendientes ahora: **ningún bug**. Queda solo la lista de literales de interfaz
-fuera de `Translations` (§7.1), que es un refactor y no un fallo, y los gaps de
-cobertura de §8 (`PlayerViewModel` y `SongListItem` sin tests).
+fuera de `Translations` (§7.1), que es un refactor y no un fallo; las 3 entradas
+menores de §7 (previews, `ResponsiveDimensions`, `ActionButtonData.enabled`), que
+se dejan a propósito: no merece la pena tocar código vivo a cambio de un
+aviso del linter; y los gaps de cobertura de §8 (`PlayerViewModel` y `SongListItem` sin
+tests).

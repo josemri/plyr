@@ -49,35 +49,11 @@ object PlyrSpacing {
     val huge = 48.dp    // Espacios enormes (espacios especiales)
 }
 
-// === SISTEMA DE DIMENSIONES UNIFICADO ===
-object PlyrDimensions {
-    // Alturas de componentes
-    val buttonHeight = 40.dp
-    val inputHeight = 48.dp
-    val listItemHeight = 56.dp
-    val controlsHeight = 72.dp
-    val floatingControlsHeight = 140.dp
-
-    // Radios de bordes
-    val cornerRadiusSmall = 4.dp
-    val cornerRadiusMedium = 8.dp
-    val cornerRadiusLarge = 12.dp
-
-    // Elevaciones
-    val elevationNone = 0.dp
-    val elevationSmall = 2.dp
-    val elevationMedium = 4.dp
-    val elevationLarge = 8.dp
-}
-
 // === SISTEMA DE ICONOS Y SÍMBOLOS UNIFICADO ===
 object PlyrSymbols {
     const val PROMPT = "> "
-    const val COMMAND = "$ "
-    const val SEPARATOR = "/"
     const val BULLET = "●"
     const val ARROW = "→"
-    const val BACK = "←"
     const val LOADING = "..."
 }
 

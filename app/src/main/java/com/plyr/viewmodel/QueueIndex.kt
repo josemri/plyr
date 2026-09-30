@@ -73,20 +73,4 @@ object QueueIndex {
             else -> if (current + 1 < size) current + 1 else null
         }
     }
-
-    /**
-     * Decide si conviene ampliar la ventana de canciones preparadas al
-     * terminar [finishedIndex], contando cuántas quedan detrás de la ventana
-     * actual. Si ya no queda ninguna preparada por delante, hay que rellenar
-     * antes de que el reproductor intente saltar.
-     */
-    fun needsRefillAfterEnd(
-        finishedIndex: Int,
-        windowStart: Int,
-        windowSize: Int,
-        queueSize: Int
-    ): Boolean {
-        if (queueSize <= 0) return false
-        return (windowStart + windowSize) - (finishedIndex + 1) <= 0
-    }
 }

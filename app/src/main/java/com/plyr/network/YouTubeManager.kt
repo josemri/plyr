@@ -132,7 +132,13 @@ object YouTubeManager {
         urlCache.remove(videoId)
     }
 
-    /** Vacía la caché (opcionalmente solo las entradas caducadas). */
+    /**
+     * Vacía la caché (opcionalmente solo las entradas caducadas).
+     *
+     * La producción nunca la llama: la caché solo se invalida por `videoId` con
+     * [invalidate]. Se mantiene porque `AudioUrlExtractionTest` la usa para
+     * partir de una caché limpia entre tests.
+     */
     fun clearCache(onlyExpired: Boolean = false) {
         if (!onlyExpired) {
             urlCache.clear()

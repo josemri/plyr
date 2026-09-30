@@ -122,29 +122,4 @@ class QueueIndexTest {
     fun ended_conIndiceFueraDeRango_devuelveNull() {
         assertNull(QueueIndex.onTrackEnded(3, 3, all))
     }
-
-    // --- needsRefillAfterEnd ---
-
-    @Test
-    fun refill_cuandoNoQuedaNingunaPreparadaPorDelante() {
-        // ventana = índices 0..2 (start 0, tamaño 3), termina la 2: no queda nada detrás
-        assertEquals(true, QueueIndex.needsRefillAfterEnd(2, 0, 3, 3))
-    }
-
-    @Test
-    fun refill_cuandoQuedanCancionesPreparadasPorDelante() {
-        // ventana = 0..2, termina la 0: las 1 y 2 ya están preparadas
-        assertEquals(false, QueueIndex.needsRefillAfterEnd(0, 0, 3, 3))
-    }
-
-    @Test
-    fun refill_desplazado_alFinalDeUnaColaLarga() {
-        // ventana = 5..7, termina la 7: hay que rellenar aunque la cola siga
-        assertEquals(true, QueueIndex.needsRefillAfterEnd(7, 5, 3, 20))
-    }
-
-    @Test
-    fun refill_conColaVacia_noRefilla() {
-        assertEquals(false, QueueIndex.needsRefillAfterEnd(0, 0, 3, 0))
-    }
 }

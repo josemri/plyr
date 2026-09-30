@@ -159,8 +159,6 @@ fun PlaylistsScreen(
         }
     }
 
-    val loadPlaylists = { }
-
     val loadPlaylistTracks: (AppPlaylist) -> Unit = { playlist ->
         selectedPlaylist = playlist
         selectedPlaylistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
