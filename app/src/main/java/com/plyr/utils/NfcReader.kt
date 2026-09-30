@@ -79,7 +79,12 @@ object NfcReader {
         val filters = arrayOf(ndefFilter, techFilter, tagFilter)
         val techLists = arrayOf(arrayOf(Ndef::class.java.name))
 
-        nfcAdapter?.enableForegroundDispatch(activity, pendingIntent, filters, techLists)
+        try {
+            nfcAdapter?.enableForegroundDispatch(activity, pendingIntent, filters, techLists)
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "No se pudo activar el modo lectura NFC", e)
+            return false
+        }
         _isReading.value = true
         Log.d(TAG, "📡 Modo lectura NFC activado - Acerca un tag NFC")
 
@@ -90,7 +95,11 @@ object NfcReader {
      * Detiene el modo de lectura NFC
      */
     fun stopReading(activity: Activity) {
-        nfcAdapter?.disableForegroundDispatch(activity)
+        try {
+            nfcAdapter?.disableForegroundDispatch(activity)
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "No se pudo desactivar el modo lectura NFC", e)
+        }
         _isReading.value = false
         Log.d(TAG, "🛑 Modo lectura NFC desactivado")
     }

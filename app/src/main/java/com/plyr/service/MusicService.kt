@@ -62,7 +62,7 @@ class MusicService : Service() {
             return
         }
 
-        mediaSession = MediaSession.Builder(this, player)
+        val session = MediaSession.Builder(this, player)
             .setSessionActivity(
                 PendingIntent.getActivity(
                     this, 0,
@@ -71,6 +71,7 @@ class MusicService : Service() {
                 )
             )
             .build()
+        mediaSession = session
 
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
@@ -78,11 +79,11 @@ class MusicService : Service() {
             }
         })
 
-        startForeground(NOTIFICATION_ID, createNotification(player))
+        startForeground(NOTIFICATION_ID, createNotification(player, session))
     }
 
     @OptIn(UnstableApi::class)
-    private fun createNotification(player: ExoPlayer): Notification {
+    private fun createNotification(player: ExoPlayer, session: MediaSession): Notification {
         val item = player.currentMediaItem
         val title = item?.mediaMetadata?.title?.toString() ?: "Plyr"
         val artist = item?.mediaMetadata?.artist?.toString() ?: "Reproduciendo"
@@ -91,13 +92,14 @@ class MusicService : Service() {
             .setSmallIcon(android.R.drawable.ic_media_play)
             .setContentTitle(title)
             .setContentText(artist)
-            .setStyle(MediaStyleNotificationHelper.MediaStyle(mediaSession!!))
+            .setStyle(MediaStyleNotificationHelper.MediaStyle(session))
             .setOngoing(true)
             .build()
     }
 
     private fun updateNotification(player: ExoPlayer) {
-        mediaSession?.let { startForeground(NOTIFICATION_ID, createNotification(player)) }
+        val session = mediaSession ?: return
+        startForeground(NOTIFICATION_ID, createNotification(player, session))
     }
 
     override fun onDestroy() {

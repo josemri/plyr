@@ -709,5 +709,3 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /** Item resuelto junto a su posición en la cola, para no perder la alineación. */
     private data class ResolvedItem(val index: Int, val mediaItem: MediaItem)
 }
-
-private const val MAX_CAUSE_DEPTH = 5

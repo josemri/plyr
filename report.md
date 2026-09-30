@@ -2,13 +2,39 @@
 
 **Fecha:** 2026-09-29
 **Alcance:** `app/src/main/java/com/plyr` (71 archivos, ~14.757 líneas Kotlin) + Gradle + manifiesto + recursos.
-**Método:** auditoría estática manual (lectura + verificación de cada hallazgo contra el código). **No se ha compilado ni ejecutado ningún test**, tal como se pidió: nada de lo que sigue está verificado en runtime, solo leído.
+**Método:** auditoría estática manual (lectura + verificación de cada hallazgo contra el código). **No se ha compilado ni ejecutado ningún test**, tal como se pidió: nada de lo que sigue está verificado en runtime, solo leído. (Exception: los cambios de sync documentados en la **Actualización** de abajo sí se verificaron después con `./run.sh test` —298 tests, en verde— y `./run.sh build`.)
 
 > **Aviso sobre este informe.** Es una reescritura, no una actualización. La
 > numeración de bugs es **nueva** y **no guarda relación** con la del informe
 > anterior. Todo lo que estaba resuelto y ya no era cierto se ha borrado (§10).
-> Las cifras de tests son un **recuento estático** de anotaciones `@Test`, no el
-> resultado de una ejecución: `./run.sh test` no se ha lanzado.
+> Las cifras de tests del cuerpo del informe eran, en su momento, un
+> **recuento estático** de anotaciones `@Test`, no el resultado de una
+> ejecución; las cifras actualizadas están en la **Actualización** de abajo y
+> en §1.4/§2/§8.
+
+> **Actualización (2026-09-30).** Los tests se han ejecutado desde entonces
+> (`./run.sh test` y `./run.sh build`): **298 tests, todos en verde**, con 7
+> tests nuevos en `ImportManifestTest` (30) y `ExportManifestTest` (24) que
+> cubren la nueva política de borrados. La sección de copia de seguridad
+> cambió de comportamiento en estas dos direcciones:
+>
+> - **Sync bidireccional**: antes de escribir, la copia anterior de la carpeta
+>   se fusiona en la app (`DataSync.flush` → `mergeArchiveFromFolder`), así que
+>   instalar de cero y pulsar sync restaura el archivo en vez de pisarlo con
+>   una copia vacía; si el archivo existe pero no se puede leer, no se
+>   escribe nada (`SyncResult.ArchiveUnreadable`).
+> - **Propagación de borrados (tombstones)**: borrar una lista queda registrado
+>   en `Config` (`deleted_playlist_ids`) y viaja en `deletedPlaylistIds` del
+>   manifiesto (campo aditivo, formato v1 intacto). Al importar se unen los
+>   tombs locales con los del archivo, se aplican a las listas locales y se
+>   fusionan en la huella `ExportDigest` y en la UI del botón sync. Guardar de
+>   nuevo una lista limpia su tomb, así que es reversible.
+>
+> En una segunda tanda se resolvieron además los 5 bugs más triviales —**B10**,
+> **B24**, **B30**, **B38**, **B43**—, ahora documentados en **§10**; quedan
+> **42 activos**. El resto de hallazgos (B1-B47 salvo esos) no se ha tocado en
+> estas dos rondas; las rutas de "añadir canciones" y de reproducción siguen
+> pendientes de lo descrito abajo.
 
 ---
 
@@ -20,8 +46,9 @@ dependencias están limpias y la lógica pura de cola está extraída y testeada
 
 **Los dos fallos que has reportado están encontrados, y no son el mismo bug.**
 El tercero que recordabas —añadir canciones a una lista— también existe, y es
-peor: **ninguna de las cinco rutas para hacerlo funciona** (§1.3). En total,
-**47 bugs activos** verificados contra el código.
+peor: **ninguna de las cinco rutas para hacerlo funciona** (§1.3). En total
+fueron **47 bugs** verificados contra el código; desde entonces se han resuelto
+**5** (B10, B24, B30, B38, B43 — ver §10), así que quedan **42 activos**.
 ### 1.1 El slide a "liked" no funciona → **es un bug de datos, no de gesto**
 
 `PlaylistScreen` construye el `Song` **sin `youtubeId`** en los tres sitios donde
@@ -257,8 +284,10 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **0 bugs críticos**, **11 altos**, **25 medios**, **11 bajos** (§3).
-- **290 tests unitarios** en 21 archivos (recuento estático de `@Test`).
+- **0 bugs críticos**, **10 altos**, **23 medios**, **9 bajos** (§3).
+- **298 tests unitarios** en 21 archivos (`./run.sh test`; todos en verde).
+  7 de ellos son nuevos: 4 de la política de tombstones y 3 del formato del
+  manifiesto.
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
 - **~700 líneas muertas** entre `SongMenuDialog`, `CollapsibleSection`,
   `PlyrDimensions` y funciones sin uso (§7).
@@ -273,26 +302,26 @@ de descartes.
 |---|---|
 | Archivos Kotlin (main) | 71 (~14.757 líneas) |
 | Archivos de test | 21 (~3.177 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (1363), `ConfigScreen.kt` (919), `PlayerViewModel.kt` (713), `Translations.kt` (617), `FloatingMusicControls.kt` (536), `SearchScreen.kt` (477), `SongListItem.kt` (459), `QRDialog.kt` (449) |
+| Archivos más grandes | `PlaylistScreen.kt` (1363), `ConfigScreen.kt` (919), `PlayerViewModel.kt` (712), `Translations.kt` (617), `FloatingMusicControls.kt` (536), `SearchScreen.kt` (477), `SongListItem.kt` (459), `QRDialog.kt` (449) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios (recuento estático `@Test`) | **290** en 21 archivos |
+| Tests unitarios | **298** en 21 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso | **16 de 101** (verificadas por barrido) |
 | Claves referenciadas que no existen | **1** (`"Player not available"`) |
 
-**Desglose de los 290 tests** (recuento estático, sin ejecutar):
+**Desglose de los 298 tests** (tras `./run.sh test`, todos en verde):
 
 | Archivo | @Test | Archivo | @Test |
 |---|---|---|---|
 | `UrlParserTest` | 33 | `ExportDigestTest` | 11 |
 | `UtilsTest` | 30 | `MediaButtonCommandTest` | 9 |
-| `ImportManifestTest` | 24 | `AppModelsTest` | 8 |
+| `ImportManifestTest` | 30 | `AppModelsTest` | 8 |
 | `CoverCropMathTest` | 24 | `YouTubeFormattingTest` | 8 |
 | `SpotifyImporterTest` | 23 | `ModelDefaultsTest` | 7 |
-| `ExportManifestTest` | 22 | `SupabaseClientTest` | 7 |
+| `ExportManifestTest` | 24 | `SupabaseClientTest` | 7 |
 | `QueueIndexTest` | 22 | `CoverCacheTest` | 6 |
 | `YouTubePlaylistCreatorTest` | 15 | `BackupFolderTest` | 5 |
 | `ImportArchiveTest` | 14 | `TranslationsTest` | 5 |
@@ -322,7 +351,6 @@ sí toca la tabla de favoritos, y por eso está en altos).
 | **B7** | `SongListItem.kt:148` | **`pointerInput(Unit)` con estado capturado.** El bloque de drag fija `song`, `index` y `trackEntities` en la primera composición y no se reinicia nunca. Afecta a `QueueScreen:69`, `YouTubePlaylistDetailView:231`, `YouTubeSearchResults:221` y `SearchScreen:451`: tras reordenar o añadir, el swipe y el clic actúan sobre la pista del primer frame. |
 | **B8** | `SongListItem.kt:194-199` y `:150-153` | **`Animatable` + `launch` por evento de drag.** Cada `onHorizontalDrag` lanza una corrutina con `snapTo`; `MutatorMutex` hace que se cancelen entre sí y el offset acumulado se pierde. `onDragEnd` lee `offsetX.value` dentro de otra corrutina, con el `snapTo` pendiente en vuelo, así que el umbral se evalúa sobre un valor provisional. Resultado: el gesto se "come" desplazamientos y a veces no supera el umbral. |
 | **B9** | `YouTubePlaylistDetailView.kt:138-142` | **`<rnd>` desincroniza la UI de la cola.** Se llama `setCurrentPlaylist(shuffled, 0)` pero `trackEntities` (`:44`) no se sustituye, así que `isPlaying` (`:229-230`) y **todas** las acciones por índice que pasan `trackEntities` + `index` a `SongListItem` apuntan a la posición de la lista sin barajar, no a la que suena. |
-| **B10** | `PlayerViewModel.kt:713` | `private const val MAX_CAUSE_DEPTH = 5` a nivel de fichero, **duplicado** del companion (`:62`) y sin usar. Sobrescrito silenciosamente por el del companion; código muerto que además confunde cualquier lectura futura. |
 | **B11** | `QrScannerDialog.kt:88`, `:99` | **Fuga de cámara y de hilo por cada apertura del escáner.** `Executors.newSingleThreadExecutor()` se crea en línea y nunca se hace `shutdown()`; el `unbindAll()` de la línea 99 es limpieza previa a `bindToLifecycle`, **no teardown**: no hay `DisposableEffect` ni `onDispose` en el archivo, así que la cámara sigue ligada a la Activity y el analizador sigue corriendo con el diálogo cerrado. Encima, `onQrScanned()` y `onDismiss()` se invocan desde el **hilo del analizador** (`:92-93`), lo que hace que `SearchScreen` escriba estado de Compose desde él, y no hay guarda de reentrada: cada frame posterior vuelve a disparar el callback. |
 
 ### 3.3 Medios
@@ -341,13 +369,11 @@ sí toca la tabla de favoritos, y por eso está en altos).
 | **B21** | `Translations.kt:408-409` | El mapa **`català` tiene valores japoneses** en `plyr_queue` (`"plyr_キュー"`) y en `No tracks loaded` (`"曲が読み込まれていません"`): copiado del bloque `日本語` de las líneas 451+. Un usuario en catalán ve japonés en la pantalla de cola. |
 | **B22** | `Translations.kt:35/47, 215/227, 360/372, 510/522, 304/377, 454/527, 320/440` | Claves duplicadas dentro de un mismo `mapOf`: `loading` en los **cuatro** idiomas, `user_nickname` en `català` y `日本語`, `share_me` en `català`. Gana la última ocurrencia; el resto es basura que sugiere dos valores distintos para lo mismo. |
 | **B23** | `ConfigScreen.kt:414/423, 462/471, 525/562, 655, 693` | Exportar, importar y copiar/restaurar se lanzan en `rememberCoroutineScope()`. La pantalla de config vive en un pager (un swipe basta para salir), y `onCleared` **cancela** esas corrutinas a mitad de la escritura → ZIP truncado o base de datos restaurada a medias sin aviso. Necesitan un scope de aplicación. |
-| **B24** | `CoverCropDialog.kt:79` | `text = if (loadError != null) "$ load_error" else "$ loading..."`. En Kotlin `"$ "` no abre plantilla, así que el usuario ve literalmente la cadena `$ load_error` cuando falla la carga de la imagen. |
 | **B25** | `SupabaseClient.kt:308-334` | `parseTimestamp`: 4 objetos `SimpleDateFormat` por fila; el 2º patrón tiene `'Z'` duplicado (`"…ss.SSS'Z'"`); el 1º (`SSSSSS`) acepta en realidad 1..N dígitos y `format.parse(String)` ignora el texto sobrante, así que un `+HH:MM` real se descarta en silencio; y se fuerza `timeZone = UTC` (`:322`). **Todo fallo devuelve `System.currentTimeMillis()`** (`:311`, `:330`, `:333`): una fecha ilegible se disfraza de "ahora". El `catch` externo (`:331`) es inalcanzable porque el interno (`:325`) se traga todo. Como se usa para `createdAt`/`joinedAt` de grupos y recomendaciones, las sombras de "nuevo". |
 | **B26** | `YouTubeSearchManager.kt:376-378` (y llamada en `:248`) | `getPlaylistThumbnailUrl()` devuelve hardcodeado `https://img.youtube.com/vi/undefined/hqdefault.jpg`, y se invoca **sin argumentos** teniendo el `playlistId` real a mano en esa misma línea. Toda playlist sin portada muestra el mismo placeholder. |
 | **B27** | `YouTubeSearchManager.kt:168-175`, `:184` | `getFormattedVideoCount`: el `else` final es inalcanzable (`== 1`, `< 1000` y `>= 1000` ya particionan todos los `Int`); `"%.${digits}f".format(this)` sin `Locale` → `1,5K` en `es-ES`/`ca-ES`; plurales ingleses fijos y sin sufijo `M`/`B`, así que 1 000 000 de vídeos sale como `1000K videos`. |
 | **B28** | `DatabaseExtensions.kt:17-24` (`AppModels.kt:7,26`) | `toAppTrack()` no puede transportar `youtubeVideoId`, `position` ni `durationMs` porque `AppTrack` no tiene esos campos. Toda ida y vuelta `AppTrack → TrackEntity` (usada en `PlaylistScreen.kt:152` y `:178`) **pierde el id de YouTube** de la pista. Es el mecanismo que hace que B1 sea irrecuperable una vez guardado. |
 | **B29** | `MediaMetadataExtractor.kt:26`, `:34`, `:42-57` | El parámetro `context: Context?` no se usa; `isYouTubeUrl` es sensible a mayúsculas (`HTTPS://WWW.YOUTUBE.COM/…` → `UNKNOWN` con `title = url`); y las heurísticas `v=PL` / `v=UU` / `v=FL` / `v=RD` clasifican como playlist un vídeo normal cuyo id empiece por esos prefijos, con lo que el vídeo no llega a sonar. |
-| **B30** | `NfcReader.kt:82` | `enableForegroundDispatch` es la **única** llamada NFC sin `try/catch` (lanza `IllegalStateException` si la Activity no está resumed) y se invoca desde `QRDialog.kt:188` en un `onDispose`, que puede correr con la Activity parando. El resto de llamadas del archivo sí van protegidas. |
 | **B31** | `LightSensorDetector.kt:75`, `:46`, `:59` | `event.values[0]` sin comprobar el tamaño del array → `ArrayIndexOutOfBoundsException` en el hilo principal; `getSystemService(...) as SensorManager` sin guardia; y `isListening = true` se pone aunque `registerListener` haya devuelto `false`, dejando `start()` como no-op permanente hasta que se llame a `stop()`. |
 | **B32** | `SimpleDownloader.kt:31`, `:49-59`, `:61` | El mapa de cookies es un `mutableMapOf` plano: `setCookie` muta desde el hilo que lo inicializa y `getCookies` lo lee desde **todos** los hilos de red, sin sincronizar. Además se loguean cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir `Authorization`. |
 | **B33** | `SupabaseClient.kt:59,109,179,228,291` | `JSONObject.optString(key, null)` devuelve la **cadena** `"null"` cuando el valor JSON es `null`, no `null`. Un `comment` o `invite_code` nulo se guarda y se muestra como la palabra "null". Además `connection.inputStream` lanza `FileNotFoundException` en cualquier 4xx (`:136`, `:168`, `:279`) y el cuerpo de error nunca se lee → el usuario ve `"error: null"`. Y `invite_code` se interpola sin URL-encoding en el filtro PostgREST (`:130`): un código con `&`, `#` o `,` cambia la semántica de la consulta. |
@@ -360,12 +386,10 @@ sí toca la tabla de favoritos, y por eso está en altos).
 | # | Ubicación | Descripción |
 |---|---|---|
 | **B37** | `Utils.kt:44-50` | `isValidAudioUrl` es código muerto: `return hasAudioPattern \|\| isValidUrlFormat(url)`, y `isValidUrlFormat(url)` ya salió `true` del early-return, así que **toda URL http(s) pasa**. Verificado: **cero** llamadas desde producción, solo desde `UtilsTest` — y `UtilsTest.kt:60-62` fija precisamente el comportamiento incorrecto, de modo que un test impide arreglarlo. Decidir: arreglar + corregir el test, o borrar la función y sus 13 tests. |
-| **B38** | `AndroidManifest.xml:15` | `WAKE_LOCK` declarado y **sin uso**: no hay `PowerManager.WakeLock` ni `setWakeMode` en todo el source (verificado). La reproducción con la pantalla apagada la sostiene el `foregroundServiceType="mediaPlayback"` + `USAGE_MEDIA`, no el permiso. |
 | **B39** | `AndroidManifest.xml:54-60` | `MediaButtonReceiver` es `exported="true"` con intent filter y **sin permiso**: cualquier app del dispositivo puede inyectar `ACTION_MEDIA_BUTTON` y manejar la reproducción. El impacto se limita al transporte (la clase valida acción y keycode), pero no necesita estar exportada. |
 | **B40** | `AndroidManifest.xml:22-24` + `res/xml/data_extraction_rules.xml` | `allowBackup="true"` y las reglas incluyen `sharedpref/plyr_config.xml` en **cloud-backup**. Ese fichero guarda el nickname del usuario en el feed, el Uri del árbol SAF y el hash de la copia (`Config.kt:35-41`). El Uri del árbol es un *capability handle* ligado al dispositivo: no debería subirse a la nube. |
 | **B41** | `app/build.gradle.kts:45` | `isMinifyEnabled = false` en release → los `proguardFiles` de `:49-52` son inertes y **todos** los `Log.d/e` de B32 y B33 llegan tal cual al APK publicado. |
 | **B42** | `MusicService.kt:41-47` | `onStartCommand` ignora `intent?.action` por completo. Hoy nadie le manda intents (los botones de media van por `MediaButtonReceiver` → `PlayerViewModel`), pero sigue siendo una trampa para quien intente controlar la reproducción por servicio. |
-| **B43** | `MusicService.kt:94` | `MediaStyleNotificationHelper.MediaStyle(mediaSession!!)` — aserción no nula sin guardia en un callback del servicio. |
 | **B44** | `SearchScreen.kt:58-66`, `:56` | Bucle infinito de `delay(100)` leyendo `SharedPreferences` mientras la pantalla está viva: 10 lecturas de disco por segundo, para siempre. Y `currentLanguage` es *write-only*: se asigna en la línea 63 y no se lee en ningún sitio. |
 | **B45** | `NewPipeHolder.kt:21` | `Localization("es", "ES")` hardcodeado: todos los mensajes de error que produce el extractor de NewPipe salen en español, pase lo que pase el idioma configurado en la app. |
 | **B46** | `MainActivity.kt:186-192` | `unbindService(serviceConnection)` en `onDestroy` pone `onMediaSessionUpdate = null` (`MainActivity:65`) mientras el `MediaSession` del servicio sigue vivo. En una rotación hay una ventana en la que la notificación muestra la pista anterior hasta que `onServiceConnected` vuelve a engancharse. |
@@ -416,7 +440,7 @@ prefs, `client_secret` de OAuth) ya no están en el manifiesto ni en el código.
 
 | Severidad | Ubicación | Descripción |
 |---|---|---|
-| Media | `viewmodel/PlayerViewModel.kt` (713) | Monolito con estado mutable repartido entre el hilo principal y las corrutinas. `generation` + `windowStart` + `transitionInFlight` son 3 banderas que hay que mantener coherentes a mano; B4 y B6 son consecuencia directa de que la invalidación de caché y el estado de error se gestionen en un sitio y no en otro. La lógica pura ya está aislada en `QueueIndex`, pero el estado de la ventana no. |
+| Media | `viewmodel/PlayerViewModel.kt` (712) | Monolito con estado mutable repartido entre el hilo principal y las corrutinas. `generation` + `windowStart` + `transitionInFlight` son 3 banderas que hay que mantener coherentes a mano; B4 y B6 son consecuencia directa de que la invalidación de caché y el estado de error se gestionen en un sitio y no en otro. La lógica pura ya está aislada en `QueueIndex`, pero el estado de la ventana no. |
 | Media | `ui/PlaylistScreen.kt` (1363) | Mezcla UI, red (Supabase/YouTube), DB y lógica de negocio; además construye el modelo de UI (`Song`) sin el campo que la propia UI necesita (B1), lo que es exactamente el tipo de error que un ViewModel por pantalla habría hecho imposible. |
 | Media | `service/MusicService.kt` | No es dueño del reproductor: solo proyecta la notificación sobre el `ExoPlayer` que vive en el `PlayerViewModel` de `PlyrApp`. **No registra ningún `MediaSession.Callback`**, así que `seekToNext`/`seekToPrevious` desde la notificación o el lockscreen los mueve ExoPlayer directamente, no `QueueIndex`; el índice se reconcilia después por la aritmética de `syncIndexFromWindow`. Funciona por casualidad, no por diseño. |
 | Media | `ui/ConfigScreen.kt` (919), `ui/SearchScreen.kt` (477) | Composables con carga, red y estado en `remember`/`rememberCoroutineScope`. |
@@ -448,7 +472,6 @@ Android. Es el asset de calidad más valioso del repo y el modelo a seguir.
 | `YouTubeManager.clearCache` | `YouTubeManager.kt:102-109` | Cero llamadas. La caché solo se invalida por `videoId`. |
 | `isValidAudioUrl` + `containsAudioPattern` | `Utils.kt:44-50` | Código muerto en producción (B37), con 13 tests que consolidation el bug. |
 | `val loadPlaylists = { }` | `PlaylistScreen.kt:160` | No-op asignado y nunca invocado. |
-| `MAX_CAUSE_DEPTH` a nivel de fichero | `PlayerViewModel.kt:713` | Duplica el del companion (B10). |
 | `TerminalColorsPreview`, `PreviewTerminalThemeDark/Light` | `Theme.kt:266,314` | Previews de Android Studio, inalcanzables en runtime. |
 | `ResponsiveDimensions`: `titleSize`, `iconSize*`, `buttonHeight`, `buttonMinWidth` | `ResponsiveUtils.kt:31-51` | Calculados en cada llamada y nunca leídos. |
 | `PlyrSymbols.COMMAND/SEPARATOR/BULLET/ARROW/BACK` | `Theme.kt:74-82` | Sin referencias. |
@@ -494,15 +517,14 @@ Dos casos concretos que se ven sin traducir hoy:
 - `QRDialog.kt:257` usa `Translations.get(context, "btn_share")` correctamente, y
   **tres líneas después** (`:270`) pone `Intent.createChooser(sendIntent, "Compartir via")`
   en español fijo.
-- `CoverCropDialog.kt:79` renderiza el literal `$ load_error` (§B24).
 
 ---
 
 ## 8. TESTS
 
-- **290 tests unitarios en 21 archivos** (recuento estático de anotaciones
-  `@Test`). **No se han ejecutado** en esta revisión, así que no hay ninguna
-  afirmación sobre si pasan.
+- **298 tests unitarios en 21 archivos** (`./run.sh test`, todos en verde;
+  +7 respecto al recuento estático de esta revisión, con la cobertura nueva de
+  tombstones y de `deletedPlaylistIds`).
 - 0 tests instrumentados útiles: solo `ExampleInstrumentedTest`.
 
 **Gaps relevantes, en orden de daño que hacen:**
@@ -523,7 +545,7 @@ Dos casos concretos que se ven sin traducir hoy:
    detectarlo (B37): `isValidAudioUrl_acceptsAnyHttpUrl` afirma que
    `https://example.com/plain-video` es válida, que es justo lo que no debería ser.
 4. **Los módulos más valiosos del repo están bien cubiertos** (`CoverCropMath` 24,
-   `ImportManifest` 24, `ExportManifest` 22, `ImportArchive` 14, `ExportDigest` 11,
+   `ImportManifest` 30, `ExportManifest` 24, `ImportArchive` 14, `ExportDigest` 11,
    `QueueIndex` 22, `MediaButtonCommand` 9). El patrón funciona; el problema es
    que no se ha extendido a la capa de orquestación.
 5. `QueueIndexTest` cubre 4 tests de `needsRefillAfterEnd`, una función que
@@ -585,12 +607,12 @@ Dos casos concretos que se ven sin traducir hoy:
     la re-resolución y los controles no se reactiven a mitad.
 13. **B9** — guardar la lista barajada en `trackEntities` (o en un estado que
     `SongListItem` reciba) para que `<rnd>` no desincronice la UI.
-14. **B10** — borrar la constante duplicada de `PlayerViewModel.kt:713`.
+14. ~~**B10** — borrar la constante duplicada de `PlayerViewModel.kt:713`.~~ **Hecho** (ver §10).
 15. **B11** — `DisposableEffect` en `QrScannerDialog` con `shutdown()` del executor
     y `unbindAll()`, y devolver el resultado del analizador al hilo principal.
 16. **B19** — `DisposableEffect(lifecycleOwner, nfcState, nfcAdapter)` para que la
-    escritura NFC arranque de verdad, y `NfcReader.enableForegroundDispatch`
-    protegido (B30).
+    escritura NFC arranque de verdad. (La protección de
+    `NfcReader.enableForegroundDispatch` —B30— ya está hecha, ver §10.)
 17. **B18** — ramificar por `ScanResult.type` en `SearchScreen` para abrir
     playlists.
 18. **B20** — `remember(shareUrl) { generateQrBitmap(shareUrl) }`, y sacar la
@@ -613,14 +635,14 @@ Dos casos concretos que se ven sin traducir hoy:
     limpiar `getFormattedVideoCount` con `Locale`.
 24. **B28** — añadir `youtubeVideoId` a `AppTrack` o dejar de hacer la ida y vuelta
     por `AppTrack` en `PlaylistScreen`.
-25. **B24** — `"$ load_error"` → clave de traducción real.
+25. ~~**B24** — `"$ load_error"` → clave de traducción real.~~ **Hecho** (ver §10).
 26. **§7.1** — borrar las 16 claves sin uso y arreglar `QueueScreen.kt:87,103`.
     Añadir a `TranslationsTest` un test que falle si una clave definida no
     aparece en el código, y que detecte claves referenciadas que no existen (el
     que habría pillado B7 al instante).
-27. **B38**, **B39**, **B40**, **B41** — quitar `WAKE_LOCK`, poner el receiver en
-    `exported="false"`, excluir `plyr_config.xml` del cloud-backup, y activar R8
-    con reglas para Room/NewPipe.
+27. **B39**, **B40**, **B41** — poner el receiver en `exported="false"`, excluir
+    `plyr_config.xml` del cloud-backup, y activar R8 con reglas para Room/NewPipe.
+    (Quitar `WAKE_LOCK` —B38— ya está hecho, ver §10.)
 
 ### Fase 4 — Estabilidad operativa y limpieza
 
@@ -637,3 +659,22 @@ Dos casos concretos que se ven sin traducir hoy:
     permitiría cubrir B4, B5, B6 y B36 con tests JVM.
 32. Añadir tests instrumentados de los flujos que no se pueden cubrir en JVM:
     importación de playlist, escáner QR, escritura NFC.
+
+---
+
+## 10. BUGS RESUELTOS
+
+Primera tanda de arreglos (2026-09-30), los 5 más triviales del informe.
+Todos verificados con `./run.sh test` (**298 tests, en verde**) y
+`./run.sh build` (BUILD SUCCESSFUL).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B10** | `PlayerViewModel.kt:713` | Eliminado el `private const val MAX_CAUSE_DEPTH = 5` a nivel de fichero, duplicado y sombreado por el del companion (`:62`); la referencia de `:631` sigue resolviendo al companion, comportamiento idéntico. |
+| **B24** | `CoverCropDialog.kt:79` | El `"$ load_error"`/`"$ loading..."` (que en Kotlin no era plantilla y se veía literal) ahora muestra el mensaje de error real (`loadError`, con fallback `"error"`) o la clave **`Translations.get(context, "loading")`** en los 4 idiomas. |
+| **B30** | `NfcReader.kt:82`, `:93` | `enableForegroundDispatch` envuelto en `try/catch` (devuelve `false` y loguea si la Activity no está `resumed`, p. ej. desde el `onDispose` de `QRDialog`); `disableForegroundDispatch` en `stopReading` también protegido. |
+| **B38** | `AndroidManifest.xml:15` | Retirado el permiso `WAKE_LOCK`, sin uso (verificado: cero `WakeLock`/`setWakeMode`). La reproducción con pantalla apagada la sostiene `foregroundServiceType="mediaPlayback"` + `USAGE_MEDIA`. |
+| **B43** | `MusicService.kt:94` | Eliminada la aserción `mediaSession!!`: `createNotification` recibe el `MediaSession` por parámetro y `updateNotification` usa guarda `mediaSession ?: return`, ambas tras asignarlo en `setupMediaSession`. |
+
+Aún pendientes, más difíciles y relacionados con estos: **B19/B20** (NFC y QR),
+**B39/B40/B41** (manifiesto/R8) y las traducciones de **§7.1**.

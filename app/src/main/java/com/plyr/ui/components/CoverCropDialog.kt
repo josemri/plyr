@@ -30,6 +30,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.plyr.service.CoverCropMath
 import com.plyr.service.CoverCropState
 import com.plyr.service.CoverImageManager
+import com.plyr.utils.Translations
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -56,7 +57,7 @@ fun CoverCropDialog(
             try {
                 CoverImageManager.decode(context, uri)
             } catch (e: Exception) {
-                loadError = e.message
+                loadError = e.message ?: "error"
                 null
             }
         }
@@ -76,7 +77,7 @@ fun CoverCropDialog(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (loadError != null) "$ load_error" else "$ loading...",
+                    text = loadError ?: Translations.get(context, "loading"),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         color = if (loadError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant

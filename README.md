@@ -13,7 +13,7 @@ Built this music player because I wanted something simple with a terminal aesthe
 - **YouTube streaming** — search and play any song; no API keys needed (NewPipe Extractor under the hood).
 - **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL** (each track is resolved to its YouTube video); **Liked Songs** saved on swipe.
 - **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
-- **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own (a single `.zip` with `playlists.json` plus the artwork in `covers/`). It works the same in Google Drive as on the device. Settings has a single **sync** button: it syncs if the file is already there, or opens the folder picker when there is nothing to sync to yet.
+- **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own (a single `.zip` with `playlists.json` plus the artwork in `covers/`). It works the same in Google Drive as on the device. Sync goes **both ways**: before writing, the previous copy is merged back into the app (so a fresh install restores everything instead of overwriting a good archive with an empty one), and deletions travel too — a playlist you remove stays removed on any device. Settings has a single **sync** button: it syncs if the file is already there, or opens the folder picker when there is nothing to sync to yet.
 - **Swipe actions** — configurable left/right swipe on a song: add to queue, like, share. **Auto theme** by ambient light via the device light sensor.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase.
 - **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls. Playback continues with the screen off and stops when the app is closed from recents.
@@ -86,8 +86,10 @@ CAMERA                    # QR code scanning (optional hardware)
     - [x] Escritura atómica: primero a `plyr-sync.zip.part` y renombrado al terminar, para que un corte a medias no destruya la copia
     - [x] Se omite la escritura si la huella SHA-256 del contenido no ha cambiado (`ExportDigest`)
     - [x] Caché de portadas remotas (`CoverCache`) para no volver a descargarlas en cada volcado
+    - [x] Sincronización en los **dos sentidos**: antes de escribir, la copia anterior de la carpeta se fusiona en la app (`plyr-sync.zip` no se pisa nunca sin leerlo primero); instalar de cero y pulsar sync restaura el archivo en lugar de sobrescribirlo con una copia vacía
+    - [x] **Borrado propagado (tombstones)**: borrar una lista queda registrado y viaja en `deletedPlaylistIds` del manifiesto; la lista no resucita al sincronizar ni en otros dispositivos, y el zip se regenera sin ella
   - [x] **Android Auto Backup** como red de seguridad: `backup_rules.xml` y `data_extraction_rules.xml` dejan de ser las plantillas vacías e incluyen base de datos, portadas y ajustes
-  - [ ] (Opcional) Restaurar desde la carpeta sin selector de archivos: `DataImporter` sigue en pie y probado, pero ya no hay botón en ajustes
+  - [x] Restaurar desde la carpeta sin selector de archivos: el único botón **sync** lee y fusiona la copia anterior de la carpeta antes de reescribirla
   - [ ] (Opcional) Compartir el archivo vía `ACTION_SEND`
   - [ ] (Opcional) Exportar historial de búsqueda
 - [ ] **Download lists** - Download playlists for offline use
@@ -111,6 +113,7 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Reproducción: `isLoading` ya no puede quedarse en `true` deshabilitando los controles; `setCurrentPlaylist` ya no lanza con lista vacía; el índice ya no se deduce comparando IDs
   - [x] Rendimiento: caché de URLs de audio en memoria con TTL, para que saltar a la siguiente canción no dependa de una extracción nueva
   - [x] Auriculares: `MediaButtonReceiver` registrado en el manifiesto y conectado al reproductor (antes era código muerto)
+  - [x] Bugs triviales del reporte (1ª tanda): B10 (constante duplicada `MAX_CAUSE_DEPTH`), B24 (literal `$ load_error` en el recorte de portada → mensaje real/clave `loading`), B30 (llamadas NFC sin `try/catch`), B38 (permiso `WAKE_LOCK` sin uso), B43 (aserción `mediaSession!!` en `MusicService`)
   - [ ] Bugs: `isValidAudioUrl` (B1), clave `"Player not available"` (B5), `metadataCache` en Feed (B10), thumbnail `vi/undefined` (B16)
   - [ ] Seguridad: activar R8 (`isMinifyEnabled`), reducir logs de cuerpos en `SupabaseClient`
   - [ ] Rendimiento: `shutdown()`/`unbindAll` en `QrScannerDialog`, `key` en LazyLists de PlaylistScreen, `LazyColumn` en Feed
