@@ -6,12 +6,17 @@
   separado. El Uri de la carpeta SAF (plyr_config.xml) es un *capability handle*
   ligado al dispositivo: se excluye de la nube (B40) pero se deja en la
   transferencia entre dispositivos a propósito, que no sube nada a la nube.
+
+  `export-covers/` (la caché de CoverCache) no aparece en `cloud-backup` porque
+  las reglas solo incluyen `covers/`: añadir un `exclude` de una ruta no
+  incluida es un error fatal de lint al compilar release (B41). En
+  `device-transfer` sí se incluye, para que el móvil nuevo no vuelva a descargar
+  las portadas.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="database" path="." />
         <include domain="file" path="covers/" />
-        <exclude domain="file" path="export-covers/" />
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="." />

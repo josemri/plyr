@@ -9,6 +9,13 @@
 # extractor tal cual las carga ServiceList y el renderer de resultados (B41).
 -keep class org.schabi.newpipe.** { *; }
 
+# Rhino (org.mozilla.javascript, dependency de NewPipeExtractor) referencia clases
+# de escritorio desde org.mozilla.javascript.JavaToJSONConverters: java.beans es
+# parte de java.desktop y no existe en Android. La ruta no se ejecuta nunca en
+# el móvil, pero sin estas reglas R8 aborta el build release (B41).
+-dontwarn java.beans.**
+-dontwarn javax.script.**
+
 # Los Log.* con datos sensibles (cookies/cabeceras, B32; cuerpo de 4xx, B33) no
 # deben llegar al APK publicado: R8 los elimina en release (B41).
 -assumenosideeffects class android.util.Log {

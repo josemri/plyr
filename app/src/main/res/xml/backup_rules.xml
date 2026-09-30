@@ -13,10 +13,12 @@
   Queda excluido deliberadamente:
   - `sharedpref/plyr_config.xml`  el Uri de la carpeta SAF, el nickname y el hash
     de la copia dependen del dispositivo y no deben subirse a la nube (B40)
-  - `export-covers/`  caché reconstruible que solo engordaría la copia.
+
+  `export-covers/` (la caché de CoverCache) tampoco se copia: con reglas solo de
+  `include` ya queda fuera, y poner un `exclude` para una ruta no incluida es
+  un error fatal de lint al compilar release (B41).
 -->
 <full-backup-content>
     <include domain="database" path="." />
     <include domain="file" path="covers/" />
-    <exclude domain="file" path="export-covers/" />
 </full-backup-content>

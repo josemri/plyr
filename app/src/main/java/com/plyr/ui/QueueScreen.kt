@@ -84,7 +84,7 @@ fun QueueScreen(
                     contentAlignment = Alignment.Center
                 ) {
 				    Text(
-                        text = Translations.get(context, "No tracks loaded"),
+                        text = Translations.get(context, "no_tracks_loaded"),
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.outline
@@ -100,7 +100,7 @@ fun QueueScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = Translations.get(context, "Player not available"),
+                    text = Translations.get(context, "player_not_available"),
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.outline

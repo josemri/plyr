@@ -32,7 +32,7 @@ class TranslationsTest {
         val coreKeys = listOf(
             "config_title", "theme", "language",
             "lang_spanish", "lang_english", "lang_catalan", "lang_japanese",
-            "info", "exit_message"
+            "exit_message"
         )
         val translations = getTranslationsMap()
         languages.forEach { language ->

@@ -18,6 +18,8 @@ class SimpleDownloader private constructor() : Downloader() {
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
         private const val YOUTUBE_RESTRICTED_MODE_COOKIE = "PREF=f2=8000000"
         private const val YOUTUBE_DOMAIN = "youtube.com"
+        private const val RESTRICTED_MODE_COOKIE_KEY = "youtube_restricted_mode_key"
+        private const val RECAPTCHA_COOKIE_KEY = "recaptcha_cookies_key"
 
         @Volatile
         private var instance: SimpleDownloader? = null
@@ -29,7 +31,13 @@ class SimpleDownloader private constructor() : Downloader() {
         }
     }
 
-    private val cookies = mutableMapOf<String, String>()
+    /**
+     * `ConcurrentHashMap` y no `mutableMapOf`: `setCookie` escribe desde el
+     * hilo que inicializa el extractor y `getCookies` lee desde **todos** los
+     * hilos de red, así que el mapa estaba sujeto a la misma carrera que un
+     * `HashMap` (B32).
+     */
+    private val cookies = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val client: OkHttpClient
 
     init {
@@ -42,7 +50,7 @@ class SimpleDownloader private constructor() : Downloader() {
             .build()
 
         // Agregar cookie de modo restringido de YouTube por defecto
-        setCookie("youtube_restricted_mode_key", YOUTUBE_RESTRICTED_MODE_COOKIE)
+        setCookie(RESTRICTED_MODE_COOKIE_KEY, YOUTUBE_RESTRICTED_MODE_COOKIE)
         Log.d(TAG, "✅ SimpleDownloader inicializado con OkHttp")
     }
 
@@ -60,16 +68,13 @@ class SimpleDownloader private constructor() : Downloader() {
 
     private fun getCookies(url: String): String {
         val youtubeCookie = if (url.contains(YOUTUBE_DOMAIN)) {
-            getCookie("youtube_restricted_mode_key")
+            getCookie(RESTRICTED_MODE_COOKIE_KEY)
         } else {
             null
         }
 
         // Combinar todas las cookies relevantes
-        return listOfNotNull(youtubeCookie, getCookie("recaptcha_cookies_key"))
-            .flatMap { it.split("; ") }
-            .distinct()
-            .joinToString("; ")
+        return buildCookieHeader(youtubeCookie, getCookie(RECAPTCHA_COOKIE_KEY))
     }
 
     @Throws(IOException::class, ReCaptchaException::class)
@@ -98,7 +103,7 @@ class SimpleDownloader private constructor() : Downloader() {
         val cookiesString = getCookies(url)
         if (cookiesString.isNotEmpty()) {
             requestBuilder.addHeader("Cookie", cookiesString)
-            Log.d(TAG, "🍪 Cookies: $cookiesString")
+            Log.d(TAG, "🍪 Cookies enviadas: ${describeCookieNames(cookiesString)}")
         }
 
         // Agregar headers personalizados
@@ -109,12 +114,10 @@ class SimpleDownloader private constructor() : Downloader() {
             }
         }
 
-        // Log de headers
+        // Log de headers (los valores sensibles se ocultan: B32)
         val builtRequest = requestBuilder.build()
         Log.d(TAG, "📋 Headers enviados:")
-        builtRequest.headers.forEach { (name, value) ->
-            Log.d(TAG, "   $name: $value")
-        }
+        Log.d(TAG, describeHeaders(builtRequest.headers.toMultimap()))
 
         // Ejecutar petición
         return try {
@@ -135,21 +138,16 @@ class SimpleDownloader private constructor() : Downloader() {
 
                 if (responseCode < 400) {
                     Log.d(TAG, "✅ Respuesta exitosa: ${responseBodyString.length} caracteres")
-                    // Log adicional para peticiones del player de YouTube
+                    // Log adicional para peticiones del player de YouTube: solo el
+                    // estado, nunca el volcado de la respuesta (puede llevar
+                    // visitorData, tokens y datos de la cuenta)
                     if (url.contains("/youtubei/v1/player")) {
-                        Log.d(TAG, "🎬 Respuesta del Player API:")
-                        // Buscar playabilityStatus en la respuesta
-                        if (responseBodyString.contains("playabilityStatus")) {
-                            val statusStart = responseBodyString.indexOf("\"playabilityStatus\"")
-                            if (statusStart != -1) {
-                                val statusEnd = responseBodyString.indexOf("}", statusStart) + 1
-                                val status = responseBodyString.substring(statusStart, minOf(statusEnd + 200, responseBodyString.length))
-                                Log.d(TAG, "   PlayabilityStatus: ${status.take(500)}")
-                            }
+                        playabilityStatusOf(responseBodyString)?.let { status ->
+                            Log.d(TAG, "🎬 PlayabilityStatus: $status")
                         }
                     }
                 } else {
-                    Log.e(TAG, "❌ Error ($responseCode): ${responseBodyString.take(500)}")
+                    Log.e(TAG, "❌ Error ($responseCode): ${responseBodyString.length} caracteres")
                 }
 
                 // Obtener URL final (después de redirecciones)
@@ -183,4 +181,67 @@ class SimpleDownloader private constructor() : Downloader() {
             throw IOException("Error en petición HTTP", e)
         }
     }
+}
+
+/** Cabeceras cuyo valor nunca se escribe en el log (B32). */
+private val SENSITIVE_HEADERS = setOf(
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "proxy-authorization",
+    "x-goog-visitor-id",
+    "sapientid",
+    "x-goog-authuser"
+)
+
+private const val REDACTED = "«oculto»"
+
+private val PLAYABILITY_STATUS = Regex("\"status\"\\s*:\\s*\"([A-Z_]+)\"")
+
+/**
+ * Une los valores de cookies en una única cabecera, sin repetir pares.
+ */
+internal fun buildCookieHeader(vararg values: String?): String =
+    values.asSequence()
+        .filterNotNull()
+        .flatMap { it.split("; ") }
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .joinToString("; ")
+
+/**
+ * Nombres de las cookies presentes en [cookieHeader], sin sus valores: los logs
+ * de `adb logcat` acababan con credenciales ajenas al usuario.
+ */
+internal fun describeCookieNames(cookieHeader: String): String =
+    cookieHeader.split("; ")
+        .map { it.substringBefore('=').trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .joinToString("; ")
+
+/**
+ * Resumen de las cabeceras enviadas, ocultando las sensibles.
+ */
+internal fun describeHeaders(headers: Map<String, List<String>>): String =
+    headers.entries
+        .sortedBy { it.key.lowercase() }
+        .joinToString("\n") { (name, values) ->
+            val shown = if (name.lowercase() in SENSITIVE_HEADERS) {
+                "$REDACTED (${values.sumBy { it.length }} chars)"
+            } else {
+                values.joinToString(", ")
+            }
+            "   $name: $shown"
+        }
+
+/**
+ * Estado de reproducibilidad (`OK`, `LOGIN_REQUIRED`, ...) de una respuesta del
+ * Player API, o `null` si no aparece. Evita registrar la respuesta entera.
+ */
+internal fun playabilityStatusOf(body: String): String? {
+    val marker = body.indexOf("\"playabilityStatus\"")
+    if (marker == -1) return null
+    return PLAYABILITY_STATUS.find(body, marker)?.groupValues?.get(1)
 }

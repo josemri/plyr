@@ -346,10 +346,7 @@ fun NfcButton(
     onToggle: () -> Unit
 ) {
     val context = LocalContext.current
-    val rings = remember { mutableStateListOf<Int>() }
-    var frameCounter by remember { mutableIntStateOf(0) }
-    val width = 11
-    val center = width / 2
+    var frame by remember { mutableIntStateOf(0) }
 
     // Activar/desactivar modo escritura global cuando cambia el estado
     LaunchedEffect(state) {
@@ -363,39 +360,23 @@ fun NfcButton(
         }
     }
 
+    // Un solo Int como estado de animación: antes se mutaba una
+    // SnapshotStateList por frame, lo que invalidaba el texto hasta 5 veces por
+    // segundo y además depended de un delay fijo (resto de B20). Ahora el frame
+    // lo marca el vsync y el dibujo sale de una función pura.
     LaunchedEffect(state) {
+        frame = 0
         if (state == NfcWriteState.WAITING) {
-            rings.clear()
-            frameCounter = 0
-            while (state == NfcWriteState.WAITING) {
-                frameCounter++
-                if (frameCounter % 3 == 0) rings.add(0)
-                for (i in rings.indices) rings[i] = rings[i] + 1
-                rings.removeAll { r -> (center - r < 0) && (center + r > width - 1) }
-                delay(200L)
+            while (true) {
+                withFrameNanos { }
+                frame = (frame + 1) % (NfcPulse.FRAME_CYCLE)
             }
-            rings.clear()
-        } else {
-            rings.clear()
         }
     }
 
     val displayText = when (state) {
         NfcWriteState.IDLE, NfcWriteState.SUCCESS, NfcWriteState.ERROR -> Translations.get(context, "btn_nfc")
-        NfcWriteState.WAITING -> {
-            val chars = CharArray(width) { ' ' }
-            for (r in rings) {
-                val left = center - r
-                val right = center + r
-                if (left == right && left in 0 until width) {
-                    chars[left] = '•'
-                } else {
-                    if (left in 0 until width) chars[left] = '('
-                    if (right in 0 until width) chars[right] = ')'
-                }
-            }
-            String(chars)
-        }
+        NfcWriteState.WAITING -> NfcPulse.textAt(frame)
     }
 
     val textColor = when (state) {

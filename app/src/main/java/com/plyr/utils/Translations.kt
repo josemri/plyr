@@ -13,31 +13,20 @@ object Translations {
         // ESPAÑOL
         "español" to mapOf(
             // Config Screen
-            "user_nickname" to "> nombre_feed",
             "config_title" to "plyr_ajustes",
             "theme" to "tema",
             "theme_dark" to "oscuro",
             "theme_light" to "claro",
             "theme_system" to "sistema",
             "theme_auto" to "auto",
-            "search_engine" to "> motor_de_búsqueda",
             "language" to "idioma",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "info" to "> información",
-            "info_text" to "    ● ¡no piratees música!\n    ● cambia el motor con yt: / sp:",
-            "lastfm_api_key" to "    ● lastfm_api_key:",
-
-            // Main Screen
-            "no_results" to "no results found",
 
             // Home Screen
-            "home_queue" to "cola",
-            "home_new_playlist" to "nueva playlist",
             "home_feed" to "feed",
-            "home_settings" to "ajustes",
             "exit_message" to "Presiona de nuevo para salir",
 
             // Feed Screen
@@ -45,11 +34,6 @@ object Translations {
             "add_recommendation" to "añadir recomendación",
             "loading" to "cargando...",
             "no_recommendations" to "no hay recomendaciones",
-            "invite_code" to "código de invitación",
-            "nickname" to "apodo",
-            "comment" to "comentario (opcional)",
-            "enter_nickname" to "introduce tu apodo...",
-            "recommendations" to "> recomendaciones",
 
             // Search Screen
             "search_title" to "plyr_buscar",
@@ -57,20 +41,14 @@ object Translations {
             "search_loading" to "cargando...",
             "search_error" to "error",
             "search_scan_qr" to "qr",
-            "artist_image" to "Imagen del artista",
             "search_youtube_results" to "resultados de youtube",
             "search_load_more" to "cargar más",
-            "colored by used engine" to "coloreado según el motor usado",
 
             // Search Screen - Additional translations
             "search_error_processing_qr" to "Error procesando QR",
             "permission_denied" to "Permiso de cámara denegado",
             "retry" to "Reintentar",
             "close" to "Cerrar",
-
-            // Player
-            "next" to "siguiente",
-            "previous" to "anterior",
 
             // Playlist / Form labels
             "playlist_name" to "Nombre de la playlist",
@@ -81,11 +59,11 @@ object Translations {
 
             // Queue Screen
             "plyr_queue" to "plyr_cola",
-            "No tracks loaded" to "Ninguna lista cargada",
-            "player_not_available" to "reproductor_no_disponible",
+            "no_tracks_loaded" to "Ninguna lista cargada",
+            "player_not_available" to "reproductor no disponible",
 
             //Playlists Screen
-            "Loading tracks..." to "Cargando canciones...",
+            "loading_tracks" to "Cargando canciones...",
 
             // ADDITIONAL KEYS (SPANISH)
             "error_obtaining_audio" to "No se pudo obtener audio",
@@ -99,7 +77,6 @@ object Translations {
             "add_to_playlist" to "añadir a playlist",
             "add_to_queue" to "añadir a cola",
             "share" to "compartir",
-            "add_to_liked_songs" to "añadir a favoritos",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "cola",
@@ -108,7 +85,6 @@ object Translations {
             "swipe_action_share" to "share",
 
             // Swipe Actions
-            "gestures_section" to "> gestos",
             "swipe_left" to "swipe left",
             "swipe_right" to "swipe right",
 
@@ -131,29 +107,23 @@ object Translations {
             "update_available" to "actualiza",
             "no_playlists" to "no hay playlists",
             "plyr_lists" to "plyr_listas",
-            "not_configured" to "no configurado",
 
         ),
 
         // ENGLISH
         "english" to mapOf(
             // Config Screen
-            "user_nickname" to "> nickname_feed",
             "config_title" to "plyr_config",
             "theme" to "theme",
             "theme_dark" to "dark",
             "theme_light" to "light",
             "theme_system" to "system",
             "theme_auto" to "auto",
-            "search_engine" to "> search_engine",
             "language" to "language",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "info" to "> info",
-            "info_text" to "    ● don't pirate music!\n    ● Change engine with yt: / sp:",
-            "lastfm_api_key" to "    ● lastfm_api_key:",
             "share_me" to "< share me! >",
 
 
@@ -169,14 +139,8 @@ object Translations {
             "sync_archive_unreadable" to "● couldn't read the copy in the folder, nothing was touched",
             "sync_folder_denied" to "● folder access could not be saved",
 
-            // Main Screen
-            "no_results" to "no results found",
-
             // Home Screen
-            "home_queue" to "queue",
-            "home_new_playlist" to "new playlist",
             "home_feed" to "feed",
-            "home_settings" to "settings",
             "exit_message" to "Press back again to exit",
 
             // Feed Screen
@@ -184,11 +148,6 @@ object Translations {
             "add_recommendation" to "add recommendation",
             "loading" to "loading...",
             "no_recommendations" to "no recommendations",
-            "invite_code" to "invite code",
-            "nickname" to "nickname",
-            "comment" to "comment (optional)",
-            "enter_nickname" to "enter your nickname...",
-            "recommendations" to "> recommendations",
 
             // Search Screen
             "search_title" to "plyr_search",
@@ -196,20 +155,14 @@ object Translations {
             "search_loading" to "loading...",
             "search_error" to "error",
             "search_scan_qr" to "qr",
-            "artist_image" to "Artist image",
             "search_youtube_results" to "youtube results",
             "search_load_more" to "load more",
-            "colored by used engine" to "colored by used engine",
 
             // Search Screen - Additional translations
             "search_error_processing_qr" to "Error processing QR",
             "permission_denied" to "Camera permission denied",
             "retry" to "Retry",
             "close" to "Close",
-
-            // Player
-            "next" to "next",
-            "previous" to "previous",
 
             // Playlist / Form labels
             "playlist_name" to "Playlist name",
@@ -220,10 +173,10 @@ object Translations {
 
             // Queue Screen
             "plyr_queue" to "plyr_queue",
-            "No tracks loaded" to "No tracks loaded",
+            "no_tracks_loaded" to "No tracks loaded",
 
             // Playlists Screen
-            "Loading tracks..." to "Loading tracks...",
+            "loading_tracks" to "Loading tracks...",
 
             // ADDITIONAL KEYS (ENGLISH)
             "error_obtaining_audio" to "Could not obtain audio",
@@ -237,7 +190,6 @@ object Translations {
             "add_to_playlist" to "add to playlist",
             "add_to_queue" to "add to queue",
             "share" to "share",
-            "add_to_liked_songs" to "add to liked songs",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "queue",
@@ -246,7 +198,6 @@ object Translations {
             "swipe_action_share" to "share",
 
             // Swipe Actions
-            "gestures_section" to "> gestures",
             "swipe_left" to "swipe left",
             "swipe_right" to "swipe right",
 
@@ -255,7 +206,6 @@ object Translations {
             "update_available" to "update",
             "no_playlists" to "no playlists",
             "plyr_lists" to "plyr_lists",
-            "not_configured" to "not configured",
             "player_not_available" to "player not available",
 
         ),
@@ -263,22 +213,17 @@ object Translations {
         // CATALÀ
         "català" to mapOf(
             // Config Screen
-            "user_nickname" to "> nom_feed",
             "config_title" to "plyr_configuració",
             "theme" to "tema",
             "theme_dark" to "fosc",
             "theme_light" to "clar",
             "theme_system" to "sistema",
             "theme_auto" to "auto",
-            "search_engine" to "> motor_cerca",
             "language" to "idioma",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "info" to "> info",
-            "info_text" to "    ● no piratejis música!\n    ● Canvia motor amb yt: / sp:",
-            "lastfm_api_key" to "    ● lastfm_api_key:",
             "share_me" to "< Comparteix-me! >",
 
 
@@ -295,14 +240,8 @@ object Translations {
             "sync_folder_denied" to "● no es va poder desar l'accés a la carpeta",
 
 
-            // Main Screen
-            "no_results" to "no s'han trobat resultats",
-
             // Home Screen
-            "home_queue" to "cua",
-            "home_new_playlist" to "nova llista",
             "home_feed" to "feed",
-            "home_settings" to "ajustos",
             "exit_message" to "Prem de nou per sortir",
 
             // Feed Screen
@@ -310,12 +249,7 @@ object Translations {
             "add_recommendation" to "afegir recomanació",
             "loading" to "carregant...",
             "no_recommendations" to "no hi ha recomanacions",
-            "invite_code" to "codi d'invitació",
-            "nickname" to "apodo",
-            "comment" to "comentari (opcional)",
             "nickname_description" to "tu apodo se usará en grupos y recomendaciones",
-            "enter_nickname" to "introduce tu apodo...",
-            "recommendations" to "> recomanacions",
 
             // Search Screen
             "search_title" to "plyr_cercar",
@@ -323,20 +257,14 @@ object Translations {
             "search_loading" to "carregant...",
             "search_error" to "error",
             "search_scan_qr" to "qr",
-            "artist_image" to "Imatge de l'artista",
             "search_youtube_results" to "resultats de youtube",
             "search_load_more" to "carregar més",
-            "colored by used engine" to "colorat segons el motor usat",
 
             // Search Screen - Additional translations
             "search_error_processing_qr" to "Error processant QR",
             "permission_denied" to "Permís de càmera denegat",
             "retry" to "Reintenta",
             "close" to "Tanca",
-
-            // Player
-            "next" to "següent",
-            "previous" to "anterior",
 
             // Playlist / Form labels
             "playlist_name" to "Nom de la playlist",
@@ -347,11 +275,11 @@ object Translations {
 
             // Queue Screen
             "plyr_queue" to "plyr_cua",
-            "No tracks loaded" to "Cap cançó carregada",
+            "no_tracks_loaded" to "Cap cançó carregada",
             "player_not_available" to "el reproductor no està disponible",
 
             // Playlists Screen
-            "Loading tracks..." to "Carregant cançons...",
+            "loading_tracks" to "Carregant cançons...",
 
             // ADDITIONAL KEYS (CATALÀ)
             "error_obtaining_audio" to "No s'ha pogut obtenir àudio",
@@ -365,7 +293,6 @@ object Translations {
             "add_to_playlist" to "afegir a playlist",
             "add_to_queue" to "afegir a cua",
             "share" to "compartir",
-            "add_to_liked_songs" to "afegir a favorits",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "cua",
@@ -374,7 +301,6 @@ object Translations {
             "swipe_action_share" to "compartir",
 
             // Swipe Actions
-            "gestures_section" to "> gestos",
             "swipe_left" to "lliscar esquerra",
             "swipe_right" to "lliscar dreta",
 
@@ -384,29 +310,23 @@ object Translations {
             "update_available" to "actualitza",
             "no_playlists" to "no hi ha playlists",
             "plyr_lists" to "plyr_llistes",
-            "not_configured" to "no configurat",
 
         ),
 
         // 日本語 (JAPONÉS)
         "日本語" to mapOf(
             // Config Screen
-            "user_nickname" to "> ユーザーネーム/ニックネーム",
             "config_title" to "plyr_設定",
             "theme" to "テーマ",
             "theme_dark" to "ダーク",
             "theme_light" to "ライト",
             "theme_system" to "システム",
             "theme_auto" to "自動",
-            "search_engine" to "> 検索エンジン",
             "language" to "言語",
             "lang_spanish" to "es",
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
-            "info" to "> 情報",
-            "info_text" to "    ● 音楽の海賊行為はやめよう!\n    ● エンジン切替: yt: / sp:",
-            "lastfm_api_key" to "    ● lastfm_api_key:",
             "share_me" to "< 私を共有！ >",
 
 
@@ -423,14 +343,8 @@ object Translations {
             "sync_folder_denied" to "● フォルダへのアクセスを保存できませんでした",
 
 
-            // Main Screen
-            "no_results" to "結果が見つかりません",
-
             // Home Screen
-            "home_queue" to "キュー",
-            "home_new_playlist" to "新しいプレイリスト",
             "home_feed" to "feed",
-            "home_settings" to "設定",
             "exit_message" to "もう一度押すと終了します",
 
             // Feed Screen
@@ -438,12 +352,7 @@ object Translations {
             "add_recommendation" to "おすすめを追加",
             "loading" to "読み込み中...",
             "no_recommendations" to "おすすめはありません",
-            "invite_code" to "招待コード",
-            "nickname" to "ニックネーム",
-            "comment" to "コメント (任意)",
             "nickname_description" to "あなたのニックネームはグループやおすすめに使用されます",
-            "enter_nickname" to "ニックネームを入力...",
-            "recommendations" to "> おすすめ",
 
             // Search Screen
             "search_title" to "plyr_検索",
@@ -451,20 +360,14 @@ object Translations {
             "search_loading" to "読み込み中...",
             "search_error" to "エラー",
             "search_scan_qr" to "QR",
-            "artist_image" to "アーティスト画像",
             "search_youtube_results" to "YouTubeの結果",
             "search_load_more" to "もっと読み込む",
-            "colored by used engine" to "検索エンジン別の色",
 
             // Search Screen - Additional
             "search_error_processing_qr" to "QRの処理中にエラー",
             "permission_denied" to "カメラの許可が拒否されました",
             "retry" to "再試行",
             "close" to "閉じる",
-
-            // Player
-            "next" to "次へ",
-            "previous" to "前へ",
 
             // Playlist / Form labels
             "playlist_name" to "プレイリスト名",
@@ -475,11 +378,11 @@ object Translations {
 
             // Queue Screen
             "plyr_queue" to "plyr_キュー",
-            "No tracks loaded" to "曲が読み込まれていません",
+            "no_tracks_loaded" to "曲が読み込まれていません",
             "player_not_available" to "プレイヤーが利用できません",
 
             // Playlists Screen
-            "Loading tracks..." to "曲を読み込み中...",
+            "loading_tracks" to "曲を読み込み中...",
 
             // ADDITIONAL KEYS (JAPONÉS)
             "error_obtaining_audio" to "音声を取得できませんでした",
@@ -493,7 +396,6 @@ object Translations {
             "add_to_playlist" to "プレイリストに追加",
             "add_to_queue" to "キューに追加",
             "share" to "共有",
-            "add_to_liked_songs" to "お気に入りに追加",
 
             // Swipe Actions - Short versions for config screen
             "swipe_action_queue" to "キュー",
@@ -502,7 +404,6 @@ object Translations {
             "swipe_action_share" to "共有",
 
             // Swipe Actions
-            "gestures_section" to "> ジェスチャー",
             "swipe_left" to "左スワイプ",
             "swipe_right" to "右スワイプ",
 
@@ -511,7 +412,6 @@ object Translations {
             "update_available" to "更新",
             "no_playlists" to "プレイリストがありません",
             "plyr_lists" to "plyr_リスト",
-            "not_configured" to "未設定",
         ),
     )
     /**

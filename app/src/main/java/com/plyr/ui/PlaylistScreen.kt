@@ -261,7 +261,7 @@ fun PlaylistsScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = Translations.get(context, "Loading tracks..."),
+                            text = Translations.get(context, "loading_tracks"),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontFamily = FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

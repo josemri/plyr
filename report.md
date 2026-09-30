@@ -39,9 +39,14 @@
 > **B33**, **B35**, **B41**— y en una sexta los 7 del grupo T5 —**B7**, **B8**,
 > **B11**, **B15**, **B16**, **B23**, **B28**— y en una séptima los 7 que
 > quedaban de reproducción, favoritos, swipe y manifiesto —**B1**, **B2**,
-> **B4**, **B5**, **B6**, **B39**, **B48**—; todos están documentados en
-> **§10** (47 resueltos en total) y queda **1 activo** (los datos, **B32**). El
-> total de tests pasó de 288 a **310** (con B25 se retiró el test
+> **B4**, **B5**, **B6**, **B39**, **B48**— y en una octava el cierre —
+> **B20** (animación de `NfcButton`), **B32** (los datos), **B41** (build release,
+> que estaba roto), **§7.1** (traducciones)—; todos están documentados en
+> **§10** (**48 resueltos, 0 activos**) y el total de tests pasó de 288 a
+> **343**. En T8 se añadieron tres ficheros nuevos —
+> `SimpleDownloaderLogRedactionTest` (18), `NfcPulseTest` (11) y
+> `TranslationKeysUsageTest` (4)— y `TranslationsTest` dejó de exigir la clave
+> `info` que se borró. El histórico de tests por tanda: con B25 se retiró el test
 > que consolidaba el "ahora falso" de `parseTimestamp` y se añadieron 4:
 > `isoWithOffset`, `invalidReturnsZeroNotNow`, `blankReturnsZero`,
 > `rejectsTrailingGarbage`; en T5 se añadieron `build_reportsDiscardedTracks`
@@ -49,9 +54,11 @@
 > `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition` en
 > `DatabaseMappingsTest`; en T6 se añadió el fichero nuevo
 > `AudioUrlExtractionTest` (9) y 7 tests de identidad de favoritos en
-> `DatabaseMappingsTest`, que pasa a 21). Los datos (**B32**), la animación de
-> `NfcButton` (resto de B20) y las traducciones de **§7.1** siguen pendientes de
-> lo descrito abajo.
+> `DatabaseMappingsTest`, que pasa a 21.
+>
+> Lo único que queda abierto ya **no es un bug**: la lista de literales de
+> interfaz que no pasan por `Translations` (§7.1), que es un refactor de
+>Amplio alcance y no un fallo.
 
 ---
 
@@ -66,14 +73,16 @@ El tercero que recordabas —añadir canciones a una lista— también existía,
 peor: **ninguna de las cinco rutas para hacerlo funcionaba** (§1.3). **Las tres
 cosas están ya arregladas**: los dos fallos reportados y las cinco rutas. En total
 fueron **48 bugs** verificados contra el código; desde entonces se han resuelto
-**47** (B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12, B13, B14, B15, B16, B17,
-B18, B19, B20, B21, B22, B23, B24, B25, B26, B27, B28, B29, B30, B31, B33, B34, B35,
-B36, B37, B38, B39, B40, B41, B42, B43, B44, B45, B46, B47, B48 — ver §10), así
-que queda **1 activo** (**B32**, los datos). El último hallazgo (**B48**, el
-refresco de la lista *Liked*) salió de revisar el flujo de favoritos que
-reportaste ("no puedo quitar canciones de Liked"), y quedó arreglado en la misma
-séptima tanda que **B1**: quitar un favorito de la lista *Liked* abierta es
-justamente el caso que fallaba.
+**los 48** (B1–B48 — ver §10), así que **no queda ninguno activo**. Los dos
+últimos cierres fueron el **B32** (el mapa de cookies de `SimpleDownloader`, sin
+sincronizar, y los logs que volcaban cookies, cabeceras y cuerpos de respuesta) y
+el **B41** (el build de release estaba roto: R8 abortaba por `java.beans` de
+Rhino y lint trataba como fatal un `exclude` de backup redundante; ahora
+`./run.sh build release` termina bien). El hallazgo **B48** (el refresco de la
+lista *Liked*) salió de revisar el flujo de favoritos que reportaste ("no puedo
+quitar canciones de Liked"), y quedó arreglado en la séptima tanda junto con
+**B1**: quitar un favorito de la lista *Liked* abierta es justamente el caso que
+fallaba.
 ### 1.1 El slide a "liked" no funciona → **es un bug de datos, no de gesto** (~~B1~~, **resuelto** → §10)
 
 `PlaylistScreen` construía el `Song` **sin `youtubeId`** en los tres sitios donde
@@ -367,21 +376,25 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **0 bugs críticos**, **0 altos**, **1 medio** (§3): solo **B32** (datos).
-- **310 tests unitarios** en 22 archivos (`./run.sh test`; todos en verde).
+- **0 bugs de cualquier severidad**: los 48 están resueltos (§3 y §10).
+- **343 tests unitarios** en 25 archivos (`./run.sh test`; todos en verde).
   Respecto a la tanda anterior: +4 de `parseTimestamp` (B25: `isoWithOffset`,
   `invalidReturnsZeroNotNow`, `blankReturnsZero`, `rejectsTrailingGarbage`), −1
   que consolidaba el "ahora falso" (`parseTimestamp_invalidFallsBackToNow`), +3
   en T5 (`build_reportsDiscardedTracks`, `build_cancelledScopeStopsResolving` y
-  `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition`) y **+16 en T6**:
-  el fichero nuevo `AudioUrlExtractionTest` (9, single-flight y salto de caché de
-  `YouTubeManager`) y 7 de identidad de favoritos en `DatabaseMappingsTest`, que
-  pasa de 14 a 21.
+  `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition`), **+16 en T6**
+  (el fichero nuevo `AudioUrlExtractionTest` (9) y 7 de identidad de favoritos en
+  `DatabaseMappingsTest`, que pasa de 14 a 21) y **+33 en T8**
+  (`SimpleDownloaderLogRedactionTest` 18, `NfcPulseTest` 11,
+  `TranslationKeysUsageTest` 4).
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
 - **~700 líneas muertas** entre `SongMenuDialog`, `CollapsibleSection`,
   `PlyrDimensions` y funciones sin uso (§7).
-- **16 claves de traducción sin uso** y **1 clave referenciada que no existe**.
-- R8 activo en release (**B41**); no verificado en build release (sin keystore local).
+- **0 claves de traducción sin uso** y **0 claves referenciadas que no existen**
+  (§7.1), con dos tests que lo garantizan. Queda la lista de literales sueltos
+  fuera de `Translations`, que es refactor y no bug.
+- R8 activo en release y **verificado**: `./run.sh build release` termina en
+  `BUILD SUCCESSFUL` (APK de 4,9 MB sin firmar, porque no hay keystore local).
 
 ---
 
@@ -389,42 +402,45 @@ de descartes.
 
 | Métrica | Valor |
 |---|---|
-| Archivos Kotlin (main) | 71 (~14.757 líneas) |
-| Archivos de test | 22 (~3.300 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (1363), `ConfigScreen.kt` (919), `PlayerViewModel.kt` (785), `Translations.kt` (617), `FloatingMusicControls.kt` (536), `SearchScreen.kt` (477), `SongListItem.kt` (545), `QRDialog.kt` (449) |
+| Archivos Kotlin (main) | 72 (~15.169 líneas) |
+| Archivos de test | 25 (~3.935 líneas) |
+| Archivos más grandes | `PlaylistScreen.kt` (1405), `PlayerViewModel.kt` (786), `ConfigScreen.kt` (665), `SongListItem.kt` (565), `FloatingMusicControls.kt` (540), `SearchScreen.kt` (483), `PlaylistLocalRepository.kt` (445), `Translations.kt` (437) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **310** en 22 archivos (ejecutados y en verde) |
+| Tests unitarios | **343** en 25 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
-| Claves de traducción sin uso | **16 de 104** (verificadas por barrido) |
-| Claves referenciadas que no existen | **1** (`"Player not available"`) |
+| Claves de traducción sin uso | **0** (antes 22; `TranslationKeysUsageTest`) |
+| Claves referenciadas que no existen | **0** (antes 1: `"Player not available"`) |
+| Build release | **BUILD SUCCESSFUL** (R8 + lint), APK 4,9 MB sin firmar |
 
-**Desglose de los 310 tests** (tras `./run.sh test`, todos en verde):
+**Desglose de los 343 tests** (tras `./run.sh test`, todos en verde):
 
 | Archivo | @Test | Archivo | @Test |
 |---|---|---|---|
-| `UrlParserTest` | 33 | `ExportDigestTest` | 11 |
-| `ImportManifestTest` | 30 | `AudioUrlExtractionTest` | 9 |
-| `CoverCropMathTest` | 24 | `MediaButtonCommandTest` | 9 |
-| `ExportManifestTest` | 24 | `AppModelsTest` | 8 |
-| `SpotifyImporterTest` | 23 | `ModelDefaultsTest` | 7 |
-| `QueueIndexTest` | 22 | `CoverCacheTest` | 6 |
-| `DatabaseMappingsTest` | 21 | `BackupFolderTest` | 5 |
-| `UtilsTest` | 17 | `TranslationsTest` | 5 |
-| `YouTubePlaylistCreatorTest` | 17 | `SupabaseClientTest` | 10 |
-| `ImportArchiveTest` | 14 | `NewPipeHolderTest` | 3 |
-| | | `YouTubeFormattingTest` | 11 |
-| | | `ExampleUnitTest` | 1 |
+| `UrlParserTest` | 33 | `AudioUrlExtractionTest` | 9 |
+| `ImportManifestTest` | 30 | `MediaButtonCommandTest` | 9 |
+| `CoverCropMathTest` | 24 | `AppModelsTest` | 8 |
+| `ExportManifestTest` | 24 | `ModelDefaultsTest` | 7 |
+| `SpotifyImporterTest` | 23 | `CoverCacheTest` | 6 |
+| `QueueIndexTest` | 22 | `BackupFolderTest` | 5 |
+| `DatabaseMappingsTest` | 21 | `TranslationsTest` | 5 |
+| `SimpleDownloaderLogRedactionTest` | 18 | `SupabaseClientTest` | 10 |
+| `UtilsTest` | 17 | `ImportArchiveTest` | 14 |
+| `YouTubePlaylistCreatorTest` | 17 | `NewPipeHolderTest` | 3 |
+| `NfcPulseTest` | 11 | `YouTubeFormattingTest` | 11 |
+| `ExportDigestTest` | 11 | `ExampleUnitTest` | 1 |
+| | | `TranslationKeysUsageTest` | 4 |
 
 ---
 
 ## 3. BUGS ACTIVOS
 
-Solo queda **B32**. Los altos (B1, B2, B4, B5, B6), el medio B48 y el bajo B39 se
-resolvieron en la séptima tanda; sus filas se conservan abajo con la referencia
-de dónde estaba el fallo, y el detalle de lo hecho está en §10.
+**Ninguno.** Los 48 bugs verificados están resueltos (§10). El **B32**, único
+activo hasta la octava tanda, se cerró junto con el resto de B20 y con §7.1; sus
+filas se conservan abajo con la referencia de dónde estaba el fallo, y el detalle
+de lo hecho está en §10.
 
 ### 3.1 Críticos
 
@@ -447,9 +463,12 @@ Ninguno activo. ~~B1, B2, B4, B5 y B6~~ se resolvieron en la séptima tanda
 
 ### 3.3 Medios
 
-| # | Ubicación | Descripción |
-|---|---|---|
-| **B32** | `SimpleDownloader.kt:31`, `:49-59`, `:61` | El mapa de cookies es un `mutableMapOf` plano: `setCookie` muta desde el hilo que lo inicializa y `getCookies` lo lee desde **todos** los hilos de red, sin sincronizar. Además se loguean cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir `Authorization`. |
+Ninguno activo. ~~**B32**~~ (`SimpleDownloader.kt:32`, `:49-59`, `:61`) —el mapa
+de cookies era un `mutableMapOf` plano leído desde todos los hilos de red, y se
+logueaban cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir
+`Authorization`— se resolvió en la octava tanda: `ConcurrentHashMap`, cookies
+redactadas por nombre, valores sensibles de cabecera ocultos y ningún volcado del
+cuerpo de respuesta (→ §10).
 
 ~~**B48**~~ (`PlaylistScreen.kt` + `SongListItem.kt`) estaba aquí: las filas de
 *Liked* salían de un snapshot que no se recargaba con el toggle. Resuelto en la
@@ -469,8 +488,8 @@ de medios sin exponerla a otras apps (→ §10). |
 
 | # | Severidad | Ubicación | Descripción |
 |---|---|---|---|
-| S3 | Alta | `app/build.gradle.kts:45` | ~~Sin R8 ni ofuscación en release (ver B41).~~ **B41 resuelto**: R8 activo en `assembleRelease` (ver §10) y los `Log.*` con datos sensibles se eliminan con `-assumenosideeffects`. Pendiente de verificar con `./run.sh build release` (no hay keystore local). |
-| S6 | Media | `SimpleDownloader.kt:101`, `:113-117` | Loguea **cookies** (incluida la de reCAPTCHA) y **cabeceras completas** de request/response; pueden incluir `Authorization`. |
+| S3 | Alta | `app/build.gradle.kts:45` | ~~Sin R8 ni ofuscación en release (ver B41).~~ **B41 resuelto y verificado**: R8 activo en `assembleRelease`, los `Log.*` con datos sensibles se eliminan con `-assumenosideeffects` y `./run.sh build release` termina en `BUILD SUCCESSFUL` (APK de 22,6 MB → 4,9 MB, sin firmar por falta de keystore). |
+| S6 | Media | `SimpleDownloader.kt` | ~~Loguea **cookies** (incluida la de reCAPTCHA) y **cabeceras completas**.~~ **Resuelto** en la octava tanda: los logs dan solo los *nombres* de las cookies (`describeCookieNames`), ocultan `Authorization`, `Cookie`, `Set-Cookie`, `X-Goog-Visitor-Id` y compañía (`describeHeaders`) y ya no vuelcan el cuerpo de respuesta ni el `playabilityStatus` entero (`playabilityStatusOf`). Verificado con `SimpleDownloaderLogRedactionTest` (18). |
 | S7 | Media | `SupabaseClient.kt` (≈42 `Log.*`) | Vuelca cuerpos completos de requests/responses: nicknames, códigos de invitación, nombres de grupo, URLs y comentarios de recomendaciones. PII en logcat. |
 | S9 | Baja | `SupabaseClient.kt:19-20` | URL y anon key en el código. La key es `sb_publishable_…` (publishable por diseño de DCL), así que no es un secreto, pero **las políticas RLS de `groups`, `group_members`, `recommendations` y `automatic` no son verificables desde aquí** y son la única defensa de esos datos. |
 | S10 | Baja | `SimpleDownloader.kt:19` | Cookie de YouTube hardcodeada (`PREF=f2=8000000`): caduca en servidor sin aviso y el "bypass" es en consecuencia poco fiable. |
@@ -488,7 +507,7 @@ prefs, `client_secret` de OAuth) ya no están en el manifiesto ni en el código.
 | Severidad | Ubicación | Descripción |
 |---|---|---|
 | Alta | `QrScannerDialog.kt:88,99` | Executor sin `shutdown()` y cámara sin `unbindAll()` en `onDispose` (ver B11). |
-| Alta | `QRDialog.kt:223`, `:363-373` | QR de 512×512 regenerado sin `remember` en el hilo principal, con recomposición forzada 5×/s (ver B20). |
+| Alta | `QRDialog.kt:223` | ~~QR de 512×512 regenerado sin `remember` en el hilo principal.~~ **Resuelto** en la quinta tanda con un bitmap cacheado por contenido (→ §10). La otra mitad de B20, la animación de `NfcButton`, se cerró en la octava tanda: el dibujo es ahora una función pura del frame (`NfcPulse`), el frame lo marca `withFrameNanos` (vsync) en vez de un `delay(200L)` a 5 fps, y el estado de animación pasa de una `SnapshotStateList` mutada por frame a un único `Int` (11 tests). |
 | Media | `ConfigScreen.kt:414-693` | Exportación/importación/copia en scope de composición, cancelable (ver B23). |
 | Media | `FeedScreen.kt:47`, `:65` | `metadataCache = metadataCache + (...)` reconstruye el mapa entero en cada insert (**O(n²)**) y es un read-modify-write no atómico ejecutado desde N corrutinas concurrentes (`:63`). Además esos `scope.launch` cuelgan de `rememberCoroutineScope()`, no del `LaunchedEffect` que los lanza: sobreviven a la cancelación del efecto y escriben estado cuando ya no aplica. |
 | Media | `FeedScreen.kt:74-107` | `Column` + `verticalScroll` + `forEach`: se componen todas las recomendaciones a la vez, y sin límite de concurrencia (una extracción de red por fila, `:107`). |
@@ -551,29 +570,46 @@ Android. Es el asset de calidad más valioso del repo y el modelo a seguir.
 | `CollapsibleSection.statusColor` | `CollapsibleSection.kt:32` | Parámetro con default que llama a `MaterialTheme.colorScheme` en el argumento por defecto. |
 | `ActionButtonData.enabled` | `ActionBttn.kt:25` | Ningún `ActionButtonData(...)` del source pone `enabled = false`; el render de deshabilitado (`:54`, `:65`) es inalcanzable. |
 
-### 7.1 Traducciones
+### 7.1 Traducciones — **cerrado en la octava tanda**
 
-**16 de las 104 claves del mapa `español` no se referencian en ningún sitio**
-(verificado excluyendo el propio `Translations.kt` de la búsqueda):
+**Claves sin uso: 0 (antes 22).** El recuento original de este informe (16 de
+104) se quedó corto porque buscaba la cadena en cualquier sitio del código, no
+como argumento de `Translations.get`: así `search_engine` o `user_nickname`
+contaban como "usadas" por ser claves de `SharedPreferences` en `Config.kt`, y
+`invite_code`/`nickname`/`comment`/`recommendations` por ser campos JSON de
+`SupabaseClient`. Barrido real de los argumentos de `Translations.get`:
 
-`artist_image`, `backup_folder_none`, `colored by used engine`, `enter_nickname`,
-`gestures_section`, `home_new_playlist`, `home_queue`, `home_settings`, `info`,
-`info_text`, `lastfm_api_key`, `next`, `no_results`, `not_configured`,
-`player_not_available`, `previous`.
+- **15 eliminadas** (×4 idiomas = 60 líneas): `artist_image`,
+  `colored by used engine`, `enter_nickname`, `gestures_section`,
+  `home_new_playlist`, `home_queue`, `home_settings`, `info`, `info_text`,
+  `lastfm_api_key`, `next`, `no_results`, `not_configured`, `previous`
+  (+ `backup_folder_none`, que el informe listaba pero ya no existía).
+- **7 eliminadas** (×4 = 28 líneas): `add_to_liked_songs` (la cadena sigue
+  viva, pero como valor de `Config.SWIPE_ACTION_ADD_TO_LIKED`, no como clave de
+  traducción), `comment`, `invite_code`, `nickname`, `recommendations`,
+  `search_engine`, `user_nickname`.
+- **`player_not_available` deja de estar sin uso**: `QueueScreen.kt:103` pasaba
+  el texto inglés `"Player not available"` como clave, así que `Translations.get`
+  devolvía la propia clave y el texto salía **sin traducir en los 4 idiomas**.
+  Ahora usa la clave real, y su valor en español era en sí una clave
+  (`"reproductor_no_disponible"`), corregido a `"reproductor no disponible"`.
 
-Restos de features eliminadas (Last.fm, gestos, "home" anterior) más strings que
-quedaron sin uso. **`TranslationsTest` no puede detectar esta clase de problema**
-porque valida que la clave exista y sea coherente entre idiomas, no que se use.
+**Claves que son textos: 2 renombradas.** `"No tracks loaded"` (usada en
+`QueueScreen.kt:87`) → `no_tracks_loaded`, y `"Loading tracks..."`
+(`PlaylistScreen.kt:264`) → `loading_tracks`. Ambas funcionaban por casualidad,
+porque el inglés era también la clave. `noKeyIsEnglishTextUsedAsAKey` impide que
+vuelvan a colarse.
 
-**1 clave referenciada que no existe en ningún idioma:**
-`Translations.get(context, "Player not available")` en `QueueScreen.kt:103` — el
-texto en inglés se pasa como clave, así que `Translations.get` devuelve la propia
-clave y la cadena sale **sin traducir en los 4 idiomas**. La clave correcta,
-`player_not_available`, existe en los 4 mapas y no se usa nunca. El mismo patrón
-se repite en `QueueScreen.kt:87` con `"No tracks loaded"`, que sí existe pero
-como clave (funciona por casualidad y es inmantenible).
+**Y ahora hay tests que lo mantienen.** `TranslationKeysUsageTest` (nuevo, 4
+tests) recorre `src/main/java` y falla si una clave usada no existe en los 4
+idiomas, si queda alguna sin usar (con una lista explícita de las que se resuelven
+en runtime, hoy solo `sync_working` vía `ConfigScreen.DataActionRow`), si
+`player_not_available`/`no_tracks_loaded` no traducen, o si una clave vuelve a ser
+un texto. `TranslationsTest` (`coreKeysExistInAllLanguages`) ya no exige `info`,
+que se borró.
 
-**Literales de interfaz fuera de `Translations`** (muestra; hay más):
+**Literales de interfaz fuera de `Translations`** — esto **sigue pendiente** y no
+es un bug, es un refactor de amplio alcance (muestra; hay más):
 `QueueScreen.kt:63` `"Unknown Artist"` · `SongListItem.kt:328` `"♥ liked"/"♡ like"` ·
 `PlyrComponents.kt:45` `text = "loading"` · `YouTubeSearchResults.kt:78,97,137,247` ·
 `YouTubePlaylistDetailView.kt:85,180,210,212` · `ConfigScreen.kt:197,199,387` ·
@@ -587,12 +623,11 @@ Dos casos concretos que se ven sin traducir hoy:
 - `QRDialog.kt:257` usa `Translations.get(context, "btn_share")` correctamente, y
   **tres líneas después** (`:270`) pone `Intent.createChooser(sendIntent, "Compartir via")`
   en español fijo.
-
 ---
 
 ## 8. TESTS
 
-- **310 tests unitarios en 22 archivos** (`./run.sh test`, todos en verde;
+- **343 tests unitarios en 25 archivos** (`./run.sh test`, todos en verde;
   +7 respecto al recuento estático de esta revisión por la cobertura de
   tombstones/`deletedPlaylistIds`, luego +4 de formato de vídeo en B27, −13 al
   retirar los de `isValidAudioUrl` en B37, −1/+4 con `parseTimestamp` en B25
@@ -633,11 +668,16 @@ Dos casos concretos que se ven sin traducir hoy:
    `ImportManifest` 30, `ExportManifest` 24, `ImportArchive` 14, `ExportDigest` 11,
    `QueueIndex` 22, `MediaButtonCommand` 9). El patrón funciona; el problema es
    que no se ha extendido a la capa de orquestación. T6 añade el noveno módulo,
-   `AudioUrlExtractionTest` (9), con el mismo enfoque.
+   `AudioUrlExtractionTest` (9), con el mismo enfoque, y T8 los tres siguientes
+   (`SimpleDownloaderLogRedactionTest` 18, `NfcPulseTest` 11,
+   `TranslationKeysUsageTest` 4), extrayendo antes la lógica a funciones puras
+   (`buildCookieHeader`, `describeHeaders`, `NfcPulse`).
 5. `QueueIndexTest` cubre 4 tests de `needsRefillAfterEnd`, una función que
    producción no llama (ver §7): 4 tests que certifican código muerto.
-6. `TranslationsTest` valida consistencia entre idiomas pero **no** detecta ni
-   claves sin uso (16) ni claves referenciadas inexistentes (1).
+6. ~~`TranslationsTest` valida consistencia entre idiomas pero **no** detecta ni
+   claves sin uso (16) ni claves referenciadas inexistentes (1).~~ **Hecho en
+   T8**: `TranslationKeysUsageTest` recorre `src/main/java` y cubre las dos
+   invariantes (más que las claves sin uso, que eran 22 y no 16).
 
 ---
 
@@ -728,9 +768,13 @@ Dos casos concretos que se ven sin traducir hoy:
 17. ~~**B18** — ramificar por `ScanResult.type` en `SearchScreen` para abrir
     playlists.~~ **Hecho** (ver §10).
 18. ~~**B20** — `remember(shareUrl) { generateQrBitmap(shareUrl) }`~~ **Hecho**
-    (ver §10): el QR ya no se regenera en cada recomposición. Queda pendiente la
-    segunda mitad (optimización): sacar la animación de `NfcButton` de la
-    composición (Canvas con `withFrameNanos` en un `LaunchedEffect`).
+    (ver §10): el QR ya no se regenera en cada recomposición. La segunda mitad
+    (optimización) se cerró en T8: la animación de `NfcButton` es la función pura
+    `NfcPulse.textAt(frame)` en su propio fichero, el frame lo avanza
+    `withFrameNanos` (vsync en vez de `delay(200L)` a 5 fps) y el estado pasó de
+    una `SnapshotStateList` mutada por frame a un único `Int`. Se mantiene el
+    dibujo ASCII en `Text` en lugar de pasarlo a `Canvas`, porque el aspecto es el
+    que el usuario ve.
 19. ~~**B16** — hacer `YouTubePlaylistCreator.build` `suspend`, meter un
     `ensureActive()` por pista y un timeout por resolución, y añadir un botón
     "cancelar" mientras `isLoading`.~~ **Hecho** (ver §10): `build` es `suspend`
@@ -758,15 +802,23 @@ Dos casos concretos que se ven sin traducir hoy:
     por `AppTrack` en `PlaylistScreen`.~~ **Hecho** (ver §10): `AppTrack` ya
     transporta `youtubeVideoId` y `position`, y `toAppTrack()` los propaga.
 25. ~~**B24** — `"$ load_error"` → clave de traducción real.~~ **Hecho** (ver §10).
-26. **§7.1** — borrar las 16 claves sin uso y arreglar `QueueScreen.kt:87,103`.
-    Añadir a `TranslationsTest` un test que falle si una clave definida no
-    aparece en el código, y que detecte claves referenciadas que no existen (el
-    que habría pillado B7 al instante).
+26. ~~**§7.1** — borrar las claves sin uso y arreglar `QueueScreen.kt:87,103`.~~
+    **Hecho en T8** (ver §7.1): 22 claves muertas eliminadas (no 16: el barrido
+    original contaba como "usadas" las claves de `Config.kt` y los campos JSON de
+    `SupabaseClient`), `player_not_available` en uso con su valor español corregido,
+    `"No tracks loaded"` → `no_tracks_loaded` y `"Loading tracks..."` →
+    `loading_tracks`, y `TranslationKeysUsageTest` (4) falla si una clave usada no
+    existe, si queda alguna sin usar, si esas dos no traducen o si una clave vuelve
+    a ser un texto.
 27. ~~**B39**, **B41**~~ — poner el receiver en `exported="false"` y activar R8 con
     reglas para Room/NewPipe (**ambos Hechos**, ver §10: B39 con
     `android:exported="false"`; B41 con `isMinifyEnabled = true` más `-keep` para
-    NewPipe y `-assumenosideeffects` para `Log.*`, pendiente de verificar en
-    `./run.sh build release` por falta de keystore local). (Excluir
+    NewPipe y `-assumenosideeffects` para `Log.*`). **B41 verificado en T8**: el
+    build de release estaba roto por dos motivos —R8 abortaba con
+    `Missing class java.beans.*` (Rhino, `org.mozilla.javascript`, referencia
+    `java.desktop`) y lint trataba como fatal un `exclude` de una ruta no incluida
+    en las reglas de backup—, y ambos están arreglados:
+    `./run.sh build release` da `BUILD SUCCESSFUL`. (Excluir
     `plyr_config.xml` del cloud-backup —B40— ya está hecho, ver §10; quitar
     `WAKE_LOCK` —B38— ya está hecho, ver §10.)
 
@@ -780,7 +832,8 @@ Dos casos concretos que se ven sin traducir hoy:
     `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd` + sus 4
     tests y `YouTubeManager.clearCache`. (`isValidAudioUrl` —B37— ya se borró con
     sus 13 tests, ver §10.)
-30. **B32** — dejar de loguear cookies, cabeceras y cuerpos completos.
+30. ~~**B32** — dejar de loguear cookies, cabeceras y cuerpos completos (y
+    sincronizar el mapa de cookies).~~ **Hecho** en T8 (ver §10).
     ~~**B33** — corregir `optString(key, null)`, leer el cuerpo de error en los
     4xx, y URL-encodear el `invite_code`.~~ **Hecho** (ver §10).
 31. Extraer el estado de ventana de `PlayerViewModel` a una unidad propia
@@ -855,7 +908,7 @@ Todos verificados con `./run.sh test` (**291 tests, en verde**) y
 | **B13** | `PlaylistLocalRepository.kt:319-347` | `addTrackToYouTubePlaylist` deduplica por `(youtubeVideoId ?: remoteTrackId)`: re-añadir la misma canción es un no-op (devuelve `true`) en vez de crear filas fantasma con id incremental. |
 | **B18** | `YouTubeSearchManager.kt` + `SearchScreen.kt:152-157,:222-227` | Nuevo `getYouTubePlaylistInfo(playlistId)` (nombre, autor y nº de canciones vía `PlaylistExtractor`). Escanear un código de **playlist** (NFC o QR) ramifica por `result.type == "playlist"` y abre la playlist en vez de construir un `watch?v=<id-de-playlist>` inválido. El `else` de error ("unsupported source") solo aplica a no-YouTube. |
 | **B19** | `QRDialog.kt:164-166` | `DisposableEffect(lifecycleOwner, nfcState, nfcAdapter)`: `nfcAdapter` es ahora clave del efecto, así que al asignarse (después de null en la primera composición) `enableForegroundDispatch` arranca de verdad y la escritura de tags NFC funciona desde el principio. |
-| **B20** | `QRDialog.kt:223` | `generateQrBitmap(shareUrl)` movido a `val qrBitmap = remember(shareUrl) { generateQrBitmap(shareUrl) }`: el QR 512×512 ya no se decodifica y pinta en el hilo principal en cada recomposición (p. ej. las 5 frames por segundo del `NfcButton` en `WAITING`). |
+| **B20** (1ª mitad) | `QRDialog.kt:223` | `generateQrBitmap(shareUrl)` movido a `val qrBitmap = remember(shareUrl) { generateQrBitmap(shareUrl) }`: el QR 512×512 ya no se decodifica y pinta en el hilo principal en cada recomposición (p. ej. las 5 frames por segundo del `NfcButton` en `WAITING`). |
 | **B25** | `SupabaseClient.kt:308-334` + `Utils.kt` | `parseTimestamp` reescrito: dos formatos estrictos (`yyyy-MM-dd'T'HH:mm:ssXXX` y `….SSSXXX`), `isLenient=false`, `ParsePosition(0)` exigiendo consumo completo del input y formatos en `ThreadLocal` (sin el `'Z'` duplicado ni el `SSSSSS` tramposo). El offset `+HH:MM` ya se aplica (antes se descartaba). Un fallo devuelve **`0L`**, nunca `System.currentTimeMillis()`: una fecha ilegible ya no se disfraza de "ahora". `formatTimestamp` muestra `"unknown"` para `timestamp <= 0`. Tests: se retiró `parseTimestamp_invalidFallsBackToNow` y se añadieron `isoWithOffset`, `invalidReturnsZeroNotNow`, `blankReturnsZero` y `rejectsTrailingGarbage`. |
 | **B33** | `SupabaseClient.kt:59,109,179,228,291` | `optString(key, null)` → `JSONObject.optNullableString` (una cadena JSON `null` ya no se guarda/muestra como la palabra "null"); helper `readBody` que lee `errorStream` en los no-2xx (adiós al `"error: null"` de los 4xx y a `FileNotFoundException`); checks 2xx en las llamadas de escritura (createGroup, alta de miembro, createRecommendation); e `invite_code` **URL-encodificado** en el filtro PostgREST (`eq.`), de modo que `&`, `#` o `,` ya no cambian la semántica de la consulta. |
 | **B35** | `FloatingMusicControls.kt:145` | `LaunchedEffect(playerViewModel.exoPlayer)` sustituido por un `LaunchedEffect(Unit)` autosostenido que relee `exoPlayer` en cada vuelta (`?: run { delay(500); continue }`): el polling ya no depende de que otras `LiveData` fuerzen recomposición. |
@@ -894,8 +947,22 @@ Todos verificados con `./run.sh test` (**310 tests, en verde**) y
 | **B48** | `PlaylistScreen.kt` | La lista abierta de *Liked* pasa `onLikedStatusChanged = { tracksRevision++ }` al `SongListItem` de la vista normal, de modo que el popup y el swipe recarga `playlistTracks`/`trackEntities` y la fila quitada desaparece sin salir y reentrar. |
 | **B39** | `AndroidManifest.xml:53-61` | `MediaButtonReceiver` a `android:exported="false"`: el sistema y la propia app siguen entregándole `ACTION_MEDIA_BUTTON`, pero ninguna otra app puede inyectarlo. |
 
-Pendientes ahora: **B32** (único bug activo: mapa de cookies sin sincronizar y
-logs con datos sensibles en `SimpleDownloader`), la optimización de la animación
-de `NfcButton` (resto de B20), las traducciones de **§7.1** (16 claves sin uso y
-la clave `"Player not available"` que no existe) y la verificación de **B41** en
-`./run.sh build release` (no hay keystore local).
+---
+
+Octava tanda de arreglos (2026-09-30), el cierre: **B32**, el resto de **B20**,
+**B41** verificado de verdad y **§7.1**. Con ella **no queda ningún bug activo**:
+48 de 48.
+Verificado con `./run.sh test` (**343 tests, en verde**), `./run.sh build`
+(BUILD SUCCESSFUL) y, por primera vez, **`./run.sh build release`**
+(BUILD SUCCESSFUL, APK de 22,6 MB → 4,9 MB, sin firmar por falta de keystore).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B32** | `SimpleDownloader.kt` | El mapa de cookies pasa de `mutableMapOf` a `ConcurrentHashMap`: `setCookie` escribe desde el hilo que inicializa el extractor y `getCookies` leía desde todos los hilos de red. Los logs dejaron de volcar datos: `describeCookieNames` da solo los nombres (`PREF; SID`), `describeHeaders` oculta `Authorization`, `Cookie`, `Set-Cookie`, `X-Goog-Visitor-Id` y las demás sensibles (sin distinguir mayúsculas, indicando solo el tamaño del valor) y el cuerpo de respuesta ya no se registra —ni en éxito (longitud), ni en error (que antes imprimía 500 caracteres del cuerpo 4xx), ni el `playabilityStatus` completo, que se sustituye por `playabilityStatusOf(body)`, que devuelve solo `OK`/`LOGIN_REQUIRED`/… . La lógica sensible quedó extraída a funciones puras (`buildCookieHeader`, `describeCookieNames`, `describeHeaders`, `playabilityStatusOf`) y cubierta por `SimpleDownloaderLogRedactionTest` (18 tests). |
+| **B20** (resto) | `QRDialog.kt` + `NfcPulse.kt` (nuevo) | El pulso de escritura NFC salía de mutar una `SnapshotStateList` de radios desde un `LaunchedEffect` con `delay(200L)` (5 fps fijos, una recomposición por mutación y hasta 3 mutaciones por frame). Ahora el estado es un único `Int` de frame que avanza con `withFrameNanos` (vsync), y el dibujo es `NfcPulse.textAt(frame)`, una función pura sin Compose en fichero propio: nace un anillo cada 3 frames, el radio máximo sale por los extremos y el ciclo completo son 36 frames. 11 tests en `NfcPulseTest`. |
+| **B41** (verificación) | `proguard-rules.pro` + `backup_rules.xml` + `data_extraction_rules.xml` | El build de release **nunca se había compilado** y estaba roto por dos motivos. 1) R8 abortaba: `Missing class java.beans.*` referenciado desde `org.mozilla.javascript.JavaToJSONConverters` (Rhino, dependencia de NewPipeExtractor) — `java.beans` es de `java.desktop` y no existe en Android, y la ruta no se ejecuta nunca; se añade `-dontwarn java.beans.**` y `-dontwarn javax.script.**` (que además silencia el aviso de `META-INF/services/javax.script.ScriptEngineFactory`). 2) Lint es fatal en release y marcaba `export-covers/ is not in an included path`: el `<exclude>` era redundante, porque con reglas solo de `include` (`covers/`) esa caché ya quedaba fuera. Se quitan los dos `<exclude>`; el comportamiento de copia es idéntico y `device-transfer` sigue incluyendo la caché a propósito. Resultado: `./run.sh build release` → `BUILD SUCCESSFUL`, y los `Log.*` con datos sensibles desaparecen del APK (comprobado: las cadenas de log están en el dex de debug y no en el de release). |
+| **§7.1** | `Translations.kt`, `QueueScreen.kt`, `PlaylistScreen.kt`, `TranslationsTest.kt` | 22 claves muertas eliminadas en los 4 idiomas (88 líneas), 7 más de las que listaba este informe, porque el barrido original contaba como "usadas" las claves de `SharedPreferences` de `Config.kt` (`search_engine`, `user_nickname`) y los campos JSON de `SupabaseClient` (`invite_code`, `nickname`, `comment`, `recommendations`). `QueueScreen.kt:103` pasa a usar `player_not_available` (antes pasaba el texto inglés como clave, así que salía sin traducir) y su valor español era en sí una clave, `"reproductor_no_disponible"`, corregido. Las dos claves que eran texto se renombran: `"No tracks loaded"` → `no_tracks_loaded` y `"Loading tracks..."` → `loading_tracks`. `TranslationKeysUsageTest` (nuevo, 4 tests) recorre `src/main/java` y falla si una clave usada falta en algún idioma, si queda alguna sin usar, si esas dos no traducen o si una clave vuelve a ser un texto. `TranslationsTest` deja de exigir `info`, que ya no existe. |
+
+Pendientes ahora: **ningún bug**. Queda solo la lista de literales de interfaz
+fuera de `Translations` (§7.1), que es un refactor y no un fallo, y los gaps de
+cobertura de §8 (`PlayerViewModel` y `SongListItem` sin tests).
