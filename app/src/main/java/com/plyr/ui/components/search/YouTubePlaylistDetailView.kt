@@ -136,6 +136,12 @@ fun YouTubePlaylistDetailView(
                 modifier = Modifier.clickable(enabled = videos.isNotEmpty()) {
                     if (trackEntities.isNotEmpty() && playerViewModel != null) {
                         val shuffled = trackEntities.shuffled()
+                        // Sustituir también la lista local para que la UI (orden,
+                        // highlight de reproducción e índices) siga a la cola (B9)
+                        trackEntities = shuffled
+                        videos = shuffled.mapNotNull { shuffledTrack ->
+                            videos.firstOrNull { it.videoId == shuffledTrack.remoteTrackId }
+                        }
                         playerViewModel.setCurrentPlaylist(shuffled, 0)
                         coroutineScope.launch { playerViewModel.loadAudioFromTrack(shuffled.first()) }
                     }

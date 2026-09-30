@@ -42,7 +42,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // B41: R8 activo; antes los proguardFiles eran inertes y los
+            // Log.d/e con datos sensibles (B32/B33) llegaban al APK publicado.
+            isMinifyEnabled = true
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }

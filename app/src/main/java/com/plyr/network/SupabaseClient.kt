@@ -11,6 +11,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
+import java.text.ParsePosition
 import java.util.UUID
 
 object SupabaseClient {
@@ -56,7 +58,7 @@ object SupabaseClient {
                 val group = Group(
                     id = json.getString("id"),
                     name = json.getString("name"),
-                    inviteCode = json.optString("invite_code", null),
+                    inviteCode = json.optNullableString("invite_code"),
                     groupType = json.getString("group_type"),
                     createdAt = parseTimestamp(json.optString("created_at", ""))
                 )
@@ -96,7 +98,14 @@ object SupabaseClient {
             val responseCode = connection.responseCode
             Log.d(TAG, "📡 Response code: $responseCode")
 
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            // B33: los 4xx no lanzan FileNotFoundException; se lee el cuerpo y se
+            // devuelve null (antes: "error: null" sin más diagnóstico).
+            if (responseCode !in 200..299) {
+                Log.e(TAG, "❌ HTTP $responseCode al crear grupo: ${readBody(connection)}")
+                return@withContext null
+            }
+
+            val response = readBody(connection)
             Log.d(TAG, "📦 Response: $response")
 
             val jsonArray = JSONArray(response)
@@ -106,7 +115,7 @@ object SupabaseClient {
                 val group = Group(
                     id = result.getString("id"),
                     name = result.getString("name"),
-                    inviteCode = result.optString("invite_code", null),
+                    inviteCode = result.optNullableString("invite_code"),
                     groupType = result.getString("group_type"),
                     createdAt = parseTimestamp(result.optString("created_at", ""))
                 )
@@ -126,14 +135,16 @@ object SupabaseClient {
         try {
             Log.d(TAG, "🔗 Joining group with code: $inviteCode as $nickname")
 
-            // First, find the group by invite code
-            val groupUrl = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE?invite_code=eq.$inviteCode&select=id")
+            // First, find the group by invite code (B33: el código se URL-encodea
+            // para no romper la semántica del filtro si lleva &, # o ,)
+            val encodedInvite = URLEncoder.encode(inviteCode, "UTF-8")
+            val groupUrl = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE?invite_code=eq.$encodedInvite&select=id")
             val groupConnection = groupUrl.openConnection() as HttpURLConnection
             groupConnection.requestMethod = "GET"
             groupConnection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
             groupConnection.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
 
-            val groupResponse = groupConnection.inputStream.bufferedReader().use { it.readText() }
+            val groupResponse = readBody(groupConnection)
             Log.d(TAG, "📦 Group search response: $groupResponse")
 
             val groupArray = JSONArray(groupResponse)
@@ -165,7 +176,16 @@ object SupabaseClient {
 
             connection.outputStream.write(json.toString().toByteArray())
 
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val responseCode = connection.responseCode
+            Log.d(TAG, "📡 Response code: $responseCode")
+
+            // B33: no lanzar y leer el cuerpo en fallos
+            if (responseCode !in 200..299) {
+                Log.e(TAG, "❌ HTTP $responseCode al añadir miembro: ${readBody(connection)}")
+                return@withContext null
+            }
+
+            val response = readBody(connection)
             Log.d(TAG, "📦 Member add response: $response")
 
             val jsonArray = JSONArray(response)
@@ -211,7 +231,7 @@ object SupabaseClient {
             val responseCode = connection.responseCode
             Log.d(TAG, "📡 Response code: $responseCode")
 
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val response = readBody(connection)
             Log.d(TAG, "📦 Raw response: $response")
 
             val jsonArray = JSONArray(response)
@@ -225,7 +245,7 @@ object SupabaseClient {
                     groupId = json.getString("group_id"),
                     nickname = json.getString("nickname"),
                     url = json.getString("url"),
-                    comment = json.optString("comment", null),
+                    comment = json.optNullableString("comment"),
                     likes = json.optInt("likes", 0),
                     dislikes = json.optInt("dislikes", 0),
                     reportCount = json.optInt("report_count", 0),
@@ -276,7 +296,13 @@ object SupabaseClient {
             val responseCode = connection.responseCode
             Log.d(TAG, "📡 Response code: $responseCode")
 
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            // B33: no lanzar y leer el cuerpo en fallos
+            if (responseCode !in 200..299) {
+                Log.e(TAG, "❌ HTTP $responseCode al recomendar: ${readBody(connection)}")
+                return@withContext null
+            }
+
+            val response = readBody(connection)
             Log.d(TAG, "📦 Response: $response")
 
             val jsonArray = JSONArray(response)
@@ -288,7 +314,7 @@ object SupabaseClient {
                     groupId = result.getString("group_id"),
                     nickname = result.getString("nickname"),
                     url = result.getString("url"),
-                    comment = result.optString("comment", null),
+                    comment = result.optNullableString("comment"),
                     likes = result.optInt("likes", 0),
                     dislikes = result.optInt("dislikes", 0),
                     reportCount = result.optInt("report_count", 0),
@@ -306,32 +332,54 @@ object SupabaseClient {
         }
     }
 
-    private fun parseTimestamp(timestamp: String): Long {
-        return try {
-            if (timestamp.isBlank()) return System.currentTimeMillis()
+    /**
+     * Lee el cuerpo de una respuesta HTTP sin lanzar `FileNotFoundException` en
+     * los 4xx (B33): `inputStream` solo existe en 2xx; el cuerpo del error está
+     * en `errorStream` y se pierde si no se lee a propósito.
+     */
+    private fun readBody(connection: HttpURLConnection): String {
+        val stream = if (connection.responseCode in 200..299) {
+            connection.inputStream
+        } else {
+            connection.errorStream
+        }
+        return stream?.bufferedReader()?.use { it.readText() } ?: ""
+    }
 
-            // Supabase devuelve timestamps en formato ISO 8601: "2025-01-12T10:30:00.000Z"
-            val formats = listOf(
-                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", java.util.Locale.US),
-                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US),
-                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US),
-                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
-            )
+    /** `optString(k, null)` devuelve la cadena "null" si el JSON es null (B33). */
+    private fun JSONObject.optNullableString(key: String): String? =
+        if (isNull(key)) null else optString(key, null)
 
-            for (format in formats) {
-                format.timeZone = java.util.TimeZone.getTimeZone("UTC")
-                try {
-                    return format.parse(timestamp)?.time ?: continue
-                } catch (_: Exception) {
-                    continue
+    // Formatos ISO 8601 que emite Supabase (timestamptz). Un `ThreadLocal` por
+    // hilo: SimpleDateFormat no es thread-safe y estos métodos se llaman desde
+    // varios hilos de Dispatchers.IO.
+    private val timestampFormats: ThreadLocal<List<java.text.SimpleDateFormat>> =
+        object : ThreadLocal<List<java.text.SimpleDateFormat>>() {
+            override fun initialValue(): List<java.text.SimpleDateFormat> = listOf(
+                "yyyy-MM-dd'T'HH:mm:ssXXX",
+                "yyyy-MM-dd'T'HH:mm:ss.SSSXXX"
+            ).map { pattern ->
+                java.text.SimpleDateFormat(pattern, java.util.Locale.US).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                    isLenient = false
                 }
             }
-
-            System.currentTimeMillis()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error parsing timestamp: $timestamp", e)
-            System.currentTimeMillis()
         }
+
+    /**
+     * Parsea un timestamp de Supabase de forma estricta (B25). Soporta tanto
+     * `Z` como `+HH:MM` (patrón `XXX`), consume TODA la cadena (no ignora texto
+     * sobrante) y no fabrica un "ahora" falso cuando algo falla: devuelve `0L`
+     * para que el timestamp ilegible no se disfrace de recién creado.
+     */
+    private fun parseTimestamp(timestamp: String): Long {
+        if (timestamp.isBlank()) return 0L
+        for (format in timestampFormats.get()) {
+            val pos = ParsePosition(0)
+            val date = format.parse(timestamp, pos) ?: continue
+            if (pos.index == timestamp.length) return date.time
+        }
+        return 0L
     }
 
     fun generateInviteCode(): String {

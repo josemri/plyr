@@ -142,10 +142,14 @@ fun FloatingMusicControls(
      * Ahora solo se escribe cuando algún valor difiere, y se lee de una
      * referencia fija al reproductor para no tocar uno ya liberado.
      */
-    LaunchedEffect(playerViewModel.exoPlayer) {
-        val player = playerViewModel.exoPlayer ?: return@LaunchedEffect
+    LaunchedEffect(Unit) {
         var lastTotal = 0L
         while (true) {
+            // B35: `exoPlayer` es un `var` no observable; si se usara de clave,
+            // una composición con el reproductor a null (y sin recomposiciones
+            // posteriores) dejaba el poll sin arrancar nunca. Se relee en cada
+            // vuelta y el lazo aguanta hasta que el reproductor exista.
+            val player = playerViewModel.exoPlayer ?: run { delay(500); continue }
             val active = player.playbackState == Player.STATE_READY ||
                 player.playbackState == Player.STATE_BUFFERING
             val total = if (active && player.duration > 0) player.duration else 0L

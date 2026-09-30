@@ -83,6 +83,8 @@ fun formatDurationSeconds(totalSeconds: Long): String {
  * @return Tiempo relativo en formato corto
  */
 fun formatTimestamp(timestamp: Long): String {
+    // 0L = timestamp ilegible/desconocido (B25): no mostrar "now" falso
+    if (timestamp <= 0L) return "unknown"
     val now = System.currentTimeMillis()
     val diff = now - timestamp
     val minutes = diff / (1000 * 60)

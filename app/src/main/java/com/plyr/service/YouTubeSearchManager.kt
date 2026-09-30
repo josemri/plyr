@@ -273,6 +273,33 @@ class YouTubeSearchManager(private val context: Context) {
     }
 
     /**
+     * Obtiene la metadata básica de una playlist de YouTube a partir de su id.
+     *
+     * Se usa cuando el contenido llega por QR/NFC y solo tenemos el `playlistId`
+     * (B18): el resto de campos (título, autor, nº de vídeos) se resuelven aquí.
+     */
+    suspend fun getYouTubePlaylistInfo(playlistId: String): YouTubePlaylistInfo? =
+        withContext(Dispatchers.IO) {
+            try {
+                initialize()
+                val service = ServiceList.YouTube
+                val extractor = service.getPlaylistExtractor("https://www.youtube.com/playlist?list=$playlistId")
+                extractor.fetchPage()
+                YouTubePlaylistInfo(
+                    playlistId = playlistId,
+                    title = extractor.name,
+                    uploader = extractor.uploaderName ?: "Desconocido",
+                    videoCount = extractor.streamCount.toInt(),
+                    thumbnailUrl = null,
+                    description = null
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error obteniendo info de playlist escaneada: $playlistId", e)
+                null
+            }
+        }
+
+    /**
      * Obtiene los videos de una playlist de YouTube
      *
      * @param playlistId ID de la playlist

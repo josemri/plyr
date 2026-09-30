@@ -137,9 +137,19 @@ fun SearchScreen(
         try {
             when (result.source) {
                 "youtube" -> {
-                    val videoUrl = "https://www.youtube.com/watch?v=${result.id}"
-                    searchQuery = videoUrl
-                    performSearch(videoUrl, false)
+                    if (result.type == "playlist") {
+                        val info = youtubeSearchManager.getYouTubePlaylistInfo(result.id)
+                        if (info != null) {
+                            selectedYouTubePlaylist = info
+                        } else {
+                            error = "${Translations.get(context, "search_error_processing_qr")}: playlist not available"
+                            isLoading = false
+                        }
+                    } else {
+                        val videoUrl = "https://www.youtube.com/watch?v=${result.id}"
+                        searchQuery = videoUrl
+                        performSearch(videoUrl, false)
+                    }
                 }
                 else -> {
                     error = "${Translations.get(context, "search_error_processing_qr")}: unsupported source '${result.source}'"
@@ -207,9 +217,19 @@ fun SearchScreen(
                                     try {
                                         when (qrResult.source) {
                                             "youtube" -> {
-                                                val videoUrl = "https://www.youtube.com/watch?v=${qrResult.id}"
-                                                searchQuery = videoUrl
-                                                performSearch(videoUrl, false)
+                                                if (qrResult.type == "playlist") {
+                                                    val info = youtubeSearchManager.getYouTubePlaylistInfo(qrResult.id)
+                                                    if (info != null) {
+                                                        selectedYouTubePlaylist = info
+                                                    } else {
+                                                        error = "${Translations.get(context, "search_error_processing_qr")}: playlist not available"
+                                                        isLoading = false
+                                                    }
+                                                } else {
+                                                    val videoUrl = "https://www.youtube.com/watch?v=${qrResult.id}"
+                                                    searchQuery = videoUrl
+                                                    performSearch(videoUrl, false)
+                                                }
                                             }
                                             else -> {
                                                 error = "${Translations.get(context, "search_error_processing_qr")}: unsupported source '${qrResult.source}'"

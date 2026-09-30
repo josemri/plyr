@@ -143,7 +143,9 @@ fun PlaylistsScreen(
 
     // Cargar tracks reactivamente cuando cambia la playlist seleccionada
     var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
-    LaunchedEffect(selectedPlaylistEntity?.remoteId) {
+    // Contador para recargar los tracks tras añadir/eliminar en modo edición (B3)
+    var tracksRevision by remember { mutableStateOf(0) }
+    LaunchedEffect(selectedPlaylistEntity?.remoteId, tracksRevision) {
         val id = selectedPlaylistEntity?.remoteId
         if (id != null) {
             isLoadingTracks = true
@@ -748,8 +750,7 @@ fun PlaylistsScreen(
                                                             )
                                                         )
                                                         if (success) {
-                                                            searchResults = emptyList()
-                                                            searchQuery = ""
+                                                            tracksRevision++
                                                         } else {
                                                             editError = "Error adding track"
                                                         }
@@ -811,7 +812,9 @@ fun PlaylistsScreen(
                                                             localPlaylistId = selectedPlaylist!!.id,
                                                             remoteTrackId = track.id
                                                         )
-                                                        if (!success) {
+                                                        if (success) {
+                                                            tracksRevision++
+                                                        } else {
                                                             editError = "Error removing track"
                                                         }
                                                     }

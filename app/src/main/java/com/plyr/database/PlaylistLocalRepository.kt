@@ -3,6 +3,7 @@ package com.plyr.database
 import android.content.Context
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
+import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.util.Log
@@ -59,7 +60,7 @@ class PlaylistLocalRepository(context: Context) {
         name: String,
         artists: String,
         remoteTrackId: String
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): Boolean = database.withTransaction {
         val tracks = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
         val existing = tracks.find { it.youtubeVideoId == youtubeVideoId }
 
@@ -339,6 +340,16 @@ class PlaylistLocalRepository(context: Context) {
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             val existing = trackDao.getTracksByPlaylistSync(localPlaylistId)
+
+            // B13: no duplicar la misma canción (mismo criterio de identidad que
+            // mergeLikedSongsTracks): si ya está, es un éxito silencioso.
+            val incomingKey = track.youtubeVideoId ?: track.remoteTrackId
+            if (incomingKey.isNotBlank() &&
+                existing.any { (it.youtubeVideoId ?: it.remoteTrackId) == incomingKey }
+            ) {
+                return@withContext true
+            }
+
             val nextPosition = if (existing.isNotEmpty()) existing.maxOf { it.position } + 1 else 0
 
             val newTrack = track.copy(

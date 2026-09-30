@@ -161,7 +161,10 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
     }
 
     // Manejar el foreground dispatch para NFC
-    DisposableEffect(lifecycleOwner, nfcState) {
+    // `nfcAdapter` es clave también: se asigna en LaunchedEffect(Unit), así que
+    // si solo dependiera del estado, el primer frame (adapter == null) dejaría
+    // el dispatch sin activar nunca (B19).
+    DisposableEffect(lifecycleOwner, nfcState, nfcAdapter) {
         val activity = context as? Activity
         val adapter = nfcAdapter
 
@@ -220,7 +223,7 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (shareUrl != null) {
-                    val qrBitmap = generateQrBitmap(shareUrl)
+                    val qrBitmap = remember(shareUrl) { generateQrBitmap(shareUrl) }
                     if (qrBitmap != null) {
                         Card(
                             modifier = Modifier.size(220.dp),
