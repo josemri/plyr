@@ -1,80 +1,12 @@
 package com.plyr.utils
 
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Tests de utilidades de validación de URLs de audio y formateo de tiempo.
+ * Tests de utilidades de formateo de tiempo.
  */
 class UtilsTest {
-
-    @Test
-    fun isValidAudioUrl_acceptsMp3OverHttps() {
-        assertTrue(isValidAudioUrl("https://cdn.example.com/track.mp3"))
-    }
-
-    @Test
-    fun isValidAudioUrl_acceptsOggOverHttp() {
-        assertTrue(isValidAudioUrl("http://cdn.example.com/song.ogg"))
-    }
-
-    @Test
-    fun isValidAudioUrl_acceptsYouTubeVideoplayback() {
-        val url = "https://rr1.googlevideo.com/videoplayback?id=abc&mime=audio/mp4"
-        assertTrue(isValidAudioUrl(url))
-    }
-
-    @Test
-    fun isValidAudioUrl_acceptsYtimgThumbnailDomain() {
-        assertTrue(isValidAudioUrl("https://i.ytimg.com/vi/abc123/mqdefault.jpg"))
-    }
-
-    @Test
-    fun isValidAudioUrl_acceptsAudioDirectory() {
-        assertTrue(isValidAudioUrl("https://example.com/audio/track"))
-    }
-
-    @Test
-    fun isValidAudioUrl_acceptsAudioParameter() {
-        assertTrue(isValidAudioUrl("https://example.com/stream?audio=1"))
-    }
-
-    @Test
-    fun isValidAudioUrl_acceptsSoundDirectory() {
-        assertTrue(isValidAudioUrl("https://example.com/sound/loop.mp3"))
-    }
-
-    @Test
-    fun isValidAudioUrl_caseInsensitiveExtension() {
-        assertTrue(isValidAudioUrl("https://example.com/track.MP3"))
-    }
-
-    @Test
-    fun isValidAudioUrl_rejectsUppercaseScheme() {
-        assertFalse(isValidAudioUrl("HTTPS://example.com/track.mp3"))
-    }
-
-    @Test
-    fun isValidAudioUrl_acceptsAnyHttpUrl() {
-        assertTrue(isValidAudioUrl("https://example.com/plain-video"))
-    }
-
-    @Test
-    fun isValidAudioUrl_rejectsEmptyString() {
-        assertFalse(isValidAudioUrl(""))
-    }
-
-    @Test
-    fun isValidAudioUrl_rejectsPlainText() {
-        assertFalse(isValidAudioUrl("hello world"))
-    }
-
-    @Test
-    fun isValidAudioUrl_rejectsNonHttpScheme() {
-        assertFalse(isValidAudioUrl("ftp://example.com/track.mp3"))
-    }
 
     @Test
     fun formatTime_zero() {

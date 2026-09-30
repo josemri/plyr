@@ -408,50 +408,66 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val gen = generation
 
         viewModelScope.launch {
-            var candidate = target
-            var skipped = 0
-            var resolved: List<ResolvedItem> = emptyList()
-            var giveUp = false
+            // Como en startAt: la re-resolución también es carga. Sin esto la UI
+            // dejaba de mostrar el spinner y los controles se reactivaban a
+            // mitad de la resolución (B36).
+            resolving = true
+            updateLoadingState()
+            _error.publish(null)
 
-            while (resolved.isEmpty()) {
-                val endExclusive = minOf(candidate + WINDOW_AHEAD, queue.size - 1) + 1
-                resolved = resolveItems(candidate, endExclusive, gen)
-                if (resolved.isNotEmpty()) break
+            try {
+                var candidate = target
+                var skipped = 0
+                var resolved: List<ResolvedItem> = emptyList()
+                var giveUp = false
 
-                // Ninguna se pudo resolver: se prueban las siguientes antes de
-                // rendirse, y solo un número acotado de saltos.
-                val following = if (skipped < MAX_RESOLUTION_SKIPS) {
-                    QueueIndex.nextIndex(candidate, queue.size, queueRepeatMode)
-                } else {
-                    null
+                while (resolved.isEmpty()) {
+                    val endExclusive = minOf(candidate + WINDOW_AHEAD, queue.size - 1) + 1
+                    resolved = resolveItems(candidate, endExclusive, gen)
+                    if (resolved.isNotEmpty()) break
+
+                    // Ninguna se pudo resolver: se prueban las siguientes antes de
+                    // rendirse, y solo un número acotado de saltos.
+                    val following = if (skipped < MAX_RESOLUTION_SKIPS) {
+                        QueueIndex.nextIndex(candidate, queue.size, queueRepeatMode)
+                    } else {
+                        null
+                    }
+                    if (following == null) {
+                        giveUp = true
+                        break
+                    }
+                    candidate = following
+                    skipped++
                 }
-                if (following == null) {
-                    giveUp = true
-                    break
+
+                transitionInFlight = false
+                if (gen != generation || _exoPlayer !== player) return@launch
+
+                if (giveUp) {
+                    _error.publish(Translations.get(getApplication(), "error_obtaining_audio"))
+                    stopAtQueueEnd()
+                    return@launch
                 }
-                candidate = following
-                skipped++
+
+                // La ventana arranca en la primera canción que sí se resolvió, de
+                // modo que posición del reproductor e índice de la cola coinciden.
+                val start = resolved.first().index
+                windowStart = start
+                setCurrentIndex(start)
+                player.setMediaItems(resolved.map { it.mediaItem }, 0, C.TIME_UNSET)
+                player.prepare()
+                player.play()
+                onMediaSessionUpdate?.invoke(player)
+                growWindow()
+            } finally {
+                // Solo cierra el estado si esta resolución sigue siendo la
+                // vigente; si otra transición la superó, esa la gestiona.
+                if (gen == generation) {
+                    resolving = false
+                    updateLoadingState()
+                }
             }
-
-            transitionInFlight = false
-            if (gen != generation || _exoPlayer !== player) return@launch
-
-            if (giveUp) {
-                _error.publish(Translations.get(getApplication(), "error_obtaining_audio"))
-                stopAtQueueEnd()
-                return@launch
-            }
-
-            // La ventana arranca en la primera canción que sí se resolvió, de
-            // modo que posición del reproductor e índice de la cola coinciden.
-            val start = resolved.first().index
-            windowStart = start
-            setCurrentIndex(start)
-            player.setMediaItems(resolved.map { it.mediaItem }, 0, C.TIME_UNSET)
-            player.prepare()
-            player.play()
-            onMediaSessionUpdate?.invoke(player)
-            growWindow()
         }
     }
 

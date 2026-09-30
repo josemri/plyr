@@ -1,6 +1,5 @@
 package com.plyr.utils
 
-import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.ServiceList
@@ -23,7 +22,7 @@ object MediaMetadataExtractor {
         NewPipeHolder.ensureInitialized()
     }
 
-    suspend fun extractMetadata(url: String, context: Context? = null): MediaMetadata = withContext(Dispatchers.IO) {
+    suspend fun extractMetadata(url: String): MediaMetadata = withContext(Dispatchers.IO) {
         when {
             isYouTubeUrl(url) -> extractYouTubeMetadata(url)
             else -> MediaMetadata(url, null, null, MediaType.UNKNOWN)
@@ -31,29 +30,37 @@ object MediaMetadataExtractor {
     }
 
     private fun isYouTubeUrl(url: String): Boolean {
-        return url.contains("youtube.com") || url.contains("youtu.be")
+        return url.contains("youtube.com", ignoreCase = true) ||
+            url.contains("youtu.be", ignoreCase = true)
+    }
+
+    /**
+     * Los ids de video de YouTube tienen exactamente 11 caracteres; los de
+     * playlist (PL/RD/UU/FL/OLAK…) son más largos. Un `v=PL…` solo es una
+     * playlist malformada si el valor NO tiene 11 caracteres: un video normal
+     * puede empezar por "PL" sin ser playlist (B29).
+     */
+    private fun isPlaylistId(id: String): Boolean {
+        if (id.length == 11) return false
+        return id.startsWith("PL") || id.startsWith("UU") || id.startsWith("FL") || id.startsWith("RD")
     }
 
     private suspend fun extractYouTubeMetadata(url: String): MediaMetadata = withContext(Dispatchers.IO) {
         try {
             ensureInitialized()
 
-            // Detectar si es una playlist
-            val isPlaylist = url.contains("list=") ||
-                            url.contains("/playlist") ||
-                            // Detectar IDs de playlist mal formateados en parámetro v=
-                            (url.contains("v=PL") || url.contains("v=UU") || url.contains("v=FL") || url.contains("v=RD"))
+            val lower = url.lowercase()
+            val isPlaylistUrl = lower.contains("list=") || lower.contains("/playlist")
+            val vParam = Regex("[?&]v=([^&#]+)").find(url)?.groupValues?.get(1)
+            val isPlaylistViaV = vParam?.let { isPlaylistId(it) } == true
 
-            if (isPlaylist) {
+            if (isPlaylistUrl || isPlaylistViaV) {
                 // Extraer el ID de la playlist
                 val playlistId = when {
-                    url.contains("list=") -> url.substringAfter("list=").substringBefore("&")
-                    // Si el ID está en v= y empieza con PL/UU/FL/RD, es una playlist malformada
-                    url.contains("v=PL") -> url.substringAfter("v=PL").substringBefore("&").let { "PL$it" }
-                    url.contains("v=UU") -> url.substringAfter("v=UU").substringBefore("&").let { "UU$it" }
-                    url.contains("v=FL") -> url.substringAfter("v=FL").substringBefore("&").let { "FL$it" }
-                    url.contains("v=RD") -> url.substringAfter("v=RD").substringBefore("&").let { "RD$it" }
-                    else -> url.substringAfterLast("/").substringBefore("?")
+                    isPlaylistUrl ->
+                        Regex("[?&]list=([^&#]+)").find(url)?.groupValues?.get(1)
+                            ?: url.substringAfterLast("/").substringBefore("?")
+                    else -> vParam!!
                 }
 
                 val playlistUrl = "https://www.youtube.com/playlist?list=$playlistId"

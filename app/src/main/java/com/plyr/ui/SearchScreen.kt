@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.plyr.model.AudioItem
-import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import com.plyr.utils.NfcScanEvent
 import com.plyr.database.TrackEntity
@@ -36,7 +35,6 @@ import com.plyr.ui.components.search.YouTubeSearchResults
 import com.plyr.ui.components.QrScannerDialog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
 import com.plyr.ui.components.Titulo
 
 @Composable
@@ -52,18 +50,6 @@ fun SearchScreen(
     var results by remember { mutableStateOf<List<AudioItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-
-    var currentLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(100)
-            val newLanguage = Config.getLanguage(context)
-            if (newLanguage != currentLanguage) {
-                currentLanguage = newLanguage
-            }
-        }
-    }
 
     var youtubeAllResults by remember { mutableStateOf<YouTubeSearchManager.YouTubeSearchAllResult?>(null) }
     var showYouTubeAllResults by remember { mutableStateOf(false) }

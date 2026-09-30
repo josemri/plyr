@@ -31,11 +31,14 @@
 >   nuevo una lista limpia su tomb, así que es reversible.
 >
 > En una segunda tanda se resolvieron los 5 bugs más triviales —**B10**, **B24**,
-> **B30**, **B38**, **B43**— y en una tercera los 9 del siguiente grupo de
+> **B30**, **B38**, **B43**—, en una tercera los 9 del siguiente grupo de
 > dificultad —**B17**, **B21**, **B22**, **B31**, **B34**, **B40**, **B42**,
-> **B46**, **B47**—; todos están documentados en **§10** (14 resueltos en
-> total) y quedan **33 activos**. El resto de hallazgos no se ha tocado en
-> estas tres rondas; las rutas de "añadir canciones" y de reproducción siguen
+> **B46**, **B47**— y en una cuarta los 8 del grupo T3 —**B14**, **B26**, **B27**,
+> **B29**, **B36**, **B37**, **B44**, **B45**—; todos están documentados en
+> **§10** (22 resueltos en total) y quedan **25 activos**. El total de tests
+> pasó de 298 a **288** (4 nuevos de formato de vídeo con B27 y 13 borrados con
+> `isValidAudioUrl` en B37). El resto de hallazgos no se ha tocado en estas
+> cuatro rondas; las rutas de "añadir canciones" y de reproducción siguen
 > pendientes de lo descrito abajo.
 
 ---
@@ -50,8 +53,8 @@ dependencias están limpias y la lógica pura de cola está extraída y testeada
 El tercero que recordabas —añadir canciones a una lista— también existe, y es
 peor: **ninguna de las cinco rutas para hacerlo funciona** (§1.3). En total
 fueron **47 bugs** verificados contra el código; desde entonces se han resuelto
-**14** (B10, B17, B21, B22, B24, B30, B31, B34, B38, B40, B42, B43, B46, B47 —
-ver §10), así que quedan **33 activos**.
+**22** (B10, B14, B17, B21, B22, B24, B26, B27, B29, B30, B31, B34, B36, B37,
+B38, B40, B42, B43, B44, B45, B46, B47 — ver §10), así que quedan **25 activos**.
 ### 1.1 El slide a "liked" no funciona → **es un bug de datos, no de gesto**
 
 `PlaylistScreen` construye el `Song` **sin `youtubeId`** en los tres sitios donde
@@ -287,10 +290,10 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **0 bugs críticos**, **10 altos**, **18 medios**, **5 bajos** (§3).
-- **298 tests unitarios** en 21 archivos (`./run.sh test`; todos en verde).
-  7 de ellos son nuevos: 4 de la política de tombstones y 3 del formato del
-  manifiesto.
+- **0 bugs críticos**, **10 altos**, **13 medios**, **2 bajos** (§3).
+- **288 tests unitarios** en 21 archivos (`./run.sh test`; todos en verde).
+  4 nuevos de formato de vídeo (B27) y 13 retirados con `isValidAudioUrl`
+  (B37) respecto a la tanda anterior.
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
 - **~700 líneas muertas** entre `SongMenuDialog`, `CollapsibleSection`,
   `PlyrDimensions` y funciones sin uso (§7).
@@ -309,20 +312,20 @@ de descartes.
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **298** en 21 archivos (ejecutados y en verde) |
+| Tests unitarios | **288** en 21 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso | **16 de 104** (verificadas por barrido) |
 | Claves referenciadas que no existen | **1** (`"Player not available"`) |
 
-**Desglose de los 298 tests** (tras `./run.sh test`, todos en verde):
+**Desglose de los 288 tests** (tras `./run.sh test`, todos en verde):
 
 | Archivo | @Test | Archivo | @Test |
 |---|---|---|---|
 | `UrlParserTest` | 33 | `ExportDigestTest` | 11 |
-| `UtilsTest` | 30 | `MediaButtonCommandTest` | 9 |
+| `UtilsTest` | 17 | `MediaButtonCommandTest` | 9 |
 | `ImportManifestTest` | 30 | `AppModelsTest` | 8 |
-| `CoverCropMathTest` | 24 | `YouTubeFormattingTest` | 8 |
+| `CoverCropMathTest` | 24 | `YouTubeFormattingTest` | 11 |
 | `SpotifyImporterTest` | 23 | `ModelDefaultsTest` | 7 |
 | `ExportManifestTest` | 24 | `SupabaseClientTest` | 7 |
 | `QueueIndexTest` | 22 | `CoverCacheTest` | 6 |
@@ -362,7 +365,6 @@ sí toca la tabla de favoritos, y por eso está en altos).
 |---|---|---|
 | **B12** | `PlaylistLocalRepository.kt:56-99` | `toggleLikeTrack` no es atómico: lee la lista entera, calcula `maxOf { position } + 1`, inserta y reescribe el `trackCount` de la playlist en pasos separados sin transacción. Dos swipes seguidos (o un swipe simultáneo con una importación) pueden dejar `position` duplicada y `trackCount` desincronizado. Además el id `"${LIKED_SONGS_ID}_${remoteTrackId}_$nextPosition"` colisiona con `OnConflictStrategy.REPLACE` (`TrackDao.kt:57`) cuando `remoteTrackId` es `""`, que es justo el caso de B1. |
 | **B13** | `PlaylistLocalRepository.kt:319-347` | **`addTrackToYouTubePlaylist` no deduplica.** El id se construye con `$nextPosition` incrementado, así que añadir la misma canción N veces crea N filas con distinto id y el mismo `youtubeVideoId`. No hay comprobación previa, al contrario que `mergeLikedSongsTracks:230-240`, que sí busca por `remoteTrackId`. Consecuencia: `toggleLikeTrack` (B1/B12) solo afecta a la primera coincidencia y las demás quedan como filas fantasma que nunca se sincronizan. Detalle en §1.3. |
-| **B14** | `PlaylistScreen.kt:1250-1256` | **Al crear una playlist solo se puede añadir una canción por búsqueda.** Cada pulsación del botón custom hace `selectedTracks + track` y a continuación `searchResults = emptyList(); searchQuery = ""`, borrando la búsqueda entera. El contador de seleccionadas sube, pero para montar una lista de 10 canciones hay que hacer 10 búsquedas independientes. No existe "añadir todo" ni acumulación de resultados. Detalle en §1.3. |
 | **B15** | `YouTubePlaylistCreator.kt:67` + `PlaylistScreen.kt:1344-1350` | **La creación de playlist descarta canciones sin avisar.** `build` hace `if (videoId.isNullOrBlank()) return@forEach`, y el recuento de lo perdido se **calcula y se tira**: `"${created.tracks.size} tracks (… sin vídeo)"` solo se muestra en la rama `else` de fallo. Si 7 de 12 canciones resuelven vídeo, la app crea la playlist, navega atrás sin decir nada, y el usuario descubre las 5 perdidas al reabrirla. Detalle en §1.3. |
 | **B16** | `YouTubePlaylistCreator.kt:66` + `PlaylistScreen.kt:1323-1344` | **La creación de playlist puede colgarse durante minutos sin salida.** Por cada pista sin `youtubeVideoId` y con id de longitud distinta de 11 (p. ej. importadas de Spotify) se lanza una búsqueda bloqueante de YouTube vía NewPipe, **en serie**, sin timeout y sin cancelación. El botón queda en `enabled = !isLoading` y no hay "cancelar", así que el usuario ve el spinner y asume cuelgue. Arreglarlo exige que `build` pase a `suspend` con `ensureActive()`. |
 | **B18** | `SearchScreen.kt:152-157` y `:222-227` | `ScanResult.type` no se inspecciona nunca: una **playlist** escaneada se construye como URL de video (`watch?v=<id-de-playlist>`). `FeedScreen.kt:150` emite `ScanResult("youtube", "playlist", playlistId)` justo para este camino. El `else` de la línea 160 convierte el error en "unsupported source" en lugar de abrir la playlist. |
@@ -370,24 +372,18 @@ sí toca la tabla de favoritos, y por eso está en altos).
 | **B20** | `QRDialog.kt:223` y `:363-373` | `generateQrBitmap(shareUrl)` se llama **sin `remember`**, en el cuerpo de composición: decodifica y pinta el QR entero (512×512) en el hilo principal en cada recomposición. Y `NfcButton` muta `rings`/`frameCounter` cada 200 ms mientras está en `WAITING`, lo que fuerza esa recomposición 5 veces por segundo mientras se escribe un tag. |
 | **B23** | `ConfigScreen.kt:414/423, 462/471, 525/562, 655, 693` | Exportar, importar y copiar/restaurar se lanzan en `rememberCoroutineScope()`. La pantalla de config vive en un pager (un swipe basta para salir), y `onCleared` **cancela** esas corrutinas a mitad de la escritura → ZIP truncado o base de datos restaurada a medias sin aviso. Necesitan un scope de aplicación. |
 | **B25** | `SupabaseClient.kt:308-334` | `parseTimestamp`: 4 objetos `SimpleDateFormat` por fila; el 2º patrón tiene `'Z'` duplicado (`"…ss.SSS'Z'"`); el 1º (`SSSSSS`) acepta en realidad 1..N dígitos y `format.parse(String)` ignora el texto sobrante, así que un `+HH:MM` real se descarta en silencio; y se fuerza `timeZone = UTC` (`:322`). **Todo fallo devuelve `System.currentTimeMillis()`** (`:311`, `:330`, `:333`): una fecha ilegible se disfraza de "ahora". El `catch` externo (`:331`) es inalcanzable porque el interno (`:325`) se traga todo. Como se usa para `createdAt`/`joinedAt` de grupos y recomendaciones, las sombras de "nuevo". |
-| **B26** | `YouTubeSearchManager.kt:376-378` (y llamada en `:248`) | `getPlaylistThumbnailUrl()` devuelve hardcodeado `https://img.youtube.com/vi/undefined/hqdefault.jpg`, y se invoca **sin argumentos** teniendo el `playlistId` real a mano en esa misma línea. Toda playlist sin portada muestra el mismo placeholder. |
-| **B27** | `YouTubeSearchManager.kt:168-175`, `:184` | `getFormattedVideoCount`: el `else` final es inalcanzable (`== 1`, `< 1000` y `>= 1000` ya particionan todos los `Int`); `"%.${digits}f".format(this)` sin `Locale` → `1,5K` en `es-ES`/`ca-ES`; plurales ingleses fijos y sin sufijo `M`/`B`, así que 1 000 000 de vídeos sale como `1000K videos`. |
 | **B28** | `DatabaseExtensions.kt:17-24` (`AppModels.kt:7,26`) | `toAppTrack()` no puede transportar `youtubeVideoId`, `position` ni `durationMs` porque `AppTrack` no tiene esos campos. Toda ida y vuelta `AppTrack → TrackEntity` (usada en `PlaylistScreen.kt:152` y `:178`) **pierde el id de YouTube** de la pista. Es el mecanismo que hace que B1 sea irrecuperable una vez guardado. |
-| **B29** | `MediaMetadataExtractor.kt:26`, `:34`, `:42-57` | El parámetro `context: Context?` no se usa; `isYouTubeUrl` es sensible a mayúsculas (`HTTPS://WWW.YOUTUBE.COM/…` → `UNKNOWN` con `title = url`); y las heurísticas `v=PL` / `v=UU` / `v=FL` / `v=RD` clasifican como playlist un vídeo normal cuyo id empiece por esos prefijos, con lo que el vídeo no llega a sonar. |
 | **B32** | `SimpleDownloader.kt:31`, `:49-59`, `:61` | El mapa de cookies es un `mutableMapOf` plano: `setCookie` muta desde el hilo que lo inicializa y `getCookies` lo lee desde **todos** los hilos de red, sin sincronizar. Además se loguean cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir `Authorization`. |
 | **B33** | `SupabaseClient.kt:59,109,179,228,291` | `JSONObject.optString(key, null)` devuelve la **cadena** `"null"` cuando el valor JSON es `null`, no `null`. Un `comment` o `invite_code` nulo se guarda y se muestra como la palabra "null". Además `connection.inputStream` lanza `FileNotFoundException` en cualquier 4xx (`:136`, `:168`, `:279`) y el cuerpo de error nunca se lee → el usuario ve `"error: null"`. Y `invite_code` se interpola sin URL-encoding en el filtro PostgREST (`:130`): un código con `&`, `#` o `,` cambia la semántica de la consulta. |
 | **B35** | `FloatingMusicControls.kt:145` | `LaunchedEffect(playerViewModel.exoPlayer)` usa como clave un `var` normal, no observable. Hoy el bucle de polling arranca porque otras `LiveData` fuerzan recomposición por el camino; si algún día el título deja de cambiar (p. ej. misma canción repetida) el poll no arranca nunca. Frágil por construcción. |
-| **B36** | `PlayerViewModel.kt:390-456` vs `:324-380` | En la ruta de `playIndex` no se pone `resolving = true` (solo en `startAt:335`), así que `isLoading` no refleja la re-resolución de URLs: el spinner no aparece y los controles se reactivan mientras se está volviendo a resolver. Asimetría entre las dos rutas de carga. |
 
 ### 3.4 Bajos
 
 | # | Ubicación | Descripción |
 |---|---|---|
-| **B37** | `Utils.kt:44-50` | `isValidAudioUrl` es código muerto: `return hasAudioPattern \|\| isValidUrlFormat(url)`, y `isValidUrlFormat(url)` ya salió `true` del early-return, así que **toda URL http(s) pasa**. Verificado: **cero** llamadas desde producción, solo desde `UtilsTest` — y `UtilsTest.kt:60-62` fija precisamente el comportamiento incorrecto, de modo que un test impide arreglarlo. Decidir: arreglar + corregir el test, o borrar la función y sus 13 tests. |
 | **B39** | `AndroidManifest.xml:54-60` | `MediaButtonReceiver` es `exported="true"` con intent filter y **sin permiso**: cualquier app del dispositivo puede inyectar `ACTION_MEDIA_BUTTON` y manejar la reproducción. El impacto se limita al transporte (la clase valida acción y keycode), pero no necesita estar exportada. |
 | **B41** | `app/build.gradle.kts:45` | `isMinifyEnabled = false` en release → los `proguardFiles` de `:49-52` son inertes y **todos** los `Log.d/e` de B32 y B33 llegan tal cual al APK publicado. |
-| **B44** | `SearchScreen.kt:58-66`, `:56` | Bucle infinito de `delay(100)` leyendo `SharedPreferences` mientras la pantalla está viva: 10 lecturas de disco por segundo, para siempre. Y `currentLanguage` es *write-only*: se asigna en la línea 63 y no se lee en ningún sitio. |
-| **B45** | `NewPipeHolder.kt:21` | `Localization("es", "ES")` hardcodeado: todos los mensajes de error que produce el extractor de NewPipe salen en español, pase lo que pase el idioma configurado en la app. |
+
 ---
 
 ## 4. SEGURIDAD
@@ -515,9 +511,10 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ## 8. TESTS
 
-- **298 tests unitarios en 21 archivos** (`./run.sh test`, todos en verde;
-  +7 respecto al recuento estático de esta revisión, con la cobertura nueva de
-  tombstones y de `deletedPlaylistIds`).
+- **288 tests unitarios en 21 archivos** (`./run.sh test`, todos en verde;
+  +7 respecto al recuento estático de esta revisión por la cobertura de
+  tombstones/`deletedPlaylistIds`, luego +4 de formato de vídeo en B27 y −13 al
+  retirar los de `isValidAudioUrl` en B37).
 - 0 tests instrumentados útiles: solo `ExampleInstrumentedTest`.
 
 **Gaps relevantes, en orden de daño que hacen:**
@@ -534,9 +531,9 @@ Dos casos concretos que se ven sin traducir hoy:
    son inaccesibles a un test JVM tal como está el código. Extraer la decisión
    "offset → acción" a una función pura (como se hizo con `QueueIndex` y
    `MediaButtonCommand`) es el primer paso para poder probarlo.
-3. **13 tests de `UtilsTest` consolidan el bug de `isValidAudioUrl`** en vez de
-   detectarlo (B37): `isValidAudioUrl_acceptsAnyHttpUrl` afirma que
-   `https://example.com/plain-video` es válida, que es justo lo que no debería ser.
+3. ~~**13 tests de `UtilsTest` consolidaban el bug de `isValidAudioUrl`** en vez de
+   detectarlo (B37).~~ **Hecho** (ver §10): la función muerta y sus 13 tests se
+   borraron.
 4. **Los módulos más valiosos del repo están bien cubiertos** (`CoverCropMath` 24,
    `ImportManifest` 30, `ExportManifest` 24, `ImportArchive` 14, `ExportDigest` 11,
    `QueueIndex` 22, `MediaButtonCommand` 9). El patrón funciona; el problema es
@@ -581,8 +578,8 @@ Dos casos concretos que se ven sin traducir hoy:
    `addTrackToYouTubePlaylist` y de `removeTrackFromYouTubePlaylist`, además de
    no limpiar la búsqueda en el camino de éxito. Es el arreglo más rentable de
    todo el informe: cuatro líneas y tres síntomas visibles desaparecen.
-8. **B14** — no borrar `searchResults`/`searchQuery` al añadir, y ofrecer
-   "añadir los N resultados" además de la selección individual.
+8. ~~**B14** — no borrar `searchResults`/`searchQuery` al añadir.~~ **Hecho**
+   (ver §10). Pendiente solo la mejora de "añadir los N resultados" de golpe.
 9. **B15** — propagar el recuento de descartes a la UI **también en el camino de
    éxito** (`PlaylistScreen.kt:1347-1350`), Idealmente bloqueando `<create>` si
    se ha perdido alguna canción, o al menos mostrando el aviso antes de
@@ -596,8 +593,9 @@ Dos casos concretos que se ven sin traducir hoy:
 
 11. **B6** — limpiar `_error` al recuperar en `playIndex` (y al empezar cualquier
     carga), no solo en `startAt`.
-12. **B36** — poner `resolving = true` en `playIndex` para que `isLoading` refleje
-    la re-resolución y los controles no se reactiven a mitad.
+12. ~~**B36** — poner `resolving = true` en `playIndex` para que `isLoading` refleje
+    la re-resolución y los controles no se reactiven a mitad.~~ **Hecho**
+    (ver §10).
 13. **B9** — guardar la lista barajada en `trackEntities` (o en un estado que
     `SongListItem` reciba) para que `<rnd>` no desincronice la UI.
 14. ~~**B10** — borrar la constante duplicada de `PlayerViewModel.kt:713`.~~ **Hecho** (ver §10).
@@ -627,8 +625,8 @@ Dos casos concretos que se ven sin traducir hoy:
     terreno de §7.1 (item 26).
 22. **B25** — `parseTimestamp` con `java.time.Instant.parse` y un único fallback
     explícito; devolver `null` en vez de "ahora" para que el llamante distinga.
-23. **B26**, **B27** — pasar el `playlistId` real a `getPlaylistThumbnailUrl`, y
-    limpiar `getFormattedVideoCount` con `Locale`.
+23. ~~**B26**, **B27** — pasar la miniatura real a `getPlaylistThumbnailUrl` y
+    limpiar `getFormattedVideoCount`.~~ **Hecho** (ver §10).
 24. **B28** — añadir `youtubeVideoId` a `AppTrack` o dejar de hacer la ida y vuelta
     por `AppTrack` en `PlaylistScreen`.
 25. ~~**B24** — `"$ load_error"` → clave de traducción real.~~ **Hecho** (ver §10).
@@ -646,7 +644,8 @@ Dos casos concretos que se ven sin traducir hoy:
     aplicación (o a un `ViewModel`) para que un swipe en el pager no las corte.
 29. **§7** — borrar `SongMenuDialog.kt` (171), `CollapsibleSection.kt` (88),
     `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd` + sus 4
-    tests, `YouTubeManager.clearCache`, y decidir el destino de `isValidAudioUrl`.
+    tests y `YouTubeManager.clearCache`. (`isValidAudioUrl` —B37— ya se borró con
+    sus 13 tests, ver §10.)
 30. **B32**, **B33** — dejar de loguear cookies, cabeceras y cuerpos completos;
     corregir `optString(key, null)`, leer el cuerpo de error en los 4xx, y
     URL-encodear el `invite_code`.
@@ -689,6 +688,23 @@ Todos verificados con `./run.sh test` (**298 tests, en verde**) y
 | **B42** | `MusicService.kt:41-51` | Añadida acción `ACTION_STOP` (`com.plyr.action.STOP`): `onStartCommand` la detecta y hace `stopForeground(STOP_FOREGROUND_REMOVE)` + `stopSelf()`, en vez de ignorar `intent?.action`. |
 | **B46** | `MainActivity.kt:63-66,:185-195` | `onServiceDisconnected` ya no anula `onMediaSessionUpdate`; se anula solo en `onDestroy` cuando `isFinishing` (con `pausePlayer()` + `stopService` antes del `unbindService`), de modo que en rotación el `MediaSession` del servicio no deja una ventana con la pista anterior. |
 | **B47** | `QrScannerDialog.kt:61-79` | Si el permiso de cámara se deniega, el diálogo muestra mensaje `permission_denied`, botón `retry` (re-lanza el `RequestPermission`) y botón `close` en lugar de un `Box` vacío. Nuevas claves `permission_denied`/`retry`/`close` en los 4 idiomas. |
+
+---
+
+Cuarta tanda de arreglos (2026-09-30), los 8 bugs del grupo T3.
+Todos verificados con `./run.sh test` (**288 tests, en verde**) y
+`./run.sh build` (BUILD SUCCESSFUL).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B14** | `PlaylistScreen.kt:1250` | El botón custom "+" ya no vacía `searchResults`/`searchQuery` al añadir una canción: se pueden montar listas añadiendo varias canciones de la misma búsqueda. (Pendiente solo el botón "añadir los N resultados".) |
+| **B26** | `YouTubeSearchManager.kt:248,:376` | `getPlaylistThumbnailUrl()` ahora recibe la miniatura real del `PlaylistInfoItem` de NewPipe (`item.thumbnails`) y devuelve su URL en vez del placeholder hardcodeado `vi/undefined`. |
+| **B27** | `YouTubeSearchManager.kt:168-184` | `getFormattedVideoCount` usa `Locale.ROOT` (adiós "1,5K" en `es-ES`/`ca-ES`), elimina el `else` inalcanzable y añade sufijos `M`/`B` (1 500 000 → "1.5M"). Se añadieron 3 tests (`videoCount_millions`, `videoCount_millionsWhole`, `videoCount_billions`). |
+| **B29** | `MediaMetadataExtractor.kt` | Eliminado el parámetro `context` sin usar; `isYouTubeUrl` ahora es insensible a mayúsculas; la heurística de playlist vía `v=PL/UU/FL/RD` solo se activa si el valor NO tiene 11 caracteres (un vídeo normal cuyo id empiece por esos prefijos ya no se clasifica como playlist). |
+| **B36** | `PlayerViewModel.kt:410-486` | En la ruta de `playIndex` con re-resolución se pone `resolving = true` + `updateLoadingState()` + limpieza de `_error` (como `startAt`), y se cierra en un `finally` solo si la resolución sigue siendo la vigente (`gen == generation`). El spinner y el bloqueo de controles ya reflejan la re-resolución. |
+| **B37** | `Utils.kt` + `UtilsTest.kt` | Borrada `isValidAudioUrl` (código muerto: cero llamadas; su lógica ya devolvía `true` para toda URL http(s)) junto con sus privadas `isValidUrlFormat`/`containsAudioPattern` y sus **13 tests** que consolidaban el comportamiento incorrecto (`UtilsTest` pasa de 30 a 17). |
+| **B44** | `SearchScreen.kt` | Eliminado el `LaunchedEffect` de `while(true) { delay(100); leer SharedPreferences }` y la variable `currentLanguage` write-only: se acabaron las 10 lecturas de disco por segundo en pantalla de búsqueda. |
+| **B45** | `NewPipeHolder.kt:20-24` | `Localization("es", "ES")` hardcodeado reemplazado por el locale del sistema (`Locale.getDefault()`), así que los mensajes de error del extractor ya no salen siempre en español. |
 
 Aún pendientes, más difíciles y relacionados con estos: **B19/B20** (NFC y QR),
 **B39/B41** (manifiesto/R8) y las traducciones de **§7.1**.

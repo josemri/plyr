@@ -1250,8 +1250,6 @@ fun CreatePlaylistScreen(
                     customButtonAction = {
                         if (!selectedTracks.contains(track)) {
                             selectedTracks = selectedTracks + track
-                            searchResults = emptyList()
-                            searchQuery = ""
                         }
                     },
                     modifier = Modifier.fillMaxWidth()

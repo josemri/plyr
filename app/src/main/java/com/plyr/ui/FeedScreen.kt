@@ -61,7 +61,7 @@ fun FeedScreen(
             // Extract metadata for all recommendations
             recommendations.forEach { recommendation ->
                 scope.launch {
-                    val metadata = MediaMetadataExtractor.extractMetadata(recommendation.url, context)
+                    val metadata = MediaMetadataExtractor.extractMetadata(recommendation.url)
                     metadataCache = metadataCache + (recommendation.id to metadata)
                 }
             }

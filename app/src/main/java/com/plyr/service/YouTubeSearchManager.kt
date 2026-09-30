@@ -7,8 +7,10 @@ import com.plyr.database.TrackEntity
 import com.plyr.utils.NewPipeHolder
 import com.plyr.utils.UrlParser
 import com.plyr.utils.formatDurationSeconds
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.schabi.newpipe.extractor.Image
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
@@ -169,8 +171,9 @@ class YouTubeSearchManager(private val context: Context) {
             return when {
                 videoCount == 1 -> "1 video"
                 videoCount < 1000 -> "$videoCount videos"
-                videoCount >= 1000 -> "${(videoCount / 1000.0).format(1)}K videos"
-                else -> "$videoCount videos"
+                videoCount < 1_000_000 -> "${(videoCount / 1000.0).format(1)}K videos"
+                videoCount < 1_000_000_000 -> "${(videoCount / 1_000_000.0).format(1)}M videos"
+                else -> "${(videoCount / 1_000_000_000.0).format(1)}B videos"
             }
         }
 
@@ -181,7 +184,8 @@ class YouTubeSearchManager(private val context: Context) {
             return thumbnailUrl
         }
 
-        private fun Double.format(digits: Int) = "%.${digits}f".format(this).removeSuffix("0").removeSuffix(".")
+        private fun Double.format(digits: Int) =
+            "%.${digits}f".format(Locale.ROOT, this).removeSuffix("0").removeSuffix(".")
     }
 
     /**
@@ -245,7 +249,7 @@ class YouTubeSearchManager(private val context: Context) {
                                     title = item.name,
                                     uploader = item.uploaderName ?: "Desconocido",
                                     videoCount = item.streamCount.toInt(),
-                                    thumbnailUrl = getPlaylistThumbnailUrl(),
+                                    thumbnailUrl = getPlaylistThumbnailUrl(item.thumbnails),
                                     description = null
                                 ))
                             }
@@ -373,7 +377,7 @@ class YouTubeSearchManager(private val context: Context) {
     /**
      * Genera URL de thumbnail para una playlist de YouTube
      */
-    private fun getPlaylistThumbnailUrl(): String {
-        return "https://img.youtube.com/vi/undefined/hqdefault.jpg" // Placeholder
+    private fun getPlaylistThumbnailUrl(thumbnail: List<Image>?): String {
+        return thumbnail?.firstOrNull()?.url ?: ""
     }
 }

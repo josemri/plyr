@@ -31,62 +31,6 @@ fun PackageManager.getPackageInfoCompat(packageName: String, flags: Int = 0): Pa
 }
 
 /**
- * Valida si una URL es apropiada para reproducción de audio.
- * 
- * Verifica que la URL:
- * - Sea una URL válida (http/https)
- * - Contenga patrones relacionados con audio
- * - Sea compatible con ExoPlayer y formatos de audio comunes
- * 
- * @param url URL a validar
- * @return true si la URL es válida para audio, false en caso contrario
- */
-fun isValidAudioUrl(url: String): Boolean {
-    if (!isValidUrlFormat(url)) {
-        return false
-    }
-    val hasAudioPattern = containsAudioPattern(url)
-    return hasAudioPattern || isValidUrlFormat(url)
-}
-
-/**
- * Verifica si la URL tiene un formato válido (http/https).
- * @param url URL a verificar
- * @return true si el formato es válido
- */
-private fun isValidUrlFormat(url: String): Boolean {
-    return url.startsWith("http://") || url.startsWith("https://")
-}
-
-/**
- * Verifica si la URL contiene patrones relacionados con audio.
- * @param url URL a verificar
- * @return true si contiene patrones de audio
- */
-private fun containsAudioPattern(url: String): Boolean {
-    val audioPatterns = listOf(
-        // Patrones de YouTube
-        "videoplayback",        // URLs directas de YouTube
-        "mime=audio",          // MIME type de audio de YouTube
-        "googlevideo.com",     // Dominio de videos de Google/YouTube
-        "ytimg.com",           // Dominio de recursos de YouTube
-        
-        // Extensiones de archivo de audio
-        ".mp3", ".m4a", ".aac", ".ogg", ".wav", ".flac", ".opus",
-        
-        // Patrones genéricos de audio
-        "/audio/",             // Directorio de audio
-        "audio=",              // Parámetro de audio
-        "audio/",              // MIME type path
-        "sound/"               // Directorio de sonido
-    )
-    
-    return audioPatterns.any { pattern -> 
-        url.lowercase().contains(pattern.lowercase())
-    }
-}
-
-/**
  * Formatea tiempo en milisegundos a formato MM:SS.
  * 
  * @param ms Tiempo en milisegundos

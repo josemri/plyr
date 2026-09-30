@@ -57,4 +57,22 @@ class YouTubeFormattingTest {
         val playlist = YouTubePlaylistInfo("p1", "T", "U", 2000, null, null)
         assertEquals("2K videos", playlist.getFormattedVideoCount())
     }
+
+    @Test
+    fun videoCount_millions() {
+        val playlist = YouTubePlaylistInfo("p1", "T", "U", 1_500_000, null, null)
+        assertEquals("1.5M videos", playlist.getFormattedVideoCount())
+    }
+
+    @Test
+    fun videoCount_millionsWhole() {
+        val playlist = YouTubePlaylistInfo("p1", "T", "U", 3_000_000, null, null)
+        assertEquals("3M videos", playlist.getFormattedVideoCount())
+    }
+
+    @Test
+    fun videoCount_billions() {
+        val playlist = YouTubePlaylistInfo("p1", "T", "U", 2_000_000_000, null, null)
+        assertEquals("2B videos", playlist.getFormattedVideoCount())
+    }
 }

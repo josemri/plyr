@@ -1,6 +1,7 @@
 package com.plyr.utils
 
 import com.plyr.network.SimpleDownloader
+import java.util.Locale
 import org.schabi.newpipe.extractor.NewPipe
 import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.localization.Localization
@@ -18,7 +19,11 @@ object NewPipeHolder {
 
     @Synchronized
     fun ensureInitialized() {
-        ensureInitialized(SimpleDownloader.getInstance(), Localization("es", "ES"))
+        val locale = Locale.getDefault()
+        ensureInitialized(
+            SimpleDownloader.getInstance(),
+            Localization(locale.language, locale.country)
+        )
     }
 
     @Synchronized
