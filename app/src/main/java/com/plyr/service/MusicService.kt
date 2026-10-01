@@ -23,6 +23,14 @@ class MusicService : Service() {
     private val NOTIFICATION_ID = 1
     private var mediaSession: MediaSession? = null
 
+    /**
+     * Último estado visible pintado, para no reconstruir la notificación cuando
+     * el evento no cambia nada de lo que se ve. La visibilidad de los botones de
+     * la `MediaSession` **no** se guarda aquí: la lleva el propio reproductor, y
+     * depende de la ventana, no de este estado (ver `NotificationRefreshPolicy`).
+     */
+    private var lastNotification: PlaybackNotificationState? = null
+
     companion object {
         const val ACTION_STOP = "com.plyr.action.STOP"
     }
@@ -68,7 +76,7 @@ class MusicService : Service() {
     @OptIn(UnstableApi::class)
     fun setupMediaSession(player: ExoPlayer) {
         if (mediaSession != null) {
-            updateNotification(player)
+            refreshNotification(player, NotificationEvent.ITEM_TRANSITION)
             return
         }
 
@@ -85,11 +93,20 @@ class MusicService : Service() {
 
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-                updateNotification(player)
+                refreshNotification(player, NotificationEvent.ITEM_TRANSITION)
+            }
+
+            override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
+                // El recorte y el relleno de la ventana (`trimWindow` /
+                // `growWindow`) solo disparan esto. Sin escucharlos, la
+                // notificación se quedaba con los botones de antes del
+                // `addMediaItems` y el de siguiente no volvía nunca (B50).
+                refreshNotification(player, NotificationEvent.TIMELINE_CHANGED)
             }
         })
 
-        startForeground(NOTIFICATION_ID, buildNotification(notificationState(player)))
+        lastNotification = notificationState(player)
+        startForeground(NOTIFICATION_ID, buildNotification(lastNotification!!))
     }
 
     /**
@@ -115,6 +132,10 @@ class MusicService : Service() {
             .setContentTitle(state.title)
             .setContentText(state.text)
             .setOngoing(state.ongoing)
+            // Con B50 la notificación se repinta también en cada cambio de
+            // ventana, así que se repinta varias veces por canción. Sin esto el
+            // dispositivo vibraría en cada salto, no solo al empezar a sonar.
+            .setOnlyAlertOnce(true)
 
         // El `MediaStyle` solo se monta si hay una sesión con items: sin ellos el
         // sistema no pintaría botones, pero el estilo vacío era lo que dejaba la
@@ -126,15 +147,23 @@ class MusicService : Service() {
         return builder.build()
     }
 
-    private fun updateNotification(player: ExoPlayer) {
-        val state = notificationState(player)
-        if (!state.showMediaStyle) {
-            // No hay nada sonando: mejor no dejar nada colgado. La sesión sigue
-            // viva para que el próximo item repinte la notificación.
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            return
+    private fun refreshNotification(player: ExoPlayer, event: NotificationEvent) {
+        val next = notificationState(player)
+        when (NotificationRefreshPolicy.decide(event, lastNotification, next)) {
+            NotificationAction.REBUILD -> {
+                lastNotification = next
+                startForeground(NOTIFICATION_ID, buildNotification(next))
+            }
+
+            NotificationAction.REMOVE -> {
+                // No hay nada sonando: mejor no dejar nada colgado. La sesión
+                // sigue viva para que el próximo item repinte la notificación.
+                lastNotification = next
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            }
+
+            NotificationAction.SKIP -> Unit
         }
-        startForeground(NOTIFICATION_ID, buildNotification(state))
     }
 
     override fun onDestroy() {

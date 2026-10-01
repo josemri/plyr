@@ -72,17 +72,17 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **56 bugs resolved, 4 open** (`B49`–`B51`, `B53`), plus the feature requests in report §11.
+Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **57 bugs resolved, 3 open** (`B49`, `B51`, `B53`), plus the feature requests in report §11.
 
 - [ ] **Share** — the URL that goes into the QR / the NFC tag / the recommendation feed is wrong for a **playlist** (`B53`)
   - [x] ~~A track shares its **YouTube** video, not the row id it has in the database~~ — done, `ShareUrlPolicy` decides the URL and the real `youtubeVideoId` wins over a pre-built one
   - [ ] A playlist imported from **Spotify** shares `open.spotify.com/playlist/<id>`; the origin is stored instead of inferred from the `youtube_` prefix
   - [ ] `liked_songs` and locally created lists don't offer a share at all
   - [x] ~~The share dialog says so instead of opening blank when there is no video to share~~ — done
-- [ ] **Playback** — previous/next from the notification don't go through the queue (`B49`, `B50`)
+- [ ] **Playback** — previous from the notification doesn't go through the queue (`B49`)
   - [ ] The media session routes `seekToNext` / `seekToPrevious` to `QueueIndex` instead of letting ExoPlayer move inside its sliding window
-  - [ ] The notification is rebuilt on timeline changes too, so the **next** button doesn't vanish after two skips in a row
   - [ ] Going back doesn't leave the prepared window (today it re-resolves over the network with the controls disabled) and never skips *forward* when the previous track fails to resolve
+  - [x] ~~The notification is rebuilt on timeline changes too, so the **next** button doesn't vanish after two skips in a row~~ — done, `onTimelineChanged` repaints it; it can still blink for a second while the window refills (residual of the window management, tracked in report §9)
   - [x] ~~The notification stops lying when nothing is playing~~ — done, it no longer sits there saying **"Plyr / Reproducendo"**
 - [ ] **Sync** — a liked track you deleted comes back from the zip (`B51`)
   - [ ] Decide the policy: tombstones per liked track, or a `liked_songs` digest, so a local deletion wins without breaking the restore-a-fresh-install case

@@ -75,15 +75,15 @@
 > cifras de tests de abajo (339) son las de la última tanda y **no** han
 > cambiado.
 >
-> - **8 bugs documentados, 4 activos (B49–B51, B53)**: los cuatro reportados. El
->   botón de anterior no vuelve a la canción anterior (**B49**), el botón de
->   siguiente desaparece de la notificación tras dos skips seguidos (**B50**), el
->   sync resucita los favoritos que se han borrado (**B51**) y el share de una
->   lista construye una URL inválida (**B53**).
->   **B54** (el diálogo de compartir en blanco), **B55** y **B56** (la notificación
->   que decía "Plyr / Reproduciendo") aparecieron al documentarlos y ya están
->   **resueltos**: B55 + B56 en la undécima tanda, B54 en la duodécima y B52 en
->   la treceava (→ §10). Detalle en §3, Arrangement en §9.
+> - **8 bugs documentados, 3 activos (B49, B51, B53)**: el botón de anterior no
+>   vuelve a la canción anterior (**B49**), el sync resucita los favoritos que se
+>   han borrado (**B51**) y el share de una lista construye una URL inválida
+>   (**B53**).
+>   **B50** (el `>>` de la notificación que no volvía), **B52** (el share que
+>   mandaba el id de Spotify), **B54** (el diálogo de compartir en blanco), **B55**
+>   y **B56** (la notificación que decía "Plyr / Reproducendo") ya están
+>   **resueltos**: B55 + B56 en la undécima tanda, B54 en la duodécima, B52 en la
+>   treceava y B50 en la catorceava (→ §10). Detalle en §3, Arrangement en §9.
 > - **3 peticiones de comportamiento/funcionalidad** en §11: que `liked` vacía
 >   no aparezca como lista (**F1**), el criterio de qué URL debe compartirse
 >   (**F2**, que es B52 + B53, y de los dos solo queda B53) y el "añadir a
@@ -108,7 +108,7 @@
 >   notificación que decía estar reproduciendo sin que hubiera nada sonando, con
 >   `./run.sh test` (**347**, en verde) y `./run.sh build` (BUILD SUCCESSFUL).
 >   **Duodécima tanda (2026-10-01): B54 resuelto**, el diálogo de compartir ya no
->   puede abrirse en blanco. Quedan **4 bugs abiertos** y 2 peticiones. Detalle en §10.
+>   puede abrirse en blanco. Quedan **3 bugs abiertos** y 2 peticiones. Detalle en §10.
 
 ---
 
@@ -426,7 +426,7 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **4 bugs activos, B49–B51 y B53**, los cuatro reportados, todos de severidad **alta**.
+- **3 bugs activos: B49, B51 y B53**, los tres reportados, todos de severidad **alta**.
   **B54** (el diálogo de compartir se abría en blanco), **B55** y **B56** (la
   notificación que decía "Plyr / Reproduciendo" al terminar la cola y al abrir
   la app sin música) aparecieron al documentarlos y ya están **resueltos**:
@@ -436,7 +436,7 @@ de descartes.
   vacía no debería aparecer) y F2 (qué URL se comparte, que es B52 + B53).
   **F3** ("añadir a lista" en el menú `*`) está **resuelta** en la décima tanda
   (→ §10): era la más fácil de las tres, solo una entrada de menú.
-- **4 bugs activos** (B49–B51, B53). La décima tanda (2026-10-01) solo implementó F3;
+- **3 bugs activos** (B49, B51, B53). La décima tanda (2026-10-01) solo implementó F3;
   la undécima resolvió B55 + B56 y la duodécima B54.
 - **347 tests unitarios** en 26 archivos (`./run.sh test`; todos en verde tras la
   undécima tanda, que añadió los 8 de `PlaybackNotificationStateTest`).
@@ -493,7 +493,7 @@ de descartes.
 
 ## 3. BUGS ACTIVOS
 
-**4** (B49–B51, B53). Los 52 de las tandas anteriores siguen resueltos (§10).
+**3** (B49, B51, B53). Los 53 de las tandas anteriores siguen resueltos (§10).
 
 - Batch del **2026-10-01**, sin arreglar: **B49**–**B53**, los cinco reportados.
   Todos verificados **leyendo el código** (ver la nota de la cabecera).
@@ -517,7 +517,7 @@ con el ZIP ya borrado), así que queda en altos y no en críticos.
 
 ### 3.2 Altos
 
-**4 activos.**
+**3 activos.**
 
 #### B49 — El botón de anterior solo reinicia la canción y no vuelve a la anterior
 
@@ -568,10 +568,27 @@ El síntoma tiene cuatro causas que se suman. Las tres primeras son de
    tiene items anteriores (`trimWindow`), `hasPreviousMediaItem()` es `false`:
    el botón no hace nada, o el sistema directamente no lo muestra.
 
-#### B50 — El botón de siguiente desaparece de la notificación tras dos skips seguidos
+#### B50 — El botón de siguiente desaparece de la notificación tras dos skips seguidos — **RESUELTO** (catorceava tanda)
 
 **Reportado:** al skipear dos canciones seguidas, el botón de siguiente de la
 notificación de Android desaparece.
+
+**Arreglo** (catorceava tanda → §10): la notificación ahora también se repinta en
+`onTimelineChanged`, que es el evento que dispara `trimWindow`/`growWindow`. Los
+puntos 1 y 4 del diagnóstico quedan resueltos: el botón **vuelve** en cuanto
+llega el `addMediaItems` del relleno. Se añade además `setOnlyAlertOnce(true)`.
+Detalle y pruebas en §10.
+
+**Residual conocido (no es B50, es gestión de ventana, y vive en B49):** los
+puntos 3 y 5. Mientras la extracción del relleno está en marcha, el reproductor
+tiene **solo el item actual**, así que `hasNextMediaItem()` es `false` y el botón
+se oculta durante uno o dos segundos; con mi fix vuelve solo, pero parpadea. Y si
+el relleno **falla** (`contiguous.isEmpty()`, típico de lo importado de Spotify),
+no se reintenta hasta la siguiente transición. La causa de fondo es que
+`trimWindow()` (`:566-573`) recorta **antes** de que llegue el relleno; mover el
+recorte a después de `addMediaItems` eliminaría el hueco y además haría que el
+`<<` de B49 encuentre la anterior en la ventana con más frecuencia. Está sin
+hacer porque cambia el invariante de `windowStart` y toca B49.
 
 **Ubicación:** `MusicService.kt:85-89,109-112` (la notificación solo se
 reconstruye en `onMediaItemTransition`) · `PlayerViewModel.kt:421-436`
@@ -1143,20 +1160,26 @@ comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte 
    `liked_songs` en `ExportDigest`. Campo aditivo en el manifiesto, formato v1
    intacto, como se hizo con `deletedPlaylistIds`. Toca `ExportManifest`,
    `ImportManifest`, `ExportDigest` y sus tres ficheros de test.
-3. **B49 + B50 — anterior y siguiente.** Pieza común: un
-   `MediaSession.Callback` en `MusicService` que redirija
-   `COMMAND_SEEK_TO_NEXT` / `COMMAND_SEEK_TO_PREVIOUS` a
-   `navigateToNext()` / `navigateToPrevious()` (que es lo que §6 ya señalaba),
-   en vez de dejar que ExoPlayer se mueva dentro de la ventana. Y para B50, que
-   la notificación se reconstruya también cuando cambia la línea de tiempo
-   (`onTimelineChanged`), no solo en `onMediaItemTransition`.
-   - B49 en concreto: distinguir "reiniciar" de "volver" sin el coste actual
-     (hoy cualquier salto atrás sale de la ventana y re-resuelve por red con los
-     controles deshabilitados, `PlayerViewModel.kt:429-436`), y no dejar que
-     `playIndex` salte **hacia delante** cuando lo que falló resolver fue la
-     canción anterior (`:455-473`).
-   - B50 además: que un relleno fallido no deje la ventana sin item siguiente
-     (`:553`), p. ej. reintentando o reservando el sitio.
+3. **B49 — el `<<` no vuelve a la anterior.** ~~La parte de B50~~ ya está hecha
+   (catorceava tanda, → §10). Lo que queda:
+   - El `MediaSession.Callback` en `MusicService` que redirija
+     `COMMAND_SEEK_TO_NEXT` / `COMMAND_SEEK_TO_PREVIOUS` a
+     `navigateToNext()` / `navigateToPrevious()` (que es lo que §6 ya señalaba),
+     en vez de dejar que ExoPlayer se mueva dentro de la ventana.
+   - Distinguir "reiniciar" de "volver" sin el coste actual (hoy cualquier salto
+     atrás sale de la ventana y re-resuelve por red con los controles
+     deshabilitados, `PlayerViewModel.kt:429-436`), y no dejar que `playIndex`
+     salte **hacia delante** cuando lo que falló resolver fue la canción
+     anterior (`:455-473`).
+   - **Palanca que además cierra el residual de B50**: `trimWindow()` (`:566-573`)
+     recorta *antes* de que llegue el relleno, y por eso hay un instante sin item
+     siguiente. Recortando *después* del `addMediaItems` desaparece ese hueco y,
+     de rebote, la anterior sigue más veces en la ventana — que es justo el
+     problema de B49. Toca el invariante de `windowStart`, así que va con tests de
+     `windowStart` antes de tocarlo.
+   - Residual de B50 que también cae aquí: que un relleno fallido no deje la
+     ventana sin item siguiente (`:553`), p. ej. reintentando o reservando el
+     sitio.
 4. ~~**F3 — "añadir a lista" en el menú `*`**: **hecho en la décima tanda**
    (2026-10-01, → §10). Era el más fácil de toda la lista: el selector ya existía
    y funcionaba, solo faltaba la entrada en el popup. +15 líneas, 1 entrada.
@@ -1515,10 +1538,10 @@ release**, por falta de keystore en local.
 |---|---|---|
 | **B55** + **B56** | `service/PlaybackNotificationState.kt` (nuevo) · `service/MusicService.kt` · `test/.../PlaybackNotificationStateTest.kt` (nuevo) | La decisión de qué pintar sale del servicio a una función pura `PlaybackNotificationState.of(appName, título, artista)`: con item devuelve título/artista con `ongoing = true` y `MediaStyle`; **sin item** devuelve el estado "idle" (título = nombre de la app, `ongoing = false`, `showMediaStyle = false`), o sea **no dice "Reproduciendo", no es imborrable y no monta controles que no puede resolver**. En `MusicService`, `createNotification` y la provisional `createStartupNotification` pasan a usar ese estado a través de un único `buildNotification`, y `updateNotification` hace `stopForeground(STOP_FOREGROUND_REMOVE)` cuando no hay item en vez de repintar la notificación fantasma. La `MediaSession` no se libera, así que el siguiente item vuelve a pintar la notificación con normalidad. 8 tests nuevos cubren los dos estados, incluidos el título vacío y el artista ausente (que antes caían en "Reproduciendo"). **+85 líneas, −2** |
 
-Con esto quedan **4 bugs abiertos** (B49, B50, B51, B53) y **2 peticiones** (F1,
-F2). **B52** y **B54** están resueltos, así que del bloque de compartir solo
-queda **B53** (la URL de la lista). **B49** + **B50** siguen siendo el mismo
-bloque (`MediaSession.Callback`) y **B51** va solo.
+Con esto quedan **3 bugs abiertos** (B49, B51, B53) y **2 peticiones** (F1, F2).
+Del bloque de compartir solo queda **B53** (la URL de la lista): **B52** y **B54**
+resueltos. Del bloque de la `MediaSession` queda **B49**: **B50** se resolvió en la
+catorceava tanda. **B51** va solo.
 
 ---
 
@@ -1537,11 +1560,10 @@ keystore en local.
 |---|---|---|
 | **B54** | `ui/components/QRDialog.kt:225-248` · `utils/Translations.kt` (4 idiomas) | `ShareDialog` ocultaba el QR, el `<share>`, el NFC y el `<recomendar>` cuando `shareUrl == null` (`:258,302,337`), y lo que quedaba era un `Card` con padding de 24 dp y **nada dentro**: un diálogo en blanco, sin QR, sin botones y sin un solo mensaje que explicara por qué. Se llega desde la cola, que es el único sitio donde `shareUrl` **y** `youtubeId` acaban a la vez en `null` (`QueueScreen.kt:66` + `youtubeVideoId` de pistas sin coincidencia en YouTube, típicas de lo importado de Spotify). Ahora, cuando no hay URL, el diálogo pinta su propio estado: un mensaje (`no_share_url`, clave nueva en español, inglés, catalán y japonés) y un botón de cerrar. El resto de la caja no se toca, porque todo lo demás depende de que haya URL. **Lo que no se arregla aquí, a propósito:** que el `id` bueno (`PlayerViewModel.resolvedVideoId`) siga sin llegar desde la cola — eso es cambiar el contrato entre la pantalla de cola y el diálogo, y pertenecía al bloque de B52/B53, donde había que decidir *qué* URL se comparte — B52 quedó resuelto en la treceava tanda (§10). Aquí solo se consigue que, cuando no hay nada que compartir, la app **lo diga**. **+29 líneas, 1 clave × 4 idiomas** |
 
-Con esto quedan **4 bugs abiertos** y **2 peticiones**: **B53** (qué URL se
-comparte de una lista) y el bloque **B49 + B50** (`MediaSession.Callback`), más
-**B51** (los favoritos borrados que el sync resucita), que es el más delicado
-porque toca datos. Del bloque de compartir solo queda B53: **B52 y B54 ya están
-resueltos**.
+Con esto quedan **3 bugs abiertos** y **2 peticiones**: **B49** (el `<<` que no
+vuelve a la anterior), **B51** (los favoritos borrados que el sync resucita, el
+más delicado porque toca datos) y **B53** (qué URL se comparte de una lista).
+**B50**, **B52** y **B54** ya están resueltos.
 
 ---
 
@@ -1678,3 +1700,49 @@ que `ShareUrlPolicy` está dentro del APK).
 | # | Ubicación | Qué se hizo |
 |---|---|---|
 | **B52** | `ui/components/ShareUrlPolicy.kt` (nuevo) · `ui/components/QRDialog.kt:115-117` · `ui/PlaylistScreen.kt:799,862` · `test/.../ShareUrlPolicyTest.kt` (nuevo) | `PlaylistScreen` montaba la URL con `track.id`, que en un `AppTrack` es `TrackEntity.remoteTrackId` (`spotify_<hashTítulo>_<hashArtistas>_<índice>`), así que se compartía `youtube.com/watch?v=spotify_1234567_-987654_3`; y como la misma variable va al tag NFC y a la recomendación de Supabase, el enlace roto llegaba al feed público. El `youtubeVideoId` correcto ya viajaba en `youtubeId`, pero `ShareDialog` lo descartaba por precedencia (`item.shareUrl ?: when { … }`). **Arreglo en dos mitades, hacen falta las dos:** (1) la decisión de la URL sale del diálogo a `ShareUrlPolicy`, un `object` puro donde **gana el id real de YouTube** y una URL ya montada solo entra si no hay id — `TRACK` → `watch?v=<id>`, `APP` → siempre el enlace de descarga (un id colado no convierte compartir la app en compartir una canción), `PLAYLIST` → `playlist?list=` si el id lleva prefijo `PL`/`UU`/`FL`/`RD`, si no lo que vino; (2) `PlaylistScreen:799,862` dejan de montar la URL (`shareUrl = null`) y dejan que la política la construya. **B53 no se arregla**: el share de una lista sigue deduciendo el tipo de URL por prefijos porque no se guarda el origen de la lista. Salió de los tests: una `shareUrl` de solo espacios devolvía una URL basura (`watch?v=  `) en vez de "no hay nada que compartir" → `trim()` + `takeIf`. 9 tests nuevos. **+140 líneas, −17** |
+
+---
+
+### Catorceava tanda de arreglos (2026-10-01): B50 resuelto
+
+**B50 — la notificación vuelve a seguir la ventana del reproductor.** El botón
+de siguiente desaparecía tras dos skips seguidos y **no volvía nunca**: como la
+notificación solo se reconstruía en `onMediaItemTransition` (`MusicService.kt:85-89`),
+el `addMediaItems` del relleno de ventana, que dispara `onTimelineChanged`, no
+llegaba a repintarla. Con la app cerrada en la notificación, eso era
+literalmente "no se puede avanzar".
+
+1. **`service/NotificationRefreshPolicy.kt`, nuevo.** Lógica pura con los dos
+   eventos que deben repintar (`ITEM_TRANSITION`, `TIMELINE_CHANGED`) y tres
+   acciones (`REBUILD`, `REMOVE`, `SKIP`), más la decisión
+   `decide(event, previous, next)`. Lo interesante está en la tercera rama: con el
+   **mismo item** pero ventana cambiada, la acción es `REBUILD` y no `SKIP`, porque
+   la visibilidad de anterior/siguiente la decide la `MediaSession` a partir de
+   `hasNextMediaItem()`/`hasPreviousMediaItem()` —o sea de la ventana—, no de lo que
+   se ve. Si alguien "optimiza" comparando solo el estado visible, reintroduce B50
+   sin que ningún test se entere; por eso está escrito y testeado.
+2. **`MusicService.kt`.** El `Player.Listener` implementa ahora `onTimelineChanged`
+   además de `onMediaItemTransition`, los dos llaman a `refreshNotification(player, event)`
+   y el servicio guarda `lastNotification` para no hacer un `startForeground`
+   inútil cuando nada visible ha cambiado. `updateNotification()` desaparece, sus dos
+   ramas (retirar / pintar) viven ahora en el `when` de `refreshNotification`.
+3. **`setOnlyAlertOnce(true)`** en el `NotificationCompat.Builder`: al repintar
+   varias veces por canción, sin esto el dispositivo vibraría en cada salto.
+
+**Lo que NO arregla**, y está escrito como residual en §3.1: el hueco de uno o dos
+segundos mientras la extracción del relleno está en marcha (el reproductor tiene
+solo el item actual, así que `hasNextMediaItem()` es `false`), y el caso de un
+relleno que falla, que no se reintenta hasta la siguiente transición. Ambos vienen
+de que `trimWindow()` recorta antes de que llegue el relleno, y su arreglo —
+recortar después de `addMediaItems` — es palanca de B49, no de B50.
+
+Verificado con `./run.sh test` (**363 tests, en verde**: 356 + 7 nuevos en
+`NotificationRefreshPolicyTest`, que cubren el caso clave —ventana cambiada con el
+mismo item → `REBUILD`—, el `SKIP` sin cambios, el `REMOVE` sin item en ambos
+eventos y el repintado de una pista que vuelve tras un `REMOVE`) y
+`./run.sh build` (**BUILD SUCCESSFUL**, APK debug; comprobado que
+`NotificationRefreshPolicy` está dentro del APK).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B50** | `service/NotificationRefreshPolicy.kt` (nuevo) · `service/MusicService.kt` (`onTimelineChanged`, `refreshNotification`, `setOnlyAlertOnce`) · `test/.../NotificationRefreshPolicyTest.kt` (nuevo) | La notificación solo se reconstruía en `onMediaItemTransition`, así que el `addMediaItems`/`removeMediaItems` del recorte y relleno de ventana (`onTimelineChanged`) no la repintaba: el `>>` desaparecía tras dos skips y no volvía hasta la siguiente transición, dejando la notificación sin forma de avanzar. Se añade el listener que faltaba y la decisión de repintado sale a una política pura con tres acciones (`REBUILD`/`REMOVE`/`SKIP`) y el servicio recuerda el último estado para no hacer `startForeground` inútil. La regla clave, escrita y testeada: **con el mismo item pero ventana cambiada hay que repintar igual**, porque los botones los decide la `MediaSession` desde `hasNextMediaItem()`, no desde lo que se ve — deduplicar solo por estado visible reintroduciría el bug en silencio. `setOnlyAlertOnce(true)` evita que el repintado frecuente vibre el dispositivo en cada salto. **Residual** (hueco de 1-2 s con el relleno en marcha, y relleno fallido sin reintento) documentado en §3.1: su causa es `trimWindow()` recortando antes de tiempo, que es palanca de B49. 7 tests nuevos. **+52 líneas, −8** |
