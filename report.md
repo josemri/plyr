@@ -75,15 +75,15 @@
 > cifras de tests de abajo (339) son las de la última tanda y **no** han
 > cambiado.
 >
-> - **8 bugs documentados, 3 activos (B49, B51, B53)**: el botón de anterior no
->   vuelve a la canción anterior (**B49**), el sync resucita los favoritos que se
->   han borrado (**B51**) y el share de una lista construye una URL inválida
->   (**B53**).
+> - **8 bugs documentados, 2 activos (B49, B51)**: el botón de anterior no vuelve
+>   a la canción anterior (**B49**) y el sync resucita los favoritos que se han
+>   borrado (**B51**).
 >   **B50** (el `>>` de la notificación que no volvía), **B52** (el share que
->   mandaba el id de Spotify), **B54** (el diálogo de compartir en blanco), **B55**
->   y **B56** (la notificación que decía "Plyr / Reproducendo") ya están
->   **resueltos**: B55 + B56 en la undécima tanda, B54 en la duodécima, B52 en la
->   treceava y B50 en la catorceava (→ §10). Detalle en §3, Arrangement en §9.
+>   mandaba el id de Spotify), **B53** (el share de una lista), **B54** (el diálogo
+>   de compartir en blanco), **B55** y **B56** (la notificación que decía
+>   "Plyr / Reproducendo") ya están **resueltos**: B55 + B56 en la undécima tanda,
+>   B54 en la duodécima, B52 en la treceava, B50 en la catorceava y B53 en la
+>   quinceava (→ §10). Detalle en §3, Arrangement en §9.
 > - **3 peticiones de comportamiento/funcionalidad** en §11: que `liked` vacía
 >   no aparezca como lista (**F1**), el criterio de qué URL debe compartirse
 >   (**F2**, que es B52 + B53, y de los dos solo queda B53) y el "añadir a
@@ -108,7 +108,7 @@
 >   notificación que decía estar reproduciendo sin que hubiera nada sonando, con
 >   `./run.sh test` (**347**, en verde) y `./run.sh build` (BUILD SUCCESSFUL).
 >   **Duodécima tanda (2026-10-01): B54 resuelto**, el diálogo de compartir ya no
->   puede abrirse en blanco. Quedan **3 bugs abiertos** y 2 peticiones. Detalle en §10.
+>   puede abrirse en blanco. Quedan **2 bugs abiertos** y 2 peticiones. Detalle en §10.
 
 ---
 
@@ -426,7 +426,7 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **3 bugs activos: B49, B51 y B53**, los tres reportados, todos de severidad **alta**.
+- **2 bugs activos: B49 y B51**, los dos reportados, ambos de severidad **alta**.
   **B54** (el diálogo de compartir se abría en blanco), **B55** y **B56** (la
   notificación que decía "Plyr / Reproduciendo" al terminar la cola y al abrir
   la app sin música) aparecieron al documentarlos y ya están **resueltos**:
@@ -436,7 +436,7 @@ de descartes.
   vacía no debería aparecer) y F2 (qué URL se comparte, que es B52 + B53).
   **F3** ("añadir a lista" en el menú `*`) está **resuelta** en la décima tanda
   (→ §10): era la más fácil de las tres, solo una entrada de menú.
-- **3 bugs activos** (B49, B51, B53). La décima tanda (2026-10-01) solo implementó F3;
+- **2 bugs activos** (B49, B51). La décima tanda (2026-10-01) solo implementó F3;
   la undécima resolvió B55 + B56 y la duodécima B54.
 - **347 tests unitarios** en 26 archivos (`./run.sh test`; todos en verde tras la
   undécima tanda, que añadió los 8 de `PlaybackNotificationStateTest`).
@@ -493,7 +493,7 @@ de descartes.
 
 ## 3. BUGS ACTIVOS
 
-**3** (B49, B51, B53). Los 53 de las tandas anteriores siguen resueltos (§10).
+**2** (B49, B51). Los 54 de las tandas anteriores siguen resueltos (§10).
 
 - Batch del **2026-10-01**, sin arreglar: **B49**–**B53**, los cinco reportados.
   Todos verificados **leyendo el código** (ver la nota de la cabecera).
@@ -517,7 +517,7 @@ con el ZIP ya borrado), así que queda en altos y no en críticos.
 
 ### 3.2 Altos
 
-**3 activos.**
+**2 activos.**
 
 #### B49 — El botón de anterior solo reinicia la canción y no vuelve a la anterior
 
@@ -721,10 +721,25 @@ arreglado por ser la misma variable. Detalle y pruebas en §10.
    tag NFC (`QRDialog.kt:145-155`) y se sube a Supabase como recomendación
    (`QRDialog.kt:318-323`), así que el feed público recibe enlaces que no abren.
 
-#### B53 — El share de una lista construye una URL inválida
+#### B53 — El share de una lista construye una URL inválida — **RESUELTO** (quinceava tanda)
 
 **Reportado:** con playlist importada de Spotify el share está roto; debería
 compartir la URL de Spotify.
+
+**Arreglo** (quinceava tanda → §10): el origen de la lista se clasifica con un
+`object` puro (`PlaylistShare`) y la URL la decide `ShareUrlPolicy` según ese
+origen, ya no por los prefijos del id. Las cuatro filas de la tabla de abajo
+quedan así: YouTube → `playlist?list=`, Spotify importada → URL de Spotify,
+favoritos y listas creadas en la app → **no se ofrece compartir** (el botón
+`<share>` se oculta). Con origen desconocido se prefiere no compartir a
+compartir un enlace que no abre. Detalle y pruebas en §10.
+
+**Lo que NO se arregla:** el origen **se deduce, no se guarda** (sigue sin haber
+columna `source`/`sourceId` con su migración de Room). La marca
+`"Imported from Spotify"` en la description es texto y el usuario puede
+escribirlo, así que el clasificador además exige que el id tenga forma de id de
+playlist de Spotify (22 base62) antes de darlo por bueno. La solución seria
+—persistir el origen— queda pendiente.
 
 **Ubicación:** `PlaylistScreen.kt:951-964` (qué se pasa) · `:392-400` (el botón
 se muestra siempre) · `QRDialog.kt:118-126` (la heurística de prefijos) ·
@@ -1132,28 +1147,22 @@ Ordenado por lo que más molesta al uso diario. Los arrangements de B49 y B50
 comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte a
 `QueueIndex`), así que conviene hacerlos juntos.
 
-1. **B53 — el share de una lista.** Queda del bloque de compartir, que era
-   B52 + B53 + B54; **B52 y B54 ya están resueltos** (treceava y duodécima
-   tanda, → §10). Lo que queda:
-   - Dejar de construir la URL en la pantalla y decidirla **una sola vez** en
-     `ShareDialog` (`QRDialog.kt:115-128`), que hoy da prioridad a `shareUrl` y
-     por eso descarta el `youtubeVideoId` correcto que ya viaja. Con
-     `shareUrl = null` en `PlaylistScreen.kt:799,862` el caso de la canción se
-     resuelve solo (usa `youtubeVideoId`).
-   - Para la lista, dejar de deducir el tipo de URL por prefijos
-     (`QRDialog.kt:118-126`): decidir con el origen real de la lista. Como hoy
-     el único dato es `description == "Imported from Spotify"`
-     (`SpotifyImporter.kt:171`), lo serio es **persistir el origen**
-     (columna `source`/`sourceId` en `PlaylistEntity`, con su migración de Room)
-     y compartir `open.spotify.com/playlist/<id>` para lo importado, la URL de
-     YouTube para lo guardado de YouTube, y **no ofrecer compartir** en
-     `liked_songs` ni en las listas creadas localmente sin origen.
-   - Con eso, el mensaje de "no hay nada que compartir" que se añadió en B54
-     pasa a ser la excepción en vez del caso normal, y `QueueScreen` podrá tomar
-     el id de `PlayerViewModel.resolvedVideoId` (`:114`) para las pistas
-     resueltas por búsqueda.
-   - Tests: `ShareUrlPolicy` como objeto puro (tipo de URL a partir de
-     origen + id) con cobertura de las cuatro filas de la tabla de B53.
+1. **Persistir el origen de la lista (lo grande de B53, ya arreglado sin esto).**
+   El bug de compartir una lista quedó resuelto en la quinceava tanda (→ §10) sin
+   tocar la base de datos: el origen se deduce del `remoteId` y la description, y
+   si no se reconoce con certeza la lista no ofrece compartir. Lo que queda es
+   hacerlo bien:
+   - Columna `source`/`sourceId` en `PlaylistEntity` con su migración de Room, y
+     `ShareUrlPolicy`/`PlaylistShare` pasando a leer el origen guardado en vez de
+     deducirlo. Con eso la heurística de la description
+     (`description == "Imported from Spotify"`, `SpotifyImporter.kt:171`) deja de
+     hacer falta y desaparece el caso "el usuario editó la description y la lista
+     dejó de ser compartible".
+   - El compartir de `liked_songs` y de las listas creadas localmente seguirá sin
+     haber nada que compartir, que es lo correcto; con origen persistido queda
+     explícito en vez de deducido.
+   - El mensaje de "no hay nada que compartir" de B54 pasa a ser residual.
+
 2. **B51 — los favoritos borrados vuelven al sincronizar.** Requiere decidir la
    política **antes** de escribir código (ver el aviso de diseño en §3.2): tomb de
    favoritos por clave (`youtubeVideoId` o `fallbackDedupeKey`) o digest de
@@ -1538,10 +1547,10 @@ release**, por falta de keystore en local.
 |---|---|---|
 | **B55** + **B56** | `service/PlaybackNotificationState.kt` (nuevo) · `service/MusicService.kt` · `test/.../PlaybackNotificationStateTest.kt` (nuevo) | La decisión de qué pintar sale del servicio a una función pura `PlaybackNotificationState.of(appName, título, artista)`: con item devuelve título/artista con `ongoing = true` y `MediaStyle`; **sin item** devuelve el estado "idle" (título = nombre de la app, `ongoing = false`, `showMediaStyle = false`), o sea **no dice "Reproduciendo", no es imborrable y no monta controles que no puede resolver**. En `MusicService`, `createNotification` y la provisional `createStartupNotification` pasan a usar ese estado a través de un único `buildNotification`, y `updateNotification` hace `stopForeground(STOP_FOREGROUND_REMOVE)` cuando no hay item en vez de repintar la notificación fantasma. La `MediaSession` no se libera, así que el siguiente item vuelve a pintar la notificación con normalidad. 8 tests nuevos cubren los dos estados, incluidos el título vacío y el artista ausente (que antes caían en "Reproduciendo"). **+85 líneas, −2** |
 
-Con esto quedan **3 bugs abiertos** (B49, B51, B53) y **2 peticiones** (F1, F2).
-Del bloque de compartir solo queda **B53** (la URL de la lista): **B52** y **B54**
-resueltos. Del bloque de la `MediaSession` queda **B49**: **B50** se resolvió en la
-catorceava tanda. **B51** va solo.
+Con esto quedan **2 bugs abiertos** (B49, B51) y **2 peticiones** (F1, F2). Del
+bloque de compartir no queda nada: **B52**, **B53** y **B54** resueltos. Del
+bloque de la `MediaSession` queda **B49**: **B50** se resolvió en la catorceava
+tanda. **B51** va solo.
 
 ---
 
@@ -1560,10 +1569,10 @@ keystore en local.
 |---|---|---|
 | **B54** | `ui/components/QRDialog.kt:225-248` · `utils/Translations.kt` (4 idiomas) | `ShareDialog` ocultaba el QR, el `<share>`, el NFC y el `<recomendar>` cuando `shareUrl == null` (`:258,302,337`), y lo que quedaba era un `Card` con padding de 24 dp y **nada dentro**: un diálogo en blanco, sin QR, sin botones y sin un solo mensaje que explicara por qué. Se llega desde la cola, que es el único sitio donde `shareUrl` **y** `youtubeId` acaban a la vez en `null` (`QueueScreen.kt:66` + `youtubeVideoId` de pistas sin coincidencia en YouTube, típicas de lo importado de Spotify). Ahora, cuando no hay URL, el diálogo pinta su propio estado: un mensaje (`no_share_url`, clave nueva en español, inglés, catalán y japonés) y un botón de cerrar. El resto de la caja no se toca, porque todo lo demás depende de que haya URL. **Lo que no se arregla aquí, a propósito:** que el `id` bueno (`PlayerViewModel.resolvedVideoId`) siga sin llegar desde la cola — eso es cambiar el contrato entre la pantalla de cola y el diálogo, y pertenecía al bloque de B52/B53, donde había que decidir *qué* URL se comparte — B52 quedó resuelto en la treceava tanda (§10). Aquí solo se consigue que, cuando no hay nada que compartir, la app **lo diga**. **+29 líneas, 1 clave × 4 idiomas** |
 
-Con esto quedan **3 bugs abiertos** y **2 peticiones**: **B49** (el `<<` que no
-vuelve a la anterior), **B51** (los favoritos borrados que el sync resucita, el
-más delicado porque toca datos) y **B53** (qué URL se comparte de una lista).
-**B50**, **B52** y **B54** ya están resueltos.
+Con esto quedan **2 bugs abiertos** y **2 peticiones**: **B49** (el `<<` que no
+vuelve a la anterior) y **B51** (los favoritos borrados que el sync resucita, el
+más delicado porque toca datos). **B50**, **B52**, **B53** y **B54** ya están
+resueltos.
 
 ---
 
@@ -1746,3 +1755,53 @@ eventos y el repintado de una pista que vuelve tras un `REMOVE`) y
 | # | Ubicación | Qué se hizo |
 |---|---|---|
 | **B50** | `service/NotificationRefreshPolicy.kt` (nuevo) · `service/MusicService.kt` (`onTimelineChanged`, `refreshNotification`, `setOnlyAlertOnce`) · `test/.../NotificationRefreshPolicyTest.kt` (nuevo) | La notificación solo se reconstruía en `onMediaItemTransition`, así que el `addMediaItems`/`removeMediaItems` del recorte y relleno de ventana (`onTimelineChanged`) no la repintaba: el `>>` desaparecía tras dos skips y no volvía hasta la siguiente transición, dejando la notificación sin forma de avanzar. Se añade el listener que faltaba y la decisión de repintado sale a una política pura con tres acciones (`REBUILD`/`REMOVE`/`SKIP`) y el servicio recuerda el último estado para no hacer `startForeground` inútil. La regla clave, escrita y testeada: **con el mismo item pero ventana cambiada hay que repintar igual**, porque los botones los decide la `MediaSession` desde `hasNextMediaItem()`, no desde lo que se ve — deduplicar solo por estado visible reintroduciría el bug en silencio. `setOnlyAlertOnce(true)` evita que el repintado frecuente vibre el dispositivo en cada salto. **Residual** (hueco de 1-2 s con el relleno en marcha, y relleno fallido sin reintento) documentado en §3.1: su causa es `trimWindow()` recortando antes de tiempo, que es palanca de B49. 7 tests nuevos. **+52 líneas, −8** |
+
+---
+
+### Quinceava tanda de arreglos (2026-10-01): B53 resuelto
+
+**B53 — compartir una lista deja de adivinar la URL.** El diálogo recibía el
+`remoteId` pelado y decidía el tipo de URL por prefijos del id
+(`QRDialog.kt:118-126`), de modo que una lista importada de Spotify (guardada como
+`youtube_<idSpotify22>`) se compartía como `youtube.com/watch?v=<idSpotify>`; los
+favoritos (`liked_songs`) y las listas creadas en la app (`youtube_yt_<timestamp>`)
+se compartían como si fueran un vídeo, y el botón `<share>` se mostraba siempre
+(`PlaylistScreen.kt:392-400`).
+
+1. **`ui/components/PlaylistShare.kt`, nuevo.** `PlaylistOrigin` (YOUTUBE,
+   SPOTIFY, UNKNOWN) + `classify(remoteId, description)`. Las cuatro filas de la
+   tabla de §3.1 quedan: `youtube_PL…/UU…/FL…/RD…` → YOUTUBE; `youtube_<id22>` con
+   la marca de Spotify → SPOTIFY; `liked_songs` y `youtube_yt_…` → UNKNOWN. El
+   orden importa y está escrito en el código: los identificadores explícitos
+   mandan sobre la description, y la marca `"Imported from Spotify"` **no basta
+   sola** — además se exige que el id tenga forma de id de playlist de Spotify
+   (22 caracteres base62), porque la description es texto que el usuario puede
+   escribir y no puede ser la única prueba.
+2. **`ShareUrlPolicy`.** La rama `PLAYLIST` ya no mira prefijos: `YOUTUBE` →
+   `playlist?list=`, `SPOTIFY` → `open.spotify.com/playlist/`, `UNKNOWN` → `null`
+   (no hay URL, aunque venga una `shareUrl` de contexto: con origen desconocido
+   cualquier URL sería una suposición). Los tests antiguos que fijaban el
+   comportamiento de B53 (compartir una lista por prefijo) se reescribieron al
+   contrato nuevo.
+3. **`PlaylistScreen.kt`.** Calcula el origen con `PlaylistShare.classify` sobre el
+   `PlaylistEntity` seleccionado y **oculta el botón `<share>`** cuando la lista no
+   es compartible, además de pasar `playlistOrigin` al diálogo.
+4. **`YouTubePlaylistDetailView.kt`.** Pasa `playlistOrigin = YOUTUBE` explícito:
+   viene de buscar en YouTube, así que el origen no hay que deducirlo.
+
+**Lo que NO arregla:** el origen **se deduce, no se guarda** — sigue sin haber
+columna `source`/`sourceId` con su migración de Room. Es lo que hace que la
+heurística de la description sea frágil por construcción; queda como el punto 1
+de la hoja de ruta de §9. Efecto secundario buscado: con origen desconocido el
+diálogo ya no puede abrirse con un QR inválido, y en la práctica ese camino es el
+del aviso de B54 ("no hay nada que compartir").
+
+Verificado con `./run.sh test` (**373 tests, en verde**: 363 + 10, de los que 2 son
+los tests de playlist de `ShareUrlPolicy` reescritos y 8 nuevos en
+`PlaylistShareTest`, uno por fila de la tabla más los casos límite de la marca de
+Spotify) y `./run.sh build` (**BUILD SUCCESSFUL**, APK debug; comprobado que
+`PlaylistShare` está dentro del APK).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B53** | `ui/components/PlaylistShare.kt` (nuevo) · `ui/components/ShareUrlPolicy.kt` (rama `PLAYLIST`) · `ui/components/QRDialog.kt` (`ShareableItem.playlistOrigin`) · `ui/PlaylistScreen.kt:275-290,397-411,951-968` · `ui/components/search/YouTubePlaylistDetailView.kt:251-262` · `test/.../PlaylistShareTest.kt` (nuevo) · `test/.../ShareUrlPolicyTest.kt` | El diálogo decidía el tipo de URL de una lista por prefijos del `remoteId`, así que lo importado de Spotify se compartía como `youtube.com/watch?v=<idSpotify>`, los favoritos (`liked_songs`) y las creadas en la app (`youtube_yt_…`) como si fueran un vídeo, y el botón `<share>` se ofrecía siempre. Se añade `PlaylistShare.classify(remoteId, description) → PlaylistOrigin` (YOUTUBE/SPOTIFY/UNKNOWN) y `ShareUrlPolicy` pasa a decidir por origen: YOUTUBE → `playlist?list=`, SPOTIFY → `open.spotify.com/playlist/` (que la propia app sabe leer, `UrlParser.kt:52-56`), UNKNOWN → sin URL. El orden de clasificación pone los identificadores explícitos (`liked_songs`, `youtube_yt_…`) por delante de la description, y exige que el id tenga forma de id de Spotify (22 base62) antes de fiarse de la marca, porque la description es texto editable. `PlaylistScreen` oculta el `<share>` si la lista no es compartible. `YouTubePlaylistDetailView` pasa `YOUTUBE` explícito. Los 2 tests de playlist de `ShareUrlPolicy` fijaban el bug, así que se reescribieron. **Lo pendiente:** persistir `source`/`sourceId` (migración de Room) para no depender de la description. 8 tests nuevos + 2 reescritos. **+118 líneas, −9** |

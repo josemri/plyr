@@ -98,24 +98,56 @@ class ShareUrlPolicyTest {
     }
 
     @Test
-    fun lista_conPrefijoDeLista_armaPlaylistUrl() {
+    fun listaDeYoutube_armaPlaylistUrl() {
         assertEquals(
             "https://www.youtube.com/playlist?list=PLabcdef",
-            ShareUrlPolicy.resolve(ShareType.PLAYLIST, shareUrl = null, youtubeId = "PLabcdef"),
+            ShareUrlPolicy.resolve(
+                type = ShareType.PLAYLIST,
+                shareUrl = null,
+                youtubeId = "PLabcdef",
+                playlistOrigin = PlaylistOrigin.YOUTUBE,
+            ),
         )
     }
 
     @Test
-    fun lista_sinPrefijo_usaLaUrlQueVino() {
-        // Contexto de B53, que NO se arregla aquí: sin origen persistido no hay
-        // forma de saber si un id sin prefijo es de Spotify. La lista importada
-        // sigue guardada con el prefijo `youtube_`, que no es de lista.
+    fun listaDeSpotify_armaSpotifyUrl() {
+        // B53: antes esto salía como `youtube.com/watch?v=<idSpotify>`.
         assertEquals(
-            "https://open.spotify.com/playlist/37i9dQ",
+            "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M",
             ShareUrlPolicy.resolve(
                 type = ShareType.PLAYLIST,
-                shareUrl = "https://open.spotify.com/playlist/37i9dQ",
-                youtubeId = "37i9dQZF1DX",
+                shareUrl = null,
+                youtubeId = "37i9dQZF1DXcBWIGoYBM5M",
+                playlistOrigin = PlaylistOrigin.SPOTIFY,
+            ),
+        )
+    }
+
+    @Test
+    fun listaDeOrigenDesconocido_noDevuelveUrl() {
+        // Lo importante: ni siquiera se cae en la URL que venga, porque con
+        // origen desconocido cualquier URL es una suposición.
+        assertNull(
+            ShareUrlPolicy.resolve(
+                type = ShareType.PLAYLIST,
+                shareUrl = "https://www.youtube.com/watch?v=liked_songs",
+                youtubeId = "liked_songs",
+                playlistOrigin = PlaylistOrigin.UNKNOWN,
+            ),
+        )
+    }
+
+    @Test
+    fun listaSinId_noDevuelveUrlAunqueElOrigenSeaConocido() {
+        // Origen conocido pero id vacío: una URL con el id colgando
+        // ("playlist?list=") tampoco abriría nada.
+        assertNull(
+            ShareUrlPolicy.resolve(
+                type = ShareType.PLAYLIST,
+                shareUrl = "https://www.youtube.com/playlist?list=PLabcdef",
+                youtubeId = "",
+                playlistOrigin = PlaylistOrigin.YOUTUBE,
             ),
         )
     }

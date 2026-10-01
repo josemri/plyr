@@ -72,13 +72,14 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **57 bugs resolved, 3 open** (`B49`, `B51`, `B53`), plus the feature requests in report §11.
+Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **58 bugs resolved, 2 open** (`B49`, `B51`), plus the feature requests in report §11.
 
-- [ ] **Share** — the URL that goes into the QR / the NFC tag / the recommendation feed is wrong for a **playlist** (`B53`)
+- [x] **Share** — the URLs that go into the QR / the NFC tag / the recommendation feed are wrong (`B52`, `B53`, `B54`) — **done**
   - [x] ~~A track shares its **YouTube** video, not the row id it has in the database~~ — done, `ShareUrlPolicy` decides the URL and the real `youtubeVideoId` wins over a pre-built one
-  - [ ] A playlist imported from **Spotify** shares `open.spotify.com/playlist/<id>`; the origin is stored instead of inferred from the `youtube_` prefix
-  - [ ] `liked_songs` and locally created lists don't offer a share at all
+  - [x] ~~A playlist imported from **Spotify** shares `open.spotify.com/playlist/<id>`~~ — done, `PlaylistShare.classify` picks the URL from the playlist's origin
+  - [x] ~~`liked_songs` and locally created lists don't offer a share at all~~ — done, the `<share>` button is hidden for a playlist with no shareable origin
   - [x] ~~The share dialog says so instead of opening blank when there is no video to share~~ — done
+  - [ ] *Not a bug, still open:* the playlist origin is **inferred** from the `remoteId` + description; persist `source`/`sourceId` so it doesn't depend on the editable description
 - [ ] **Playback** — previous from the notification doesn't go through the queue (`B49`)
   - [ ] The media session routes `seekToNext` / `seekToPrevious` to `QueueIndex` instead of letting ExoPlayer move inside its sliding window
   - [ ] Going back doesn't leave the prepared window (today it re-resolves over the network with the controls disabled) and never skips *forward* when the previous track fails to resolve

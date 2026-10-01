@@ -24,17 +24,22 @@ object ShareUrlPolicy {
 
     private const val YOUTUBE_WATCH = "https://www.youtube.com/watch?v="
     private const val YOUTUBE_PLAYLIST = "https://www.youtube.com/playlist?list="
-
-    /** Prefijos con los que un id de YouTube es de lista, no de vídeo. */
-    private val PLAYLIST_PREFIXES = listOf("PL", "UU", "FL", "RD")
+    private const val SPOTIFY_PLAYLIST = "https://open.spotify.com/playlist/"
 
     /**
      * @param type qué se comparte: decide la prioridad.
      * @param shareUrl URL ya montada, si quien llama la tenía.
      * @param youtubeId id real de YouTube (vídeo o lista), si se conoce.
+     * @param playlistOrigin origen de la lista, para no adivinar el tipo de URL
+     *   por prefijos (B53).
      * @return la URL a compartir, o `null` si no hay nada que compartir.
      */
-    fun resolve(type: ShareType, shareUrl: String?, youtubeId: String?): String? {
+    fun resolve(
+        type: ShareType,
+        shareUrl: String?,
+        youtubeId: String?,
+        playlistOrigin: PlaylistOrigin = PlaylistOrigin.UNKNOWN,
+    ): String? {
         val id = youtubeId?.trim().orEmpty()
         // Una URL de solo espacios no es una URL: devolverla tal cual acabaría
         // en un QR y un tag NFC con basura en vez de "no hay nada que compartir".
@@ -50,13 +55,23 @@ object ShareUrlPolicy {
                 // id, y entonces es que quien la construyó sí tenía un id real.
                 if (id.isNotEmpty()) watchUrl(id) else fallback
 
-            ShareType.PLAYLIST ->
-                if (id.startsWithAny(PLAYLIST_PREFIXES)) YOUTUBE_PLAYLIST + id else fallback
+            ShareType.PLAYLIST -> playlistUrl(id, playlistOrigin)
         }
     }
 
-    private fun String.startsWithAny(prefixes: List<String>): Boolean =
-        prefixes.any { startsWith(it) }
+    /**
+     * B53: el tipo de URL sale del origen conocido, no de los prefijos del id.
+     *
+     * Antes, si el id no empezaba por `PL`/`UU`/`FL`/`RD` se asumía que era un
+     * vídeo, y una lista importada de Spotify se compartía como
+     * `youtube.com/watch?v=<idSpotify>`. Con origen desconocido no se devuelve
+     * nada: es preferible no compartir a compartir un enlace que no abre.
+     */
+    private fun playlistUrl(id: String, origin: PlaylistOrigin): String? = when (origin) {
+        PlaylistOrigin.YOUTUBE -> if (id.isNotEmpty()) YOUTUBE_PLAYLIST + id else null
+        PlaylistOrigin.SPOTIFY -> if (id.isNotEmpty()) SPOTIFY_PLAYLIST + id else null
+        PlaylistOrigin.UNKNOWN -> null
+    }
 
     private fun watchUrl(id: String): String = YOUTUBE_WATCH + id
 }

@@ -44,7 +44,13 @@ data class ShareableItem(
     val youtubeId: String?,
     val title: String,
     val artist: String,
-    val type: ShareType
+    val type: ShareType,
+    /**
+     * Origen de la lista, solo para `ShareType.PLAYLIST`. Sin esto la URL se
+     * deducía de los prefijos del id y una lista importada de Spotify se
+     * compartía como si fuera un vídeo (B53).
+     */
+    val playlistOrigin: PlaylistOrigin = PlaylistOrigin.UNKNOWN,
 )
 
 enum class ShareType {
@@ -116,7 +122,12 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
     // La URL la decide ShareUrlPolicy, no quien la construyó: antes se cogía
     // `shareUrl` por precedencia y eso descartaba el `youtubeVideoId` correcto
     // que ya viajaba (B52).
-    val shareUrl = ShareUrlPolicy.resolve(item.type, item.shareUrl, item.youtubeId)
+    val shareUrl = ShareUrlPolicy.resolve(
+        type = item.type,
+        shareUrl = item.shareUrl,
+        youtubeId = item.youtubeId,
+        playlistOrigin = item.playlistOrigin,
+    )
 
     var nfcState by remember { mutableStateOf(NfcWriteState.IDLE) }
     var nfcAdapter by remember { mutableStateOf<NfcAdapter?>(null) }

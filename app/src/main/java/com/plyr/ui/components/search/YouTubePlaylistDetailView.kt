@@ -17,6 +17,7 @@ import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.utils.UrlParser
+import com.plyr.ui.components.PlaylistOrigin
 import com.plyr.ui.components.PlyrErrorText
 import com.plyr.ui.components.PlyrInfoText
 import com.plyr.ui.components.PlyrLoadingIndicator
@@ -256,7 +257,9 @@ fun YouTubePlaylistDetailView(
                 youtubeId = playlist.playlistId,
                 title = playlist.title,
                 artist = "YouTube Playlist",
-                type = ShareType.PLAYLIST
+                type = ShareType.PLAYLIST,
+                // Viene de buscar en YouTube, así que el origen está claro.
+                playlistOrigin = PlaylistOrigin.YOUTUBE,
             ),
             onDismiss = { showShareDialog = false }
         )

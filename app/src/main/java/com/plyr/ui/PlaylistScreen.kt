@@ -49,6 +49,8 @@ import com.plyr.service.YouTubePlaylistCreator
 import com.plyr.service.CoverImageManager
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
+import com.plyr.ui.components.PlaylistOrigin
+import com.plyr.ui.components.PlaylistShare
 import com.plyr.ui.components.ShareDialog
 import com.plyr.ui.components.ShareableItem
 import com.plyr.ui.components.ShareType
@@ -279,6 +281,18 @@ fun PlaylistsScreen(
                     val isYouTubePlaylistView = selectedPlaylist?.id?.startsWith("youtube_") == true
                     val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs"
 
+                    // Origen de la lista para compartir (B53). Sin una columna que
+                    // lo guarde se deduce del id y la description, y si no se
+                    // reconoce con certeza la lista no ofrece compartir: antes se
+                    // montaba una URL adivinada que no abría nada.
+                    val playlistShareOrigin = remember(selectedPlaylistEntity) {
+                        PlaylistShare.classify(
+                            selectedPlaylistEntity?.remoteId,
+                            selectedPlaylistEntity?.description,
+                        )
+                    }
+                    val isPlaylistShareable = playlistShareOrigin != PlaylistOrigin.UNKNOWN
+
  // Función para parar todas las reproducciones
                      fun stopAllPlayback() {
                          isRandomizing = false
@@ -389,15 +403,20 @@ fun PlaylistsScreen(
                                     }
                                 ))
 
-                                // Botón share
-                                add(ActionButtonData(
-                                    text = "<share>",
-                                    color = MaterialTheme.colorScheme.error,
-                                    onClick = {
-                                        showShareDialog = true
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                ))
+                                // Botón share: solo si hay una URL de verdad detrás
+                                // (B53). Los favoritos y las listas creadas en la
+                                // app no son de ningún servicio, así que antes
+                                // producían un QR a una página inexistente.
+                                if (isPlaylistShareable) {
+                                    add(ActionButtonData(
+                                        text = "<share>",
+                                        color = MaterialTheme.colorScheme.error,
+                                        onClick = {
+                                            showShareDialog = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                    ))
+                                }
                             }
 
                             // Botón edit/save
@@ -957,7 +976,8 @@ fun PlaylistsScreen(
                                 youtubeId = selectedPlaylist!!.id.removePrefix("youtube_"),
                                 title = selectedPlaylist!!.name,
                                 artist = "Playlist",
-                                type = ShareType.PLAYLIST
+                                type = ShareType.PLAYLIST,
+                                playlistOrigin = playlistShareOrigin,
                             ),
                             onDismiss = { showShareDialog = false }
                         )
