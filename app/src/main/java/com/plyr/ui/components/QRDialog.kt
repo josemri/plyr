@@ -113,20 +113,10 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
-    val shareUrl = item.shareUrl ?: when {
-        item.type == ShareType.APP -> "https://github.com/josemri/plyr/releases/download/latest/plyr.apk"
-        item.youtubeId != null -> {
-            if (item.youtubeId.startsWith("PL") ||
-                item.youtubeId.startsWith("UU") ||
-                item.youtubeId.startsWith("FL") ||
-                item.youtubeId.startsWith("RD")) {
-                "https://www.youtube.com/playlist?list=${item.youtubeId}"
-            } else {
-                "https://www.youtube.com/watch?v=${item.youtubeId}"
-            }
-        }
-        else -> null
-    }
+    // La URL la decide ShareUrlPolicy, no quien la construyó: antes se cogía
+    // `shareUrl` por precedencia y eso descartaba el `youtubeVideoId` correcto
+    // que ya viajaba (B52).
+    val shareUrl = ShareUrlPolicy.resolve(item.type, item.shareUrl, item.youtubeId)
 
     var nfcState by remember { mutableStateOf(NfcWriteState.IDLE) }
     var nfcAdapter by remember { mutableStateOf<NfcAdapter?>(null) }

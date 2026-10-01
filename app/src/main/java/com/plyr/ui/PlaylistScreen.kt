@@ -796,7 +796,7 @@ fun PlaylistsScreen(
                                                  artist = track.getArtistNames(),
                                                  remoteId = track.id,
                                                  youtubeId = track.youtubeVideoId,
-                                                 shareUrl = "https://www.youtube.com/watch?v=${track.id}"
+                                                 shareUrl = null
                                              ),
                                              trackEntities = trackEntities,
                                              index = index,
@@ -859,7 +859,7 @@ fun PlaylistsScreen(
                                          artist = track.getArtistNames(),
                                          remoteId = track.id,
                                          youtubeId = track.youtubeVideoId,
-                                         shareUrl = "https://www.youtube.com/watch?v=${track.id}"
+                                         shareUrl = null
                                      )
                                     val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                                     SongListItem(

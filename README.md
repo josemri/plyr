@@ -72,10 +72,10 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **55 bugs resolved, 5 open** (`B49`–`B53`), plus the feature requests in report §11.
+Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **56 bugs resolved, 4 open** (`B49`–`B51`, `B53`), plus the feature requests in report §11.
 
-- [ ] **Share** — the URLs that go into the QR / the NFC tag / the recommendation feed are wrong (`B52`, `B53`)
-  - [ ] A track shares its **YouTube** video, not the row id it has in the database (today: `youtube.com/watch?v=spotify_…`, built from `remoteTrackId`)
+- [ ] **Share** — the URL that goes into the QR / the NFC tag / the recommendation feed is wrong for a **playlist** (`B53`)
+  - [x] ~~A track shares its **YouTube** video, not the row id it has in the database~~ — done, `ShareUrlPolicy` decides the URL and the real `youtubeVideoId` wins over a pre-built one
   - [ ] A playlist imported from **Spotify** shares `open.spotify.com/playlist/<id>`; the origin is stored instead of inferred from the `youtube_` prefix
   - [ ] `liked_songs` and locally created lists don't offer a share at all
   - [x] ~~The share dialog says so instead of opening blank when there is no video to share~~ — done

@@ -75,20 +75,20 @@
 > cifras de tests de abajo (339) son las de la última tanda y **no** han
 > cambiado.
 >
-> - **7 bugs documentados, 5 activos (B49–B53)**: los cinco reportados. El
+> - **8 bugs documentados, 4 activos (B49–B51, B53)**: los cuatro reportados. El
 >   botón de anterior no vuelve a la canción anterior (**B49**), el botón de
 >   siguiente desaparece de la notificación tras dos skips seguidos (**B50**), el
->   sync resucita los favoritos que se han borrado (**B51**), el share de una
->   canción comparte un id que no es de YouTube (**B52**) y el share de una lista
->   construye una URL inválida (**B53**).
+>   sync resucita los favoritos que se han borrado (**B51**) y el share de una
+>   lista construye una URL inválida (**B53**).
 >   **B54** (el diálogo de compartir en blanco), **B55** y **B56** (la notificación
 >   que decía "Plyr / Reproduciendo") aparecieron al documentarlos y ya están
->   **resueltos**: B55 + B56 en la undécima tanda y B54 en la duodécima (→ §10).
->   Detalle en §3, Arrangement en §9.
+>   **resueltos**: B55 + B56 en la undécima tanda, B54 en la duodécima y B52 en
+>   la treceava (→ §10). Detalle en §3, Arrangement en §9.
 > - **3 peticiones de comportamiento/funcionalidad** en §11: que `liked` vacía
 >   no aparezca como lista (**F1**), el criterio de qué URL debe compartirse
->   (**F2**, que es B52 + B53) y el "añadir a lista" en el menú `*` (**F3**) —
->   **F3 ya resuelta** en la décima tanda (→ §10), F1 y F2 siguen abiertas.
+>   (**F2**, que es B52 + B53, y de los dos solo queda B53) y el "añadir a
+>   lista" en el menú `*` (**F3**) — **F3 ya resuelta** en la décima tanda
+>   (→ §10), F1 y F2 siguen abiertas.
 > - El **B49** y el **B50** comparten el mismo defecto de fondo que §6 ya
 >   señalaba: `MusicService` no registra ningún `MediaSession.Callback`, así
 >   que los botones de la notificación y del lockscreen mueven ExoPlayer por
@@ -108,7 +108,7 @@
 >   notificación que decía estar reproduciendo sin que hubiera nada sonando, con
 >   `./run.sh test` (**347**, en verde) y `./run.sh build` (BUILD SUCCESSFUL).
 >   **Duodécima tanda (2026-10-01): B54 resuelto**, el diálogo de compartir ya no
->   puede abrirse en blanco. Quedan **5 bugs abiertos** y 2 peticiones. Detalle en §10.
+>   puede abrirse en blanco. Quedan **4 bugs abiertos** y 2 peticiones. Detalle en §10.
 
 ---
 
@@ -426,7 +426,7 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **5 bugs activos, B49–B53**, los cinco reportados, todos de severidad **alta**.
+- **4 bugs activos, B49–B51 y B53**, los cuatro reportados, todos de severidad **alta**.
   **B54** (el diálogo de compartir se abría en blanco), **B55** y **B56** (la
   notificación que decía "Plyr / Reproduciendo" al terminar la cola y al abrir
   la app sin música) aparecieron al documentarlos y ya están **resueltos**:
@@ -436,7 +436,7 @@ de descartes.
   vacía no debería aparecer) y F2 (qué URL se comparte, que es B52 + B53).
   **F3** ("añadir a lista" en el menú `*`) está **resuelta** en la décima tanda
   (→ §10): era la más fácil de las tres, solo una entrada de menú.
-- **5 bugs activos** (B49–B53). La décima tanda (2026-10-01) solo implementó F3;
+- **4 bugs activos** (B49–B51, B53). La décima tanda (2026-10-01) solo implementó F3;
   la undécima resolvió B55 + B56 y la duodécima B54.
 - **347 tests unitarios** en 26 archivos (`./run.sh test`; todos en verde tras la
   undécima tanda, que añadió los 8 de `PlaybackNotificationStateTest`).
@@ -493,7 +493,7 @@ de descartes.
 
 ## 3. BUGS ACTIVOS
 
-**5** (B49–B53). Los 48 de las tandas anteriores siguen resueltos (§10).
+**4** (B49–B51, B53). Los 52 de las tandas anteriores siguen resueltos (§10).
 
 - Batch del **2026-10-01**, sin arreglar: **B49**–**B53**, los cinco reportados.
   Todos verificados **leyendo el código** (ver la nota de la cabecera).
@@ -517,7 +517,7 @@ con el ZIP ya borrado), así que queda en altos y no en críticos.
 
 ### 3.2 Altos
 
-**5 activos.**
+**4 activos.**
 
 #### B49 — El botón de anterior solo reinicia la canción y no vuelve a la anterior
 
@@ -662,10 +662,17 @@ cada sync) · `DataImporter.kt:93-100,180-185` · `ImportManifest.kt:155` ·
 > `ExportDigest` y sus tests (`ExportManifestTest` 24, `ImportManifestTest` 30,
 > `ExportDigestTest` 11).
 
-#### B52 — El share de una canción comparte un id que no es el de YouTube
+#### B52 — El share de una canción comparte un id que no es el de YouTube — **RESUELTO** (treceava tanda)
 
 **Reportado:** el share está roto con canciones importadas de Spotify; debería
 compartir la canción de YouTube, no el id de Spotify.
+
+**Arreglo** (treceava tanda → §10): la decisión de qué URL se comparte se movió
+a `ShareUrlPolicy`, un objeto puro, y ahora **gana el id real de YouTube**; una
+URL ya montada solo se usa cuando no hay id. Además `PlaylistScreen.kt:799,862`
+dejan de montar la URL con `track.id`. Los tres puntos del diagnóstico
+siguiente se cumplen y el efecto colateral (NFC y feed de recomendaciones) queda
+arreglado por ser la misma variable. Detalle y pruebas en §10.
 
 **Ubicación:** `PlaylistScreen.kt:799,862` (construcción de la URL) ·
 `SongListItem.kt:402-413` · `QRDialog.kt:115-128` (precedencia) ·
@@ -1108,8 +1115,9 @@ Ordenado por lo que más molesta al uso diario. Los arrangements de B49 y B50
 comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte a
 `QueueIndex`), así que conviene hacerlos juntos.
 
-1. **B52 + B53 — el share.** Es lo más barato y lo más visible. **B54**, que
-   estaba en este mismo bloque, ya está resuelto (duodécima tanda, → §10):
+1. **B53 — el share de una lista.** Queda del bloque de compartir, que era
+   B52 + B53 + B54; **B52 y B54 ya están resueltos** (treceava y duodécima
+   tanda, → §10). Lo que queda:
    - Dejar de construir la URL en la pantalla y decidirla **una sola vez** en
      `ShareDialog` (`QRDialog.kt:115-128`), que hoy da prioridad a `shareUrl` y
      por eso descarta el `youtubeVideoId` correcto que ya viaja. Con
@@ -1507,15 +1515,17 @@ release**, por falta de keystore en local.
 |---|---|---|
 | **B55** + **B56** | `service/PlaybackNotificationState.kt` (nuevo) · `service/MusicService.kt` · `test/.../PlaybackNotificationStateTest.kt` (nuevo) | La decisión de qué pintar sale del servicio a una función pura `PlaybackNotificationState.of(appName, título, artista)`: con item devuelve título/artista con `ongoing = true` y `MediaStyle`; **sin item** devuelve el estado "idle" (título = nombre de la app, `ongoing = false`, `showMediaStyle = false`), o sea **no dice "Reproduciendo", no es imborrable y no monta controles que no puede resolver**. En `MusicService`, `createNotification` y la provisional `createStartupNotification` pasan a usar ese estado a través de un único `buildNotification`, y `updateNotification` hace `stopForeground(STOP_FOREGROUND_REMOVE)` cuando no hay item en vez de repintar la notificación fantasma. La `MediaSession` no se libera, así que el siguiente item vuelve a pintar la notificación con normalidad. 8 tests nuevos cubren los dos estados, incluidos el título vacío y el artista ausente (que antes caían en "Reproduciendo"). **+85 líneas, −2** |
 
-Con esto quedan **5 bugs abiertos** (B49–B53) y **2 peticiones** (F1, F2).
-De ellos, **B52** y **B53** son del mismo bloque (qué URL se comparte) y **B49**
-+ **B50** del mismo otro (el `MediaSession.Callback`).
+Con esto quedan **4 bugs abiertos** (B49, B50, B51, B53) y **2 peticiones** (F1,
+F2). **B52** y **B54** están resueltos, así que del bloque de compartir solo
+queda **B53** (la URL de la lista). **B49** + **B50** siguen siendo el mismo
+bloque (`MediaSession.Callback`) y **B51** va solo.
 
 ---
 
 Duodécima tanda (2026-10-01), **B54 resuelto**: el diálogo de compartir ya no
 puede abrirse en blanco. Es un arreglo de estado de UI, sin tocar cómo se calcula
-la URL — eso sigue pendiente en B52/B53.
+la URL — eso era B52/B53 y se resolvió en la treceava tanda (abajo): B52 arreglado,
+B53 pendiente.
 
 Verificado con `./run.sh test` (**347 tests, en verde**, sin cambio de número: no
 hay test nuevo porque el arreglo es de composición) y **`./run.sh build`**
@@ -1525,12 +1535,13 @@ keystore en local.
 
 | # | Ubicación | Qué se hizo |
 |---|---|---|
-| **B54** | `ui/components/QRDialog.kt:225-248` · `utils/Translations.kt` (4 idiomas) | `ShareDialog` ocultaba el QR, el `<share>`, el NFC y el `<recomendar>` cuando `shareUrl == null` (`:258,302,337`), y lo que quedaba era un `Card` con padding de 24 dp y **nada dentro**: un diálogo en blanco, sin QR, sin botones y sin un solo mensaje que explicara por qué. Se llega desde la cola, que es el único sitio donde `shareUrl` **y** `youtubeId` acaban a la vez en `null` (`QueueScreen.kt:66` + `youtubeVideoId` de pistas sin coincidencia en YouTube, típicas de lo importado de Spotify). Ahora, cuando no hay URL, el diálogo pinta su propio estado: un mensaje (`no_share_url`, clave nueva en español, inglés, catalán y japonés) y un botón de cerrar. El resto de la caja no se toca, porque todo lo demás depende de que haya URL. **Lo que no se arregla aquí, a propósito:** que el `id` bueno (`PlayerViewModel.resolvedVideoId`) siga sin llegar desde la cola — eso es cambiar el contrato entre la pantalla de cola y el diálogo, y pertenece al bloque de B52/B53, donde hay que decidir *qué* URL se comparte. Aquí solo se consigue que, cuando no hay nada que compartir, la app **lo diga**. **+29 líneas, 1 clave × 4 idiomas** |
+| **B54** | `ui/components/QRDialog.kt:225-248` · `utils/Translations.kt` (4 idiomas) | `ShareDialog` ocultaba el QR, el `<share>`, el NFC y el `<recomendar>` cuando `shareUrl == null` (`:258,302,337`), y lo que quedaba era un `Card` con padding de 24 dp y **nada dentro**: un diálogo en blanco, sin QR, sin botones y sin un solo mensaje que explicara por qué. Se llega desde la cola, que es el único sitio donde `shareUrl` **y** `youtubeId` acaban a la vez en `null` (`QueueScreen.kt:66` + `youtubeVideoId` de pistas sin coincidencia en YouTube, típicas de lo importado de Spotify). Ahora, cuando no hay URL, el diálogo pinta su propio estado: un mensaje (`no_share_url`, clave nueva en español, inglés, catalán y japonés) y un botón de cerrar. El resto de la caja no se toca, porque todo lo demás depende de que haya URL. **Lo que no se arregla aquí, a propósito:** que el `id` bueno (`PlayerViewModel.resolvedVideoId`) siga sin llegar desde la cola — eso es cambiar el contrato entre la pantalla de cola y el diálogo, y pertenecía al bloque de B52/B53, donde había que decidir *qué* URL se comparte — B52 quedó resuelto en la treceava tanda (§10). Aquí solo se consigue que, cuando no hay nada que compartir, la app **lo diga**. **+29 líneas, 1 clave × 4 idiomas** |
 
-Con esto quedan **5 bugs abiertos** y **2 peticiones**. Los dos bloques que quedan
-son coherentes entre sí: **B52 + B53** (qué URL se comparte) y **B49 + B50** (el
-`MediaSession.Callback`), más **B51** (los favoritos borrados que el sync
-resucita), que es el más delicado porque toca datos.
+Con esto quedan **4 bugs abiertos** y **2 peticiones**: **B53** (qué URL se
+comparte de una lista) y el bloque **B49 + B50** (`MediaSession.Callback`), más
+**B51** (los favoritos borrados que el sync resucita), que es el más delicado
+porque toca datos. Del bloque de compartir solo queda B53: **B52 y B54 ya están
+resueltos**.
 
 ---
 
@@ -1612,3 +1623,58 @@ solo de composición: la lógica que decide a qué playlist se añade y qué se
 escribe en la base de datos es la de `PlaylistLocalRepository.addTrackToYouTubePlaylist`,
 sin ruta de ejecución nueva. El riesgo real es de UI (que el `*` abra el
 selector), y eso es instrumentado.
+
+---
+
+### Treceava tanda de arreglos (2026-10-01): B52 resuelto
+
+**B52 — compartir una canción ya no comparte el id de Spotify.** El share de
+una pista leída de la base de datos mandaba
+`youtube.com/watch?v=spotify_1234567_-987654_3`, porque `PlaylistScreen.kt:799,862`
+montaban la URL con `track.id`, que en un `AppTrack` es
+`TrackEntity.remoteTrackId` (`DatabaseExtensions.kt:19`) —y en lo importado de
+Spotify es `spotify_<hashTítulo>_<hashArtistas>_<índice>`. El enlace no existía,
+y como la misma variable va al tag NFC (`:145-155`) y a la recomendación de
+Supabase (`:318-323`), el efecto llegaba hasta el feed público.
+
+El `youtubeVideoId` correcto ya viajaba en `youtubeId` en esas mismas dos
+llamadas, pero `ShareDialog` lo descartaba por precedencia (`item.shareUrl ?:
+when { … }`, `QRDialog.kt:115`). El arreglo tiene dos mitades, y hacen falta
+las dos:
+
+1. **`ui/components/ShareUrlPolicy.kt`, nuevo.** Un `object` puro que decide la
+   URL a partir de `(type, shareUrl, youtubeId)`. La regla que arregla el bug es
+   que **gana el id real de YouTube** y una URL ya montada solo entra si no hay
+   id. `TRACK` → `watch?v=<id>`; `APP` → siempre el enlace de descarga (compartir
+   la app no es compartir una canción, así que un id colado no la convierte en un
+   enlace de YouTube); `PLAYLIST` → si el id lleva prefijo de lista
+   (`PL`/`UU`/`FL`/`RD`) arma `playlist?list=`, si no devuelve lo que vino.
+2. **`QRDialog.kt:115-117`.** Las siete líneas de decisión en línea se sustituyen
+   por una llamada a `ShareUrlPolicy.resolve(item.type, item.shareUrl, item.youtubeId)`.
+   Ya no hay dos sitios que decidan la URL.
+3. **`PlaylistScreen.kt:799,862`.** `shareUrl = null` en las dos rutas que leen
+   pistas de la BD, para no volver a montar una URL con el id equivocado. Se deja
+   que la política la construya con el `youtubeVideoId`.
+
+Un detalle que salió de los tests: una `shareUrl` de solo espacios devolvía una
+URL basura (`watch?v=  `) en vez de "no hay nada que compartir". Se normaliza
+con `trim()` + `takeIf { isNotEmpty() }` sobre el fallback.
+
+**Lo que NO arregla: B53.** El share de una *lista* sigue igual, porque la app no
+guarda de qué servicio viene la lista y el tipo de URL se deduce por prefijos
+del id (`youtube_` vs Spotify). Arreglarlo exige persistir el origen
+(`source`/`sourceId` en `PlaylistEntity` con su migración de Room) o excluir el
+compartir de las listas sin origen. Y las tres rutas de *resultados de búsqueda*
+(`PlaylistScreen.kt:725,1248,1299`, `SearchScreen`, `YouTubeSearchResults`) se
+dejan como estaban: ahí `track.id` **sí** es el `videoId` real de YouTube, y con
+la nueva política también pasarían por `youtubeId`.
+
+Verificado con `./run.sh test` (**356 tests, en verde**: 347 + 9 nuevos en
+`ShareUrlPolicyTest`, que cubren el caso del bug —`shareUrl` con hash de Spotify
+frente a `youtubeId` real—, la URL de la app, los cuatro prefijos de lista y los
+ids en blanco) y `./run.sh build` (**BUILD SUCCESSFUL**, APK debug; comprobado
+que `ShareUrlPolicy` está dentro del APK).
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B52** | `ui/components/ShareUrlPolicy.kt` (nuevo) · `ui/components/QRDialog.kt:115-117` · `ui/PlaylistScreen.kt:799,862` · `test/.../ShareUrlPolicyTest.kt` (nuevo) | `PlaylistScreen` montaba la URL con `track.id`, que en un `AppTrack` es `TrackEntity.remoteTrackId` (`spotify_<hashTítulo>_<hashArtistas>_<índice>`), así que se compartía `youtube.com/watch?v=spotify_1234567_-987654_3`; y como la misma variable va al tag NFC y a la recomendación de Supabase, el enlace roto llegaba al feed público. El `youtubeVideoId` correcto ya viajaba en `youtubeId`, pero `ShareDialog` lo descartaba por precedencia (`item.shareUrl ?: when { … }`). **Arreglo en dos mitades, hacen falta las dos:** (1) la decisión de la URL sale del diálogo a `ShareUrlPolicy`, un `object` puro donde **gana el id real de YouTube** y una URL ya montada solo entra si no hay id — `TRACK` → `watch?v=<id>`, `APP` → siempre el enlace de descarga (un id colado no convierte compartir la app en compartir una canción), `PLAYLIST` → `playlist?list=` si el id lleva prefijo `PL`/`UU`/`FL`/`RD`, si no lo que vino; (2) `PlaylistScreen:799,862` dejan de montar la URL (`shareUrl = null`) y dejan que la política la construya. **B53 no se arregla**: el share de una lista sigue deduciendo el tipo de URL por prefijos porque no se guarda el origen de la lista. Salió de los tests: una `shareUrl` de solo espacios devolvía una URL basura (`watch?v=  `) en vez de "no hay nada que compartir" → `trim()` + `takeIf`. 9 tests nuevos. **+140 líneas, −17** |
