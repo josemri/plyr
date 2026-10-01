@@ -75,16 +75,18 @@
 > cifras de tests de abajo (339) son las de la última tanda y **no** han
 > cambiado.
 >
-> - **7 bugs activos nuevos, B49–B55**: cinco reportados (**B49**–**B53**) y
->   dos que salieron al revisarlos (**B54**, diálogo de compartir vacío, y
->   **B55**, notificación fantasma al terminar la cola). El botón de anterior
->   no vuelve a la canción anterior (**B49**), el botón de siguiente desaparece
->   de la notificación tras dos skips seguidos (**B50**), el sync resucita los
->   favoritos que se han borrado (**B51**), el share de una canción comparte un
->   id que no es de YouTube (**B52**), el share de una lista construye una URL
->   inválida (**B53**), el diálogo de compartir se abre vacío cuando no hay URL
->   (**B54**) y la notificación "Plyr" se queda puesta al terminar la cola
->   (**B55**). Detalle en §3, Arrangement en §9.
+> - **8 bugs documentados, 6 activos (B49–B54)**: cinco reportados
+>   (**B49**–**B53**) y uno que salió al revisarlos (**B54**, el diálogo de
+>   compartir se abre vacío). El botón de anterior no vuelve a la canción
+>   anterior (**B49**), el botón de siguiente desaparece de la notificación tras
+>   dos skips seguidos (**B50**), el sync resucita los favoritos que se han
+>   borrado (**B51**), el share de una canción comparte un id que no es de YouTube
+>   (**B52**), el share de una lista construye una URL inválida (**B53**) y el
+>   diálogo de compartir se abre vacío cuando no hay URL (**B54**).
+>   **B55** y **B56** (la notificación que decía "Plyr / Reproduciendo" al
+>   terminar la cola y al abrir la app sin música) también aparecieron al
+>   documentarlos y ya están **resueltos** en la undécima tanda (→ §10).
+>   Detalle en §3, Arrangement en §9.
 > - **3 peticiones de comportamiento/funcionalidad** en §11: que `liked` vacía
 >   no aparezca como lista (**F1**), el criterio de qué URL debe compartirse
 >   (**F2**, que es B52 + B53) y el "añadir a lista" en el menú `*` (**F3**) —
@@ -96,14 +98,18 @@
 >   una nota de arquitectura: tiene dos síntomas reproducibles.
 > - La numeración **B49+** es nueva y no guarda relación con los B1–B48 de las
 >   tandas anteriores, que siguen resueltos (§10).
-> - **Al re-verificar B49–B53 para documentarlos han salido dos bugs más que no
->   estaban en el reporte: B54 y B55.** No se contaban antes, no se han arreglado
->   (esta tanda no toca código) y por eso el total activo es 7, no 5.
+> - **Al re-verificar B49–B53 para documentarlos han salido tres bugs más que no
+>   estaban en el reporte: B54, B55 y B56.** No se contaban antes. **B55 y B56**
+>   (la notificación fantasma al terminar la cola, y la que dice "Plyr /
+>   Reproduciendo" al abrir la app sin música) se han **resuelto** en la undécima
+>   tanda; queda **B54** activo.
 > - **Décima tanda (2026-10-01): F3 implementada.** Se ha arreglado lo más fácil
 >   de todo lo pendiente (el "añadir a lista" del menú `*`, que solo era cablear
 >   UI), con `./run.sh test` (339, en verde) y `./run.sh build` (BUILD
->   SUCCESSFUL). **Los 7 bugs siguen abiertos**, porque no se ha tocado ninguno.
->   Detalle en §10.
+>   SUCCESSFUL). **Undécima tanda (2026-10-01): B55 + B56 resueltos**, la
+>   notificación que decía estar reproduciendo sin que hubiera nada sonando, con
+>   `./run.sh test` (**347**, en verde) y `./run.sh build` (BUILD SUCCESSFUL).
+>   Quedan **6 bugs abiertos** y 2 peticiones. Detalle en §10.
 
 ---
 
@@ -421,21 +427,20 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **7 bugs activos, B49–B55**: cinco reportados (B49, B50, B51, B52, B53) más
-  dos que aparecieron al verificarlos (B54, diálogo vacío; B55, notificación
-  fantasma al terminar la cola). Severidad: 5 altos, 1 medio y 1 bajo. **Ninguno
-  arreglado todavía**: la décima tanda (2026-10-01) solo implementó F3. Los 48 de
-  las tandas anteriores siguen resueltos (§10). Detalle en §3.
+- **6 bugs activos, B49–B54**: cinco reportados (B49, B50, B51, B52, B53) más
+  uno que apareció al verificarlos (B54, el diálogo de compartir vacío).
+  Severidad: 5 altos y 1 medio. **B55 y B56** —la notificación que decía "Plyr /
+  Reproduciendo" al terminar la cola y al abrir la app sin música— también
+  aparecieron al documentarlos y ya están **resueltos** (undécima tanda, → §10).
+  Los 48 de las tandas anteriores siguen resueltos. Detalle en §3.
 - **2 peticiones abiertas** de funcionalidad/comportamiento (§11): F1 (`liked`
   vacía no debería aparecer) y F2 (qué URL se comparte, que es B52 + B53).
   **F3** ("añadir a lista" en el menú `*`) está **resuelta** en la décima tanda
   (→ §10): era la más fácil de las tres, solo una entrada de menú.
-- **7 bugs activos** (B49–B55) **sin tocar**: la décima tanda no arregló ninguno,
-  solo implementó F3.
-- **339 tests unitarios** en 25 archivos (`./run.sh test`; todos en verde en la
-  última tanda). **No se han vuelto a ejecutar**: esta tanda es solo de
-  reporte, sin cambios de código, así que el desglose por fichero de más abajo
-  sigue siendo el válido.
+- **6 bugs activos** (B49–B54). La décima tanda (2026-10-01) solo implementó F3;
+  la undécima resolvió B55 + B56 (la notificación fantasma).
+- **347 tests unitarios** en 26 archivos (`./run.sh test`; todos en verde tras la
+  undécima tanda, que añadió los 8 de `PlaybackNotificationStateTest`).
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
 - **Código muerto: el que la auditoría listeó, borrado en T9** (`SongMenuDialog`,
   `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`,
@@ -454,20 +459,20 @@ de descartes.
 
 | Métrica | Valor |
 |---|---|
-| Archivos Kotlin (main) | 70 (~14.872 líneas) |
-| Archivos de test | 25 (~3.910 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (1403), `PlayerViewModel.kt` (786), `ConfigScreen.kt` (665), `SongListItem.kt` (565), `FloatingMusicControls.kt` (538), `SearchScreen.kt` (483), `PlaylistLocalRepository.kt` (445), `Translations.kt` (437) |
+| Archivos Kotlin (main) | 71 (~14.975 líneas) |
+| Archivos de test | 26 (~4.003 líneas) |
+| Archivos más grandes | `PlaylistScreen.kt` (1403), `PlayerViewModel.kt` (786), `ConfigScreen.kt` (665), `SongListItem.kt` (580), `FloatingMusicControls.kt` (538), `SearchScreen.kt` (483), `PlaylistLocalRepository.kt` (445), `Translations.kt` (437) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **339** en 25 archivos (ejecutados y en verde) |
+| Tests unitarios | **347** en 26 archivos (ejecutados y en verde) |
 | Tests instrumentados útiles | 0 |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso | **0** (antes 22; `TranslationKeysUsageTest`) |
 | Claves referenciadas que no existen | **0** (antes 1: `"Player not available"`) |
 | Build release | **BUILD SUCCESSFUL** (R8 + lint), APK 4,9 MB sin firmar |
 
-**Desglose de los 339 tests** (tras `./run.sh test`, todos en verde):
+**Desglose de los 347 tests** (tras `./run.sh test`, todos en verde):
 
 | Archivo | @Test | Archivo | @Test |
 |---|---|---|---|
@@ -483,19 +488,22 @@ de descartes.
 | `YouTubePlaylistCreatorTest` | 17 | `NewPipeHolderTest` | 3 |
 | `NfcPulseTest` | 11 | `YouTubeFormattingTest` | 11 |
 | `ExportDigestTest` | 11 | `ExampleUnitTest` | 1 |
-| | | `TranslationKeysUsageTest` | 4 |
+| `PlaybackNotificationStateTest` | 8 | `TranslationKeysUsageTest` | 4 |
 
 ---
 
 ## 3. BUGS ACTIVOS
 
-**7** (B49–B55). Los 48 de las tandas anteriores siguen resueltos (§10).
+**6** (B49–B54). Los 48 de las tandas anteriores siguen resueltos (§10).
 
-- Batch del **2026-10-01**, sin arreglar: **B49**–**B54** reportados y **B55**
+- Batch del **2026-10-01**, sin arreglar: **B49**–**B53** reportados y **B54**
   encontrado al verificarlos. Todos verificados **leyendo el código**; no se
   ha compilado ni ejecutado nada (ver la nota del cabecera).
-- Severidad: **5 altos** (B49, B50, B51, B52, B53), **1 medio** (B54),
-  **1 bajo** (B55).
+- Severidad: **5 altos** (B49, B50, B51, B52, B53) y **1 medio** (B54).
+- **Resueltos en la undécima tanda:** ~~**B55**~~ y ~~**B56**~~, los dos bajos de
+  este bloque (la notificación que decía "Plyr / Reproduciendo" al terminar la
+  cola y al abrir la app sin música) — quedan tachados en §3.4, con lo hecho en
+  §10.
 - Los de reproducción (B49, B50) y el de datos (B51) tienen el mismo origen de
   fondo: la **ventana deslizante** de `PlayerViewModel` es la que posee el estado
   real del reproductor, y ni `MusicService` ni la copia de seguridad la tienen en
@@ -781,14 +789,58 @@ séptima tanda junto con B1 (→ §10).
 
 ### 3.4 Bajos
 
-**1 activo.**
+**Ninguno activo.** ~~**B56**~~ y ~~**B55**~~ (la notificación que miente: al
+terminar la cola y al abrir la app sin música) se resolvieron juntos en la
+undécima tanda (→ §10).
 
-#### B55 — Al terminar la cola la notificación "Plyr" se queda puesta
+#### ~~B56~~ — La notificación "Plyr / Reproduciendo" aparece aunque no suene nada — **RESUELTO (undécima tanda)**
 
-**Encontrado** al verificar B50.
+**Reportado** (2026-10-01): "salta una notificación que dice algo de Plyr is
+playing music". **Encontrado** al explicar B55. **Resuelto en la undécima
+tanda** (→ §10).
 
-**Ubicación:** `PlayerViewModel.kt:687-697` (`stopAtQueueEnd`) ·
-`MusicService.kt:85-89,97-98,109-112` · `MusicService.kt:27,46-49` (`ACTION_STOP`) ·
+**Ubicación:** `MainActivity.kt:83-86` · `MusicService.kt:45-65`
+(`createStartupNotification`) · `MusicService.kt:95-107` ·
+`PlayerViewModel.kt:87,184,396,492`.
+
+Es el mismo síntoma que B55 pero por un motivo distinto, y **no es un fallo del
+servicio: es el arranque**.
+
+1. `MainActivity.onCreate` arranca el servicio **siempre**, sin mirar si hay
+   música: `startForegroundService(it)` (`MainActivity.kt:83-86`). O sea, el
+   servicio se promueve a foreground en cuanto se abre la app.
+2. `startForegroundService` **exige** una notificación en los primeros 5 s
+   (`ForegroundServiceStartNotAllowedException` si no), así que `onStartCommand`
+   publica una notificación provisional (`MusicService.kt:52-54`,
+   `createStartupNotification` `:58-65`) que dice literalmente **"Plyr" /
+   "Reproduciendo"** — sin canción y sin `MediaStyle`.
+3. Esa provisional **solo se sustituye** cuando el `PlayerViewModel` invoca
+   `onMediaSessionUpdate` (`PlayerViewModel.kt:184,396,492`), y eso ocurre
+   **al empezar a sonar una pista** (o al saltar). Con la app abierta y nada
+   sonando, la provisional se queda ahí **con `.setOngoing(true)`** (`:63`).
+4. La `MediaSession` real solo se crea en `setupMediaSession`
+   (`MusicService.kt:68-92`), que MainActivity engancha en `onServiceConnected`
+   (`MainActivity.kt:58-60`): o sea, tampoco ayuda hasta que hay una pista.
+
+**Consecuencia para el usuario:** abrir la app sin poner música ya deja una
+notificación persistente que dice "Plyr / Reproduciendo". Si luego no se reproduce
+nada, ahí se queda.
+
+**Arreglo (undécima tanda):** la provisional es **obligatoria** (es lo que
+mantiene el servicio en foreground y evita el crash), así que **no se quita**: lo
+que cambia es que ya no afirma que hay música sonando. Se pinta con el estado
+"idle" (`PlaybackNotificationState.idle`), o sea título = nombre de la app, **sin
+`setOngoing` y sin `MediaStyle`**: no dice "Reproduciendo" y el usuario puede
+descartarla. Cuando arranca una pista, `setupMediaSession` la sustituye por la
+real. Detalle en §10. **Se arregla junto con B55**, que es el mismo
+`createNotification` cayendo en los valores por defecto.
+
+#### ~~B55~~ — Al terminar la cola la notificación "Plyr" se queda puesta — **RESUELTO (undécima tanda)**
+
+**Encontrado** al verificar B50. **Resuelto en la undécima tanda** (→ §10).
+
+**Ubicación (antes del arreglo):** `PlayerViewModel.kt:687-697`
+(`stopAtQueueEnd`) · `MusicService.kt:85-89,97-98,109-112` ·
 `MainActivity.kt:190-196`.
 
 Cuando la cola se acaba, `stopAtQueueEnd()` hace `player.stop()` +
@@ -801,15 +853,23 @@ listener de `MusicService` reconstruye la notificación **con
 permanente, sin canción y sin controles, que solo desaparece al cerrar la app
 desde recientes.
 
-- La acción que lo resolvería ya existe: `ACTION_STOP` (`MusicService.kt:27`,
-  añadida en **B42**) hace `stopForeground(STOP_FOREGROUND_REMOVE)` + `stopSelf()`
-  (`:46-49`), pero **no la manda nadie**: `ACTION_STOP` solo aparece en su
-  definición y en el `if` del propio servicio. La otra vía de retirada es
-  `MainActivity.onDestroy` con `isFinishing` (`:190-196`), que llama a
-  `stopService(...)`, es decir, al cerrar la app.
-- Se arregla en `PlayerViewModel` avisando a `MusicService` al terminar la cola
-  (o equivalente), no desde `MusicService`, que no debe ser dueño del reproductor
-  (§6).
+**Arreglo (undécima tanda):** `updateNotification` ya no reconstruye la
+notificación cuando no hay item en curso: hace `stopForeground(STOP_FOREGROUND_REMOVE)`
+y no vuelve a pintar nada (`MusicService.kt:129-138`). La `MediaSession` **no** se
+libera, así que el siguiente item repinta la notificación con normalidad. La
+decisión de qué pintar se extrajo a `PlaybackNotificationState`
+(`service/PlaybackNotificationState.kt`), que devuelve el estado "idle" cuando no
+hay item: sin `setOngoing`, sin `MediaStyle` y sin decir "Reproducendo". Cubierta
+por `PlaybackNotificationStateTest` (8 tests). Se arregla **sin tocar
+`PlayerViewModel`**: el aviso llega solo, porque `clearMediaItems()` ya dispara
+`onMediaItemTransition(null)` y el listener del servicio lo ve (§6: el servicio
+no debe ser dueño del reproductor, y aquí sigue sin serlo).
+
+> Nota: `ACTION_STOP` (`MusicService.kt:27,46-49`, añadida en **B42**) sigue sin
+> que nadie la mande, pero ya **no hace falta** para esto: `updateNotification`
+> retira la notificación por su cuenta cuando no hay item. La otra vía de
+> retirada es `MainActivity.onDestroy` con `isFinishing` (`:190-196`), que llama
+> a `stopService(...)`, al cerrar la app.
 
 ~~**B39**~~ (`AndroidManifest.xml:54-60`) —`MediaButtonReceiver`
 exportada con intent filter y sin permiso, de modo que cualquier app podía
@@ -966,7 +1026,7 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ## 8. TESTS
 
-- **339 tests unitarios en 25 archivos** (`./run.sh test`, todos en verde;
+- **347 tests unitarios en 26 archivos** (`./run.sh test`, todos en verde;
   +7 respecto al recuento estático de esta revisión por la cobertura de
   tombstones/`deletedPlaylistIds`, luego +4 de formato de vídeo en B27, −13 al
   retirar los de `isValidAudioUrl` en B37, −1/+4 con `parseTimestamp` en B25
@@ -983,7 +1043,9 @@ Dos casos concretos que se ven sin traducir hoy:
   (`SimpleDownloaderLogRedactionTest` 18, `NfcPulseTest` 11 y
   `TranslationKeysUsageTest` 4, los tres ficheros nuevos) y **−4 en T9**: los
   tests de `QueueIndex.needsRefillAfterEnd`, que solo verificaban código que no
-  llama nadie y que se borró con la función.
+  llama nadie y que se borró con la función, y **+8 en T11**:
+  `PlaybackNotificationStateTest` (nuevo, 8), que cubre los dos estados de la
+  notificación de reproducción (con item y "idle") y con ello el B55 y el B56.
 - 0 tests instrumentados útiles: solo `ExampleInstrumentedTest`.
 
 **Gaps relevantes, en orden de daño que hacen:**
@@ -1076,9 +1138,12 @@ comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte 
 4. ~~**F3 — "añadir a lista" en el menú `*`**: **hecho en la décima tanda**
    (2026-10-01, → §10). Era el más fácil de toda la lista: el selector ya existía
    y funcionaba, solo faltaba la entrada en el popup. +15 líneas, 1 entrada.
-5. **B55** — el más pequeño de todos: que `stopAtQueueEnd` avise a `MusicService`
-   (o que la notificación se retire) para que no quede la notificación fantasma
-   "Plyr".
+5. ~~**B55 + B56 — la notificación fantasma.** **Resueltos en la undécima
+   tanda** (→ §10): la decisión de qué pintar se movió a la función pura
+   `PlaybackNotificationState`, y sin item en curso `MusicService` hace
+   `stopForeground(STOP_FOREGROUND_REMOVE)` en vez de repintar. No hace falta
+   tocar `PlayerViewModel`: `clearMediaItems()` ya dispara
+   `onMediaItemTransition(null)`.
 6. **F1 — `liked` vacía no aparece como lista** (§11): filtrarla por
    `trackCount > 0` en `HomeScreen.kt:276-278` y `PlaylistScreen.kt:121-124` sin
    borrar la fila de la base, porque de su existencia dependen `toggleLikeTrack`,
@@ -1357,7 +1422,7 @@ Todos verificados con `./run.sh test` (**310 tests, en verde**) y
 Octava tanda de arreglos (2026-09-30), el cierre: **B32**, el resto de **B20**,
 **B41** verificado de verdad y **§7.1**. Con ella **no quedaba ningún bug
 activo**: 48 de 48 (cifra que se mantuvo hasta el 2026-10-01; ver §3, donde
-aparecen B49–B55).
+aparecen B49–B56).
 Verificado con `./run.sh test` (**343 tests, en verde**), `./run.sh build`
 (BUILD SUCCESSFUL) y, por primera vez, **`./run.sh build release`**
 (BUILD SUCCESSFUL, APK de 22,6 MB → 4,9 MB, sin firmar por falta de keystore).
@@ -1401,7 +1466,8 @@ tests). Nada de esto se ha tocado desde entonces.
 Décima tanda (2026-10-01), **un feature y ningún bug**: se implementa **F3**, la
 única petición de §11 que era solo cablear UI, porque el selector de playlists ya
 existía y funcionaba y solo faltaba la entrada en el menú `*`. Con esto F3 sale de
-§11, pero **B49–B55 siguen todos activos**: esta tanda no toca ninguno.
+§11, pero **B49–B55 seguían todos activos al cerrarla**: esta tanda no toca
+ninguno.
 
 Verificado con `./run.sh test` (**339 tests, en verde**, los mismos que la
 novena: el cambio no altera lógica, así que no hay test nuevo ni que actualizar) y
@@ -1412,10 +1478,25 @@ falta de keystore en local.
 |---|---|---|
 | **F3** | `ui/components/SongListItem.kt:382-396` | El popup del `*` tenía tres acciones (like, `add_to_queue`, `share`) y ahora tiene una cuarta, `add_to_playlist`, que hace `showPopup = false; showPlaylistPicker = true`. Reutiliza el mismo `showPlaylistPicker` que ya abrían las dos ramas de swipe (`:178,195`), así que el selector, su filtro (excluye *liked* y álbumes), el `addTrackToYouTubePlaylist` y el aviso `no_playlists` son exactamente los de antes. Se cierra el popup antes de abrir el selector para que no se solapen dos diálogos. La etiqueta ya estaba en los cuatro idiomas: 0 traducciones nuevas. **+15 líneas, 1 entrada de menú.** |
 
-Con esto queda **1 de las 3 peticiones** cerrada (F3) y **7 bugs abiertos** sin tocar
-(§3). El siguiente de la lista es **B55**, que es el más pequeño de los siete
-(avisar a `MusicService` al terminar la cola para que no quede la notificación
-fantasma); después **B54**, que es un mensaje en el diálogo vacío.
+Undécima tanda (2026-10-01), **B55 + B56 resueltos juntos**: los dos eran la misma
+línea de código —`MusicService` construyendo la notificación sin item en curso y
+cayendo en sus valores por defecto— así que no tenían sentido separarlos. Es el
+arreglo más pequeño de los que quedaban y **no toca `PlayerViewModel`**: el aviso
+de "no hay nada sonando" llega solo, porque `clearMediaItems()` ya dispara
+`onMediaItemTransition(null)`.
+
+Verificado con `./run.sh test` (**347 tests, en verde**: los 339 anteriores más 8
+nuevos) y `./run.sh build` (**BUILD SUCCESSFUL**, APK debug). **No se compiló
+release**, por falta de keystore en local.
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B55** + **B56** | `service/PlaybackNotificationState.kt` (nuevo) · `service/MusicService.kt` · `test/.../PlaybackNotificationStateTest.kt` (nuevo) | La decisión de qué pintar sale del servicio a una función pura `PlaybackNotificationState.of(appName, título, artista)`: con item devuelve título/artista con `ongoing = true` y `MediaStyle`; **sin item** devuelve el estado "idle" (título = nombre de la app, `ongoing = false`, `showMediaStyle = false`), o sea **no dice "Reproduciendo", no es imborrable y no monta controles que no puede resolver**. En `MusicService`, `createNotification` y la provisional `createStartupNotification` pasan a usar ese estado a través de un único `buildNotification`, y `updateNotification` hace `stopForeground(STOP_FOREGROUND_REMOVE)` cuando no hay item en vez de repintar la notificación fantasma. La `MediaSession` no se libera, así que el siguiente item vuelve a pintar la notificación con normalidad. 8 tests nuevos cubren los dos estados, incluidos el título vacío y el artista ausente (que antes caían en "Reproduciendo"). **+85 líneas, −2** |
+
+Con esto quedan **6 bugs abiertos** (B49–B54), 2 de ellos del mismo bloque de
+compartir (B52 + B53 + B54), y **2 peticiones** (F1, F2). El siguiente de la lista
+es **B54**, un mensaje en el diálogo vacío; después el bloque de=share (B52, B53)
+y luego **B49 + B50**, que necesitan el `MediaSession.Callback`.
 
 ---
 

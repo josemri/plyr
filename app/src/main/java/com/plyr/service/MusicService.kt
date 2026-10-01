@@ -56,13 +56,14 @@ class MusicService : Service() {
     }
 
     private fun createStartupNotification(): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText("Reproduciendo")
-            .setOngoing(true)
-            .build()
+        // La provisional la impone `startForegroundService` (sin ella el servicio
+        // no puede quedarse en foreground), pero no debe afirmar que hay música
+        // sonando: con el estado "idle" es descartable y sin controles falsos
+        // (B56).
+        return buildNotification(PlaybackNotificationState.idle(appName()))
     }
+
+    private fun appName(): String = getString(R.string.app_name)
 
     @OptIn(UnstableApi::class)
     fun setupMediaSession(player: ExoPlayer) {
@@ -88,27 +89,52 @@ class MusicService : Service() {
             }
         })
 
-        startForeground(NOTIFICATION_ID, createNotification(player, session))
+        startForeground(NOTIFICATION_ID, buildNotification(notificationState(player)))
+    }
+
+    /**
+     * Estado visible de la notificación a partir del reproductor.
+     *
+     * Sin item en curso devuelve el estado "idle" en vez de un item fantasma:
+     * antes caía en los valores por defecto ("Plyr" / "Reproduciendo") y, con
+     * `setOngoing(true)`, se quedaba puesta para siempre (B55, B56).
+     */
+    private fun notificationState(player: ExoPlayer): PlaybackNotificationState {
+        val item = player.currentMediaItem
+        return PlaybackNotificationState.of(
+            appName = appName(),
+            itemTitle = item?.mediaMetadata?.title?.toString(),
+            itemArtist = item?.mediaMetadata?.artist?.toString(),
+        )
     }
 
     @OptIn(UnstableApi::class)
-    private fun createNotification(player: ExoPlayer, session: MediaSession): Notification {
-        val item = player.currentMediaItem
-        val title = item?.mediaMetadata?.title?.toString() ?: "Plyr"
-        val artist = item?.mediaMetadata?.artist?.toString() ?: "Reproduciendo"
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun buildNotification(state: PlaybackNotificationState): Notification {
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle(title)
-            .setContentText(artist)
-            .setStyle(MediaStyleNotificationHelper.MediaStyle(session))
-            .setOngoing(true)
-            .build()
+            .setContentTitle(state.title)
+            .setContentText(state.text)
+            .setOngoing(state.ongoing)
+
+        // El `MediaStyle` solo se monta si hay una sesión con items: sin ellos el
+        // sistema no pintaría botones, pero el estilo vacío era lo que dejaba la
+        // notificación fantasma.
+        val session = mediaSession
+        if (state.showMediaStyle && session != null) {
+            builder.setStyle(MediaStyleNotificationHelper.MediaStyle(session))
+        }
+        return builder.build()
     }
 
     private fun updateNotification(player: ExoPlayer) {
-        val session = mediaSession ?: return
-        startForeground(NOTIFICATION_ID, createNotification(player, session))
+        val state = notificationState(player)
+        if (!state.showMediaStyle) {
+            // No hay nada sonando: mejor no dejar nada colgado. La sesión sigue
+            // viva para que el próximo item repinte la notificación.
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            return
+        }
+        startForeground(NOTIFICATION_ID, buildNotification(state))
     }
 
     override fun onDestroy() {
