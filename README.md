@@ -72,8 +72,22 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md) (48/48 bugs resolved, none open). This section only lists what is left.
+Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **48 bugs resolved, 7 open** (`B49`–`B55`), plus the feature requests in report §11.
 
+- [ ] **Share** — the URLs that go into the QR / the NFC tag / the recommendation feed are wrong (`B52`, `B53`, `B54`)
+  - [ ] A track shares its **YouTube** video, not the row id it has in the database (today: `youtube.com/watch?v=spotify_…`, built from `remoteTrackId`)
+  - [ ] A playlist imported from **Spotify** shares `open.spotify.com/playlist/<id>`; the origin is stored instead of inferred from the `youtube_` prefix
+  - [ ] `liked_songs` and locally created lists don't offer a share at all, and the dialog says so instead of opening empty when there is no video
+- [ ] **Playback** — previous/next from the notification don't go through the queue (`B49`, `B50`, `B55`)
+  - [ ] The media session routes `seekToNext` / `seekToPrevious` to `QueueIndex` instead of letting ExoPlayer move inside its sliding window
+  - [ ] The notification is rebuilt on timeline changes too, so the **next** button doesn't vanish after two skips in a row
+  - [ ] Going back doesn't leave the prepared window (today it re-resolves over the network with the controls disabled) and never skips *forward* when the previous track fails to resolve
+  - [ ] The lingering "Plyr" notification is removed when the queue ends — **next one up, it's the smallest of the seven**
+- [ ] **Sync** — a liked track you deleted comes back from the zip (`B51`)
+  - [ ] Decide the policy: tombstones per liked track, or a `liked_songs` digest, so a local deletion wins without breaking the restore-a-fresh-install case
+- [ ] **Wanted behaviour / small features**
+  - [ ] `liked` only shows up as a playlist while it has songs (filter it out of the two listings, don't drop the row)
+  - [x] ~~**add to list** in the `*` menu~~ — done, the `*` menu now opens the existing playlist picker
 - [ ] **Apply report.md** — remaining refactors and polish from the audit
   - [ ] Move the UI literals that don't go through `Translations` to real keys (report §7.1)
   - [ ] Reduce the request/response body logs in `SupabaseClient` (S7: PII in logcat)

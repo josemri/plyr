@@ -379,6 +379,21 @@ fun SongListItem(
                                 .padding(vertical = 4.dp)
                         )
 
+                        // Add to Playlist (abre el selector que ya usa el swipe)
+                        Text(
+                            text = Translations.get(context, "add_to_playlist"),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Normal,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showPopup = false
+                                    showPlaylistPicker = true
+                                }
+                                .padding(vertical = 4.dp)
+                        )
+
                         // Share
                         Text(
                             text = Translations.get(context, "share"),

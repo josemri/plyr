@@ -42,7 +42,8 @@
 > **B4**, **B5**, **B6**, **B39**, **B48**— y en una octava el cierre —
 > **B20** (animación de `NfcButton`), **B32** (los datos), **B41** (build release,
 > que estaba roto), **§7.1** (traducciones)—; todos están documentados en
-> **§10** (**48 resueltos, 0 activos**) y el total de tests pasó de 288 a
+> **§10** (**48 resueltos y 0 activos** en esa fecha; desde el 2026-10-01 hay
+> 7 activos nuevos en §3) y el total de tests pasó de 288 a
 > **339**. En T8 se añadieron tres ficheros nuevos —
 > `SimpleDownloaderLogRedactionTest` (18), `NfcPulseTest` (11) y
 > `TranslationKeysUsageTest` (4)— y `TranslationsTest` dejó de exigir la clave
@@ -64,7 +65,45 @@
 >
 > Lo único que queda abierto ya **no es un bug**: la lista de literales de
 > interfaz que no pasan por `Translations` (§7.1), que es un refactor de
->Amplio alcance y no un fallo.
+> amplio alcance y no un fallo.
+
+> **Actualización (2026-10-01).** Nueva tanda de **reporte**, sin arreglos: se
+> han vuelto a reportar tres fallos de reproducción/sincronización y tres
+> comportamientos de compartir, y se ha añadido una petición de funcionalidad.
+> Todos se han **verificado leyendo el código**, no ejecutando la app: **no se
+> ha compilado ni se ha pasado ningún test**, tal como se pidió, así que las
+> cifras de tests de abajo (339) son las de la última tanda y **no** han
+> cambiado.
+>
+> - **7 bugs activos nuevos, B49–B55**: cinco reportados (**B49**–**B53**) y
+>   dos que salieron al revisarlos (**B54**, diálogo de compartir vacío, y
+>   **B55**, notificación fantasma al terminar la cola). El botón de anterior
+>   no vuelve a la canción anterior (**B49**), el botón de siguiente desaparece
+>   de la notificación tras dos skips seguidos (**B50**), el sync resucita los
+>   favoritos que se han borrado (**B51**), el share de una canción comparte un
+>   id que no es de YouTube (**B52**), el share de una lista construye una URL
+>   inválida (**B53**), el diálogo de compartir se abre vacío cuando no hay URL
+>   (**B54**) y la notificación "Plyr" se queda puesta al terminar la cola
+>   (**B55**). Detalle en §3, Arrangement en §9.
+> - **3 peticiones de comportamiento/funcionalidad** en §11: que `liked` vacía
+>   no aparezca como lista (**F1**), el criterio de qué URL debe compartirse
+>   (**F2**, que es B52 + B53) y el "añadir a lista" en el menú `*` (**F3**) —
+>   **F3 ya resuelta** en la décima tanda (→ §10), F1 y F2 siguen abiertas.
+> - El **B49** y el **B50** comparten el mismo defecto de fondo que §6 ya
+>   señalaba: `MusicService` no registra ningún `MediaSession.Callback`, así
+>   que los botones de la notificación y del lockscreen mueven ExoPlayer por
+>   dentro de la ventana deslizante en vez de pasar por `QueueIndex`. Ya no es
+>   una nota de arquitectura: tiene dos síntomas reproducibles.
+> - La numeración **B49+** es nueva y no guarda relación con los B1–B48 de las
+>   tandas anteriores, que siguen resueltos (§10).
+> - **Al re-verificar B49–B53 para documentarlos han salido dos bugs más que no
+>   estaban en el reporte: B54 y B55.** No se contaban antes, no se han arreglado
+>   (esta tanda no toca código) y por eso el total activo es 7, no 5.
+> - **Décima tanda (2026-10-01): F3 implementada.** Se ha arreglado lo más fácil
+>   de todo lo pendiente (el "añadir a lista" del menú `*`, que solo era cablear
+>   UI), con `./run.sh test` (339, en verde) y `./run.sh build` (BUILD
+>   SUCCESSFUL). **Los 7 bugs siguen abiertos**, porque no se ha tocado ninguno.
+>   Detalle en §10.
 
 ---
 
@@ -382,17 +421,21 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **0 bugs de cualquier severidad**: los 48 están resueltos (§3 y §10).
-- **339 tests unitarios** en 25 archivos (`./run.sh test`; todos en verde).
-  Respecto a la tanda anterior: +4 de `parseTimestamp` (B25: `isoWithOffset`,
-  `invalidReturnsZeroNotNow`, `blankReturnsZero`, `rejectsTrailingGarbage`), −1
-  que consolidaba el "ahora falso" (`parseTimestamp_invalidFallsBackToNow`), +3
-  en T5 (`build_reportsDiscardedTracks`, `build_cancelledScopeStopsResolving` y
-  `trackEntity_toAppTrack_carriesYoutubeVideoIdAndPosition`), **+16 en T6**
-  (el fichero nuevo `AudioUrlExtractionTest` (9) y 7 de identidad de favoritos en
-  `DatabaseMappingsTest`, que pasa de 14 a 21) y **+33 en T8**
-  (`SimpleDownloaderLogRedactionTest` 18, `NfcPulseTest` 11,
-  `TranslationKeysUsageTest` 4).
+- **7 bugs activos, B49–B55**: cinco reportados (B49, B50, B51, B52, B53) más
+  dos que aparecieron al verificarlos (B54, diálogo vacío; B55, notificación
+  fantasma al terminar la cola). Severidad: 5 altos, 1 medio y 1 bajo. **Ninguno
+  arreglado todavía**: la décima tanda (2026-10-01) solo implementó F3. Los 48 de
+  las tandas anteriores siguen resueltos (§10). Detalle en §3.
+- **2 peticiones abiertas** de funcionalidad/comportamiento (§11): F1 (`liked`
+  vacía no debería aparecer) y F2 (qué URL se comparte, que es B52 + B53).
+  **F3** ("añadir a lista" en el menú `*`) está **resuelta** en la décima tanda
+  (→ §10): era la más fácil de las tres, solo una entrada de menú.
+- **7 bugs activos** (B49–B55) **sin tocar**: la décima tanda no arregló ninguno,
+  solo implementó F3.
+- **339 tests unitarios** en 25 archivos (`./run.sh test`; todos en verde en la
+  última tanda). **No se han vuelto a ejecutar**: esta tanda es solo de
+  reporte, sin cambios de código, así que el desglose por fichero de más abajo
+  sigue siendo el válido.
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
 - **Código muerto: el que la auditoría listeó, borrado en T9** (`SongMenuDialog`,
   `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`,
@@ -446,21 +489,242 @@ de descartes.
 
 ## 3. BUGS ACTIVOS
 
-**Ninguno.** Los 48 bugs verificados están resueltos (§10). El **B32**, único
-activo hasta la octava tanda, se cerró junto con el resto de B20 y con §7.1; sus
-filas se conservan abajo con la referencia de dónde estaba el fallo, y el detalle
-de lo hecho está en §10.
+**7** (B49–B55). Los 48 de las tandas anteriores siguen resueltos (§10).
+
+- Batch del **2026-10-01**, sin arreglar: **B49**–**B54** reportados y **B55**
+  encontrado al verificarlos. Todos verificados **leyendo el código**; no se
+  ha compilado ni ejecutado nada (ver la nota del cabecera).
+- Severidad: **5 altos** (B49, B50, B51, B52, B53), **1 medio** (B54),
+  **1 bajo** (B55).
+- Los de reproducción (B49, B50) y el de datos (B51) tienen el mismo origen de
+  fondo: la **ventana deslizante** de `PlayerViewModel` es la que posee el estado
+  real del reproductor, y ni `MusicService` ni la copia de seguridad la tienen en
+  cuenta (§6, nota de `MediaSession`).
 
 ### 3.1 Críticos
 
 Ninguno. La reproducción tenía errores reales (§3.2) pero todos degradaban o se
 recuperaban solos; ninguno corrompía datos de forma irreversible salvo B1 (que sí
-tocaba la tabla de favoritos, y por eso estaba en altos).
+tocaba la tabla de favoritos, y por eso estaba en altos). **B51 sí toca datos**,
+pero es recuperable a mano (volver a quitar el favorito y volver a sincronizar
+con el ZIP ya borrado), así que queda en altos y no en críticos.
 
 ### 3.2 Altos
 
-Ninguno activo. ~~B1, B2, B4, B5 y B6~~ se resolvieron en la séptima tanda
-(→ §10). Se conservan aquí las filas originales como referencia:
+**5 activos.**
+
+#### B49 — El botón de anterior solo reinicia la canción y no vuelve a la anterior
+
+**Reportado:** al darle, la canción vuelve al principio; a la anterior no llega.
+
+**Ubicación:** `PlayerViewModel.kt:249-257` (`navigateToPrevious`) ·
+`QueueIndex.kt:19,45-57` (`previousIndex`) · `PlayerViewModel.kt:421-503`
+(`playIndex`) · `:566-573` (`trimWindow`) · `MusicService.kt:68-92` (sin
+callback de sesión).
+
+El síntoma tiene cuatro causas que se suman. Las tres primeras son de
+`PlayerViewModel`; la cuarta es de la notificación.
+
+1. **El umbral de 3 s es intencionado y funciona** (`QueueIndex.kt:19,52`):
+   si `positionMs > 3_000`, `previousIndex` devuelve el índice actual y
+   `navigateToPrevious` responde con `seekTo(0L)` (`:252-254`). Es el
+   comportamiento de cualquier reproductor y está certificado por
+   `QueueIndexTest.previous_siLaCancionHaEmpezado_reinicia`. **No es el bug**,
+   pero condiciona todo lo demás: como desde cualquier posición de escucha la
+   primera pulsación solo reinicia, y la segunda es cara (causa 2), el botón
+   *parece* no ir nunca hacia atrás.
+2. **Volver a la anterior solo es instantáneo si la anterior sigue en la ventana;
+   cuando no lo está, hay que re-resolverla por red.** `trimWindow()`
+   (`:566-573`) borra los items ya superados en **cada** transición, y en las
+   automáticas eso deja `windowStart == currentIndex` exactamente: la canción
+   anterior ya no está preparada. Entonces `playIndex` calcula
+   `windowPosition = (currentIndex - 1) - windowStart < 0` (`:429-436`) y cae en
+   la ruta asíncrona: `transitionInFlight = true` y `resolving = true` →
+   `_isLoading` pasa a `true` → **los tres botones de reproducción quedan
+   deshabilitados** (`FloatingMusicControls.kt:431,441,453`) y una segunda
+   pulsación se ignora en silencio (`:422`). Entre la pulsación y el salto hay una
+   búsqueda en YouTube **y** una extracción de URL por canción
+   (`resolveItems`, `:584-625`): segundos de spinner con los controles muertos.
+   - Y si esa canción no se resuelve, el bucle `while (resolved.isEmpty())` de
+     `playIndex` (`:455-473`) **salta hacia delante** buscando la siguiente que sí
+     (`candidate = QueueIndex.nextIndex(...)`), así que un "atrás" acaba sonando
+     una canción distinta, sin avisar.
+   - O sea: el `<<` funciona de verdad solo en el caso que ya no ocurre al
+     escuchar una lista (transición automática), y en el resto depende de una
+     resolución por red con los controles apagados.
+3. **En la primera posición no hace nada.** Con la repetición apagada,
+   `previousIndex(0, …)` devuelve `null` (`QueueIndex.kt:55`) y
+   `navigateToPrevious` hace `return`: ni hacia atrás ni reinicio, incoherente
+   con el caso de >3 s.
+4. **El `<<` de la notificación no pasa por `QueueIndex`.** `MusicService` no
+   registra ningún `MediaSession.Callback` (§6), así que
+   `COMMAND_SEEK_TO_PREVIOUS` lo mueve ExoPlayer directamente. Como la ventana no
+   tiene items anteriores (`trimWindow`), `hasPreviousMediaItem()` es `false`:
+   el botón no hace nada, o el sistema directamente no lo muestra.
+
+#### B50 — El botón de siguiente desaparece de la notificación tras dos skips seguidos
+
+**Reportado:** al skipear dos canciones seguidas, el botón de siguiente de la
+notificación de Android desaparece.
+
+**Ubicación:** `MusicService.kt:85-89,109-112` (la notificación solo se
+reconstruye en `onMediaItemTransition`) · `PlayerViewModel.kt:421-436`
+(`playIndex` en ventana) · `:509-560` (`growWindow`, cancelación del relleno) ·
+`:566-573` (`trimWindow`).
+
+1. **La notificación solo se refresca en los cambios de pista.**
+   `MusicService` añade un único `Player.Listener` y solo implementa
+   `onMediaItemTransition` (`:85-89`), que es lo único que llama a
+   `updateNotification` (`:109-112`). No hay reacción a `onTimelineChanged`, ni
+   al play/pause, ni al final de la cola: lo que no pase por una transición se
+   queda congelado en la notificación.
+2. **El reproductor solo tiene 3 items preparados** (`WINDOW_AHEAD = 2`,
+   `PlayerViewModel.kt:51`, más el actual) y `trimWindow()` (`:566-573`) quita
+   uno por cada salto. En la ruta "el destino está en la ventana",
+   `growWindow()` se llama **antes** de que el `seekTo` se aplique (`:432-434`):
+   `player.currentMediaItemIndex` sigue siendo el índice anterior, `trimWindow`
+   no recorta y `missing` sale 0, así que el **primer** skip solo lanza un
+   relleno anticipado (`3-3`).
+3. **El segundo skip sí recorta y mata el relleno en vuelo.** El índice ya está
+   actualizado, `trimWindow` quita el item anterior (`windowStart` avanza) y el
+   rango pedido pasa de `3-3` a `3-4`, que ya no coincide con `prefetchRange`:
+   `prefetchJob?.cancel()` (`:536`) mata la extracción en marcha y lanza otra
+   (`3-4`). **Entre el recorte y el `addMediaItems` del relleno al reproductor
+   solo le queda el item actual**, así que `hasNextMediaItem()` es `false` y la
+   notificación, que la transición ya ha reconstruido, **oculta el botón de
+   siguiente**. Por eso hace falta **dos** skips seguidos: es el segundo el que
+   produce el hueco.
+4. **El botón no vuelve cuando llega el relleno.** `_exoPlayer?.addMediaItems(contiguous)`
+   (`:555`) solo dispara `onTimelineChanged`, que nadie escucha para la
+   notificación. El botón reaparece en la siguiente transición; con la app
+   cerrada no hay ninguna, así que **desde la notificación no se puede avanzar**
+   (el `>>` de la app sí funciona, porque va por `QueueIndex`, `navigateToNext`
+   `:244-247`).
+5. **Si el relleno falla, el hueco es permanente.** `contiguous.isEmpty()` →
+   `return@launch` (`:553`) y la ventana no vuelve a crecer hasta la siguiente
+   transición. Es el caso normal en las listas importadas de Spotify, donde
+   muchas pistas se guardan con `youtubeVideoId = null`
+   (`SpotifyImporter.kt:145-159`) y hay que resolverlas por búsqueda: si esa
+   búsqueda falla, el botón de siguiente desaparece aunque la cola tenga
+   canciones, y no hay `growWindow()` que lo intente otra vez hasta que cambie
+   de pista.
+
+#### B51 — El sync vuelve a aplicar los favoritos que se han borrado en la app
+
+**Reportado:** al darle a sync se aplican los guardados del ZIP aunque se hayan
+borrado de la app. **Solo lo ha notado en *liked songs*.**
+
+**Ubicación:** `DataSync.kt:191,259-292` (la fusión va **antes** de escribir, en
+cada sync) · `DataImporter.kt:93-100,180-185` · `ImportManifest.kt:155` ·
+`PlaylistLocalRepository.kt:294-323` (`mergeLikedSongsTracks`) ·
+`PlaylistLocalRepository.kt:271-275` + `Config.kt:383-389` (tomb de *listas*).
+
+1. **Cada sync fusiona la copia de la carpeta antes de escribir**
+   (`DataSync.flush` → `mergeArchiveFromFolder`, `DataSync.kt:191`), tanto desde
+   el botón de Ajustes (`force = true`) como en el volcado automático. La fusión
+   es una **unión**: no compara lo que había en el ZIP con lo que hay ahora en la
+   app, así que no hay forma de que un borrado local gane.
+2. **`liked_songs` nunca se sobrescribe y la fusión solo añade.**
+   `ImportManifest.plan` marca `liked_songs` siempre como `MergeLikedSongs`
+   (`ImportManifest.kt:155`) y `mergeLikedSongsTracks`
+   (`PlaylistLocalRepository.kt:294-323`) inserta `fresh = tracks.filter { known.add(...) }`:
+   lo que el usuario quitó ya no está en `known`, así que **se reinserta** con un
+   id nuevo (`liked_songs_<remoteTrackId>_<position>`, `:309`).
+3. **El borrado sí viaja para las listas, y por eso solo se nota en favoritos.**
+   Para una lista borrada hay tomb (`Config.addDeletedPlaylistId`,
+   `PlaylistLocalRepository.rememberDeletion` `:271-275`) que viaja en
+   `deletedPlaylistIds` del manifiesto; y para las pistas *de una lista*, el
+   borrado se respeta sin más porque las listas que ya existen se saltan
+   (`PlaylistAction.Skip(ALREADY_EXISTS)`). **No existe nada equivalente para las
+   pistas de `liked_songs`**: ni tomb, ni digest de favoritos, ni nada que
+   distinga "favorito que el ZIP no conoce" de "favorito que este dispositivo
+   borró a propósito".
+4. **El resurreto se consolida en el propio sync.** `mergeLikedSongsTracks`
+   llama a `markDirty()` (`:321`) y el `flush` que lo provocó escribe después el
+   estado **ya fusionado** (`DataSync.kt:193-206`), así que la canción vuelve
+   también al ZIP: no es un fallo de una sincronización, es un borrado que ya no
+   se puede propagar nunca.
+
+> **Aviso de diseño para el arreglo:** la fusión aditiva es justo lo que
+> permite que una instalación nueva recupere la copia buena en vez de pisarla
+> (`DataSync.kt:88-97`), así que la solución no puede ser "el archivo gana" sin
+> más. Las dos vías limpias son un **tomb de favoritos por clave**
+> (`youtubeVideoId`, o nombre+artista con `ImportManifest.fallbackDedupeKey`)
+> que viaje en el manifiesto como campo aditivo, igual que `deletedPlaylistIds`;
+> o un **digest de `liked_songs`** en `ExportDigest` que permita distinguir las
+> dos situaciones. Ambas exigen tocar `ExportManifest` + `ImportManifest` +
+> `ExportDigest` y sus tests (`ExportManifestTest` 24, `ImportManifestTest` 30,
+> `ExportDigestTest` 11).
+
+#### B52 — El share de una canción comparte un id que no es el de YouTube
+
+**Reportado:** el share está roto con canciones importadas de Spotify; debería
+compartir la canción de YouTube, no el id de Spotify.
+
+**Ubicación:** `PlaylistScreen.kt:799,862` (construcción de la URL) ·
+`SongListItem.kt:402-413` · `QRDialog.kt:115-128` (precedencia) ·
+`DatabaseExtensions.kt:17-26` (`AppTrack.id` = `remoteTrackId`) ·
+`SpotifyImporter.kt:137,151`.
+
+1. **La URL se construye con el id equivocado.** `PlaylistScreen.kt:799` y
+   `:862` hacen `shareUrl = "https://www.youtube.com/watch?v=${track.id}"`, pero
+   `track` es un `AppTrack` y `AppTrack.id` es `TrackEntity.remoteTrackId`
+   (`DatabaseExtensions.toAppTrack`, `:19`). En las listas importadas de Spotify
+   ese campo es `spotify_<hashTitulo>_<hashArtistas>_<índice>`
+   (`SpotifyImporter.kt:137,151`), así que lo que se comparte —QR, texto y NFC— es
+   `https://www.youtube.com/watch?v=spotify_1234567_-987654_3`, un enlace que no
+   existe. En favoritos y en las listas creadas a mano pasa igual: ahí el
+   `remoteTrackId` es el título de la canción o un id sintético.
+2. **El id correcto ya viaja y se descarta.** Las dos llamadas pasan también
+   `youtubeId = track.youtubeVideoId` (`:798`, `:861`), pero `ShareDialog` da
+   prioridad a `shareUrl` (`QRDialog.kt:115`, `item.shareUrl ?: when { … }`), así
+   que el `youtubeId` **nunca** se usa cuando hay `shareUrl`. Basta con dejar
+   `shareUrl = null` y construir la URL en el diálogo (o al revés) para que el
+   valor bueno llegue.
+3. **Solo funciona donde el id sí es de YouTube.** Los resultados de búsqueda
+   (`SearchScreen.kt:453-454`, `YouTubeSearchResults.kt:226-227`,
+   `YouTubePlaylistDetailView.kt:232-233`, `PlaylistScreen.kt:724-725`,
+   `:1247-1248`, `:1298-1299`) construyen la URL con el `videoId` real, y ahí el
+   share es correcto. Las rutas rotas son exactamente las dos que leen pistas de
+   la base de datos.
+4. **El efecto no se queda en el diálogo:** la misma URL rota se escribe en el
+   tag NFC (`QRDialog.kt:145-155`) y se sube a Supabase como recomendación
+   (`QRDialog.kt:318-323`), así que el feed público recibe enlaces que no abren.
+
+#### B53 — El share de una lista construye una URL inválida
+
+**Reportado:** con playlist importada de Spotify el share está roto; debería
+compartir la URL de Spotify.
+
+**Ubicación:** `PlaylistScreen.kt:951-964` (qué se pasa) · `:392-400` (el botón
+se muestra siempre) · `QRDialog.kt:118-126` (la heurística de prefijos) ·
+`SpotifyImporter.kt:76,168,171` (el `remoteId` y la marca de origen).
+
+El diálogo recibe `youtubeId = selectedPlaylist.id.removePrefix("youtube_")` y
+decide con prefijos: si empieza por `PL`/`UU`/`FL`/`RD` arma una
+`youtube.com/playlist?list=…`, y si no, una `youtube.com/watch?v=…`
+(`QRDialog.kt:118-126`). Con lo que hay hoy en la base de datos:
+
+| Lista | `remoteId` | URL que se comparte | ¿Correcta? |
+|---|---|---|---|
+| Playlist real de YouTube | `youtube_PLxxxx` | `youtube.com/playlist?list=PLxxxx` | sí, y solo por el prefijo |
+| **Importada de Spotify** | `youtube_<idSpotify22>` | `youtube.com/watch?v=<idSpotify22>` | **no** — debería ser `open.spotify.com/playlist/<id>` |
+| **Favoritos** | `liked_songs` | `youtube.com/watch?v=liked_songs` | **no** — no hay nada que compartir |
+| Creada en la app | `youtube_yt_<timestamp>` | `youtube.com/watch?v=yt_1759…` | **no** — id interno |
+
+- El único rastro de que una lista viene de Spotify es
+  `description = "Imported from Spotify"` (`SpotifyImporter.kt:171`), porque el
+  id se guarda con el prefijo `youtube_` (`:76,168`): no hay ninguna columna que
+  diga "origen". Y la URL que debería compartirse es justo la que la propia app
+  sabe leer (`UrlParser.parseScanText` reconoce `spotify.com/playlist/<id>` →
+  `ScanResult("spotify", "playlist", id)`, `UrlParser.kt:52-56`).
+- El botón `<share>` se añade siempre que `!isEditing`, sin mirar qué lista es
+  (`PlaylistScreen.kt:392-400`), así que la lista de favoritos también ofrece
+  compartir y produce un QR a una página inexistente.
+
+Referencia histórica: ~~**B1**~~, ~~**B2**~~, ~~**B4**~~, ~~**B5**~~ y ~~**B6**~~
+se resolvieron en la séptima tanda (→ §10). Se conservan aquí las filas
+originales como referencia:
 
 | # | Ubicación | Descripción |
 |---|---|---|
@@ -472,9 +736,41 @@ Ninguno activo. ~~B1, B2, B4, B5 y B6~~ se resolvieron en la séptima tanda
 
 ### 3.3 Medios
 
-Ninguno activo. ~~**B32**~~ (`SimpleDownloader.kt:32`, `:49-59`, `:61`) —el mapa
-de cookies era un `mutableMapOf` plano leído desde todos los hilos de red, y se
-logueaban cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir
+**1 activo.**
+
+#### B54 — El diálogo de compartir se abre vacío cuando no hay URL
+
+**Encontrado** al verificar B52/B53.
+
+**Ubicación:** `QRDialog.kt:115-128,225,258,302` · `QueueScreen.kt:60-67` ·
+`PlayerViewModel.kt:114` (dónde está el id bueno) · `SpotifyImporter.kt:145-159`.
+
+`ShareDialog` solo dibuja el QR, el `<share>`, el NFC y el `<recomendar>` cuando
+`shareUrl != null` (`QRDialog.kt:225,258,302`). Si es `null`, lo que queda es un
+`Card` con padding: **un diálogo en blanco**, sin QR, sin botón de compartir y sin
+ningún mensaje que explique por qué. No hay estado de error para ese caso.
+
+- **Se llega desde la cola**, que es el único sitio donde `shareUrl` **y**
+  `youtubeId` acaban a la vez en `null`: allí se pasa `shareUrl = null` a
+  propósito (`QueueScreen.kt:66`, con el comentario *"TrackEntity no tiene
+  shareUrl"*) y `youtubeId = track.youtubeVideoId`, que es `null` en
+  cualquier pista guardada sin coincidencia en YouTube — o sea, buena parte de
+  las listas importadas de Spotify (`SpotifyImporter.kt:145-159` guarda
+  `youtubeVideoId = null` cuando la búsqueda falla) y de los favoritos hechos
+  desde ellas.
+  Los otros tres `shareUrl = null` del repo no llegan aquí: `ConfigScreen.kt:634`
+  es `ShareType.APP` (cae en el enlace de GitHub), y
+  `YouTubePlaylistDetailView.kt:255` y `PlaylistScreen.kt:956` pasan siempre
+  `youtubeId` no nulo.
+- **El id que sí sirve no está a mano.** La pantalla de cola construye su `Song`
+  desde el `TrackEntity` de la base de datos, pero el vídeo que está sonando se
+  resolvió en memoria: vive en `PlayerViewModel.resolvedVideoId`
+  (`PlayerViewModel.kt:114`), que `QueueScreen` no consulta. O sea, el dato
+  correcto existe, pero no llega al diálogo.
+
+~~**B32**~~ (`SimpleDownloader.kt:32`, `:49-59`, `:61`) —el mapa de cookies era
+un `mutableMapOf` plano leído desde todos los hilos de red, y se logueaban
+cookies (`:101`) y cabeceras completas (`:113-117`), que pueden incluir
 `Authorization`— se resolvió en la octava tanda: `ConcurrentHashMap`, cookies
 redactadas por nombre, valores sensibles de cabecera ocultos y ningún volcado del
 cuerpo de respuesta (→ §10).
@@ -485,7 +781,37 @@ séptima tanda junto con B1 (→ §10).
 
 ### 3.4 Bajos
 
-Ninguno activo. ~~**B39**~~ (`AndroidManifest.xml:54-60`) —`MediaButtonReceiver`
+**1 activo.**
+
+#### B55 — Al terminar la cola la notificación "Plyr" se queda puesta
+
+**Encontrado** al verificar B50.
+
+**Ubicación:** `PlayerViewModel.kt:687-697` (`stopAtQueueEnd`) ·
+`MusicService.kt:85-89,97-98,109-112` · `MusicService.kt:27,46-49` (`ACTION_STOP`) ·
+`MainActivity.kt:190-196`.
+
+Cuando la cola se acaba, `stopAtQueueEnd()` hace `player.stop()` +
+`clearMediaItems()` (`:689-691`). Eso dispara `onMediaItemTransition(null)`, y el
+listener de `MusicService` reconstruye la notificación **con
+`currentMediaItem == null`**, así que cae en los valores por defecto: título
+`"Plyr"` y texto `"Reproduciendo"` (`MusicService.kt:97-98`) sobre un
+`MediaStyle` sin items. Y como la notificación se construye con
+`.setOngoing(true)` (`:104`), **no se va sola**: queda una notificación
+permanente, sin canción y sin controles, que solo desaparece al cerrar la app
+desde recientes.
+
+- La acción que lo resolvería ya existe: `ACTION_STOP` (`MusicService.kt:27`,
+  añadida en **B42**) hace `stopForeground(STOP_FOREGROUND_REMOVE)` + `stopSelf()`
+  (`:46-49`), pero **no la manda nadie**: `ACTION_STOP` solo aparece en su
+  definición y en el `if` del propio servicio. La otra vía de retirada es
+  `MainActivity.onDestroy` con `isFinishing` (`:190-196`), que llama a
+  `stopService(...)`, es decir, al cerrar la app.
+- Se arregla en `PlayerViewModel` avisando a `MusicService` al terminar la cola
+  (o equivalente), no desde `MusicService`, que no debe ser dueño del reproductor
+  (§6).
+
+~~**B39**~~ (`AndroidManifest.xml:54-60`) —`MediaButtonReceiver`
 exportada con intent filter y sin permiso, de modo que cualquier app podía
 inyectar `ACTION_MEDIA_BUTTON`— se resolvió en la séptima tanda poniéndola a
 `exported="false"`: el sistema y la propia app siguen llegándole con los botones
@@ -700,6 +1026,63 @@ Dos casos concretos que se ven sin traducir hoy:
 ---
 
 ## 9. HOJA DE RUTA
+
+### Fase 0 — Re-reportado el 2026-10-01 (lo primero, por impacto directo)
+
+Ordenado por lo que más molesta al uso diario. Los arrangements de B49 y B50
+comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte a
+`QueueIndex`), así que conviene hacerlos juntos.
+
+1. **B52 + B53 + B54 — el share.** Es lo más barato y lo más visible:
+   - Dejar de construir la URL en la pantalla y decidirla **una sola vez** en
+     `ShareDialog` (`QRDialog.kt:115-128`), que hoy da prioridad a `shareUrl` y
+     por eso descarta el `youtubeVideoId` correcto que ya viaja. Con
+     `shareUrl = null` en `PlaylistScreen.kt:799,862` el caso de la canción se
+     resuelve solo (usa `youtubeVideoId`).
+   - Para la lista, dejar de deducir el tipo de URL por prefijos
+     (`QRDialog.kt:118-126`): decidir con el origen real de la lista. Como hoy
+     el único dato es `description == "Imported from Spotify"`
+     (`SpotifyImporter.kt:171`), lo serio es **persistir el origen**
+     (columna `source`/`sourceId` en `PlaylistEntity`, con su migración de Room)
+     y compartir `open.spotify.com/playlist/<id>` para lo importado, la URL de
+     YouTube para lo guardado de YouTube, y **no ofrecer compartir** en
+     `liked_songs` ni en las listas creadas localmente sin origen.
+   - B54: cuando no haya URL, `ShareDialog` debe decirlo ("esta canción no tiene
+     vídeo de YouTube") en vez de abrir un `Card` vacío, y `QueueScreen` puede
+     tomar el id de `PlayerViewModel.resolvedVideoId` (`:114`) para el caso de
+     las pistas resueltas por búsqueda.
+   - Tests: `ShareUrlPolicy` como objeto puro (tipo de URL a partir de
+     origen + id) con cobertura de las cuatro filas de la tabla de B53.
+2. **B51 — los favoritos borrados vuelven al sincronizar.** Requiere decidir la
+   política **antes** de escribir código (ver el aviso de diseño en §3.2): tomb de
+   favoritos por clave (`youtubeVideoId` o `fallbackDedupeKey`) o digest de
+   `liked_songs` en `ExportDigest`. Campo aditivo en el manifiesto, formato v1
+   intacto, como se hizo con `deletedPlaylistIds`. Toca `ExportManifest`,
+   `ImportManifest`, `ExportDigest` y sus tres ficheros de test.
+3. **B49 + B50 — anterior y siguiente.** Pieza común: un
+   `MediaSession.Callback` en `MusicService` que redirija
+   `COMMAND_SEEK_TO_NEXT` / `COMMAND_SEEK_TO_PREVIOUS` a
+   `navigateToNext()` / `navigateToPrevious()` (que es lo que §6 ya señalaba),
+   en vez de dejar que ExoPlayer se mueva dentro de la ventana. Y para B50, que
+   la notificación se reconstruya también cuando cambia la línea de tiempo
+   (`onTimelineChanged`), no solo en `onMediaItemTransition`.
+   - B49 en concreto: distinguir "reiniciar" de "volver" sin el coste actual
+     (hoy cualquier salto atrás sale de la ventana y re-resuelve por red con los
+     controles deshabilitados, `PlayerViewModel.kt:429-436`), y no dejar que
+     `playIndex` salte **hacia delante** cuando lo que falló resolver fue la
+     canción anterior (`:455-473`).
+   - B50 además: que un relleno fallido no deje la ventana sin item siguiente
+     (`:553`), p. ej. reintentando o reservando el sitio.
+4. ~~**F3 — "añadir a lista" en el menú `*`**: **hecho en la décima tanda**
+   (2026-10-01, → §10). Era el más fácil de toda la lista: el selector ya existía
+   y funcionaba, solo faltaba la entrada en el popup. +15 líneas, 1 entrada.
+5. **B55** — el más pequeño de todos: que `stopAtQueueEnd` avise a `MusicService`
+   (o que la notificación se retire) para que no quede la notificación fantasma
+   "Plyr".
+6. **F1 — `liked` vacía no aparece como lista** (§11): filtrarla por
+   `trackCount > 0` en `HomeScreen.kt:276-278` y `PlaylistScreen.kt:121-124` sin
+   borrar la fila de la base, porque de su existencia dependen `toggleLikeTrack`,
+   `mergeLikedSongsTracks` e `ImportManifest.plan` (§3.2, F1).
 
 ### Fase 1 — Lo que has reportado (impacto directo)
 
@@ -972,8 +1355,9 @@ Todos verificados con `./run.sh test` (**310 tests, en verde**) y
 ---
 
 Octava tanda de arreglos (2026-09-30), el cierre: **B32**, el resto de **B20**,
-**B41** verificado de verdad y **§7.1**. Con ella **no queda ningún bug activo**:
-48 de 48.
+**B41** verificado de verdad y **§7.1**. Con ella **no quedaba ningún bug
+activo**: 48 de 48 (cifra que se mantuvo hasta el 2026-10-01; ver §3, donde
+aparecen B49–B55).
 Verificado con `./run.sh test` (**343 tests, en verde**), `./run.sh build`
 (BUILD SUCCESSFUL) y, por primera vez, **`./run.sh build release`**
 (BUILD SUCCESSFUL, APK de 22,6 MB → 4,9 MB, sin firmar por falta de keystore).
@@ -1005,9 +1389,111 @@ Verificado con `./run.sh test` (**339 tests, en verde**), `./run.sh build`
 | `QueueIndex.needsRefillAfterEnd` (−16) + sus **4 tests** (−25) | `PlayerViewModel` nunca la llama: `growWindow()` ya se encarga por su cuenta. Los 4 tests certificaban exactamente eso — código muerto — así que se van con la función, no con el `PlayerViewModel`. `QueueIndexTest` pasa de 22 a 18 y el resto de la cobertura de `QueueIndex` no se toca. |
 | KDoc de `YouTubeManager.clearCache` | **No se borra la función**: `AudioUrlExtractionTest` la usa en el `setUp` para partir de una caché limpia. Se documenta que producción no la llama y por qué sigue ahí, en vez de inventar una vía nueva para los tests. |
 
-Pendientes ahora: **ningún bug**. Queda solo la lista de literales de interfaz
-fuera de `Translations` (§7.1), que es un refactor y no un fallo; las 3 entradas
-menores de §7 (previews, `ResponsiveDimensions`, `ActionButtonData.enabled`), que
-se dejan a propósito: no merece la pena tocar código vivo a cambio de un
-aviso del linter; y los gaps de cobertura de §8 (`PlayerViewModel` y `SongListItem` sin
-tests).
+Pendientes **a fecha de esa tanda**: ningún bug. Queda solo la lista de literales
+de interfaz fuera de `Translations` (§7.1), que es un refactor y no un fallo; las 3
+entradas menores de §7 (previews, `ResponsiveDimensions`, `ActionButtonData.enabled`),
+que se dejan a propósito: no merece la pena tocar código vivo a cambio de un aviso
+del linter; y los gaps de cobertura de §8 (`PlayerViewModel` y `SongListItem` sin
+tests). Nada de esto se ha tocado desde entonces.
+
+---
+
+Décima tanda (2026-10-01), **un feature y ningún bug**: se implementa **F3**, la
+única petición de §11 que era solo cablear UI, porque el selector de playlists ya
+existía y funcionaba y solo faltaba la entrada en el menú `*`. Con esto F3 sale de
+§11, pero **B49–B55 siguen todos activos**: esta tanda no toca ninguno.
+
+Verificado con `./run.sh test` (**339 tests, en verde**, los mismos que la
+novena: el cambio no altera lógica, así que no hay test nuevo ni que actualizar) y
+`./run.sh build` (**BUILD SUCCESSFUL**, APK debug). **No se compiló release**, por
+falta de keystore en local.
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **F3** | `ui/components/SongListItem.kt:382-396` | El popup del `*` tenía tres acciones (like, `add_to_queue`, `share`) y ahora tiene una cuarta, `add_to_playlist`, que hace `showPopup = false; showPlaylistPicker = true`. Reutiliza el mismo `showPlaylistPicker` que ya abrían las dos ramas de swipe (`:178,195`), así que el selector, su filtro (excluye *liked* y álbumes), el `addTrackToYouTubePlaylist` y el aviso `no_playlists` son exactamente los de antes. Se cierra el popup antes de abrir el selector para que no se solapen dos diálogos. La etiqueta ya estaba en los cuatro idiomas: 0 traducciones nuevas. **+15 líneas, 1 entrada de menú.** |
+
+Con esto queda **1 de las 3 peticiones** cerrada (F3) y **7 bugs abiertos** sin tocar
+(§3). El siguiente de la lista es **B55**, que es el más pequeño de los siete
+(avisar a `MusicService` al terminar la cola para que no quede la notificación
+fantasma); después **B54**, que es un mensaje en el diálogo vacío.
+
+---
+
+## 11. PETICIONES Y FUNCIONALIDAD FALTANTE
+
+No son fallos: comportamiento que se quiere y que hoy no existe (o existe a
+medias). Verificadas leyendo el código. **F3 está ya resuelta** (fue lo más fácil
+de todo lo pendiente y se arregló en la décima tanda, 2026-10-01); F1 y F2
+siguen abiertas.
+
+### F1 — La lista de favoritos vacía no debería aparecer como lista
+
+**Petición:** que `liked` solo exista cuando tenga alguna canción.
+
+Hoy la fila se crea siempre al arrancar la app (`PlyrApp.kt:26-28` →
+`ensureLikedSongsPlaylist`, `PlaylistLocalRepository.kt:70-85`) con
+`trackCount = 0`, y **ninguno de los dos listados la filtra**:
+
+| Listado | Filtro actual | Con `liked_songs` vacía |
+|---|---|---|
+| Carrusel del Home | `HomeScreen.kt:276-278` — solo quita `album_*` | aparece un corazón rojo, el primero |
+| Rejilla de listas | `PlaylistScreen.kt:121-124` — solo quita `album_*` | aparece una tile con el corazón |
+
+- **Lo que hay que hacer es filtrar, no borrar.** La fila de `liked_songs` no es
+  decorativa: `toggleLikeTrack` la lee para actualizar `trackCount`
+  (`PlaylistLocalRepository.kt:112,132`), `mergeLikedSongsTracks` la actualiza
+  (`:316-318`) e `ImportManifest.plan` da por hecho que existe
+  (`ImportManifest.kt:139-141`, comentario explícito). Borrarla "si está vacía"
+  rompería las tres.
+- Detalle: `trackCount` sí se mantiene al quitar la última canción
+  (`toggleLikeTrack` lo reescribe con `remaining.size`), así que el filtro puede
+  ir por `trackCount > 0`; si se quiere ser exacto, por "tiene pistas" con una
+  consulta a `TrackDao`.
+
+### F2 — Qué URL hay que compartir (canciones y listas importadas de Spotify)
+
+**Petición:** al compartir una canción, la de YouTube; al compartir una lista
+importada de Spotify, la URL de Spotify.
+
+Es exactamente **B52** + **B53** (§3.2), pero se recoge aquí como petición de
+comportamiento. Lo que se deja por escrito es el criterio de fondo: **compartir
+siempre el origen real de lo que se comparte**.
+
+| Qué se comparte | Qué debería salir |
+|---|---|
+| Canción con `youtubeVideoId` | `https://www.youtube.com/watch?v=<id>` |
+| Canción sin `youtubeVideoId` (resuelta por búsqueda) | la del vídeo que está sonando (`PlayerViewModel.resolvedVideoId`) |
+| Lista importada de Spotify | `https://open.spotify.com/playlist/<id>` |
+| Lista guardada de YouTube | `https://www.youtube.com/playlist?list=<id>` |
+| Lista creada en la app / favoritos | nada que compartir → oculto o con aviso |
+
+Dato de apoyo: `open.spotify.com/playlist/<id>` es justo lo que la app ya sabe
+leer al escanear (`UrlParser.parseScanText`, `UrlParser.kt:52-56`), así que el
+enlace que se comparta es uno que la propia app puede volver a abrir.
+
+### F3 — "Añadir a lista" en el menú `*` — ~~pendiente~~ **RESUELTO (2026-10-01)**
+
+**Petición:** que el menú que se abre con `*` tenga la opción de añadir la
+canción a una lista.
+
+**Lo que faltaba:** el popup de `SongListItem` tenía tres acciones — like,
+`add_to_queue` y `share` — y el selector de listas ya existía y funcionaba, pero
+solo se abría con la **acción de swipe** `add_to_playlist` (`executeSwipeAction`,
+`:514`, rama en `:553-555`, cableado en `:178,195`), no desde el `*`.
+
+**Arreglo:** una entrada más en el popup (`SongListItem.kt:382-396`) que hace
+exactamente lo que hace el swipe — `showPopup = false` y
+`showPlaylistPicker = true` — reutilizando el mismo `showPlaylistPicker` que ya
+tenían las ramas de swipe (`:178,195`). Se cierra el popup antes de abrir el
+selector para que no se solapen dos diálogos. Sin lógica nueva: el selector
+(`:431-526`), el filtro que excluye *liked* y álbumes (`:436`), el
+`addTrackToYouTubePlaylist` y el aviso `no_playlists` son los que ya había.
+`add_to_playlist` ya existía en los cuatro idiomas, así que no hizo falta
+traducción.
+
+Verificado con `./run.sh test` (**339 tests, en verde**) y `./run.sh build`
+(**BUILD SUCCESSFUL**, APK debug). No hay test unitario nuevo porque el cambio es
+solo de composición: la lógica que decide a qué playlist se añade y qué se
+escribe en la base de datos es la de `PlaylistLocalRepository.addTrackToYouTubePlaylist`,
+sin ruta de ejecución nueva. El riesgo real es de UI (que el `*` abra el
+selector), y eso es instrumentado.
