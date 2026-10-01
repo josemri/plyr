@@ -106,6 +106,7 @@ object Translations {
             "app_logo" to "logotipo de plyr",
             "update_available" to "actualiza",
             "no_playlists" to "no hay playlists",
+            "no_share_url" to "no hay nada que compartir con esta cancion",
             "plyr_lists" to "plyr_listas",
 
         ),
@@ -205,6 +206,7 @@ object Translations {
             "app_logo" to "plyr logo",
             "update_available" to "update",
             "no_playlists" to "no playlists",
+            "no_share_url" to "nothing to share with this track",
             "plyr_lists" to "plyr_lists",
             "player_not_available" to "player not available",
 
@@ -309,6 +311,7 @@ object Translations {
             "app_logo" to "logotip de plyr",
             "update_available" to "actualitza",
             "no_playlists" to "no hi ha playlists",
+            "no_share_url" to "no hi ha res a compartir amb aquesta canco",
             "plyr_lists" to "plyr_llistes",
 
         ),
@@ -411,6 +414,7 @@ object Translations {
             "app_logo" to "plyr ロゴ",
             "update_available" to "更新",
             "no_playlists" to "プレイリストがありません",
+            "no_share_url" to "この曲には共有できるものがありません",
             "plyr_lists" to "plyr_リスト",
         ),
     )

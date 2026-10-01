@@ -72,12 +72,13 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **54 bugs resolved, 6 open** (`B49`–`B54`), plus the feature requests in report §11.
+Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **55 bugs resolved, 5 open** (`B49`–`B53`), plus the feature requests in report §11.
 
-- [ ] **Share** — the URLs that go into the QR / the NFC tag / the recommendation feed are wrong (`B52`, `B53`, `B54`)
+- [ ] **Share** — the URLs that go into the QR / the NFC tag / the recommendation feed are wrong (`B52`, `B53`)
   - [ ] A track shares its **YouTube** video, not the row id it has in the database (today: `youtube.com/watch?v=spotify_…`, built from `remoteTrackId`)
   - [ ] A playlist imported from **Spotify** shares `open.spotify.com/playlist/<id>`; the origin is stored instead of inferred from the `youtube_` prefix
-  - [ ] `liked_songs` and locally created lists don't offer a share at all, and the dialog says so instead of opening empty when there is no video
+  - [ ] `liked_songs` and locally created lists don't offer a share at all
+  - [x] ~~The share dialog says so instead of opening blank when there is no video to share~~ — done
 - [ ] **Playback** — previous/next from the notification don't go through the queue (`B49`, `B50`)
   - [ ] The media session routes `seekToNext` / `seekToPrevious` to `QueueIndex` instead of letting ExoPlayer move inside its sliding window
   - [ ] The notification is rebuilt on timeline changes too, so the **next** button doesn't vanish after two skips in a row

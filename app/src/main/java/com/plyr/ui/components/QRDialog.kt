@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -255,7 +256,35 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (shareUrl != null) {
+                // Sin URL no hay QR, ni <share>, ni NFC, ni <recomendar>. Antes
+                // todo eso se ocultaba y lo que quedaba era un `Card` con padding
+                // y nada dentro: un diálogo en blanco sin explicación (B54).
+                if (shareUrl == null) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = Translations.get(context, "no_share_url"),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                        TextButton(onClick = onDismiss) {
+                            Text(
+                                text = Translations.get(context, "close"),
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            )
+                        }
+                    }
+                }
+
+                if (shareUrl != null) {
                         Text(
                             text = Translations.get(context, "btn_share"),
                             style = MaterialTheme.typography.bodyLarge.copy(

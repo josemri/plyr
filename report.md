@@ -75,17 +75,15 @@
 > cifras de tests de abajo (339) son las de la última tanda y **no** han
 > cambiado.
 >
-> - **8 bugs documentados, 6 activos (B49–B54)**: cinco reportados
->   (**B49**–**B53**) y uno que salió al revisarlos (**B54**, el diálogo de
->   compartir se abre vacío). El botón de anterior no vuelve a la canción
->   anterior (**B49**), el botón de siguiente desaparece de la notificación tras
->   dos skips seguidos (**B50**), el sync resucita los favoritos que se han
->   borrado (**B51**), el share de una canción comparte un id que no es de YouTube
->   (**B52**), el share de una lista construye una URL inválida (**B53**) y el
->   diálogo de compartir se abre vacío cuando no hay URL (**B54**).
->   **B55** y **B56** (la notificación que decía "Plyr / Reproduciendo" al
->   terminar la cola y al abrir la app sin música) también aparecieron al
->   documentarlos y ya están **resueltos** en la undécima tanda (→ §10).
+> - **7 bugs documentados, 5 activos (B49–B53)**: los cinco reportados. El
+>   botón de anterior no vuelve a la canción anterior (**B49**), el botón de
+>   siguiente desaparece de la notificación tras dos skips seguidos (**B50**), el
+>   sync resucita los favoritos que se han borrado (**B51**), el share de una
+>   canción comparte un id que no es de YouTube (**B52**) y el share de una lista
+>   construye una URL inválida (**B53**).
+>   **B54** (el diálogo de compartir en blanco), **B55** y **B56** (la notificación
+>   que decía "Plyr / Reproduciendo") aparecieron al documentarlos y ya están
+>   **resueltos**: B55 + B56 en la undécima tanda y B54 en la duodécima (→ §10).
 >   Detalle en §3, Arrangement en §9.
 > - **3 peticiones de comportamiento/funcionalidad** en §11: que `liked` vacía
 >   no aparezca como lista (**F1**), el criterio de qué URL debe compartirse
@@ -109,7 +107,8 @@
 >   SUCCESSFUL). **Undécima tanda (2026-10-01): B55 + B56 resueltos**, la
 >   notificación que decía estar reproduciendo sin que hubiera nada sonando, con
 >   `./run.sh test` (**347**, en verde) y `./run.sh build` (BUILD SUCCESSFUL).
->   Quedan **6 bugs abiertos** y 2 peticiones. Detalle en §10.
+>   **Duodécima tanda (2026-10-01): B54 resuelto**, el diálogo de compartir ya no
+>   puede abrirse en blanco. Quedan **5 bugs abiertos** y 2 peticiones. Detalle en §10.
 
 ---
 
@@ -427,18 +426,18 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **6 bugs activos, B49–B54**: cinco reportados (B49, B50, B51, B52, B53) más
-  uno que apareció al verificarlos (B54, el diálogo de compartir vacío).
-  Severidad: 5 altos y 1 medio. **B55 y B56** —la notificación que decía "Plyr /
-  Reproduciendo" al terminar la cola y al abrir la app sin música— también
-  aparecieron al documentarlos y ya están **resueltos** (undécima tanda, → §10).
-  Los 48 de las tandas anteriores siguen resueltos. Detalle en §3.
+- **5 bugs activos, B49–B53**, los cinco reportados, todos de severidad **alta**.
+  **B54** (el diálogo de compartir se abría en blanco), **B55** y **B56** (la
+  notificación que decía "Plyr / Reproduciendo" al terminar la cola y al abrir
+  la app sin música) aparecieron al documentarlos y ya están **resueltos**:
+  B55 + B56 en la undécima tanda y B54 en la duodécima (→ §10). Los 48 de
+  las tandas anteriores siguen resueltos. Detalle en §3.
 - **2 peticiones abiertas** de funcionalidad/comportamiento (§11): F1 (`liked`
   vacía no debería aparecer) y F2 (qué URL se comparte, que es B52 + B53).
   **F3** ("añadir a lista" en el menú `*`) está **resuelta** en la décima tanda
   (→ §10): era la más fácil de las tres, solo una entrada de menú.
-- **6 bugs activos** (B49–B54). La décima tanda (2026-10-01) solo implementó F3;
-  la undécima resolvió B55 + B56 (la notificación fantasma).
+- **5 bugs activos** (B49–B53). La décima tanda (2026-10-01) solo implementó F3;
+  la undécima resolvió B55 + B56 y la duodécima B54.
 - **347 tests unitarios** en 26 archivos (`./run.sh test`; todos en verde tras la
   undécima tanda, que añadió los 8 de `PlaybackNotificationStateTest`).
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
@@ -494,16 +493,15 @@ de descartes.
 
 ## 3. BUGS ACTIVOS
 
-**6** (B49–B54). Los 48 de las tandas anteriores siguen resueltos (§10).
+**5** (B49–B53). Los 48 de las tandas anteriores siguen resueltos (§10).
 
-- Batch del **2026-10-01**, sin arreglar: **B49**–**B53** reportados y **B54**
-  encontrado al verificarlos. Todos verificados **leyendo el código**; no se
-  ha compilado ni ejecutado nada (ver la nota del cabecera).
-- Severidad: **5 altos** (B49, B50, B51, B52, B53) y **1 medio** (B54).
-- **Resueltos en la undécima tanda:** ~~**B55**~~ y ~~**B56**~~, los dos bajos de
-  este bloque (la notificación que decía "Plyr / Reproduciendo" al terminar la
-  cola y al abrir la app sin música) — quedan tachados en §3.4, con lo hecho en
-  §10.
+- Batch del **2026-10-01**, sin arreglar: **B49**–**B53**, los cinco reportados.
+  Todos verificados **leyendo el código** (ver la nota de la cabecera).
+- Severidad: los cinco **altos**.
+- **Resueltos ya de este bloque:** ~~**B54**~~ (el diálogo de compartir se abría en
+  blanco, duodécima tanda), ~~**B55**~~ y ~~**B56**~~ (la notificación que decía
+  "Plyr / Reproduciendo" al terminar la cola y al abrir la app sin música,
+  undécima tanda). Quedan tachados en §3.3 y §3.4, con lo hecho en §10.
 - Los de reproducción (B49, B50) y el de datos (B51) tienen el mismo origen de
   fondo: la **ventana deslizante** de `PlayerViewModel` es la que posee el estado
   real del reproductor, y ni `MusicService` ni la copia de seguridad la tienen en
@@ -744,14 +742,16 @@ originales como referencia:
 
 ### 3.3 Medios
 
-**1 activo.**
+**Ninguno activo.** ~~**B54**~~ (el diálogo de compartir se abría en blanco) se
+resolvió en la duodécima tanda (→ §10).
 
-#### B54 — El diálogo de compartir se abre vacío cuando no hay URL
+#### ~~B54~~ — El diálogo de compartir se abre vacío cuando no hay URL — **RESUELTO (duodécima tanda)**
 
-**Encontrado** al verificar B52/B53.
+**Encontrado** al verificar B52/B53. **Resuelto en la duodécima tanda** (→ §10).
 
-**Ubicación:** `QRDialog.kt:115-128,225,258,302` · `QueueScreen.kt:60-67` ·
-`PlayerViewModel.kt:114` (dónde está el id bueno) · `SpotifyImporter.kt:145-159`.
+**Ubicación (antes del arreglo):** `QRDialog.kt:115-128,225,258,302` ·
+`QueueScreen.kt:60-67` · `PlayerViewModel.kt:114` (dónde está el id bueno) ·
+`SpotifyImporter.kt:145-159`.
 
 `ShareDialog` solo dibuja el QR, el `<share>`, el NFC y el `<recomendar>` cuando
 `shareUrl != null` (`QRDialog.kt:225,258,302`). Si es `null`, lo que queda es un
@@ -775,6 +775,19 @@ ningún mensaje que explique por qué. No hay estado de error para ese caso.
   resolvió en memoria: vive en `PlayerViewModel.resolvedVideoId`
   (`PlayerViewModel.kt:114`), que `QueueScreen` no consulta. O sea, el dato
   correcto existe, pero no llega al diálogo.
+
+**Arreglo (duodécima tanda):** `ShareDialog` tiene ya un estado explícito para
+"no hay nada que compartir": cuando `shareUrl == null` pinta un mensaje
+(`no_share_url`, nuevo en los 4 idiomas) y un botón de cerrar, en vez de dejar el
+`Card` con padding y nada dentro (`QRDialog.kt:225-248`). **El diálogo ya nunca
+puede abrirse en blanco.** El resto de la caja (QR, `<share>`, NFC,
+`<recomendar>`) sigue igual, porque todo eso depende de que haya URL.
+
+Lo que **no** se arregla aquí, a propósito: el `id` bueno sigue sin llegar desde
+la cola. Usar `PlayerViewModel.resolvedVideoId` para entonces es un arreglo de
+otro tipo (pasarle el id resuelto a la pantalla de cola), y pertenece al bloque de
+compartir de B52/B53, donde además hay que decidir **qué** URL se comparte. Aquí
+solo se hace que, cuando no hay URL, la app **lo diga** en vez de fingir que sí.
 
 ~~**B32**~~ (`SimpleDownloader.kt:32`, `:49-59`, `:61`) —el mapa de cookies era
 un `mutableMapOf` plano leído desde todos los hilos de red, y se logueaban
@@ -1095,7 +1108,8 @@ Ordenado por lo que más molesta al uso diario. Los arrangements de B49 y B50
 comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte a
 `QueueIndex`), así que conviene hacerlos juntos.
 
-1. **B52 + B53 + B54 — el share.** Es lo más barato y lo más visible:
+1. **B52 + B53 — el share.** Es lo más barato y lo más visible. **B54**, que
+   estaba en este mismo bloque, ya está resuelto (duodécima tanda, → §10):
    - Dejar de construir la URL en la pantalla y decidirla **una sola vez** en
      `ShareDialog` (`QRDialog.kt:115-128`), que hoy da prioridad a `shareUrl` y
      por eso descarta el `youtubeVideoId` correcto que ya viaja. Con
@@ -1109,10 +1123,10 @@ comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte 
      y compartir `open.spotify.com/playlist/<id>` para lo importado, la URL de
      YouTube para lo guardado de YouTube, y **no ofrecer compartir** en
      `liked_songs` ni en las listas creadas localmente sin origen.
-   - B54: cuando no haya URL, `ShareDialog` debe decirlo ("esta canción no tiene
-     vídeo de YouTube") en vez de abrir un `Card` vacío, y `QueueScreen` puede
-     tomar el id de `PlayerViewModel.resolvedVideoId` (`:114`) para el caso de
-     las pistas resueltas por búsqueda.
+   - Con eso, el mensaje de "no hay nada que compartir" que se añadió en B54
+     pasa a ser la excepción en vez del caso normal, y `QueueScreen` podrá tomar
+     el id de `PlayerViewModel.resolvedVideoId` (`:114`) para las pistas
+     resueltas por búsqueda.
    - Tests: `ShareUrlPolicy` como objeto puro (tipo de URL a partir de
      origen + id) con cobertura de las cuatro filas de la tabla de B53.
 2. **B51 — los favoritos borrados vuelven al sincronizar.** Requiere decidir la
@@ -1493,10 +1507,30 @@ release**, por falta de keystore en local.
 |---|---|---|
 | **B55** + **B56** | `service/PlaybackNotificationState.kt` (nuevo) · `service/MusicService.kt` · `test/.../PlaybackNotificationStateTest.kt` (nuevo) | La decisión de qué pintar sale del servicio a una función pura `PlaybackNotificationState.of(appName, título, artista)`: con item devuelve título/artista con `ongoing = true` y `MediaStyle`; **sin item** devuelve el estado "idle" (título = nombre de la app, `ongoing = false`, `showMediaStyle = false`), o sea **no dice "Reproduciendo", no es imborrable y no monta controles que no puede resolver**. En `MusicService`, `createNotification` y la provisional `createStartupNotification` pasan a usar ese estado a través de un único `buildNotification`, y `updateNotification` hace `stopForeground(STOP_FOREGROUND_REMOVE)` cuando no hay item en vez de repintar la notificación fantasma. La `MediaSession` no se libera, así que el siguiente item vuelve a pintar la notificación con normalidad. 8 tests nuevos cubren los dos estados, incluidos el título vacío y el artista ausente (que antes caían en "Reproduciendo"). **+85 líneas, −2** |
 
-Con esto quedan **6 bugs abiertos** (B49–B54), 2 de ellos del mismo bloque de
-compartir (B52 + B53 + B54), y **2 peticiones** (F1, F2). El siguiente de la lista
-es **B54**, un mensaje en el diálogo vacío; después el bloque de=share (B52, B53)
-y luego **B49 + B50**, que necesitan el `MediaSession.Callback`.
+Con esto quedan **5 bugs abiertos** (B49–B53) y **2 peticiones** (F1, F2).
+De ellos, **B52** y **B53** son del mismo bloque (qué URL se comparte) y **B49**
++ **B50** del mismo otro (el `MediaSession.Callback`).
+
+---
+
+Duodécima tanda (2026-10-01), **B54 resuelto**: el diálogo de compartir ya no
+puede abrirse en blanco. Es un arreglo de estado de UI, sin tocar cómo se calcula
+la URL — eso sigue pendiente en B52/B53.
+
+Verificado con `./run.sh test` (**347 tests, en verde**, sin cambio de número: no
+hay test nuevo porque el arreglo es de composición) y **`./run.sh build`**
+(`BUILD SUCCESSFUL`, APK debug; comprobado que la clave nueva y el diálogo
+modificado están dentro del APK). **No se compiló release**, por falta de
+keystore en local.
+
+| # | Ubicación | Qué se hizo |
+|---|---|---|
+| **B54** | `ui/components/QRDialog.kt:225-248` · `utils/Translations.kt` (4 idiomas) | `ShareDialog` ocultaba el QR, el `<share>`, el NFC y el `<recomendar>` cuando `shareUrl == null` (`:258,302,337`), y lo que quedaba era un `Card` con padding de 24 dp y **nada dentro**: un diálogo en blanco, sin QR, sin botones y sin un solo mensaje que explicara por qué. Se llega desde la cola, que es el único sitio donde `shareUrl` **y** `youtubeId` acaban a la vez en `null` (`QueueScreen.kt:66` + `youtubeVideoId` de pistas sin coincidencia en YouTube, típicas de lo importado de Spotify). Ahora, cuando no hay URL, el diálogo pinta su propio estado: un mensaje (`no_share_url`, clave nueva en español, inglés, catalán y japonés) y un botón de cerrar. El resto de la caja no se toca, porque todo lo demás depende de que haya URL. **Lo que no se arregla aquí, a propósito:** que el `id` bueno (`PlayerViewModel.resolvedVideoId`) siga sin llegar desde la cola — eso es cambiar el contrato entre la pantalla de cola y el diálogo, y pertenece al bloque de B52/B53, donde hay que decidir *qué* URL se comparte. Aquí solo se consigue que, cuando no hay nada que compartir, la app **lo diga**. **+29 líneas, 1 clave × 4 idiomas** |
+
+Con esto quedan **5 bugs abiertos** y **2 peticiones**. Los dos bloques que quedan
+son coherentes entre sí: **B52 + B53** (qué URL se comparte) y **B49 + B50** (el
+`MediaSession.Callback`), más **B51** (los favoritos borrados que el sync
+resucita), que es el más delicado porque toca datos.
 
 ---
 
@@ -1505,7 +1539,7 @@ y luego **B49 + B50**, que necesitan el `MediaSession.Callback`.
 No son fallos: comportamiento que se quiere y que hoy no existe (o existe a
 medias). Verificadas leyendo el código. **F3 está ya resuelta** (fue lo más fácil
 de todo lo pendiente y se arregló en la décima tanda, 2026-10-01); F1 y F2
-siguen abiertas.
+siguen abiertas. **F2 va de la mano de B52 + B53**, que son su parte de bug.
 
 ### F1 — La lista de favoritos vacía no debería aparecer como lista
 
