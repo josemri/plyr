@@ -160,14 +160,22 @@ object ExportManifest {
      * [deletedPlaylistIds] son los ids de listas que el usuario borró y no deben
      * resucitar al importar. Viaja siempre (aunque sea vacío) para que dos
      * exportaciones con los mismos datos sean idénticas.
+     *
+     * [removedLikedTrackKeys] es lo mismo pero para los favoritos: las claves de
+     * las pistas que el usuario quitó de `liked_songs`, que sin esto volvían en
+     * cada sincronización (B51). La clave es `youtubeVideoId` y, si no lo tiene,
+     * `ImportManifest.fallbackDedupeKey`, la misma que usa la fusión para no
+     * duplicar. Campo aditivo: un archivo viejo simplemente no lo lleva.
      */
     fun build(
         appVersion: String,
         exportedAt: Long,
         playlists: List<ExportPlaylist>,
-        deletedPlaylistIds: Collection<String> = emptyList()
+        deletedPlaylistIds: Collection<String> = emptyList(),
+        removedLikedTrackKeys: Collection<String> = emptyList()
     ): String {
         val deleted = deletedPlaylistIds.sorted()
+        val removedLiked = removedLikedTrackKeys.sorted()
         val trackCount = playlists.sumOf { it.tracks.size }
         return buildString {
             appendLine("{")
@@ -181,6 +189,12 @@ object ExportManifest {
             deleted.forEachIndexed { index, id ->
                 if (index > 0) append(", ")
                 append(jsonString(id))
+            }
+            appendLine("],")
+            append("  \"removedLikedTrackKeys\": [")
+            removedLiked.forEachIndexed { index, key ->
+                if (index > 0) append(", ")
+                append(jsonString(key))
             }
             appendLine("],")
             append("  \"playlists\": [")

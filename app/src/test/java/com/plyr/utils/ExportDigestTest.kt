@@ -127,4 +127,53 @@ class ExportDigestTest {
         val empty = playlist(id = "vacia", tracks = emptyList(), coverEntry = null)
         assertNotEquals(hash(empty to null), hash(empty to null, empty to null))
     }
+
+    // === TOMBS DE FAVORITOS (B51) ===
+
+    private fun hashWithRemovedLiked(keys: Collection<String>, vararg playlists: Pair<ExportPlaylist, ByteArray?>): String =
+        ExportDigest.Accumulator().apply {
+            playlists.forEach { (playlist, cover) -> addPlaylist(playlist, cover) }
+            addRemovedLikedTrackKeys(keys)
+        }.hex()
+
+    /**
+     * El más importante de B51: quitar un favorito no cambia ninguna lista, así
+     * que si el tomb no entrara en la huella, `DataSync` vería el archivo de la
+     * carpeta "al día" y **no lo reescribiría**. El borrado se quedaría en este
+     * dispositivo y no llegaría al ZIP, que es justo de donde viene el problema.
+     */
+    @Test
+    fun `quitar un favorito cambia la huella aunque no cambie ninguna lista`() {
+        val liked = playlist(id = "liked_songs")
+
+        assertNotEquals(
+            hashWithRemovedLiked(emptySet(), liked to null),
+            hashWithRemovedLiked(setOf("v1"), liked to null),
+        )
+    }
+
+    @Test
+    fun `el orden de los tombs de favoritos no cambia la huella`() {
+        val liked = playlist(id = "liked_songs")
+
+        assertEquals(
+            hashWithRemovedLiked(listOf("a", "b"), liked to null),
+            hashWithRemovedLiked(listOf("b", "a"), liked to null),
+        )
+    }
+
+    @Test
+    fun `sin tombs de favoritos la huella es estable`() {
+        // No se compara contra "no llamarlo": `addRemovedLikedTrackKeys` escribe
+        // el tamaño (0) igual que hace `addDeletedPlaylistIds`, así que son
+        // intenciones distintas. Lo que importa es que dos exportaciones con los
+        // mismos datos —una sin favoritos y otra con la lista vacía— no se
+        // alternen la escritura del archivo.
+        val liked = playlist(id = "liked_songs")
+
+        assertEquals(
+            hashWithRemovedLiked(emptyList(), liked to null),
+            hashWithRemovedLiked(emptySet(), liked to null),
+        )
+    }
 }

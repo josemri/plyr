@@ -89,6 +89,8 @@ object DataExporter {
         val manifests = mutableListOf<ExportPlaylist>()
         val covers = mutableListOf<CoverPayload>()
         val deletedPlaylistIds = Config.getDeletedPlaylistIds(context)
+        // Los borrados de favoritos viajan igual que los de listas (B51).
+        val removedLikedTrackKeys = Config.getRemovedLikedTrackKeys(context)
 
         entities.forEach { entity ->
             val coverBytes = loadCoverBytes(context, entity.imageUrl)
@@ -112,13 +114,15 @@ object DataExporter {
             accumulator.addPlaylist(playlist, coverBytes)
         }
         accumulator.addDeletedPlaylistIds(deletedPlaylistIds)
+        accumulator.addRemovedLikedTrackKeys(removedLikedTrackKeys)
 
         ExportBundle(
             manifestJson = ExportManifest.build(
                 appVersion = appVersion(context),
                 exportedAt = System.currentTimeMillis(),
                 playlists = manifests,
-                deletedPlaylistIds = deletedPlaylistIds
+                deletedPlaylistIds = deletedPlaylistIds,
+                removedLikedTrackKeys = removedLikedTrackKeys
             ),
             covers = covers,
             contentHash = accumulator.hex(),

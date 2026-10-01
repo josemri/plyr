@@ -52,7 +52,13 @@ enum class SkipReason {
  */
 data class ParsedManifest(
     val playlists: List<ImportedPlaylist>,
-    val deletedPlaylistIds: Set<String>
+    val deletedPlaylistIds: Set<String>,
+    /**
+     * Claves de los favoritos que el usuario quitó y no deben volver (B51). Vacío
+     * en un archivo antiguo, que es lo correcto: no sincronizar borrados es más
+     * conservador que borrar de más.
+     */
+    val removedLikedTrackKeys: Set<String> = emptySet()
 )
 
 /** Qué hay que hacer con cada lista del ZIP. */
@@ -116,7 +122,8 @@ object ImportManifest {
 
         return ParsedManifest(
             playlists = playlists,
-            deletedPlaylistIds = parseDeletedPlaylistIds(root)
+            deletedPlaylistIds = parseDeletedPlaylistIds(root),
+            removedLikedTrackKeys = parseRemovedLikedTrackKeys(root)
         )
     }
 
@@ -130,6 +137,20 @@ object ImportManifest {
             for (i in 0 until array.length()) {
                 val id = array.optString(i).trim()
                 if (id.isNotEmpty() && id != PlaylistLocalRepository.LIKED_SONGS_ID) add(id)
+            }
+        }
+    }
+
+    /**
+     * Los tombs de favoritos son opcionales, igual que los de listas: sin ellos
+     * el archivo es válido y los favoritos que falten se restauran.
+     */
+    private fun parseRemovedLikedTrackKeys(root: JSONObject): Set<String> {
+        val array = root.optJSONArray("removedLikedTrackKeys") ?: return emptySet()
+        return buildSet {
+            for (i in 0 until array.length()) {
+                val key = array.optString(i).trim()
+                if (key.isNotEmpty()) add(key)
             }
         }
     }
@@ -195,6 +216,24 @@ object ImportManifest {
      * `toggleLikeTrack`).
      */
     fun fallbackDedupeKey(track: TrackEntity): String = "${track.name}|${track.artists}"
+
+    /**
+     * La clave con la que se identifica un favorito, y con la que se tombstonea un
+     * borrado de favorito (B51). Es **la misma** que usa [PlaylistLocalRepository]
+     * para no duplicar en la fusión: si fueran dos criterios distintos, un tomb
+     * no quadraría con la pista que pretende Tapar.
+     */
+    fun likedTrackKey(track: TrackEntity): String = likedTrackKey(track.youtubeVideoId, track.name, track.artists)
+
+    /**
+     * La misma clave, calculada desde los datos crudos que recibe
+     * `toggleLikeTrack`. Existe para que marcar y desmarcar usen **literalmente**
+     * el mismo criterio que la fusión y que el tomb: si el marcado construyera la
+     * clave por su cuenta, un `youtubeVideoId` vacío daría una clave distinta a
+     * la que luego comprueba la fusión.
+     */
+    fun likedTrackKey(youtubeVideoId: String?, name: String, artists: String): String =
+        youtubeVideoId?.trim()?.takeIf { it.isNotEmpty() } ?: "$name|$artists"
 
     // === HELPERS DE PARSEO ===
 

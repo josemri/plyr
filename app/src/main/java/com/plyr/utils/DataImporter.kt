@@ -70,6 +70,13 @@ object DataImporter {
                 deletedIds.addAll(manifest.deletedPlaylistIds)
                 Config.setDeletedPlaylistIds(context, deletedIds)
 
+                // Mismo criterio para los favoritos (B51): la unión de lo que esta
+                // app borró y lo que el archivo recuerda, para que el borrado viaje
+                // en los dos sentidos.
+                val removedLiked = Config.getRemovedLikedTrackKeys(context).toMutableSet()
+                removedLiked.addAll(manifest.removedLikedTrackKeys)
+                Config.setRemovedLikedTrackKeys(context, removedLiked)
+
                 val actions = ImportManifest.plan(
                     playlists = manifest.playlists,
                     existingIds = existingPlaylists.mapTo(mutableSetOf()) { it.remoteId },
@@ -95,7 +102,7 @@ object DataImporter {
                                 it.id == PlaylistLocalRepository.LIKED_SONGS_ID
                             }
                             if (liked != null) {
-                                mergedLikedTracks += mergeLikedSongs(repository, liked)
+                                mergedLikedTracks += mergeLikedSongs(repository, liked, removedLiked)
                             }
                         }
 
@@ -179,9 +186,11 @@ object DataImporter {
      */
     private suspend fun mergeLikedSongs(
         repository: PlaylistLocalRepository,
-        playlist: ImportedPlaylist
+        playlist: ImportedPlaylist,
+        removedKeys: Set<String>
     ): Int = repository.mergeLikedSongsTracks(
-        ImportManifest.buildTracks(playlistId = playlist.id, tracks = playlist.tracks)
+        tracks = ImportManifest.buildTracks(playlistId = playlist.id, tracks = playlist.tracks),
+        removedKeys = removedKeys,
     )
 
     // === PORTADAS ===

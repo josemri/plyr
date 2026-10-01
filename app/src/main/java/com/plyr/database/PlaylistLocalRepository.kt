@@ -10,6 +10,7 @@ import android.util.Log
 import com.plyr.utils.Config
 import com.plyr.utils.DataSync
 import com.plyr.utils.ImportManifest
+import com.plyr.utils.LikedSongsMerge
 
 class PlaylistLocalRepository(context: Context) {
 
@@ -105,6 +106,13 @@ class PlaylistLocalRepository(context: Context) {
 
         if (existing != null) {
             trackDao.deleteTrackById(existing.id)
+            // El borrado tiene que viajar: `liked_songs` se fusiona en cada
+            // sincronización y, sin esta marca, la pista que el usuario acaba de
+            // quitar volvía en la siguiente (B51).
+            Config.addRemovedLikedTrackKey(
+                appContext,
+                ImportManifest.likedTrackKey(existing),
+            )
             val remaining = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
             remaining.sortedBy { it.position }.forEachIndexed { index, t ->
                 trackDao.updateTrack(t.copy(position = index))
@@ -117,6 +125,12 @@ class PlaylistLocalRepository(context: Context) {
             markDirty()
             false
         } else {
+            // Marcar de nuevo es decir "vuelve a estar en favoritos", así que el
+            // tomb anterior se levanta: si se quedara, la fusión la saltaría.
+            Config.removeRemovedLikedTrackKey(
+                appContext,
+                ImportManifest.likedTrackKey(youtubeVideoId, name, artists),
+            )
             val nextPosition = if (tracks.isNotEmpty()) tracks.maxOf { it.position } + 1 else 0
             val newTrack = TrackEntity(
                 id = "${LIKED_SONGS_ID}_${remoteTrackId}_$nextPosition",
@@ -290,13 +304,27 @@ class PlaylistLocalRepository(context: Context) {
      *
      * Se usa al importar: los favoritos que el usuario tenga ahora siempre ganan
      * sobre los del archivo. Devuelve cuántas pistas se añadieron.
+     *
+     * [removedKeys] son los favoritos que el usuario quitó (B51): también ganan
+     * sobre los del archivo. Sin esto, `liked_songs` —que nunca se sobrescribe—
+     * reinsertaba en cada sincronización lo que el usuario acababa de borrar, y
+     * como la fusión marca el estado como sucio, el resurreto se consolidaba
+     * además en la copia de la carpeta.
      */
-    suspend fun mergeLikedSongsTracks(tracks: List<TrackEntity>): Int = withContext(Dispatchers.IO) {
+    suspend fun mergeLikedSongsTracks(
+        tracks: List<TrackEntity>,
+        removedKeys: Set<String> = emptySet(),
+    ): Int = withContext(Dispatchers.IO) {
         if (tracks.isEmpty()) return@withContext 0
 
         val existing = trackDao.getTracksByPlaylistSync(LIKED_SONGS_ID)
-        val known = existing.mapTo(mutableSetOf()) { it.youtubeVideoId ?: ImportManifest.fallbackDedupeKey(it) }
-        val fresh = tracks.filter { known.add(it.youtubeVideoId ?: ImportManifest.fallbackDedupeKey(it)) }
+        // La política vive en LikedSongsMerge (puro y testeado); aquí solo se
+        // calculan las claves y se recuperan las pistas elegidas.
+        val fresh = LikedSongsMerge.selectFreshIndexes(
+            existingKeys = existing.map { ImportManifest.likedTrackKey(it) },
+            incomingKeys = tracks.map { ImportManifest.likedTrackKey(it) },
+            removedKeys = removedKeys,
+        ).map { tracks[it] }
         if (fresh.isEmpty()) {
             Log.d(TAG, "Importación de favoritos: todo ya estaba en liked_songs")
             return@withContext 0

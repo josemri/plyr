@@ -165,6 +165,35 @@ class ExportManifestTest {
     }
 
     /**
+     * B51: los borrados de favoritos viajan igual que los de listas, ordenados y
+     * sin depender del orden de entrada.
+     */
+    @Test
+    fun build_includesRemovedLikedTrackKeysSortedAndStable() {
+        val playlists = listOf(samplePlaylist())
+        val first = ExportManifest.build(
+            "1.0.0", 0L, playlists,
+            removedLikedTrackKeys = setOf("yt2", "yt1")
+        )
+        val second = ExportManifest.build(
+            "1.0.0", 0L, playlists,
+            removedLikedTrackKeys = listOf("yt1", "yt2")
+        )
+
+        val json = JSONObject(first).getJSONArray("removedLikedTrackKeys")
+        assertEquals(listOf("yt1", "yt2"), (0 until json.length()).map { json.getString(it) })
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun build_withoutRemovedLikedKeys_emitsEmptyArray() {
+        // Viaja siempre, aunque esté vacío, para que dos exportaciones con los
+        // mismos datos produzcan exactamente el mismo texto.
+        val json = JSONObject(ExportManifest.build("1.0.0", 0L, listOf(samplePlaylist())))
+        assertEquals(0, json.getJSONArray("removedLikedTrackKeys").length())
+    }
+
+    /**
      * Snapshot del formato. Si esto falla, el archivo exportado ha cambiado de
      * forma incompatible para quien lo consume: o se actualiza el snapshot a
      * mano, o se sube [ExportManifest.FORMAT_VERSION].
@@ -205,6 +234,7 @@ class ExportManifestTest {
               "playlistCount": 2,
               "trackCount": 2,
               "deletedPlaylistIds": ["youtube_PL3"],
+              "removedLikedTrackKeys": [],
               "playlists": [
                 {
                   "id": "liked_songs",

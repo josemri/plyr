@@ -67,6 +67,18 @@ object ExportDigest {
             sorted.forEach { updateField(it) }
         }
 
+        /**
+         * Los tombs de favoritos (B51), con la misma razón que
+         * [addDeletedPlaylistIds]: si no entran en la huella, quitar un favorito
+         * no cambiaría el `contentHash` y [DataSync] decidiría que el archivo de
+         * la carpeta está al día, con lo que el borrado no se propagaría nunca.
+         */
+        fun addRemovedLikedTrackKeys(keys: Collection<String>) = apply {
+            val sorted = keys.sorted()
+            updateField(sorted.size.toString())
+            sorted.forEach { updateField(it) }
+        }
+
         /** Huella acumulada hasta ahora, en minúsculas hexadecimal. */
         fun hex(): String = digest.digest().joinToString(separator = "") { byte -> "%02x".format(byte) }
 

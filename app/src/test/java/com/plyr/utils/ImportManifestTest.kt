@@ -532,4 +532,121 @@ class ImportManifestTest {
             }
         """.trimIndent()
     }
+
+    // === TOMBS DE FAVORITOS (B51) ===
+
+    @Test
+    fun parse_readsRemovedLikedTrackKeys() {
+        val json = """
+            {
+              "app": "_plyr",
+              "formatVersion": 1,
+              "appVersion": "1.1.0",
+              "exportedAt": 0,
+              "playlistCount": 0,
+              "trackCount": 0,
+              "deletedPlaylistIds": [],
+              "removedLikedTrackKeys": ["yt-1", "Song Two|"],
+              "playlists": []
+            }
+        """.trimIndent()
+
+        assertEquals(setOf("yt-1", "Song Two|"), ImportManifest.parse(json).removedLikedTrackKeys)
+    }
+
+    /**
+     * Un archivo exportado antes de este campo tiene que seguir siendo válido: no
+     * sincronizar borrados es más conservador que borrar de más.
+     */
+    @Test
+    fun parse_withoutRemovedLikedKeys_givesEmptySet() {
+        assertEquals(emptySet<String>(), ImportManifest.parse(MANIFEST).removedLikedTrackKeys)
+    }
+
+    @Test
+    fun parse_ignoresBlankRemovedLikedKeys() {
+        val json = """
+            {
+              "app": "_plyr",
+              "formatVersion": 1,
+              "playlistCount": 0,
+              "trackCount": 0,
+              "removedLikedTrackKeys": ["yt-1", "", "   "],
+              "playlists": []
+            }
+        """.trimIndent()
+
+        assertEquals(setOf("yt-1"), ImportManifest.parse(json).removedLikedTrackKeys)
+    }
+
+    /**
+     * La clave del tomb tiene que ser **la misma** con la que la fusión descarta
+     * duplicados. Si divergieran, el borrado se guardaría con una clave que la
+     * fusión nunca consulta y la pista seguiría resucitando.
+     */
+    @Test
+    fun likedTrackKey_usaElVideoIdYSinoElNombreYLosArtistas() {
+        assertEquals("yt-1", ImportManifest.likedTrackKey(track(youtubeVideoId = "yt-1")))
+
+        // Sin video id: nombre y artistas, igual que la deduplicación.
+        assertEquals(
+            ImportManifest.fallbackDedupeKey(track(youtubeVideoId = null)),
+            ImportManifest.likedTrackKey(track(youtubeVideoId = null)),
+        )
+
+        // Un video id vacío cuenta como ausente, no como clave "".
+        assertEquals(
+            ImportManifest.fallbackDedupeKey(track(youtubeVideoId = null)),
+            ImportManifest.likedTrackKey(track(youtubeVideoId = "")),
+        )
+    }
+
+    /**
+     * Ida y vuelta: lo que escribe [ExportManifest] tiene que ser exactamente lo
+     * que lee [ImportManifest]. Sin este test, renombrar el campo en un solo lado
+     * no rompe nada visible: el tomb se escribiría y simplemente nunca se leería,
+     * que es el bug de B51 volvió a aparecer sin avisar.
+     */
+    @Test
+    fun roundTrip_losTombsDeFavoritosSobrevivenAExportarEImportar() {
+        val removed = setOf("yt-9", "Song Sin Video|")
+
+        val json = ExportManifest.build(
+            appVersion = "1.1.0",
+            exportedAt = 0L,
+            playlists = listOf(
+                ExportPlaylist(
+                    id = "liked_songs",
+                    name = "liked",
+                    description = null,
+                    coverEntry = null,
+                    tracks = listOf(ExportTrack(0, "Song One", listOf("A", "B"), "r1", "yt-1")),
+                )
+            ),
+            deletedPlaylistIds = setOf("youtube_PL7"),
+            removedLikedTrackKeys = removed,
+        )
+
+        val parsed = ImportManifest.parse(json)
+        assertEquals(removed, parsed.removedLikedTrackKeys)
+        assertEquals(setOf("youtube_PL7"), parsed.deletedPlaylistIds)
+        // Y lo demás del archivo sigue leyendo igual que antes.
+        assertEquals(listOf("liked_songs"), parsed.playlists.map { it.id })
+        assertEquals("yt-1", parsed.playlists.first().tracks.first().youtubeVideoId)
+    }
+
+    private fun track(
+        name: String = "Song One",
+        artists: String = "A, B",
+        youtubeVideoId: String? = "yt-1",
+    ) = TrackEntity(
+        id = "liked_songs_r1_0",
+        playlistId = PlaylistLocalRepository.LIKED_SONGS_ID,
+        remoteTrackId = "remote-1",
+        name = name,
+        artists = artists,
+        youtubeVideoId = youtubeVideoId,
+        audioUrl = null,
+        position = 0,
+    )
 }
