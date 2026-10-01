@@ -57,6 +57,36 @@ object QueueIndex {
     }
 
     /**
+     * Siguiente índice a probar cuando la canción pedida no se pudo resolver.
+     *
+     * El reintento tiene que ir **en la dirección del salto**, no siempre hacia
+     * delante. Antes solo avanzaba, así que un `<<` a una pista que no se podía
+     * resolver acababa sonando una canción distinta hacia delante: el usuario
+     * pedía "la anterior" y oía otra cosa, sin ninguna señal de por qué (B49).
+     *
+     * No aplica el umbral de reinicio de [previousIndex]: aquí no hay decisión
+     * de usuario que interpretar, solo un destino alternativo al que caer.
+     *
+     * @return índice destino, o `null` si no queda a dónde ir en ese sentido.
+     */
+    fun retryIndexFor(
+        failed: Int,
+        size: Int,
+        repeatMode: String,
+        backwards: Boolean
+    ): Int? {
+        if (size <= 0 || failed !in 0 until size) return null
+        return if (backwards) {
+            when (repeatMode) {
+                Config.REPEAT_MODE_ALL -> if (failed == 0) size - 1 else failed - 1
+                else -> if (failed > 0) failed - 1 else null
+            }
+        } else {
+            nextIndex(failed, size, repeatMode)
+        }
+    }
+
+    /**
      * Índice al que saltar cuando una canción termina de forma natural.
      *
      * Es la transición que antes no existía en la app: sin ella, si el

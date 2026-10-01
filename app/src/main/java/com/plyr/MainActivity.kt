@@ -55,8 +55,14 @@ class MainActivity : ComponentActivity() {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             musicService = (service as MusicService.MusicBinder).getService()
-            (application as PlyrApp).playerViewModel.onMediaSessionUpdate = { player ->
+            val viewModel = (application as PlyrApp).playerViewModel
+            viewModel.onMediaSessionUpdate = { player ->
                 musicService?.setupMediaSession(player)
+            }
+            // Los botones de la notificación piden el salto a la cola de la app,
+            // no al reproductor: este solo ve su ventana de pistas (B49).
+            musicService?.onSkipRequest = { backwards ->
+                if (backwards) viewModel.navigateToPrevious() else viewModel.navigateToNext()
             }
         }
 
@@ -191,6 +197,9 @@ class MainActivity : ComponentActivity() {
             // El MediaSession del servicio va a morir de verdad: desactivar el
             // callback para no dejar huecos de notificación (B46).
             (application as PlyrApp).playerViewModel.onMediaSessionUpdate = null
+            // Este lambda captura esta Activity. Si el servicio sobrevive, un
+            // `<<` desde la notificación llegaría a una pantalla destruida (B49).
+            musicService?.onSkipRequest = null
             (application as PlyrApp).playerViewModel.pausePlayer()
             stopService(Intent(this, MusicService::class.java))
         }

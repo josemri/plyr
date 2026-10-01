@@ -59,6 +59,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         /** Canciones que se pueden saltar por no resolverse antes de parar. */
         const val MAX_RESOLUTION_SKIPS = 5
 
+        /**
+         * Items que se dejan preparados detrás de la canción actual.
+         *
+         * Con uno basta para que `<<` sea un salto inmediato, y el coste es un
+         * item resuelto de más: la ventana crece como mucho en uno respecto a
+         * antes.
+         */
+        const val KEEP_BEHIND = 1
+
         /** Profundidad máxima al recorrer la cadena de causas de un error. */
         const val MAX_CAUSE_DEPTH = 5
     }
@@ -243,17 +252,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun navigateToNext() {
         val target = QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) ?: return
-        playIndex(target)
+        playIndex(target, backwards = false)
     }
 
     fun navigateToPrevious() {
         val position = _exoPlayer?.currentPosition ?: 0L
-        val target = QueueIndex.previousIndex(currentIndex, queue.size, position, queueRepeatMode) ?: return
+        val target = QueueIndex.previousIndex(currentIndex, queue.size, position, queueRepeatMode)
+        if (target == null) {
+            // No hay canción anterior: en la primera de la cola, y antes de los
+            // 3 s, el botón se quedaba sin hacer nada. Reiniciar la canción
+            // actual es lo que hacen el resto de reproductores, y deja el botón
+            // con una respuesta en vez de aparentar que está roto (B49).
+            _exoPlayer?.seekTo(0L)
+            return
+        }
         if (target == currentIndex) {
             _exoPlayer?.seekTo(0L)
             return
         }
-        playIndex(target)
+        playIndex(target, backwards = target < currentIndex)
     }
 
     fun updateRepeatMode() {
@@ -417,8 +434,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * @param reResolve fuerza a resolver de nuevo en vez de reutilizar el item
      *   ya preparado. Se usa cuando la URL caducó: un `seekTo` reintentaría con
      *   la misma URL y volvería a fallar.
+     * @param backwards sentido del salto. Solo importa cuando la canción destino
+     *   no se puede resolver: el reintento tiene que buscar en el mismo sentido
+     *   que el salto, o un `<<` acabaría sonando una canción de delante (B49).
      */
-    private fun playIndex(target: Int, reResolve: Boolean = false) {
+    private fun playIndex(
+        target: Int,
+        reResolve: Boolean = false,
+        backwards: Boolean = target < currentIndex,
+    ) {
         if (transitionInFlight) return
         val player = _exoPlayer ?: return
         if (target !in queue.indices) {
@@ -458,9 +482,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     if (resolved.isNotEmpty()) break
 
                     // Ninguna se pudo resolver: se prueban las siguientes antes de
-                    // rendirse, y solo un número acotado de saltos.
+                    // rendirse, y solo un número acotado de saltos. Hacia atrás se
+                    // busca hacia atrás: si no, el `<<` acababa sonando una
+                    // canción distinta hacia delante (B49).
                     val following = if (skipped < MAX_RESOLUTION_SKIPS) {
-                        QueueIndex.nextIndex(candidate, queue.size, queueRepeatMode)
+                        QueueIndex.retryIndexFor(candidate, queue.size, queueRepeatMode, backwards)
                     } else {
                         null
                     }
@@ -563,13 +589,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Descarta de la ventana los items ya superados para que no crezca sin
      * límite. Nunca se elimina el item en reproducción.
      */
+    /**
+     * Recorta por delante lo que ya no puede volver a usarse, dejando
+     * [KEEP_BEHIND] items detrás del actual.
+     *
+     * Antes no dejaba ninguno, y eso rompía el `<<`: con la ventana empezando
+     * justo en la canción actual, el anterior nunca estaba preparado, así que
+     * cada `<<` caía en el camino asíncrono (resolver por red). Durante la
+     * resolución la app se marca como cargando, los tres botones se desactivan y
+     * un segundo toque se pierde en silencio. Con un item detrás, el salto
+     * habitual es un `seekTo` inmediato y sin cortes (B49).
+     */
     private fun trimWindow() {
         val player = _exoPlayer ?: return
-        val current = player.currentMediaItemIndex
-        if (current <= 0 || current >= player.mediaItemCount) return
+        val removable = player.currentMediaItemIndex - KEEP_BEHIND
+        if (removable <= 0 || removable >= player.mediaItemCount) return
 
-        player.removeMediaItems(0, current)
-        windowStart += current
+        player.removeMediaItems(0, removable)
+        windowStart += removable
     }
 
     /**
@@ -642,7 +679,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             stopAtQueueEnd()
             return
         }
-        playIndex(target)
+        // El final de una canción siempre avanza, también cuando "repetir una"
+        // deja el destino en la misma posición.
+        playIndex(target, backwards = false)
     }
 
     /**
@@ -676,7 +715,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             stopAtQueueEnd()
             return
         }
-        playIndex(target, reResolve = expiredUrl)
+        playIndex(target, reResolve = expiredUrl, backwards = false)
     }
 
     private fun showError(error: PlaybackException) {

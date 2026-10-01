@@ -75,13 +75,14 @@
 > cifras de tests de abajo (339) son las de la última tanda y **no** han
 > cambiado.
 >
-> - **8 bugs documentados, 2 activos (B49, B51)**: el botón de anterior no vuelve
->   a la canción anterior (**B49**) y el sync resucita los favoritos que se han
->   borrado (**B51**).
+> - **8 bugs documentados, 0 activos**: los ocho están **resueltos**. **B51** (el
+>   sync resucitaba los favoritos que se habían borrado) y **B49** (el botón de
+>   anterior no volvía a la anterior) se han resuelto ambos en la dieciseisava
+>   tanda (→ §10).
 >   **B50** (el `>>` de la notificación que no volvía), **B52** (el share que
 >   mandaba el id de Spotify), **B53** (el share de una lista), **B54** (el diálogo
 >   de compartir en blanco), **B55** y **B56** (la notificación que decía
->   "Plyr / Reproducendo") ya están **resueltos**: B55 + B56 en la undécima tanda,
+>   "Plyr / Reproduciendo") ya están **resueltos**: B55 + B56 en la undécima tanda,
 >   B54 en la duodécima, B52 en la treceava, B50 en la catorceava y B53 en la
 >   quinceava (→ §10). Detalle en §3, Arrangement en §9.
 > - **3 peticiones de comportamiento/funcionalidad** en §11: que `liked` vacía
@@ -89,11 +90,11 @@
 >   (**F2**, que es B52 + B53, y de los dos solo queda B53) y el "añadir a
 >   lista" en el menú `*` (**F3**) — **F3 ya resuelta** en la décima tanda
 >   (→ §10), F1 y F2 siguen abiertas.
-> - El **B49** y el **B50** comparten el mismo defecto de fondo que §6 ya
->   señalaba: `MusicService` no registra ningún `MediaSession.Callback`, así
->   que los botones de la notificación y del lockscreen mueven ExoPlayer por
->   dentro de la ventana deslizante en vez de pasar por `QueueIndex`. Ya no es
->   una nota de arquitectura: tiene dos síntomas reproducibles.
+> - El defecto de fondo de §6 que compartían **B49** y **B50** —`MusicService`
+>   sin ningún `MediaSession.Callback`, con los botones de la notificación y del
+>   lockscreen moviendo ExoPlayer por dentro de la ventana deslizante en vez de
+>   pasar por `QueueIndex`— queda **cerrado** en la dieciseisava tanda con
+>   `SessionSkipCommand`.
 > - La numeración **B49+** es nueva y no guarda relación con los B1–B48 de las
 >   tandas anteriores, que siguen resueltos (§10).
 > - **Al re-verificar B49–B53 para documentarlos han salido tres bugs más que no
@@ -108,7 +109,9 @@
 >   notificación que decía estar reproduciendo sin que hubiera nada sonando, con
 >   `./run.sh test` (**347**, en verde) y `./run.sh build` (BUILD SUCCESSFUL).
 >   **Duodécima tanda (2026-10-01): B54 resuelto**, el diálogo de compartir ya no
->   puede abrirse en blanco. Quedan **2 bugs abiertos** y 2 peticiones. Detalle en §10.
+>   puede abrirse en blanco. **Decimoseisava tanda (2026-10-01): B51 + B49
+>   resueltos**, con `./run.sh test` (**409**, en verde) y `./run.sh build` (BUILD
+>   SUCCESSFUL). Quedan **0 bugs abiertos** y 2 peticiones. Detalle en §10.
 
 ---
 
@@ -426,18 +429,18 @@ de descartes.
 
 ### 1.4 Estado de la deuda
 
-- **2 bugs activos: B49 y B51**, los dos reportados, ambos de severidad **alta**.
-  **B54** (el diálogo de compartir se abría en blanco), **B55** y **B56** (la
-  notificación que decía "Plyr / Reproduciendo" al terminar la cola y al abrir
-  la app sin música) aparecieron al documentarlos y ya están **resueltos**:
-  B55 + B56 en la undécima tanda y B54 en la duodécima (→ §10). Los 48 de
-  las tandas anteriores siguen resueltos. Detalle en §3.
+- **0 bugs activos.** Los ocho bugs documentados (B49–B56) están resueltos.
+  **B49** (el `<<` que no volvía a la anterior) y **B51** (el sync que resucitaba
+  los favoritos borrados) se cerraron en la dieciseisava tanda; **B50**, **B52**,
+  **B53**, **B54**, **B55** y **B56** en la treceava a la quinceava, y los 48 de
+  las tandas anteriores antes (→ §10). Detalle en §3.
 - **2 peticiones abiertas** de funcionalidad/comportamiento (§11): F1 (`liked`
   vacía no debería aparecer) y F2 (qué URL se comparte, que es B52 + B53).
   **F3** ("añadir a lista" en el menú `*`) está **resuelta** en la décima tanda
   (→ §10): era la más fácil de las tres, solo una entrada de menú.
-- **2 bugs activos** (B49, B51). La décima tanda (2026-10-01) solo implementó F3;
-  la undécima resolvió B55 + B56 y la duodécima B54.
+- Reparto por tanda: F3 en la décima (2026-10-01), B55 + B56 en la undécima,
+  B54 en la duodécima, B52 en la treceava, B50 en la catorceava, B53 en la
+  quinceava y B51 + B49 en la dieciseisava.
 - **347 tests unitarios** en 26 archivos (`./run.sh test`; todos en verde tras la
   undécima tanda, que añadió los 8 de `PlaybackNotificationStateTest`).
 - **0 instrumentados** útiles (solo `ExampleInstrumentedTest`).
@@ -491,9 +494,10 @@ de descartes.
 
 ---
 
-## 3. BUGS ACTIVOS
+## 3. BUGS RESUELTOS
 
-**2** (B49, B51). Los 54 de las tandas anteriores siguen resueltos (§10).
+**Ninguno activo.** Los 8 documentados (B49–B56) más los 54 de las tandas
+anteriores están resueltos (§10).
 
 - Batch del **2026-10-01**, sin arreglar: **B49**–**B53**, los cinco reportados.
   Todos verificados **leyendo el código** (ver la nota de la cabecera).
@@ -517,9 +521,9 @@ con el ZIP ya borrado), así que queda en altos y no en críticos.
 
 ### 3.2 Altos
 
-**2 activos.**
+**0 activos.**
 
-#### B49 — El botón de anterior solo reinicia la canción y no vuelve a la anterior
+#### B49 — El botón de anterior solo reinicia la canción y no vuelve a la anterior — **RESUELTO** (dieciseisava tanda)
 
 **Reportado:** al darle, la canción vuelve al principio; a la anterior no llega.
 
@@ -567,6 +571,23 @@ El síntoma tiene cuatro causas que se suman. Las tres primeras son de
    `COMMAND_SEEK_TO_PREVIOUS` lo mueve ExoPlayer directamente. Como la ventana no
    tiene items anteriores (`trimWindow`), `hasPreviousMediaItem()` es `false`:
    el botón no hace nada, o el sistema directamente no lo muestra.
+
+**Arreglo** (dieciseisava tanda → §10): las cuatro causas están atacadas por
+separado, porque una sola no bastaba:
+
+- `trimWindow()` deja `KEEP_BEHIND = 1` item preparado detrás del actual, así que
+  el `<<` habitual cae en el `seekTo` inmediato de `playIndex` y deja de pasar por
+  la red. Con eso el caso 2 deja de ser el caso normal.
+- `QueueIndex.retryIndexFor()` reintenta la resolución **en el sentido del salto**.
+  Antes solo avanzaba, y por eso un `<<` a una pista irresoluble acababa sonando
+  una canción distinta de delante.
+- `navigateToPrevious()` en la primera posición reinicia la canción en vez de no
+  hacer nada, como el resto de reproductores.
+- `SessionSkipCommand` enruta los cuatro comandos de salto de la `MediaSession` a
+  la cola de la app, con `MusicService.onSkipRequest` como puente y
+  `MainActivity` conectándolo a `navigateToPrevious()`/`navigateToNext()`.
+
+Detalle y pruebas en §10.
 
 #### B50 — El botón de siguiente desaparece de la notificación tras dos skips seguidos — **RESUELTO** (catorceava tanda)
 
@@ -1143,9 +1164,10 @@ Dos casos concretos que se ven sin traducir hoy:
 
 ### Fase 0 — Re-reportado el 2026-10-01 (lo primero, por impacto directo)
 
-Ordenado por lo que más molesta al uso diario. Los arrangements de B49 y B50
-comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte a
-`QueueIndex`), así que conviene hacerlos juntos.
+Ordenado por lo que más molesta al uso diario. **B49 y B50 compartían pieza** (un
+`MediaSession.Callback` que pase los comandos de transporte a `QueueIndex`) y se
+cerraron juntos en la dieciseisava tanda; ya no queda nada de esa lista sin
+empezar.
 
 1. **Persistir el origen de la lista (lo grande de B53, ya arreglado sin esto).**
    El bug de compartir una lista quedó resuelto en la quinceava tanda (→ §10) sin
@@ -1163,23 +1185,25 @@ comparten pieza (un `MediaSession.Callback` que pase los comandos de transporte 
      explícito en vez de deducido.
    - El mensaje de "no hay nada que compartir" de B54 pasa a ser residual.
 
-2. **B51 — los favoritos borrados vuelven al sincronizar.** Requiere decidir la
-   política **antes** de escribir código (ver el aviso de diseño en §3.2): tomb de
-   favoritos por clave (`youtubeVideoId` o `fallbackDedupeKey`) o digest de
-   `liked_songs` en `ExportDigest`. Campo aditivo en el manifiesto, formato v1
-   intacto, como se hizo con `deletedPlaylistIds`. Toca `ExportManifest`,
-   `ImportManifest`, `ExportDigest` y sus tres ficheros de test.
-3. **B49 — el `<<` no vuelve a la anterior.** ~~La parte de B50~~ ya está hecha
-   (catorceava tanda, → §10). Lo que queda:
-   - El `MediaSession.Callback` en `MusicService` que redirija
-     `COMMAND_SEEK_TO_NEXT` / `COMMAND_SEEK_TO_PREVIOUS` a
-     `navigateToNext()` / `navigateToPrevious()` (que es lo que §6 ya señalaba),
-     en vez de dejar que ExoPlayer se mueva dentro de la ventana.
-   - Distinguir "reiniciar" de "volver" sin el coste actual (hoy cualquier salto
-     atrás sale de la ventana y re-resuelve por red con los controles
-     deshabilitados, `PlayerViewModel.kt:429-436`), y no dejar que `playIndex`
-     salte **hacia delante** cuando lo que falló resolver fue la canción
-     anterior (`:455-473`).
+2. ~~**B51 — los favoritos borrados vuelven al sincronizar.** **Resuelto en la
+   dieciseisava tanda** (→ §10). Se eligió la opción de tomb de favoritos por
+   clave, siguiendo el precedente de `deletedPlaylistIds`: campo aditivo en el
+   manifiesto, `FORMAT_VERSION` intacto, y los tombs entrando también en
+   `ExportDigest` —que sin eso el borrado no habría salido del dispositivo—.
+3. ~~**B49 — el `<<` no vuelve a la anterior.** **Resuelto en la dieciseisava
+   tanda** (→ §10): el `MediaSession.Callback` que faltaba, el salto instantáneo
+   con `KEEP_BEHIND`, el reintento en el sentido correcto y el reinicio en la
+   primera posición. ~~La parte de B50~~ ya estaba hecha en la catorceava. De lo
+   que quedaba, estas dos siguen **sin** hacer, y son menores:
+   - Distinguir "reiniciar" de "volver" **sin** el umbral de 3 s. Se dejó como
+     está a propósito: es el comportamiento de cualquier reproductor y está
+     cubierto por `previous_siLaCancionHaEmpezado_reinicia`. El coste real que
+     quedaba era el del camino asíncrono, y ese ya no es el caso normal.
+   - Mover el recorte **después** del `addMediaItems`. Se resolvió el hueco que
+     producía de otra forma, y con menos riesgo: `trimWindow()` ya no borra el
+     item anterior (`KEEP_BEHIND`), así que el `>>` de B50 no desaparece aunque el
+     relleno tarde. Toca el invariante de `windowStart`, así que queda para
+     cuando toque, con sus tests.
    - **Palanca que además cierra el residual de B50**: `trimWindow()` (`:566-573`)
      recorta *antes* de que llegue el relleno, y por eso hay un instante sin item
      siguiente. Recortando *después* del `addMediaItems` desaparece ese hueco y,
@@ -1547,10 +1571,10 @@ release**, por falta de keystore en local.
 |---|---|---|
 | **B55** + **B56** | `service/PlaybackNotificationState.kt` (nuevo) · `service/MusicService.kt` · `test/.../PlaybackNotificationStateTest.kt` (nuevo) | La decisión de qué pintar sale del servicio a una función pura `PlaybackNotificationState.of(appName, título, artista)`: con item devuelve título/artista con `ongoing = true` y `MediaStyle`; **sin item** devuelve el estado "idle" (título = nombre de la app, `ongoing = false`, `showMediaStyle = false`), o sea **no dice "Reproduciendo", no es imborrable y no monta controles que no puede resolver**. En `MusicService`, `createNotification` y la provisional `createStartupNotification` pasan a usar ese estado a través de un único `buildNotification`, y `updateNotification` hace `stopForeground(STOP_FOREGROUND_REMOVE)` cuando no hay item en vez de repintar la notificación fantasma. La `MediaSession` no se libera, así que el siguiente item vuelve a pintar la notificación con normalidad. 8 tests nuevos cubren los dos estados, incluidos el título vacío y el artista ausente (que antes caían en "Reproduciendo"). **+85 líneas, −2** |
 
-Con esto quedan **2 bugs abiertos** (B49, B51) y **2 peticiones** (F1, F2). Del
-bloque de compartir no queda nada: **B52**, **B53** y **B54** resueltos. Del
-bloque de la `MediaSession` queda **B49**: **B50** se resolvió en la catorceava
-tanda. **B51** va solo.
+Con esto quedan **0 bugs abiertos** y **2 peticiones** (F1, F2). Del bloque de
+compartir no queda nada (**B52**, **B53**, **B54** resueltos) y del bloque de la
+`MediaSession` tampoco: **B49** y **B50** resueltos, el último en la dieciseisava
+tanda junto con **B51**, que era el más delicado por tocar datos.
 
 ---
 
@@ -1569,10 +1593,9 @@ keystore en local.
 |---|---|---|
 | **B54** | `ui/components/QRDialog.kt:225-248` · `utils/Translations.kt` (4 idiomas) | `ShareDialog` ocultaba el QR, el `<share>`, el NFC y el `<recomendar>` cuando `shareUrl == null` (`:258,302,337`), y lo que quedaba era un `Card` con padding de 24 dp y **nada dentro**: un diálogo en blanco, sin QR, sin botones y sin un solo mensaje que explicara por qué. Se llega desde la cola, que es el único sitio donde `shareUrl` **y** `youtubeId` acaban a la vez en `null` (`QueueScreen.kt:66` + `youtubeVideoId` de pistas sin coincidencia en YouTube, típicas de lo importado de Spotify). Ahora, cuando no hay URL, el diálogo pinta su propio estado: un mensaje (`no_share_url`, clave nueva en español, inglés, catalán y japonés) y un botón de cerrar. El resto de la caja no se toca, porque todo lo demás depende de que haya URL. **Lo que no se arregla aquí, a propósito:** que el `id` bueno (`PlayerViewModel.resolvedVideoId`) siga sin llegar desde la cola — eso es cambiar el contrato entre la pantalla de cola y el diálogo, y pertenecía al bloque de B52/B53, donde había que decidir *qué* URL se comparte — B52 quedó resuelto en la treceava tanda (§10). Aquí solo se consigue que, cuando no hay nada que compartir, la app **lo diga**. **+29 líneas, 1 clave × 4 idiomas** |
 
-Con esto quedan **2 bugs abiertos** y **2 peticiones**: **B49** (el `<<` que no
-vuelve a la anterior) y **B51** (los favoritos borrados que el sync resucita, el
-más delicado porque toca datos). **B50**, **B52**, **B53** y **B54** ya están
-resueltos.
+Con esto quedan **0 bugs abiertos** y **2 peticiones** (**F1**, **F2**).
+**B49** y **B51** se resolvieron en la dieciseisava tanda; del bloque de compartir
+y del de la `MediaSession` no queda nada pendiente.
 
 ---
 
@@ -1805,3 +1828,90 @@ Spotify) y `./run.sh build` (**BUILD SUCCESSFUL**, APK debug; comprobado que
 | # | Ubicación | Qué se hizo |
 |---|---|---|
 | **B53** | `ui/components/PlaylistShare.kt` (nuevo) · `ui/components/ShareUrlPolicy.kt` (rama `PLAYLIST`) · `ui/components/QRDialog.kt` (`ShareableItem.playlistOrigin`) · `ui/PlaylistScreen.kt:275-290,397-411,951-968` · `ui/components/search/YouTubePlaylistDetailView.kt:251-262` · `test/.../PlaylistShareTest.kt` (nuevo) · `test/.../ShareUrlPolicyTest.kt` | El diálogo decidía el tipo de URL de una lista por prefijos del `remoteId`, así que lo importado de Spotify se compartía como `youtube.com/watch?v=<idSpotify>`, los favoritos (`liked_songs`) y las creadas en la app (`youtube_yt_…`) como si fueran un vídeo, y el botón `<share>` se ofrecía siempre. Se añade `PlaylistShare.classify(remoteId, description) → PlaylistOrigin` (YOUTUBE/SPOTIFY/UNKNOWN) y `ShareUrlPolicy` pasa a decidir por origen: YOUTUBE → `playlist?list=`, SPOTIFY → `open.spotify.com/playlist/` (que la propia app sabe leer, `UrlParser.kt:52-56`), UNKNOWN → sin URL. El orden de clasificación pone los identificadores explícitos (`liked_songs`, `youtube_yt_…`) por delante de la description, y exige que el id tenga forma de id de Spotify (22 base62) antes de fiarse de la marca, porque la description es texto editable. `PlaylistScreen` oculta el `<share>` si la lista no es compartible. `YouTubePlaylistDetailView` pasa `YOUTUBE` explícito. Los 2 tests de playlist de `ShareUrlPolicy` fijaban el bug, así que se reescribieron. **Lo pendiente:** persistir `source`/`sourceId` (migración de Room) para no depender de la description. 8 tests nuevos + 2 reescritos. **+118 líneas, −9** |
+
+### Decimosexta tanda (2026-10-01): B51 y B49
+
+Cerrados los dos últimos bugs activos, con lo que la lista documentada queda
+completa: **0 bugs abiertos**.
+
+#### B51 — El sync resucita los favoritos que el usuario acaba de quitar — **RESUELTO**
+
+`liked_songs` se fusionaba en vez de sobrescribirse, y la fusión era solo
+aditiva: una pista que el usuario desmarca salía del archivo que ella misma
+produce, así que en la siguiente sincronización volvía sola. La causa era que no
+existía forma de decir "esta pista la quité yo".
+
+El arreglo sigue el precedente que ya funcionaba para las listas
+(`deletedPlaylistIds`): un conjunto de **tombs** que viaja en el manifiesto y
+gana a los datos del archivo.
+
+- `Config.kt` guarda `removed_liked_track_keys`; `toggleLikeTrack()` añade el
+  tomb al desmarcar y lo quita al volver a marcar (si no, volver a marcar una
+  pista no la resucitaría nunca).
+- La clave es el `youtubeVideoId` y, si falta, `nombre|artistas`, que es el mismo
+  criterio que ya usaba la deduplicación.
+- `ExportManifest` serializa `removedLikedTrackKeys` **siempre como array
+  ordenado**, para que el archivo sea idéntico en dos dispositivos con los mismos
+  datos. `FORMAT_VERSION` sigue en `1`: el campo es aditivo y los manifests
+  antiguos siguen siendo válidos.
+- `ImportManifest` lo parsea opcionalmente y aplica el mismo criterio de clave.
+- `LikedSongsMerge` decide, en lógica pura, qué entra: `tomb > duplicada > nueva`.
+- `ExportDigest` incorpora los tombs. **Esto no es opcional**: si el tomb no
+  cambiara la huella, `DataSync` vería el archivo de la carpeta "al día" y no lo
+  reescribiría, así que el borrado no saldría nunca del dispositivo.
+
+Verificado con `./run.sh test` (**409 tests, en verde**) y `./run.sh build`
+(**BUILD SUCCESSFUL**). 16 tests nuevos: 8 de `LikedSongsMergeTest`, 3 de
+`ExportDigestTest` (incluido el de que quitar un favorito cambia la huella aunque
+no cambie ninguna lista), 2 de `ExportManifestTest`, 2 de `ImportManifestTest` y
+un test de ida y vuelta que fija que lo que escribe `ExportManifest` es
+exactamente lo que lee `ImportManifest`. Ese último es el que evita que el
+problema vuelva en silencio: renombrar el campo en un solo lado no rompe nada
+visible, solo deja de leerse.
+
+#### B49 — El botón de anterior no vuelve a la anterior — **RESUELTO**
+
+Tenía cuatro causas encadenadas, y arreglar solo una no lo hubiera cerrado: con
+solo el umbral de 3 s (que es intencionado y correcto) el botón *parece* no ir
+nunca hacia atrás, porque la segunda pulsación era la cara.
+
+1. **`trimWindow()` borraba todo lo anterior** en cada transición, así que la
+   canción anterior nunca estaba preparada y el `<<` caía siempre en el camino
+   asíncrono de `playIndex`: resolución por red, `_isLoading` a `true` → los tres
+   botones deshabilitados → y el segundo toque se perdía en silencio. Ahora deja
+   `KEEP_BEHIND = 1` item detrás del actual, que es lo mínimo para que el salto
+   habitual sea un `seekTo` inmediato. Esto también baja el residual que B50
+   había dejado anotado (§3, B50): la ventana ya no se queda en "solo el item
+   actual" mientras llega el relleno.
+2. **El reintento de resolución solo caminaba hacia delante.** Un `<<` a una pista
+   que no se puede resolver acababa sonando una canción *distinta hacia delante*,
+   sin avisar. `QueueIndex.retryIndexFor()` reintenta en el sentido del salto;
+   `playIndex` recibe `backwards` desde el botón que lo llamó. Aquí está el detalle
+   que merece mención: los otros dos llamadores (fin de canción y pista no
+   reproducible) pasan `backwards = false` explícito, porque su destino ya es de
+   avance y depender del valor por defecto habría sido frágil.
+3. **En la primera posición no hacía nada**: con repetición apagada
+   `previousIndex(0, …)` devuelve `null` y el botón no respondía. Ahora reinicia
+   la canción, como el resto de reproductores.
+4. **El `<<` de la notificación no pasaba por `QueueIndex`.** `MusicService` no
+   tenía ningún `MediaSession.Callback`, así que `COMMAND_SEEK_TO_PREVIOUS` lo
+   movía ExoPlayer directamente, que solo ve su ventana: `hasPreviousMediaItem()`
+   era `false` y el botón no hacía nada. `SessionSkipCommand` decide ahora qué
+   comandos atiende la app y cuáles el reproductor, y `MusicService.onSkipRequest`
+   hace de puente con `navigateToPrevious()`/`navigateToNext()`.
+
+Dos detalles de esa última parte que no son evidentes y que salen de leer el
+bytecode de media3 1.10 (`MediaSessionStub`, `MediaSession.Callback`):
+
+- El valor de retorno de `onPlayerCommandRequest` marca el comando como atendido
+  **si es distinto de 0**. Devolver `RESULT_ERROR_NOT_SUPPORTED` para lo que no
+  es un salto habría dejado **sin funcionar reproduce, pausa y seek**, que pasan
+  por el mismo callback. La política devuelve `RESULT_SUCCESS` para todo lo que
+  no sea un salto, y hay un test justo para eso.
+- Sin app conectada no hay quien decida el salto, y delegarlo en el reproductor
+  saltaría al "anterior de la ventana", que es la canción equivocada. Ahí también
+  se prefiere no hacer nada, y así está en la política.
+
+Verificado con `./run.sh test` (**409 tests, en verde**) y `./run.sh build`
+(**BUILD SUCCESSFUL**, APK debug; comprobado que `SessionSkipCommand`,
+`retryIndexFor`, `onSkipRequest` y `KEEP_BEHIND` están dentro del APK).

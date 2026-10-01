@@ -31,6 +31,18 @@ class MusicService : Service() {
      */
     private var lastNotification: PlaybackNotificationState? = null
 
+    /**
+     * Salto de canción pedido desde fuera de la app (notificación, botón del
+     * sistema, auriculares, Android Auto).
+     *
+     * El reproductor solo conoce la ventana de pistas que tiene cargada, así
+     * que su "anterior" es el anterior *de la ventana*, que no es el anterior de
+     * la cola: al recortar por delante, el botón no tenía nada a lo que ir y no
+     * hacía nada. Al delegar aquí, la decisión la toma [QueueIndex] sobre la
+     * cola entera, que es la fuente de verdad (B49).
+     */
+    var onSkipRequest: ((backwards: Boolean) -> Unit)? = null
+
     companion object {
         const val ACTION_STOP = "com.plyr.action.STOP"
     }
@@ -88,6 +100,17 @@ class MusicService : Service() {
                     PendingIntent.FLAG_IMMUTABLE
                 )
             )
+            .setCallback(object : MediaSession.Callback {
+                override fun onPlayerCommandRequest(
+                    session: MediaSession,
+                    controller: MediaSession.ControllerInfo,
+                    playerCommand: Int,
+                ): Int = SessionSkipCommand.handle(playerCommand) { direction ->
+                    // La cola completa vive en la app; el reproductor solo ve su
+                    // ventana, y por eso su "anterior" no es el anterior (B49).
+                    onSkipRequest?.invoke(direction == SessionSkipCommand.Direction.BACKWARDS)
+                }
+            })
             .build()
         mediaSession = session
 

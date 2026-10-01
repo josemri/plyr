@@ -122,4 +122,72 @@ class QueueIndexTest {
     fun ended_conIndiceFueraDeRango_devuelveNull() {
         assertNull(QueueIndex.onTrackEnded(3, 3, all))
     }
+
+    // --- retryIndexFor (reintento cuando la canción no resuelve, B49) ---
+
+    /**
+     * Este es el bug de B49 en su forma más clara: al pedir `<<` a una pista que
+     * no se podía resolver, el reintento caminaba hacia delante, así que el
+     * usuario oía otra canción distinta, sin ninguna señal de por qué.
+     */
+    @Test
+    fun retry_haciaAtras_noAvanzaHaciaDelante() {
+        // El destino pedido era el 1 y falló; el 0 sí está detrás. Con el
+        // reintento de antes habría saltado al 2.
+        assertEquals(0, QueueIndex.retryIndexFor(failed = 1, size = 3, repeatMode = off, backwards = true))
+    }
+
+    @Test
+    fun retry_haciaAdelante_sigueAvanzando() {
+        assertEquals(2, QueueIndex.retryIndexFor(failed = 1, size = 3, repeatMode = off, backwards = false))
+    }
+
+    @Test
+    fun retry_haciaAtras_enLaPrimera_devuelveNull() {
+        assertNull(QueueIndex.retryIndexFor(failed = 0, size = 3, repeatMode = off, backwards = true))
+    }
+
+    @Test
+    fun retry_haciaAtras_conRepeatAll_daLaVuelta() {
+        assertEquals(2, QueueIndex.retryIndexFor(failed = 0, size = 3, repeatMode = all, backwards = true))
+        assertEquals(1, QueueIndex.retryIndexFor(failed = 2, size = 3, repeatMode = all, backwards = true))
+    }
+
+    @Test
+    fun retry_haciaAdelante_enLaUltima_devuelveNull() {
+        assertNull(QueueIndex.retryIndexFor(failed = 2, size = 3, repeatMode = off, backwards = false))
+    }
+
+    /**
+     * A diferencia de [QueueIndex.previousIndex], aquí no hay umbral de 3 s: es
+     * un destino alternativo, no una pulsación de "anterior" que interpretar.
+     */
+    @Test
+    fun retry_noAplicaElUmbralDeReinicio() {
+        assertEquals(1, QueueIndex.retryIndexFor(failed = 2, size = 3, repeatMode = off, backwards = true))
+    }
+
+    /**
+     * En la primera canción, y antes de los 3 s, no hay a dónde ir. Devolver
+     * `null` es lo que hace que el botón quede sin hacer nada; la app lo
+     * convierte en un reinicio (B49). Este test fija el contrato que hace esa
+     * conversión posible: "no hay destino" y "el destino soy yo" son cosas
+     * distintas, y solo la primera debe acabar reiniciando.
+     */
+    @Test
+    fun previous_enLaPrimera_noHayDestino() {
+        assertNull(QueueIndex.previousIndex(0, 3, positionMs = 0, repeatMode = off))
+    }
+
+    @Test
+    fun previous_pasadosLos3s_devuelveElMismoParaReiniciar() {
+        assertEquals(0, QueueIndex.previousIndex(0, 3, positionMs = 3_001, repeatMode = off))
+    }
+
+    @Test
+    fun retry_conColaVaciaOIndiceInvalido_devuelveNull() {
+        assertNull(QueueIndex.retryIndexFor(failed = 0, size = 0, repeatMode = all, backwards = true))
+        assertNull(QueueIndex.retryIndexFor(failed = 3, size = 3, repeatMode = all, backwards = true))
+        assertNull(QueueIndex.retryIndexFor(failed = -1, size = 3, repeatMode = off, backwards = false))
+    }
 }
