@@ -72,31 +72,16 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md). This section only lists what is left: **62 bugs resolved, 0 open**, plus the feature requests in report §11.
+Everything already fixed is documented in [`report.md`](report.md) — **56 bugs resolved, 0 open**, 409 unit tests in green. This section only lists what is left (details in report §4).
 
-- [x] **Share** — the URLs that go into the QR / the NFC tag / the recommendation feed are wrong (`B52`, `B53`, `B54`) — **done**
-  - [x] ~~A track shares its **YouTube** video, not the row id it has in the database~~ — done, `ShareUrlPolicy` decides the URL and the real `youtubeVideoId` wins over a pre-built one
-  - [x] ~~A playlist imported from **Spotify** shares `open.spotify.com/playlist/<id>`~~ — done, `PlaylistShare.classify` picks the URL from the playlist's origin
-  - [x] ~~`liked_songs` and locally created lists don't offer a share at all~~ — done, the `<share>` button is hidden for a playlist with no shareable origin
-  - [x] ~~The share dialog says so instead of opening blank when there is no video to share~~ — done
-  - [ ] *Not a bug, still open:* the playlist origin is **inferred** from the `remoteId` + description; persist `source`/`sourceId` so it doesn't depend on the editable description
-- [x] **Playback** — previous from the notification didn't go through the queue (`B49`) — **done**
-  - [x] ~~The media session routes `seekToNext` / `seekToPrevious` to `QueueIndex` instead of letting ExoPlayer move inside its sliding window~~ — done, `SessionSkipCommand` decides which commands the app handles; anything else is left to the player, so play/pause/seek keep working
-  - [x] ~~Going back doesn't leave the prepared window (today it re-resolves over the network with the controls disabled) and never skips *forward* when the previous track fails to resolve~~ — done, `trimWindow` keeps one track behind so `<<` is an instant `seekTo`, and the resolution retry looks in the direction of the jump
-  - [x] ~~At the first track of the queue `<<` did nothing~~ — done, it restarts the song like any other player
-  - [x] ~~The notification is rebuilt on timeline changes too, so the **next** button doesn't vanish after two skips in a row~~ — done, `onTimelineChanged` repaints it
-  - [x] ~~The notification stops lying when nothing is playing~~ — done, it no longer sits there saying **"Plyr / Reproducendo"**
-- [x] **Sync** — a liked track you deleted came back from the zip (`B51`) — **done**
-  - [x] ~~Decide the policy: tombstones per liked track, or a `liked_songs` digest, so a local deletion wins without breaking the restore-a-fresh-install case~~ — done, tombstones per liked track, following the existing `deletedPlaylistIds` precedent. They travel in the manifest as an additive field and go into the digest, or the deletion would never leave the device
-- [ ] **Wanted behaviour / small features**
-  - [ ] `liked` only shows up as a playlist while it has songs (filter it out of the two listings, don't drop the row)
-  - [x] ~~**add to list** in the `*` menu~~ — done, the `*` menu now opens the existing playlist picker
+- [ ] **Share** — *not a bug, still open:* the playlist origin is **inferred** from the `remoteId` + description; persist `source`/`sourceId` so it doesn't depend on the editable description
+- [ ] `liked` only shows up as a playlist while it has songs (filter it out of the two listings, don't drop the row)
 - [ ] **Apply report.md** — remaining refactors and polish from the audit
-  - [ ] Move the UI literals that don't go through `Translations` to real keys (report §7.1)
+  - [ ] Move the UI literals that don't go through `Translations` to real keys
   - [ ] Reduce the request/response body logs in `SupabaseClient` (S7: PII in logcat)
   - [ ] Performance: `key` in the PlaylistScreen lazy lists, `LazyColumn` in Feed
-  - [ ] Instrumented tests (import, QR/camera, NFC)
   - [ ] `metadataCache` in Feed (O(n²) read-modify-write)
+  - [ ] Instrumented tests (import, QR/camera, NFC)
 - [ ] **Download lists** — download playlists for offline use
   - [ ] Download the audio of each track and store it locally
   - [ ] Play from local when available
