@@ -44,7 +44,7 @@ class MusicService : Service() {
     var onSkipRequest: ((backwards: Boolean) -> Unit)? = null
 
     companion object {
-        const val ACTION_STOP = "com.plyr.action.STOP"
+        const val ACTION_STOP = "io.github.josemri.plyr.action.STOP"
     }
 
     override fun onCreate() {

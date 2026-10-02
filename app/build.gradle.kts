@@ -20,7 +20,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.plyr"
+        applicationId = "io.github.josemri.plyr"
         minSdk = 24
         targetSdk = 36
         versionCode = 7

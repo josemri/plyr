@@ -394,7 +394,7 @@ class DatabaseMappingsTest {
     private fun playlistRow(
         remoteId: String,
         name: String,
-        trackCount: Int
+        trackCount: Int = 0
     ) = PlaylistEntity(
         remoteId = remoteId,
         name = name,

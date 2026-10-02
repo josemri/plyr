@@ -7,7 +7,7 @@ set -euo pipefail
 #   "clean" borra todo y deja el proyecto recién clonado.
 # ==============================================================
 
-PACKAGE_NAME="com.plyr"
+PACKAGE_NAME="io.github.josemri.plyr"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # --- Rutas: todo vive bajo /tmp/plyr-android ---
