@@ -323,4 +323,83 @@ class DatabaseMappingsTest {
 
         assertNull(found)
     }
+
+    @Test
+    fun visiblePlaylists_ocultaLikedVacia() {
+        val playlists = listOf(
+            playlistRow(PlaylistLocalRepository.LIKED_SONGS_ID, "liked", trackCount = 0),
+            playlistRow("youtube_b", "B")
+        )
+
+        val visible = PlaylistLocalRepository.visiblePlaylists(playlists)
+
+        assertEquals(
+            "La fila vacía se filtra, pero las demás siguen",
+            listOf("youtube_b"),
+            visible.map { it.remoteId }
+        )
+    }
+
+    @Test
+    fun visiblePlaylists_muestraLikedConCancionesYLaPonePrimera() {
+        val playlists = listOf(
+            playlistRow("youtube_b", "B"),
+            playlistRow(PlaylistLocalRepository.LIKED_SONGS_ID, "liked", trackCount = 1),
+            playlistRow("youtube_a", "A")
+        )
+
+        val visible = PlaylistLocalRepository.visiblePlaylists(playlists)
+
+        assertEquals(
+            listOf(
+                PlaylistLocalRepository.LIKED_SONGS_ID,
+                "youtube_a",
+                "youtube_b"
+            ),
+            visible.map { it.remoteId }
+        )
+    }
+
+    @Test
+    fun visiblePlaylists_filtraAlbumesYNoTocaLasListasVaciasDelUsuario() {
+        val playlists = listOf(
+            playlistRow("album_xyz", "Album de Spotify", trackCount = 12),
+            playlistRow("youtube_a", "A", trackCount = 0)
+        )
+
+        val visible = PlaylistLocalRepository.visiblePlaylists(playlists)
+
+        assertEquals(
+            "Solo se ocultan los álbumes: una lista propia vacía sigue visibles",
+            listOf("youtube_a"),
+            visible.map { it.remoteId }
+        )
+    }
+
+    @Test
+    fun visiblePlaylists_noBorraLaFilaDeLiked() {
+        val liked = playlistRow(PlaylistLocalRepository.LIKED_SONGS_ID, "liked", trackCount = 0)
+        val playlists = listOf(liked)
+
+        val visible = PlaylistLocalRepository.visiblePlaylists(playlists)
+
+        assertTrue("No se muestra", visible.isEmpty())
+        assertEquals(
+            "La fila sigue en la lista de entrada: el resto de la app la necesita",
+            listOf(liked),
+            playlists
+        )
+    }
+
+    private fun playlistRow(
+        remoteId: String,
+        name: String,
+        trackCount: Int
+    ) = PlaylistEntity(
+        remoteId = remoteId,
+        name = name,
+        description = null,
+        trackCount = trackCount,
+        imageUrl = null
+    )
 }

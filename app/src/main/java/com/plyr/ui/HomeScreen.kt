@@ -273,9 +273,7 @@ private fun HomePlaylistCarousel(
     val playlistEntities by playlistRepository.getAllPlaylistsLiveData()
         .asFlow()
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    val playlists = playlistEntities
-        .filter { !it.remoteId.startsWith("album_") }
-        .sortedBy { if (it.remoteId == "liked_songs") "" else it.name }
+    val playlists = PlaylistLocalRepository.visiblePlaylists(playlistEntities)
 
     val listState = remember { LazyListState() }
     LaunchedEffect(playlists) {

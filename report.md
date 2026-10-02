@@ -9,8 +9,8 @@
 ## 1. Estado
 
 - **0 bugs abiertos.** Los **56** documentados (B1–B56) están resueltos (§3).
-- **2 peticiones** de comportamiento abiertas (§4.1) + un puñado de mejoras (§4.2–§4.6).
-- **409 tests unitarios** en 31 archivos, todos en verde. 0 instrumentados útiles.
+- **1 petición abierta** (§4.1): F2. **F1 está resuelta** (`PlaylistLocalRepository.visiblePlaylists`, filtro por `trackCount > 0` que se aplica en los dos listados).
+- **413 tests unitarios** en 31 archivos. 0 instrumentados útiles.
 - Código muerto grande **borrado** (−301 líneas): `SongMenuDialog`, `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd`.
 - **0 claves de traducción sin uso** y **0 claves referenciadas que no existen**, con dos tests que lo garantizan.
 - Sync bidireccional con propagación de borrados (tombstones) verificado.
@@ -52,8 +52,8 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
 
 ### 4.1 Peticiones de comportamiento (lo prioritario)
 
-- **F1 — `liked` vacía no debería aparecer como lista.** La fila se crea siempre al arrancar (`ensureLikedSongsPlaylist`) con `trackCount = 0` y ninguno de los dos listados la filtra (`HomeScreen.kt:276-278`, `PlaylistScreen.kt:121-124`).
-  **Filtrar, no borrar**: `toggleLikeTrack`, `mergeLikedSongsTracks` e `ImportManifest.plan` dan por hecho que la fila existe. Basta con filtrar por `trackCount > 0`.
+- **F1 — `liked` vacía no debería aparecer como lista — RESUELTA.** La fila se creaba siempre al arrancar (`ensureLikedSongsPlaylist`) con `trackCount = 0` y ninguno de los dos listados la filtraba. Ahora ambos pasan por `PlaylistLocalRepository.visiblePlaylists`, que descarta `album_*` y `liked` con `trackCount == 0`, y mantiene el orden *liked* primero.
+  Es un **filtro, no un borrado**: `toggleLikeTrack`, `mergeLikedSongsTracks` e `ImportManifest.plan` dan por hecho que la fila existe, y borrarla "si está vacía" habría roto las tres. `trackCount` lo mantienen las tres rutas que la modifican y `getAllPlaylists()` es un `Flow` sobre la tabla, así que el corazón aparece y desaparece solo. Cubierto con 4 tests en `DatabaseMappingsTest`.
 - **F2 — Persistir el origen de la lista.** Hoy `PlaylistShare.classify` deduce si una lista es de Spotify o de YouTube a partir del `remoteId` y de la description (`description == "Imported from Spotify"`), así que si el usuario edita la description la lista deja de ser compartible. Lo correcto es una columna `source`/`sourceId` en `PlaylistEntity` (+ migración) y que `ShareUrlPolicy`/`PlaylistShare` lean el origen guardado.
   Criterio de fondo de F2: **compartir siempre el origen real de lo que se comparte** (canción → su vídeo de YouTube; lista de Spotify → `open.spotify.com/playlist/<id>`, que la propia app ya sabe volver a abrir; lista creada en la app → nada que compartir).
 - **Recorte de la ventana después del relleno.** `trimWindow()` recorta antes de que llegue el `addMediaItems`, así que durante uno o dos segundos el reproductor no tiene item siguiente y el botón `>>` parpadea; y si el relleno falla, la ventana se queda sin él. Mover el recorte *después* del `addMediaItems` cierra el hueco y, de rebote, mejora el `<<`. Toca el invariante de `windowStart`: va con tests.

@@ -120,9 +120,8 @@ fun PlaylistsScreen(
     var newDesc by remember { mutableStateOf("") }
 
     // Convertir entidades a AppPlaylist para compatibilidad con UI existente
-    val playlists = playlistsFromDB
-        .filter { !it.remoteId.startsWith("album_") }
-        .sortedBy { if (it.remoteId == "liked_songs") "" else it.name }
+    // (oculta los álbumes y la lista de favoritos vacía — F1)
+    val playlists = PlaylistLocalRepository.visiblePlaylists(playlistsFromDB)
         .map { it.toAppPlaylist() }
 
     // Estado para mostrar tracks de una playlist
