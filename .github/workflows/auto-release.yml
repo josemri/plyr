@@ -160,11 +160,47 @@ jobs:
           fi
 
           echo "Verificando firma con: $APKSIGNER"
-          "$APKSIGNER" verify --print-certs "$APK_PATH"
+          "$APKSIGNER" verify --print-certs "$APK_PATH" | tee certs.txt
+
+          CERT_SHA256=$(grep -m1 'certificate SHA-256 digest:' certs.txt | awk '{print $NF}')
+          if [ -z "$CERT_SHA256" ]; then
+            echo "::error::No se pudo extraer la huella SHA-256 del certificado de firma"
+            exit 1
+          fi
+          CERT_COLONS=$(echo "$CERT_SHA256" | sed 's/../&:/g; s/:$//')
+          CERT_SHA256_NORM=$(echo "$CERT_SHA256" | tr 'a-f' 'A-F')
+          APK_PACKAGE=$(grep -oE 'applicationId *= *"[^"]+"' app/build.gradle.kts | sed -E 's/.*"(.*)"/\1/')
+
+          {
+            echo "### Huella SHA-256 del certificado de firma"
+            echo
+            echo "Pega este valor en **Android Developer Console > Package names > \`$APK_PACKAGE\` > Add key**:"
+            echo
+            echo '```'
+            echo "$CERT_COLONS"
+            echo '```'
+            echo
+            echo "Sin dos puntos: \`$CERT_SHA256\`"
+            echo
+            echo "Si ya la habías registrado con otro valor, actualízala: debe coincidir exactamente o el APK no se instalará."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          EXPECTED="${{ vars.EXPECTED_CERT_SHA256 }}"
+          if [ -n "$EXPECTED" ]; then
+            EXPECTED_NORM=$(echo "$EXPECTED" | tr -d '[:space:]:' | tr 'a-f' 'A-F')
+            if [ "$EXPECTED_NORM" != "$CERT_SHA256_NORM" ]; then
+              echo "::error::La huella firmada ($CERT_SHA256) no coincide con EXPECTED_CERT_SHA256 ($EXPECTED_NORM). El APK se firmaría con una clave distinta a la registrada en Android Developer Console y no se podría instalar."
+              exit 1
+            fi
+            echo "Huella coincide con la registrada en Android Developer Console."
+          else
+            echo "::warning::EXPECTED_CERT_SHA256 no está definida. Créala en Settings > Secrets and variables > Actions > Variables para validar la firma automáticamente en cada release."
+          fi
 
           echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
           echo "apk_size=$(du -h "$APK_PATH" | cut -f1)" >> "$GITHUB_OUTPUT"
           echo "apk_sha256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "cert_sha256=$CERT_SHA256" >> "$GITHUB_OUTPUT"
 
       - name: Commit version bump and push tag
         run: |
