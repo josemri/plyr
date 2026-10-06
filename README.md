@@ -10,13 +10,14 @@ Built this music player because I wanted something simple with a terminal aesthe
 
 ## features
 
-- **YouTube streaming** — search and play any song; no API keys needed (NewPipe Extractor under the hood).
-- **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL** (each track is resolved to its YouTube video); **Liked Songs** saved on swipe.
+- **YouTube streaming** — search and play any song (NewPipe Extractor).
+- **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL**
 - **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
-- **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own (a single `.zip` with `playlists.json` plus the artwork in `covers/`). It works the same in Google Drive as on the device. Sync goes **both ways**: before writing, the previous copy is merged back into the app (so a fresh install restores everything instead of overwriting a good archive with an empty one), and deletions travel too — a playlist you remove stays removed on any device. Settings has a single **sync** button: it syncs if the file is already there, or opens the folder picker when there is nothing to sync to yet.
-- **Swipe actions** — configurable left/right swipe on a song: add to queue, like, add to a playlist or share. **Auto theme** by ambient light via the device light sensor.
+- **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own .
+- **Swipe actions** — configurable left/right swipe on a song: queue, like, playlist or share. 
+- **Auto theme** by ambient light via the device light sensor.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase.
-- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls. Playback continues with the screen off and stops when the app is closed from recents.
+- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
 - **Media buttons** — play/pause, next, previous and 10 s skip from wireless headsets, Bluetooth and the notification.
 
 ## screenshots
@@ -74,7 +75,7 @@ CAMERA                    # QR code scanning (optional hardware)
 
 Everything already fixed is documented in [`report.md`](report.md) — **56 bugs resolved, 0 open**, 413 unit tests. This section only lists what is left (details in report §4).
 
-- [ ] **Share** — *not a bug, still open:* the playlist origin is **inferred** from the `remoteId` + description; persist `source`/`sourceId` so it doesn't depend on the editable description
+- [ ] **Share** — the playlist origin is **inferred** from the `remoteId` + description; persist `source`/`sourceId` so it doesn't depend on the editable description
 - [ ] **Apply report.md** — remaining refactors and polish from the audit
   - [ ] Move the UI literals that don't go through `Translations` to real keys
   - [ ] Reduce the request/response body logs in `SupabaseClient` (S7: PII in logcat)
@@ -92,9 +93,6 @@ Everything already fixed is documented in [`report.md`](report.md) — **56 bugs
 - [ ] **Drag & Drop** — reorder songs in playlists with long press and drag
   - [ ] Long-press + drag gestures in the track list
   - [ ] Persist the new order (`TrackEntity`/`TrackDao`)
-- [ ] **Backup data (optional extras)**
-  - [ ] Share the `plyr-sync.zip` via `ACTION_SEND`
-  - [ ] Export search history
 
 ## license
 
