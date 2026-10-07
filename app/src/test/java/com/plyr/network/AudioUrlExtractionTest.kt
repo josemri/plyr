@@ -8,17 +8,21 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Extracción de URL de audio: deduplicación en vuelo (B5) y salto de caché
- * (B4).
+ * Extracción de URL de audio: deduplicación en vuelo (B5), salto de caché
+ * (B4) y cancelaciones (B57).
  *
  * Se ejercita el núcleo con la extracción inyectada, así que ni NewPipe ni la
- * red entran en juego: lo que se comprueba es la política de caché y la de
- * "una sola extracción por video".
+ * red entran en juego: lo que se comprueba es la política de caché, la de
+ * "una sola extracción por video" y qué le pasa a quien esperaba cuando la
+ * extracción se cancela.
  */
 class AudioUrlExtractionTest {
 
@@ -175,6 +179,75 @@ class AudioUrlExtractionTest {
 
         assertEquals("https://audio/$videoId", YouTubeManager.cachedUrl(videoId))
         delay(1)
+        assertEquals("https://audio/$videoId", YouTubeManager.cachedUrl(videoId))
+    }
+
+    // --- B57: cancelaciones ---
+
+    /**
+     * El productor se va sin haber extraído nada. Para quien esperaba eso no es
+     * un fallo, es que el intento no llegó a serlo: si se le devolvía `null`
+     * descartaba la canción y el `>>` no encontraba nada que reproducir. Tiene
+     * que volver a intentarlo él mismo.
+     */
+    @Test
+    fun extraccionCancelada_elQueEsperabaLoVuelveAEintentar() = runBlocking {
+        val videoId = "b57-interrupted"
+        val started = CountDownLatch(1)
+        val release = CountDownLatch(1)
+
+        // La extracción no acaba nunca hasta que lo liberemos, y aun así no
+        // devuelve nada: es lo que pasa cuando se corta a mitad.
+        val producer = async(Dispatchers.IO) {
+            YouTubeManager.getAudioUrl(videoId, false) {
+                started.countDown()
+                release.await()
+                null
+            }
+        }
+        assertTrue("la extracción debe empezar", started.await(5, TimeUnit.SECONDS))
+
+        val waiter = async(Dispatchers.IO) {
+            YouTubeManager.getAudioUrl(videoId, false) { "https://audio/$videoId" }
+        }
+        // Sirve tanto si entra mientras la primera sigue en vuelo como si llega
+        // ya después de cancelarla: las dos rutas acaban reintentando.
+        Thread.sleep(200)
+
+        producer.cancel()
+        release.countDown()
+
+        assertEquals("https://audio/$videoId", waiter.await())
+        producer.join()
+    }
+
+    /**
+     * El caso contrario: cancelar a quien esperaba no puede arrastrar a quien
+     * estaba extrayendo, ni contar la extracción dos veces.
+     */
+    @Test
+    fun cancelarAlQueEsperaba_noMolestaAlProductor() = runBlocking {
+        val videoId = "b57-waiter-cancel"
+        val started = CountDownLatch(1)
+        val extractor = CountingExtractor("https://audio/$videoId", delayMs = 500)
+
+        val producer = async(Dispatchers.IO) {
+            YouTubeManager.getAudioUrl(videoId, false) {
+                started.countDown()
+                extractor.extract()
+            }
+        }
+        assertTrue("la extracción debe empezar", started.await(5, TimeUnit.SECONDS))
+
+        val waiter = async(Dispatchers.IO) {
+            YouTubeManager.getAudioUrl(videoId, false) { extractor.extract() }
+        }
+        Thread.sleep(100)
+        waiter.cancel()
+        waiter.join()
+
+        assertEquals("https://audio/$videoId", producer.await())
+        assertEquals("Solo la extracción del productor", 1, extractor.calls.get())
         assertEquals("https://audio/$videoId", YouTubeManager.cachedUrl(videoId))
     }
 }

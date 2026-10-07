@@ -19,9 +19,13 @@ enum class NotificationEvent {
     ITEM_TRANSITION,
 
     /**
-     * Cambió la lista de items del reproductor. Los botones de la notificación
-     * los decide la `MediaSession` a partir de `hasPreviousMediaItem()` /
-     * `hasNextMediaItem()`, es decir, **de la ventana**, y no de lo que se ve.
+     * Cambió la lista de items del reproductor (recorte o relleno de la ventana).
+     * El título no cambia, pero la notificación hay que repintarla igual (B50).
+     *
+     * Ojo con lo que esto **no** hace: el sistema pinta los controles de
+     * reproducción (el `>>`) desde el `PlaybackState` de la sesión, y la sesión
+     * solo lo refresca al cambiar los comandos del reproductor o al transicionar
+     * de item, no con `onTimelineChanged`. Ver `QueueAwarePlayer` (B57).
      */
     TIMELINE_CHANGED,
 }
@@ -56,11 +60,13 @@ object NotificationRefreshPolicy {
         previous == null || previous != next -> NotificationAction.REBUILD
 
         // El item en curso es el mismo, pero la ventana ha cambiado: hay que
-        // repintar igual, porque la visibilidad de "anterior"/"siguiente" depende
-        // de los items vecinos y no del título. **Esta es la clave de B50**: si
-        // aquí se comparara solo el estado, el `addMediaItems` del relleno no
-        // repintaría y el botón seguiría desaparecido hasta la siguiente
-        // transición, que es justo el bug.
+        // repintar igual, porque la notificación lleva el `MediaStyle` de la
+        // sesión y el relleno de la ventana puede dejarla desactualizada.
+        // **Esta es la clave de B50**: si aquí se comparara solo el estado, el
+        // `addMediaItems` del relleno no repintaría nada.
+        //
+        // Esto devuelve la notificación, no el `>>` de los controles del
+        // sistema: ese lo decide el `PlaybackState` de la sesión (B57).
         event == NotificationEvent.TIMELINE_CHANGED -> NotificationAction.REBUILD
 
         // Mismo evento y mismo estado: no hay nada que hacer.

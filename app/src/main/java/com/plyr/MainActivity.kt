@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
             musicService = (service as MusicService.MusicBinder).getService()
             val viewModel = (application as PlyrApp).playerViewModel
             viewModel.onMediaSessionUpdate = { player ->
-                musicService?.setupMediaSession(player)
+                musicService?.setupMediaSession(player, viewModel::hasNextInQueue)
             }
             // Los botones de la notificación piden el salto a la cola de la app,
             // no al reproductor: este solo ve su ventana de pistas (B49).

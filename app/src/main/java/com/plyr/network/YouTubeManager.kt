@@ -4,6 +4,8 @@ import com.plyr.utils.NewPipeHolder
 import com.plyr.utils.UrlParser
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.schabi.newpipe.extractor.ServiceList
@@ -28,6 +30,25 @@ object YouTubeManager {
     private val urlCache = ConcurrentHashMap<String, CacheEntry>()
 
     /**
+     * Resultado de una extracción compartida.
+     *
+     * Un `null` a secas no basta para contar lo que pasó: "este vídeo no tiene
+     * audio" y "quien lo estaba extrayendo se canceló a mitad y no llegó a
+     * extraer nada" se comportan igual al recibirlo, pero hay que actuar distinto
+     * ante cada uno. En el segundo caso todavía no se ha intentado de verdad, así
+     * que quien espera tiene que hacerlo él; devolver el `null` tal cual hacía que
+     * la canción se descartara como un fallo real y el `>>` no encontrara nada que
+     * reproducir (B57).
+     */
+    private sealed interface Extraction {
+        /** Terminó. Su `url` es `null` solo si la extracción falló de verdad. */
+        data class Finished(val url: String?) : Extraction
+
+        /** Quien la extrajo se canceló antes de tener resultado: no se intentó. */
+        data object Interrupted : Extraction
+    }
+
+    /**
      * Extracciones en vuelo, por video (B5).
      *
      * Sin esto, dos corrutinas que piden el mismo video lanzaban dos
@@ -36,7 +57,7 @@ object YouTubeManager {
      * que el trabajo se hacía dos veces. Aquí corre una sola y las demás esperan
      * su resultado.
      */
-    private val inFlight = ConcurrentHashMap<String, CompletableDeferred<String?>>()
+    private val inFlight = ConcurrentHashMap<String, CompletableDeferred<Extraction>>()
 
     /**
      * Busca un video en YouTube y devuelve su ID
@@ -92,25 +113,47 @@ object YouTubeManager {
         forceRefresh: Boolean,
         extract: () -> String?
     ): String? {
-        if (!forceRefresh) cachedUrl(videoId)?.let { return it }
+        // Se reconsulta la caché en cada vuelta: si el productor anterior se
+        // canceló, quizá otro ya extrajo este vídeo mientras tanto.
+        while (true) {
+            if (!forceRefresh) cachedUrl(videoId)?.let { return it }
 
-        val mine = CompletableDeferred<String?>()
-        val pending = inFlight.putIfAbsent(videoId, mine)
-        if (pending != null) return pending.await()
+            val mine = CompletableDeferred<Extraction>()
+            val pending = inFlight.putIfAbsent(videoId, mine)
+            if (pending != null) {
+                when (val result = pending.await()) {
+                    is Extraction.Finished -> return result.url
+                    // El productor se fue sin extraer nada: no hay nada que
+                    // esperar, así que lo intenta este. Devolver `null` aquí
+                    // descartaría la canción como si hubiera fallado (B57).
+                    Extraction.Interrupted -> continue
+                }
+            }
 
-        var url: String? = null
-        try {
-            url = withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
-                withContext(Dispatchers.IO) { extract() }
+            var url: String? = null
+            try {
+                url = withTimeoutOrNull(EXTRACTION_TIMEOUT_MS) {
+                    withContext(Dispatchers.IO) { extract() }
+                }
+            } finally {
+                // `withContext` no puede interrumpir `extract()`, así que una
+                // cancelación se nota al volver: o lanza, o devuelve el
+                // resultado igualmente. Sin URL y con la corrutina cancelada el
+                // intento no llegó a serlo, y contarlo como `null` normal hacía
+                // que quien esperaba descartara la pista sin reintentar (B57).
+                val cancelled = !currentCoroutineContext().isActive
+                inFlight.remove(videoId, mine)
+                when {
+                    url != null -> {
+                        urlCache[videoId] = CacheEntry(url, System.currentTimeMillis())
+                        mine.complete(Extraction.Finished(url))
+                    }
+                    cancelled -> mine.complete(Extraction.Interrupted)
+                    else -> mine.complete(Extraction.Finished(null))
+                }
             }
-        } finally {
-            if (url != null) {
-                urlCache[videoId] = CacheEntry(url, System.currentTimeMillis())
-            }
-            inFlight.remove(videoId, mine)
-            if (!mine.isCompleted) mine.complete(url)
+            return url
         }
-        return url
     }
 
     /** URL cacheada aún vigente, o `null` si no hay o ha caducado. */

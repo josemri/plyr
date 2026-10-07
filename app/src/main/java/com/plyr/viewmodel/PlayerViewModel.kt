@@ -23,6 +23,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -68,6 +69,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
          */
         const val KEEP_BEHIND = 1
 
+        /**
+         * Intentos seguidos para rellenar un tramo de la ventana.
+         *
+         * Con uno solo, una caída puntual de red dejaba la ventana sin item
+         * siguiente y no había nada que la volviera a intentar hasta la
+         * siguiente transición (B57).
+         */
+        const val MAX_FILL_ATTEMPTS = 2
+
+        /** Espera entre intentos de relleno fallidos. */
+        const val FILL_RETRY_DELAY_MS = 400L
+
         /** Profundidad máxima al recorrer la cadena de causas de un error. */
         const val MAX_CAUSE_DEPTH = 5
     }
@@ -108,7 +121,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     private var consecutiveFailures: Int = 0
     private var transitionInFlight: Boolean = false
-    private var resolving: Boolean = false
+
+    /**
+     * Operaciones de carga en vuelo. Ver [LoadingState].
+     *
+     * Antes era un `Boolean` suelto que solo cerraba quien lo había puesto y
+     * solo si su `generation` seguía vigente: cualquier `generation++` ajeno
+     * mientras se resolvía lo dejaba clavado en `true`, y con él el spinner y
+     * todos los controles deshabilitados (B58).
+     */
+    private val loading = LoadingState()
     private var currentVideoId: String? = null
     private var queueRepeatMode: String = Config.REPEAT_MODE_OFF
 
@@ -122,18 +144,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     private val resolvedVideoId = ConcurrentHashMap<String, String>()
 
-    private var prefetchJob: Job? = null
-
     /**
-     * Rango de índices que [prefetchJob] está rellenando ahora mismo.
+     * Relleno de ventana en curso, si lo hay.
      *
-     * `growWindow()` se llama dos veces por transición (una al saltar y otra al
-     * entrar en el item). Sin esta marca, la segunda cancelaba la primera y
-     * relanzaba la misma extracción, y como la de la primera no se puede
-     * interrumpir, las dos acababan añadiendo los mismos items a la ventana
-     * (B5).
+     * `growWindow()` se llama varias veces por transición (al saltar y al entrar
+     * en el item) y además al encolar. Antes, cada llamada cancelaba la anterior
+     * y relanzaba el mismo trabajo (B5, y luego B57): cancelar se llevaba por
+     * delante la extracción que iba justo por la canción siguiente y, como
+     * `YouTubeManager` repartía ese `null` entre quienes esperaban, el relleno
+     * nuevo la daba por perdida y no añadía nada a la ventana.
+     *
+     * Ahora solo se lanza uno si no hay otro vivo, y el que está en marcha no se
+     * toca: su bucle vuelve a mirar al terminar qué queda por rellenar, así que
+     * el trabajo ya hecho sigue valiendo y el tramo nuevo se recoge después.
      */
-    private var prefetchRange: String? = null
+    private var prefetchJob: Job? = null
 
     // ------------------------------------------------------------------ //
     // Ciclo de vida del reproductor
@@ -225,7 +250,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * sobre la cola nueva.
      */
     fun setCurrentPlaylist(playlist: List<TrackEntity>, startIndex: Int = 0) {
-        generation++
+        invalidateLoads()
         prefetchJob?.cancel()
         prefetchJob = null
 
@@ -254,6 +279,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val target = QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) ?: return
         playIndex(target, backwards = false)
     }
+
+    /**
+     * Si la cola tiene una canción después de la actual (con "repetir todo"
+     * también la tiene estando en la última, porque da la vuelta).
+     *
+     * Es la respuesta que decide si existe el `>>` de la notificación (B57). La
+     * ventana de ExoPlayer no puede darla: es una porción de la cola que se
+     * recorta por delante y que a veces ni llega a rellenarse, y el `>>` se
+     * escondía cada vez que la canción actual quedaba al final de la ventana,
+     * aunque quedaran canciones por delante en la cola.
+     */
+    fun hasNextInQueue(): Boolean =
+        QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) != null
 
     fun navigateToPrevious() {
         val position = _exoPlayer?.currentPosition ?: 0L
@@ -300,8 +338,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _currentPlaylist.publish(updated)
 
         if (wasPlaying) {
-            generation++
+            // Encolar al final no desplaza ningún índice, así que no invalida
+            // nada: una resolución en vuelo sigue siendo válida y el salto que
+            // el usuario estaba pidiendo se aplica al terminar. Antes aquí había
+            // un `generation++` que se lo tragaba en silencio y dejaba huérfano
+            // el estado de carga (B58).
             prefetchJob?.cancel()
+            prefetchJob = null
             growWindow()
         }
     }
@@ -314,14 +357,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun clearPlayerState() {
         prefetchJob?.cancel()
         prefetchJob = null
-        generation++
+        invalidateLoads()
 
-        resolving = false
         transitionInFlight = false
         consecutiveFailures = 0
         currentVideoId = null
         resolvedVideoId.clear()
-        prefetchRange = null
         windowStart = 0
 
         _exoPlayer?.let { player ->
@@ -373,17 +414,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         initializePlayer()
         val player = _exoPlayer ?: return false
 
-        generation++
+        invalidateLoads()
         val gen = generation
         prefetchJob?.cancel()
         prefetchJob = null
 
-        resolving = true
-        updateLoadingState()
-        _error.publish(null)
-
-        val track = queue[index]
+        val token = beginLoading()
         try {
+            _error.publish(null)
+
+            val track = queue[index]
             val knownId = track.youtubeVideoId ?: resolvedVideoId[track.id]
             val videoId = withContext(Dispatchers.IO) {
                 YouTubeManager.resolveVideoId(track.name, track.artists, knownId)
@@ -420,10 +460,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _error.publish(prefix + (e.message ?: ""))
             return false
         } finally {
-            // El estado de carga se cierra siempre aquí: no puede quedar
-            // bloqueado en true, que era lo que deshabilitaba los controles.
-            resolving = false
-            updateLoadingState()
+            // El token se retira sea cual sea la `generation`: si esta carga
+            // fue invalidada por otra operación, esta retirada no toca a nadie.
+            // Lo que no podía quedar es el estado clavado en `true`, que era lo
+            // que dejaba el spinner y los controles muertos (B58).
+            endLoading(token)
         }
     }
 
@@ -466,11 +507,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // Como en startAt: la re-resolución también es carga. Sin esto la UI
             // dejaba de mostrar el spinner y los controles se reactivaban a
             // mitad de la resolución (B36).
-            resolving = true
-            updateLoadingState()
-            _error.publish(null)
-
+            val token = beginLoading()
             try {
+                _error.publish(null)
+
                 var candidate = target
                 var skipped = 0
                 var resolved: List<ResolvedItem> = emptyList()
@@ -518,12 +558,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 onMediaSessionUpdate?.invoke(player)
                 growWindow()
             } finally {
-                // Solo cierra el estado si esta resolución sigue siendo la
-                // vigente; si otra transición la superó, esa la gestiona.
-                if (gen == generation) {
-                    resolving = false
-                    updateLoadingState()
-                }
+                // El token se retira sea cual sea la `generation`. Antes el
+                // cierre era condicional (`if (gen == generation)`) y quien
+                // invalidaba la resolución no cerraba nada por su cuenta, así
+                // que un `generation++` ajeno dejaba el estado en `true` para
+                // siempre: spinner para siempre y controles muertos (B58).
+                endLoading(token)
             }
         }
     }
@@ -531,57 +571,96 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     /**
      * Extiende la ventana con las siguientes canciones aún no preparadas, para
      * que la transición sea inmediata. Se llama tras cada transición.
+     *
+     * Solo corre un relleno a la vez y **nunca se cancela** para lanzar otro
+     * (B57): cancelar se llevaba por delante la extracción que iba justo por la
+     * canción siguiente, y relanzar el mismo trabajo mientras el usuario estaba
+     * saltando era justo cuando más falta hacía. Las llamadas que llegan mientras
+     * tanto se recogen al terminar, porque el bucle vuelve a mirar qué falta.
      */
     private fun growWindow() {
-        val player = _exoPlayer ?: return
+        if (_exoPlayer == null) return
         if (queue.isEmpty() || currentIndex !in queue.indices) return
 
         trimWindow()
 
-        val lastCovered = windowStart + player.mediaItemCount - 1
-        val wanted = minOf(currentIndex + WINDOW_AHEAD, queue.size - 1)
-        val missing = wanted - lastCovered
-        if (missing <= 0) return
-
-        // Se acota el relleno por llamada: cambiar a "repetir todo" estando en la
-        // última canción pediría resolver la cola entera de golpe.
-        val from = lastCovered + 1
-        val lastNew = minOf(minOf(lastCovered + missing, queue.size - 1), from + WINDOW_AHEAD - 1)
-        if (from > lastNew) return
+        // Un relleno en marcha no se cancela para lanzar otro: su bucle recoge
+        // lo que falte cuando termine. Cancelarlo era lo que rompía el `>>`.
+        if (prefetchJob?.isActive == true) return
+        if (fillTarget() == null) return
 
         val gen = generation
-        val range = "$gen:$from-$lastNew"
-
-        // La transición llama a growWindow() dos veces (salto + entrada en el
-        // item). Si el relleno que hace falta es el mismo, se deja terminar el
-        // que ya está en marcha en vez de relanzarlo: la extracción anterior no
-        // se puede interrumpir, así que relanzar la repetía y las dos acababan
-        // añadiendo los mismos items a la ventana (B5).
-        if (prefetchRange == range) return
-
-        prefetchJob?.cancel()
-        prefetchRange = range
         prefetchJob = viewModelScope.launch {
-            try {
-                val resolved = resolveItems(from, lastNew + 1, gen)
-                if (gen != generation) return@launch
+            fillWindow(gen)
+        }
+    }
 
-                // Solo se añaden los items desde `from` sin huecos: si uno falla, la
-                // ventana debe dejar de crecer ahí o la posición de ExoPlayer
-                // dejaría de corresponder con el índice de la cola.
-                var expected = from
-                val contiguous = ArrayList<MediaItem>(resolved.size)
-                for (item in resolved) {
-                    if (item.index != expected) break
-                    contiguous.add(item.mediaItem)
-                    expected++
-                }
-                if (contiguous.isEmpty()) return@launch
+    /**
+     * Tramo de cola que falta por preparar, o `null` si la ventana ya cubre lo
+     * que se pide (la cola entera, o la actual más [WINDOW_AHEAD]).
+     *
+     * El tramo se acota a [WINDOW_AHEAD] items por llamada: cambiar a "repetir
+     * todo" estando en la última canción pediría resolver la cola entera de
+     * golpe.
+     */
+    private fun fillTarget(): FillTarget? {
+        val player = _exoPlayer ?: return null
+        if (queue.isEmpty() || currentIndex !in queue.indices) return null
 
-                _exoPlayer?.addMediaItems(contiguous)
-            } finally {
-                if (prefetchRange == range) prefetchRange = null
+        val lastCovered = windowStart + player.mediaItemCount - 1
+        val wanted = minOf(currentIndex + WINDOW_AHEAD, queue.size - 1)
+        if (wanted - lastCovered <= 0) return null
+
+        val from = lastCovered + 1
+        val lastNew = minOf(wanted, from + WINDOW_AHEAD - 1)
+        return if (from > lastNew) null else FillTarget(from, lastNew)
+    }
+
+    /**
+     * Rellena la ventana vuelta a vuelta hasta que no quede nada que pedir.
+     *
+     * El tramo se recalcula al principio de cada iteración, así que los saltos
+     * que lleguen mientras se resuelve se atienden en esta misma corrida y el
+     * trabajo ya hecho (las URLs ya extraídas) sigue valiendo: antes, cada
+     * salto cancelaba el relleno anterior y empezaba de cero.
+     *
+     * Si un tramo no se puede resolver se reintenta [MAX_FILL_ATTEMPTS] veces y
+     * entonces se rinde, en vez de quedarse en silencio sin decir nada.
+     */
+    private suspend fun fillWindow(gen: Int) {
+        var attempt = 1
+        while (gen == generation) {
+            val target = fillTarget() ?: return
+            val resolved = resolveItems(target.from, target.lastNew + 1, gen)
+            if (gen != generation) return
+
+            // Solo se añaden los items desde `from` sin huecos: si uno falla, la
+            // ventana debe dejar de crecer ahí o la posición de ExoPlayer
+            // dejaría de corresponder con el índice de la cola.
+            var expected = target.from
+            val contiguous = ArrayList<MediaItem>(resolved.size)
+            for (item in resolved) {
+                if (item.index != expected) break
+                contiguous.add(item.mediaItem)
+                expected++
             }
+
+            if (contiguous.isEmpty()) {
+                if (attempt >= MAX_FILL_ATTEMPTS) return
+                attempt++
+                delay(FILL_RETRY_DELAY_MS)
+                continue
+            }
+
+            // Entre que se calculó el tramo y aquí la ventana pudo cambiar de
+            // otra forma (p. ej. vaciándose al llegar al final de la cola).
+            // Añadir en ese caso dejaría la posición de ExoPlayer desfasada
+            // respecto a la cola; se reevalúa en la siguiente vuelta.
+            val player = _exoPlayer ?: return
+            if (windowStart + player.mediaItemCount != target.from) return
+
+            attempt = 1
+            player.addMediaItems(contiguous)
         }
     }
 
@@ -792,12 +871,40 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * `isLoading` = resolviendo URLs o el reproductor está bufferizando.
-     * Al derivarlo de ambos estados no puede quedarse bloqueado en `true`.
+     * Invalida todo el trabajo en vuelo: sus resultados ya no se van a aplicar,
+     * así que se retira también el estado de carga que sostenían.
+     *
+     * Todo `generation++` tiene que pasar por aquí. Era lo que faltaba en B58:
+     * había incrementos que no tocaban el estado de carga, y el que lo había
+     * puesto no lo cerraba porque su generación ya no era la vigente.
+     */
+    private fun invalidateLoads() {
+        generation++
+        loading.supersede()
+        updateLoadingState()
+    }
+
+    /** Empieza una operación de carga y publica el nuevo estado. */
+    private fun beginLoading(): Int {
+        val token = loading.begin()
+        updateLoadingState()
+        return token
+    }
+
+    /** Termina la operación [token] y publica el nuevo estado. */
+    private fun endLoading(token: Int) {
+        loading.end(token)
+        updateLoadingState()
+    }
+
+    /**
+     * `isLoading` = alguna operación de carga en vuelo o el reproductor
+     * bufferizando. Al derivarlo de la [LoadingState] no se queda bloqueado en
+     * `true` aunque la operación que lo abrió sea invalidada (B58).
      */
     private fun updateLoadingState() {
         val buffering = _exoPlayer?.playbackState == Player.STATE_BUFFERING
-        _isLoading.publish(resolving || buffering)
+        _isLoading.publish(loading.isLoading || buffering)
     }
 
     private fun createMediaItem(track: TrackEntity, audioUrl: String, queueIndex: Int): MediaItem =
@@ -822,4 +929,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Item resuelto junto a su posición en la cola, para no perder la alineación. */
     private data class ResolvedItem(val index: Int, val mediaItem: MediaItem)
+
+    /** Tramo de la cola que falta por preparar en la ventana. */
+    private data class FillTarget(val from: Int, val lastNew: Int)
 }

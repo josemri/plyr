@@ -26,8 +26,9 @@ class MusicService : Service() {
     /**
      * Último estado visible pintado, para no reconstruir la notificación cuando
      * el evento no cambia nada de lo que se ve. La visibilidad de los botones de
-     * la `MediaSession` **no** se guarda aquí: la lleva el propio reproductor, y
-     * depende de la ventana, no de este estado (ver `NotificationRefreshPolicy`).
+     * la `MediaSession` **no** se guarda aquí: la decide el `PlaybackState` a
+     * partir de los comandos del reproductor, que [QueueAwarePlayer] mide con la
+     * cola entera (ver `NotificationRefreshPolicy`).
      */
     private var lastNotification: PlaybackNotificationState? = null
 
@@ -86,13 +87,18 @@ class MusicService : Service() {
     private fun appName(): String = getString(R.string.app_name)
 
     @OptIn(UnstableApi::class)
-    fun setupMediaSession(player: ExoPlayer) {
+    fun setupMediaSession(player: ExoPlayer, hasNextInQueue: () -> Boolean) {
         if (mediaSession != null) {
             refreshNotification(player, NotificationEvent.ITEM_TRANSITION)
             return
         }
 
-        val session = MediaSession.Builder(this, player)
+        // El `>>` lo pinta el sistema a partir de los comandos del reproductor,
+        // y la ventana de ExoPlayer solo ve un trozo de la cola: con ella sola
+        // el botón se escondía en cuanto la canción actual quedaba al final de
+        // la ventana (B57). La sesión envuelve al reproductor para decidir ese
+        // comando con la cola entera, que es la fuente de verdad (B49).
+        val session = MediaSession.Builder(this, QueueAwarePlayer(player, hasNextInQueue))
             .setSessionActivity(
                 PendingIntent.getActivity(
                     this, 0,
@@ -122,8 +128,9 @@ class MusicService : Service() {
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
                 // El recorte y el relleno de la ventana (`trimWindow` /
                 // `growWindow`) solo disparan esto. Sin escucharlos, la
-                // notificación se quedaba con los botones de antes del
-                // `addMediaItems` y el de siguiente no volvía nunca (B50).
+                // notificación se quedaba con el estado de antes del
+                // `addMediaItems` (B50). El `>>` de los controles del sistema
+                // no depende de aquí, sino del `PlaybackState` (B57).
                 refreshNotification(player, NotificationEvent.TIMELINE_CHANGED)
             }
         })
