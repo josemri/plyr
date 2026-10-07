@@ -1,6 +1,5 @@
 package com.plyr.network
 
-import android.content.Context
 import android.util.Log
 import com.plyr.model.Group
 import com.plyr.model.GroupMember

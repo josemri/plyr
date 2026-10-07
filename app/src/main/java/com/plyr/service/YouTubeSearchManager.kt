@@ -25,7 +25,7 @@ import org.schabi.newpipe.extractor.stream.StreamInfoItem
  * 
  * @param context Contexto de la aplicación Android
  */
-class YouTubeSearchManager(private val context: Context) {
+class YouTubeSearchManager(context: Context) {
     
     // === DEPENDENCIES ===
     private val localRepository = PlaylistLocalRepository(context)

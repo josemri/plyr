@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -97,7 +96,6 @@ fun PlaylistsScreen(
 
     // Estado para las playlists y autenticación
     val playlistsFromDB by localRepository.getAllPlaylistsLiveData().asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
-    var isLoading by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
 
     // Estado para Liked Songs - ahora desde DB
@@ -227,8 +225,9 @@ fun PlaylistsScreen(
             )
             return@Column
         }
-        if (selectedPlaylist != null) {
-            Titulo(selectedPlaylist!!.name)
+        val playlistSel = selectedPlaylist
+        if (playlistSel != null) {
+            Titulo(playlistSel.name)
             Spacer(modifier = Modifier.height(4.dp))
 
             // Descripción de la playlist entre el título y los botones,
@@ -426,13 +425,14 @@ fun PlaylistsScreen(
                                     onClick = {
                                         if (isEditing) {
                                             // Al hacer clic en save, verificar si hay cambios sin guardar
-                                            if (hasUnsavedChanges) {
-                                                // Guardar cambios en la playlist local
-                                                if (selectedPlaylist != null) {
-                                                    isLoadingTracks = true
-                                                    coroutineScope.launch {
-                                                        val success = localRepository.updatePlaylistDetails(
-                                                            localPlaylistId = selectedPlaylist!!.id,
+                                                if (hasUnsavedChanges) {
+                                                    // Guardar cambios en la playlist local
+                                                    val toEdit = selectedPlaylist
+                                                    if (toEdit != null) {
+                                                        isLoadingTracks = true
+                                                        coroutineScope.launch {
+                                                            val success = localRepository.updatePlaylistDetails(
+                                                                localPlaylistId = toEdit.id,
                                                             newTitle = if (newTitle != originalTitle) newTitle else null,
                                                             newDesc = if (newDesc != originalDesc) newDesc else null
                                                         )
@@ -514,13 +514,14 @@ fun PlaylistsScreen(
                                     TextButton(
                                         onClick = {
                                             showDeleteDialog = false
-                                            if (selectedPlaylist != null) {
+                                            val toDelete = selectedPlaylist
+                                            if (toDelete != null) {
                                                 // Eliminar playlist local
                                                 coroutineScope.launch {
                                                     // remoteId completo: deleteYouTubePlaylist
                                                     // anteponía "youtube_" y no borraba las
                                                     // listas que no lo llevan
-                                                    localRepository.deletePlaylist(selectedPlaylist!!.id)
+                                                    localRepository.deletePlaylist(toDelete.id)
                                                     isEditing = false
                                                     hasUnsavedChanges = false
                                                     selectedPlaylist = null
@@ -749,14 +750,15 @@ fun PlaylistsScreen(
                                              isCurrentlyPlaying = isPlaying,
                                              customButtonIcon = "+",
                                              customButtonAction = {
-                                                 if (selectedPlaylist != null) {
+                                                 val toAdd = selectedPlaylist
+                                                 if (toAdd != null) {
                                                      // Añadir track a la playlist de YouTube local (videoId ya resuelto)
                                                      coroutineScope.launch {
                                                          val success = localRepository.addTrackToYouTubePlaylist(
-                                                             localPlaylistId = selectedPlaylist!!.id,
+                                                             localPlaylistId = toAdd.id,
                                                              track = TrackEntity(
                                                                  id = "",
-                                                                 playlistId = selectedPlaylist!!.id,
+                                                                 playlistId = toAdd.id,
                                                                  remoteTrackId = track.id,
                                                                  name = track.name,
                                                                  artists = track.getArtistNames(),
@@ -823,11 +825,12 @@ fun PlaylistsScreen(
                                              isCurrentlyPlaying = isPlaying,
                                              customButtonIcon = "x",
                                              customButtonAction = {
-                                                 if (selectedPlaylist != null) {
+                                                 val toRemove = selectedPlaylist
+                                                 if (toRemove != null) {
                                                      // Eliminar track de la playlist de YouTube local
                                                      coroutineScope.launch {
                                                          val success = localRepository.removeTrackFromYouTubePlaylist(
-                                                             localPlaylistId = selectedPlaylist!!.id,
+                                                             localPlaylistId = toRemove.id,
                                                              remoteTrackId = track.id
                                                          )
                                                          if (success) {
@@ -927,9 +930,10 @@ fun PlaylistsScreen(
                                         hasUnsavedChanges = false
 
                                         // Si hay una playlist pendiente, cargarla
-                                        if (pendingPlaylist != null) {
-                                            selectedPlaylist = pendingPlaylist
-                                            loadPlaylistTracks(pendingPlaylist!!)
+                                        val pending = pendingPlaylist
+                                        if (pending != null) {
+                                            selectedPlaylist = pending
+                                            loadPlaylistTracks(pending)
                                             pendingPlaylist = null
                                         } else {
                                             // Si no hay playlist pendiente, salir de la vista actual
@@ -968,18 +972,21 @@ fun PlaylistsScreen(
 
                     // Diálogo de compartir - debe estar dentro del mismo scope que showShareDialog
                     if (showShareDialog) {
-                        ShareDialog(
-                            item = ShareableItem(
-                                remoteId = selectedPlaylist!!.id,
-                                shareUrl = null,
-                                youtubeId = selectedPlaylist!!.id.removePrefix("youtube_"),
-                                title = selectedPlaylist!!.name,
-                                artist = "Playlist",
-                                type = ShareType.PLAYLIST,
-                                playlistOrigin = playlistShareOrigin,
-                            ),
-                            onDismiss = { showShareDialog = false }
-                        )
+                        val toShare = selectedPlaylist
+                        if (toShare != null) {
+                            ShareDialog(
+                                item = ShareableItem(
+                                    remoteId = toShare.id,
+                                    shareUrl = null,
+                                    youtubeId = toShare.id.removePrefix("youtube_"),
+                                    title = toShare.name,
+                                    artist = "Playlist",
+                                    type = ShareType.PLAYLIST,
+                                    playlistOrigin = playlistShareOrigin,
+                                ),
+                                onDismiss = { showShareDialog = false }
+                            )
+                        }
                     }
                 }
             }

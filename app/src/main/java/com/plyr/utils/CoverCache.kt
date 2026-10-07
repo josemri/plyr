@@ -9,6 +9,7 @@ import okhttp3.Request
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -72,7 +73,7 @@ object CoverCache {
      */
     fun cacheKey(url: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
-        return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }
+        return digest.joinToString(separator = "") { byte -> "%02x".format(Locale.ROOT, byte) }
     }
 
     // === INTERNOS ===
@@ -94,7 +95,7 @@ object CoverCache {
                     Log.w(TAG, "Portada remota ${response.code} para $url")
                     return@use null
                 }
-                val body = response.body ?: return@use null
+                val body = response.body
                 val declared = body.contentLength()
                 if (declared > MAX_CACHED_BYTES) {
                     Log.w(TAG, "Portada demasiado grande ($declared bytes), no se cachea")

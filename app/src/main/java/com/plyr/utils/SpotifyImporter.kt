@@ -188,7 +188,7 @@ object SpotifyImporter {
                     .build()
 
                 val response = client.newCall(request).execute()
-                val html = response.body?.string()
+                val html = response.body.string()
                 response.close()
 
                 if (!response.isSuccessful || html.isNullOrBlank()) {

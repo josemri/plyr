@@ -208,9 +208,7 @@ class PlaylistLocalRepository(context: Context) {
     suspend fun saveYouTubePlaylist(
         playlistId: String,
         title: String,
-        description: String?,
         uploader: String,
-        videoCount: Int,
         imageUrl: String?,
         tracks: List<TrackEntity>
     ): Boolean {

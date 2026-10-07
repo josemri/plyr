@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.plyr.database.PlaylistDatabase
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.ui.components.*
 import com.plyr.ui.theme.PlyrSymbols
@@ -41,20 +40,18 @@ import com.plyr.utils.Translations
 import com.plyr.utils.UpdateChecker
 import com.plyr.utils.UrlParser
 import com.plyr.utils.getPackageInfoCompat
-import com.plyr.viewmodel.PlayerViewModel
 
 @SuppressLint("DiscouragedApi")
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     context: Context,
-    playerViewModel: PlayerViewModel? = null,
     onNavigateToScreen: (Screen) -> Unit,
     onOpenPlaylist: (String) -> Unit = {}
 ) {
     val dimensions = calculateResponsiveDimensionsFallback()
 
-    var showExitMessage by remember { mutableStateOf(false) }
+    val showExitMessage by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
     val asciiResIds = remember {

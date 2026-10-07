@@ -43,17 +43,18 @@ fun QueueScreen(
             val currentPlaylist by playerViewModel.currentPlaylist.observeAsState()
             val currentTrackIndex by playerViewModel.currentTrackIndex.observeAsState()
 
-            if (currentPlaylist != null && currentPlaylist!!.isNotEmpty()) {
+            val playlist = currentPlaylist
+            if (playlist != null && playlist.isNotEmpty()) {
                 // Lista de canciones con SongListItem
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
                     items(
-                        count = currentPlaylist!!.size,
-                        key = { index -> "${currentPlaylist!![index].id}_$index" }
+                        count = playlist.size,
+                        key = { index -> "${playlist[index].id}_$index" }
                     ) { index ->
-                        val track = currentPlaylist!![index]
+                        val track = playlist[index]
                         val isCurrentTrack = currentTrackIndex == index
 
                         // Convertir TrackEntity a Song
@@ -68,7 +69,7 @@ fun QueueScreen(
 
                         SongListItem(
                             song = song,
-                            trackEntities = currentPlaylist!!,
+                            trackEntities = playlist,
                             index = index,
                             playerViewModel = playerViewModel,
                             coroutineScope = coroutineScope,

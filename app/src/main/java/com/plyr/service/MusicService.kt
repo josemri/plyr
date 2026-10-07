@@ -135,8 +135,9 @@ class MusicService : Service() {
             }
         })
 
-        lastNotification = notificationState(player)
-        startForeground(NOTIFICATION_ID, buildNotification(lastNotification!!))
+        val state = notificationState(player)
+        lastNotification = state
+        startForeground(NOTIFICATION_ID, buildNotification(state))
     }
 
     /**

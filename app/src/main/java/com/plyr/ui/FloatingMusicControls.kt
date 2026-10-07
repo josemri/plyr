@@ -384,7 +384,6 @@ private fun PlaybackControls(
     onShowQueue: () -> Unit = {}
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     var currentRepeatMode by remember { mutableStateOf(Config.getRepeatMode(context)) }
 
     Box(

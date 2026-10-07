@@ -60,7 +60,7 @@ object MediaMetadataExtractor {
                     isPlaylistUrl ->
                         Regex("[?&]list=([^&#]+)").find(url)?.groupValues?.get(1)
                             ?: url.substringAfterLast("/").substringBefore("?")
-                    else -> vParam!!
+                    else -> requireNotNull(vParam) { "isPlaylistViaV implica vParam" }
                 }
 
                 val playlistUrl = "https://www.youtube.com/playlist?list=$playlistId"

@@ -131,10 +131,10 @@ class SimpleDownloader private constructor() : Downloader() {
                     throw ReCaptchaException("reCaptcha Challenge requested", url)
                 }
 
-                // Leer body
-                val responseBodyString: String = response.body?.use { body: ResponseBody ->
+                // Leer body (OkHttp 5: body no nullable)
+                val responseBodyString: String = response.body.use { body: ResponseBody ->
                     body.string()
-                } ?: ""
+                }
 
                 if (responseCode < 400) {
                     Log.d(TAG, "✅ Respuesta exitosa: ${responseBodyString.length} caracteres")

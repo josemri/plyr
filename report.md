@@ -405,10 +405,11 @@ Notas de configuración:
 - `app/detekt.yml` está deliberadamente recortado: solo quedan activas las reglas de *sin uso* (`UnusedImport`, `UnusedParameter`, `UnusedPrivate*`, `UnusedVariable`, `VarCouldBeVal`), todo el ruleset `complexity` y `potential-bugs`. El resto (formato, naming, `MagicNumber`, `WildcardImport`…) está apagado a mano para que el informe diga solo lo que interesa. Las reglas `Unused*` **solo** corren con type resolution, por eso `check` usa `detektMain` y no `detekt`.
 - `settings.gradle.kts`: el repositorio `google()` lleva ahora el mismo filtro de grupos que ya tenía `pluginManagement`; sin él, artefactos de Maven Central (el agent de Kover, el `asm` de lint) se buscan primero en `dl.google.com` y el build falla si ese host falla.
 - AGP ya genera `usage.txt` por defecto con el informe de R8; no hace falta `-printusage` (dejaba un duplicado de 6,4 MB en `app/usage.txt`).
+- **Estado actual: `./run.sh check` pasa en verde** (detekt 0 findings, lint 0 errores, cobertura sin umbral). La deuda de *estructura* (66 hallazgos de `complexity`) está congelada en `app/detekt-baseline.xml` (declarado en el bloque `detekt` de `app/build.gradle.kts`): lo que está ahí no falla, pero **cualquier hallazgo nuevo —de la regla que sea— sigue haciendo fallar `check`**. `./run.sh test`: 438/438 en verde.
 
-### 6.1 Hallazgos de código muerto
+### 6.1 Código muerto — corregido (19 → 0)
 
-**detekt (19 hallazgos con ubicación exacta):** 6 imports sin uso (`SupabaseClient.kt:3`, `HomeScreen.kt:35`, `PlaylistScreen.kt:12`, `SearchScreen.kt:7`, `PlyrComponents.kt:8`, `Utils.kt:4`), 4 parámetros sin usar (`PlaylistLocalRepository.kt:211,213`, `ConfigScreen.kt:257`, `HomeScreen.kt:51`), 5 variables sin usar (`FloatingMusicControls.kt:387`, `PlaylistScreen.kt:100`, `SearchScreen.kt:61`, `DataSync.kt:315`, `PlayerViewModel.kt:828`), 1 propiedad privada sin uso (`YouTubeSearchManager.kt:28`), 3 `var` que deberían ser `val`, y **1 bloque de código inalcanzable** (`CoverCache.kt:97`).
+Se arreglaron los 19 hallazgos de detekt con su ubicación original: 6 imports sin uso (`SupabaseClient.kt:3`, `HomeScreen.kt:35`, `PlaylistScreen.kt:12`, `SearchScreen.kt:7`, `PlyrComponents.kt:8`, `Utils.kt:4`), 4 parámetros sin usar (`PlaylistLocalRepository.kt:211,213`, `ConfigScreen.kt:257`, `HomeScreen.kt:51`), 5 variables sin usar (`FloatingMusicControls.kt:387`, `PlaylistScreen.kt:100`, `SearchScreen.kt:61`, `DataSync.kt:315`, `PlayerViewModel.kt:828`), 1 propiedad privada sin uso (`YouTubeSearchManager.kt:28`), 3 `var` → `val` y 1 bloque inalcanzable (`CoverCache.kt:97`). Además `PlaylistScreen.kt` perdió su variable `isLoading` muerta.
 
 **R8 (release, confirmación de inalcanzabilidad):**
 
@@ -417,21 +418,23 @@ Notas de configuración:
 - `DataExporter.exportTo` + `utils.ExportDigest` — sin llamadores fuera de `DataExporter.kt`; R8 elimina las dos lambdas del flujo y la clase `ExportDigest` entera. El export vivo es el de `DataSync`.
 - `PlyrSymbols` aparece eliminada pero es solo el *inlining* de constantes (sus usos en `HomeScreen`/`PlyrComponents`/`YouTubeSearchResults` siguen ahí como literales): no es código a borrar.
 
-**Lint — recursos sin uso:** 70 avisos, de los cuales **58 son falsos positivos**: los `drawable-nodpi/ascii_*.png` se referencian dinámicamente en `HomeScreen.kt:63` con `resources.getIdentifier("ascii_$i")`, que lint no sigue. Reales: los colores de plantilla `purple_200/500/700`, `teal_200/700`, `black`, `white`, `splash_background_color` (solo existen en `colors.xml`) y el estilo `Theme_Plyr_SplashScreen_Fallback`.
+**Lint — recursos sin uso:** 70 avisos, de los cuales **58 son falsos positivos**: los `drawable-nodpi/ascii_*.png` se referencian dinámicamente en `HomeScreen.kt:63` con `resources.getIdentifier("ascii_$i")`, que lint no sigue. Los 12 reales se corrigieron: colores de plantilla `purple_200/500/700`, `teal_200/700`, `black`, `white`, `splash_background_color` (borrados de `colors.xml`, que quedó solo con `black` porque lo usan los drawables del launcher) y el estilo `Theme_Plyr_SplashScreen_Fallback`. Quedan 58 falsos positivos de `UnusedResources` sin tocar (no se baselan; lint no falla con warnings).
 
-### 6.2 Bugs reales que saltaron
+### 6.2 Bugs reales — corregidos
 
-- **`NewApi` (error, hace fallar `check`):** `MainActivity.kt:90` llama a `startForegroundService()` con `minSdk 24` — lanza `NoSuchMethodError`/crash en Android 7.x. Debería ser `ContextCompat.startForegroundService()`.
-- **`ImplicitDefaultLocale` ×8** — `String.format`/`toLowerCase` sin `Locale` (`ConfigScreen.kt:415,419,486`, `CoverCache.kt:75`, `ExportDigest.kt:83`, `ExportManifest.kt:147`, `Utils.kt:73,75`): resultados distintos según el idioma del dispositivo.
-- **`UnreachableCode`** en `CoverCache.kt:97` y **`UnnecessarySafeCall`** ×2 (`SimpleDownloader.kt:135`, `SpotifyImporter.kt:191`).
+- **`NewApi` (error lint):** `MainActivity.kt:90` llamaba a `startForegroundService()` con `minSdk 24` — crash en Android 7.x. Corregido con `ContextCompat.startForegroundService()`.
+- **`ImplicitDefaultLocale` ×8** — `String.format`/`toLowerCase` sin `Locale` (`ConfigScreen.kt:415,419,486`, `CoverCache.kt:75`, `ExportDigest.kt:83`, `ExportManifest.kt:147`, `Utils.kt:73,75`): resultados distintos según el idioma del dispositivo. Corregido con `Locale.ROOT`/`Locale.getDefault()` explícitos.
+- **`NonObservableLocale` (error lint, introducido por el fix anterior)** — `ConfigScreen.kt` leía `Locale.getDefault()` fuera del ciclo de Compose; corregido con `LocalConfiguration.current.locales[0]` + `.format(locale, …)`.
+- **`UnreachableCode`** en `CoverCache.kt:97` y **`UnnecessarySafeCall`** ×2 (`SimpleDownloader.kt:135`, `SpotifyImporter.kt:191`) — en OkHttp 5 `response.body` ya no es nullable; eliminados el `?.`/`?:` muertos.
+- **`UnsafeCallOnNullableType` ×22 (`!!`)** — todos con `if (x != null) { x!!.… }` sobre propiedades delegadas de Compose (el smart-cast no aplica). Reescritos capturando un `val` local: `MusicService.kt:139` (usaba `lastNotification!!` justo tras asignarlo), `NfcReader.kt:48`, `MediaMetadataExtractor.kt:63` (`requireNotNull` por invariante), `QueueScreen.kt` ×5, `ConfigScreen.kt` ×2, `SearchScreen.kt:183`, `YouTubePlaylistDetailView.kt:216` y `PlaylistScreen.kt` ×10 (`selectedPlaylist!!`/`pendingPlaylist!!`). Todos tenían el null-check inmediatamente encima, así que el comportamiento es idéntico — y donde no había garantía (`PlaylistScreen` compartir), ahora el diálogo simplemente no se muestra en vez de crashear.
 
 ### 6.3 Estructura (dónde está lo más enrevesado)
 
-`detekt` cuenta 119 hallazgos, la mayoría concentrados en los mismos ficheros (los que ya apunta §5.4): `PlaylistScreen.kt` (1422 líneas: `LongMethod` ×2, `CyclomaticComplexMethod` ×2, `TooManyFunctions`…), `ConfigScreen.kt` (×3 métodos largos), `FloatingMusicControls.kt` (×4), `SearchScreen.kt` (×3), `PlayerViewModel.kt` (`CyclomaticComplexMethod` en `:557`), `SongListItem.kt`, `QRDialog.kt`, `YouTubePlaylistDetailView.kt`. Además `PlaylistLocalRepository`, `TrackDao`, `Config` e `ImportManifest` superan el máximo de funciones por archivo/clase. Es deuda concentrada: refactorizar esos 8-10 ficheros cubriría ~80 de los 119 avisos.
+`detekt` pasó de 119 a 66 hallazgos al corregir todo lo anterior; los 66 restantes son puro `complexity` y están congelados en `app/detekt-baseline.xml`, concentrados en los mismos ficheros (los que ya apunta §5.4): `PlaylistScreen.kt` (1422 líneas: `LongMethod` ×2, `CyclomaticComplexMethod` ×2, `TooManyFunctions`…), `ConfigScreen.kt` (×3 métodos largos), `FloatingMusicControls.kt` (×4), `SearchScreen.kt` (×3), `PlayerViewModel.kt` (`CyclomaticComplexMethod` en `:557`), `SongListItem.kt`, `QRDialog.kt`, `YouTubePlaylistDetailView.kt`. Además `PlaylistLocalRepository`, `TrackDao`, `Config` e `ImportManifest` superan el máximo de funciones por archivo/clase. Es deuda concentrada: refactorizar esos 8-10 ficheros y regenerar el baseline (`./gradlew :app:detektBaselineMain`) cubriría ~55 de los 66 avisos.
 
 ### 6.4 Cobertura
 
-Global: **13,6 % de líneas** (1111/8167) y 13,3 % de ramas. Por paquete:
+Global: **13,6 % de líneas** (1111/8176) y 13,2 % de ramas. Por paquete:
 
 - `com.plyr.ui` + `ui.components` + `ui.components.search` + `ui.theme`: **~0 %** (ningún test toca Compose — coherente con que los tests son JVM).
 - `com.plyr.utils`: 40 % (676/1701) — es donde vive lo testado hoy.

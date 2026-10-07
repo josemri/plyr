@@ -1,7 +1,6 @@
 package com.plyr.utils
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -70,9 +69,9 @@ fun formatDurationSeconds(totalSeconds: Long): String {
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
     return if (hours > 0) {
-        "%d:%02d:%02d".format(hours, minutes, seconds)
+        "%d:%02d:%02d".format(Locale.getDefault(), hours, minutes, seconds)
     } else {
-        "%d:%02d".format(minutes, seconds)
+        "%d:%02d".format(Locale.getDefault(), minutes, seconds)
     }
 }
 

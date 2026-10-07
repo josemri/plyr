@@ -825,7 +825,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         if (gen != generation) return emptyList()
 
-        return resolved.mapIndexedNotNull { i, (videoId, url) ->
+        return resolved.mapIndexedNotNull { i, (_, url) ->
             if (url == null) null else ResolvedItem(start + i, createMediaItem(tracks[i], url, start + i))
         }
     }

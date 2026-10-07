@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
     private var lightSensorDetector: LightSensorDetector? = null
 
     // Estado para el tema automático basado en luz
-    private var isAutoThemeDark = mutableStateOf(false)
+    private val isAutoThemeDark = mutableStateOf(false)
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -87,7 +87,9 @@ class MainActivity : ComponentActivity() {
         initializeLightSensorDetector()
 
         Intent(this, MusicService::class.java).also {
-            startForegroundService(it)
+            // startForegroundService solo existe desde API 26; con minSdk 24
+            // esta llamada crasheaba en Android 7.x (lint: NewApi).
+            ContextCompat.startForegroundService(this, it)
             bindService(it, serviceConnection, BIND_AUTO_CREATE)
         }
 

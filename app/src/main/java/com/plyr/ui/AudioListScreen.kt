@@ -116,7 +116,6 @@ fun AudioListScreen(
                                 )
                                 1 -> HomeScreen(
                                     context = context,
-                                    playerViewModel = playerViewModel,
                                     onNavigateToScreen = { screen -> currentScreen = screen.name },
                                     onOpenPlaylist = { playlistId ->
                                         playlistToOpenId = playlistId

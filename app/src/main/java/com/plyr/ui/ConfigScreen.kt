@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
@@ -142,7 +143,7 @@ fun ConfigScreen(
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Spotify Import
-            SpotifyImportSection(context = context, importViewModel = importViewModel)
+            SpotifyImportSection(importViewModel = importViewModel)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -254,7 +255,7 @@ private fun GesturesSection(context: Context) {
 }
 
 @Composable
-private fun SpotifyImportSection(context: Context, importViewModel: ImportViewModel? = null) {
+private fun SpotifyImportSection(importViewModel: ImportViewModel? = null) {
     val vm = importViewModel ?: return
     val isImporting by vm.isImporting.collectAsState()
     val progress by vm.progress.collectAsState()
@@ -306,12 +307,13 @@ private fun SpotifyImportSection(context: Context, importViewModel: ImportViewMo
                 )
             }
         } else if (resultMessage != null) {
+            val importResult = resultMessage ?: ""
             Text(
-                text = resultMessage!!,
+                text = importResult,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 11.sp,
-                    color = if (resultMessage!!.startsWith("error"))
+                    color = if (importResult.startsWith("error"))
                         MaterialTheme.colorScheme.error
                     else
                         MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
@@ -374,6 +376,9 @@ private fun SpotifyImportSection(context: Context, importViewModel: ImportViewMo
 @Composable
 private fun SyncSection(context: Context) {
     val haptic = LocalHapticFeedback.current
+    // Locale observable de Compose (lint: NonObservableLocale); lo capturan
+    // syncNow y el cálculo de syncLabel para formatear los textos de sync.
+    val locale = LocalConfiguration.current.locales[0]
     // Scope de aplicación (B23): si el usuario sale de Ajustes con un swipe
     // mientras se sincroniza, la escritura del ZIP no debe cortarse a medias.
     val coroutineScope = remember { (context.applicationContext as PlyrApp).backgroundScope }
@@ -413,11 +418,14 @@ private fun SyncSection(context: Context) {
             is SyncResult.Written -> {
                 statusIsError = false
                 val copiadas = Translations.get(context, "sync_done")
-                    .format(result.summary.playlistCount, result.summary.trackCount)
+                    .format(locale, result.summary.playlistCount, result.summary.trackCount)
                 val recuperadas = result.merged
                     ?.let { merged ->
                         Translations.get(context, "sync_merged")
-                            .format(merged.importedPlaylists, merged.mergedLikedTracks, merged.deletedPlaylists)
+                            .format(
+                                locale,
+                                merged.importedPlaylists, merged.mergedLikedTracks, merged.deletedPlaylists
+                            )
                     }
                 statusMessage = listOfNotNull(recuperadas, copiadas).joinToString(" ")
                 // El botón pasa a indicar que ya hay copia. El nombre se vuelve
@@ -484,7 +492,7 @@ private fun SyncSection(context: Context) {
     // dice dónde está la copia.
     val syncLabel = if (hasBackupFile) {
         Translations.get(context, "sync_synced")
-            .format(folderName ?: BackupFolder.BACKUP_FILE_NAME)
+            .format(locale, folderName ?: BackupFolder.BACKUP_FILE_NAME)
     } else {
         Translations.get(context, "sync")
     }

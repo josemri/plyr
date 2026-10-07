@@ -7,12 +7,5 @@
 	<style name="Theme.Plyr.SplashScreen" parent="android:Theme.Material.Light.NoActionBar">
 		<item name="android:windowBackground">@android:color/black</item>
     </style>
-    
-    <!-- Fallback splash theme for older Android versions -->
-    <style name="Theme.Plyr.SplashScreen.Fallback" parent="android:Theme.Black.NoTitleBar.Fullscreen">
-        <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:windowFullscreen">true</item>
-    </style>
 </resources>
 

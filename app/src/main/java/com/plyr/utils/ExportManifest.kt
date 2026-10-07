@@ -144,7 +144,7 @@ object ExportManifest {
                 else -> when (ch) {
                     '\u0008' -> append("\\b")
                     '\u000C' -> append("\\f")
-                    else -> if (ch < ' ') append("\\u%04x".format(ch.code)) else append(ch)
+                    else -> if (ch < ' ') append("\\u%04x".format(Locale.ROOT, ch.code)) else append(ch)
                 }
             }
         }

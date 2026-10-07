@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -58,7 +57,6 @@ fun SearchScreen(
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
 
     var showQrScanner by remember { mutableStateOf(false) }
 
@@ -179,10 +177,11 @@ fun SearchScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
+        val ytPlaylist = selectedYouTubePlaylist
         when {
-            selectedYouTubePlaylist != null -> {
+            ytPlaylist != null -> {
                 YouTubePlaylistDetailView(
-                    playlist = selectedYouTubePlaylist!!,
+                    playlist = ytPlaylist,
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope
                 )

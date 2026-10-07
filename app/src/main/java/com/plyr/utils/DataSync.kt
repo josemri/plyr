@@ -312,7 +312,6 @@ object DataSync {
             displayName = BackupFolder.STAGING_FILE_NAME,
             cache = false
         ) ?: throw IOException("No se pudo crear el archivo temporal en la carpeta")
-        val stagingId = stagingUri.documentIdOrEmpty()
 
         try {
             val out = resolver.openOutputStream(stagingUri, "wt")

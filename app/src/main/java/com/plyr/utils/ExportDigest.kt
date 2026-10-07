@@ -1,6 +1,7 @@
 package com.plyr.utils
 
 import java.security.MessageDigest
+import java.util.Locale
 
 /**
  * ExportDigest - Huella del contenido de una exportación.
@@ -80,7 +81,7 @@ object ExportDigest {
         }
 
         /** Huella acumulada hasta ahora, en minúsculas hexadecimal. */
-        fun hex(): String = digest.digest().joinToString(separator = "") { byte -> "%02x".format(byte) }
+        fun hex(): String = digest.digest().joinToString(separator = "") { byte -> "%02x".format(Locale.ROOT, byte) }
 
         // === INTERNOS ===
 

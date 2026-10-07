@@ -38,14 +38,15 @@ object NfcReader {
      * Inicia el modo de lectura NFC
      */
     fun startReading(activity: Activity): Boolean {
-        nfcAdapter = NfcAdapter.getDefaultAdapter(activity)
+        val adapter = NfcAdapter.getDefaultAdapter(activity)
+        nfcAdapter = adapter
 
-        if (nfcAdapter == null) {
+        if (adapter == null) {
             Log.e(TAG, "❌ NFC no está disponible en este dispositivo")
             return false
         }
 
-        if (!nfcAdapter!!.isEnabled) {
+        if (!adapter.isEnabled) {
             Log.e(TAG, "❌ NFC está deshabilitado")
             return false
         }

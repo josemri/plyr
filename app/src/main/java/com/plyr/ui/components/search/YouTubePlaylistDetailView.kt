@@ -173,9 +173,7 @@ fun YouTubePlaylistDetailView(
                             val success = localRepository.saveYouTubePlaylist(
                                 playlistId = playlist.playlistId,
                                 title = playlist.title,
-                                description = playlist.description,
                                 uploader = playlist.uploader,
-                                videoCount = playlist.videoCount,
                                 imageUrl = coverUrl,
                                 tracks = savedTracks
                             )
@@ -213,9 +211,10 @@ fun YouTubePlaylistDetailView(
             PlyrSmallSpacer()
         }
 
+        val error = errorMessage
         when {
             isLoading -> PlyrLoadingIndicator(text = "loading playlist")
-            errorMessage != null -> PlyrErrorText(errorMessage!!)
+            error != null -> PlyrErrorText(error)
             videos.isEmpty() -> PlyrInfoText("No videos found in this playlist")
             else -> {
                 // Listado SongListItem con duración
