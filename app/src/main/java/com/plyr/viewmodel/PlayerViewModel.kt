@@ -120,7 +120,38 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var generation: Int = 0
 
     private var consecutiveFailures: Int = 0
-    private var transitionInFlight: Boolean = false
+
+    /**
+     * Transiciones en vuelo: una operación que va a mover la cola y el
+     * reproductor (`playIndex`, `startAt`) entre que empieza y termina.
+     *
+     * Mientras hay una, un salto todavía no se puede calcular: la cola aún no
+     * se ha movido. Antes se descartaba en silencio, y como la sesión ya le
+     * había devuelto `RESULT_INFO_SKIPPED` al sistema, no lo hacía nadie
+     * (B59). Ahora se apunta en [pendingSkips] y se aplica al terminar.
+     *
+     * Mecánica de tokens igual que la de [loading]: solo quien empieza la
+     * transición la retira, y `supersede()` se lleva por delante las de una
+     * operación anterior cuando otra se hace cargo. Un `Boolean` puesto a
+     * `false` desde fuera de su propia transición habría soltado el candado
+     * mientras otra seguía trabajando, y habría vuelto a perder saltos.
+     */
+    private val transitions = LoadingState()
+
+    /** Si hay alguna transición empezada y no terminada. */
+    private val transitionInFlight: Boolean
+        get() = transitions.isLoading
+
+    private fun beginTransition(): Int = transitions.begin()
+
+    private fun endTransition(token: Int) = transitions.end(token)
+
+    /**
+     * Saltos que llegaron mientras había una transición en vuelo. Ver
+     * [PendingSkips]: la sesión ya los había dado por atendidos, así que
+     * soltarlos era no hacerlos nunca (B59).
+     */
+    private val pendingSkips = PendingSkips()
 
     /**
      * Operaciones de carga en vuelo. Ver [LoadingState].
@@ -276,6 +307,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun playPlayer() = _exoPlayer?.play()
 
     fun navigateToNext() {
+        // Mientras dura una transición la cola todavía no se ha movido, así
+        // que el salto no se puede calcular todavía. Pero descartarlo en
+        // silencio era descartarlo para siempre: la sesión ya le había
+        // devuelto `RESULT_INFO_SKIPPED` al sistema (B59). Se apunta y se
+        // aplica cuando la transición termine, con el índice ya actualizado.
+        if (transitionInFlight) {
+            pendingSkips.request(PendingSkips.Direction.FORWARDS)
+            return
+        }
         val target = QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) ?: return
         playIndex(target, backwards = false)
     }
@@ -294,6 +334,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) != null
 
     fun navigateToPrevious() {
+        // Igual que en `navigateToNext`: mientras hay una transición en vuelo
+        // se apunta en vez de soltarla (B59), y al aplicarla se vuelve a mirar
+        // la posición real, que entretanto ha cambiado.
+        if (transitionInFlight) {
+            pendingSkips.request(PendingSkips.Direction.BACKWARDS)
+            return
+        }
         val position = _exoPlayer?.currentPosition ?: 0L
         val target = QueueIndex.previousIndex(currentIndex, queue.size, position, queueRepeatMode)
         if (target == null) {
@@ -309,6 +356,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
         playIndex(target, backwards = target < currentIndex)
+    }
+
+    /**
+     * Aplica los saltos que se apuntaron mientras había una transición en
+     * vuelo (B59), en el orden en que llegaron.
+     *
+     * El bucle se detiene en cuanto uno de ellos pone en marcha otra
+     * transición: esta volverá a llamar aquí cuando termine. Como cada vuelta
+     * consume una petición y nada puede añadir mientras tanto —todo corre
+     * síncrono en el hilo principal—, termina siempre.
+     */
+    private fun drainPendingSkips() {
+        while (!transitionInFlight) {
+            when (pendingSkips.poll()) {
+                null -> return
+                PendingSkips.Direction.FORWARDS -> navigateToNext()
+                PendingSkips.Direction.BACKWARDS -> navigateToPrevious()
+            }
+        }
     }
 
     fun updateRepeatMode() {
@@ -357,9 +423,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun clearPlayerState() {
         prefetchJob?.cancel()
         prefetchJob = null
+        // `invalidateLoads()` también retira el candado de cualquier
+        // transición en vuelo: esta operación se hace cargo de todo (B59).
         invalidateLoads()
 
-        transitionInFlight = false
         consecutiveFailures = 0
         currentVideoId = null
         resolvedVideoId.clear()
@@ -419,6 +486,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob?.cancel()
         prefetchJob = null
 
+        // Empezar a reproducir una canción es una transición como cualquier
+        // otra: mientras dura, la cola todavía no se ha movido y un salto se
+        // apunta en vez de aplicarse (B59). `invalidateLoads()` acababa de
+        // retirar las anteriores, así que este candado es solo suyo.
+        val transitionToken = beginTransition()
         val token = beginLoading()
         try {
             _error.publish(null)
@@ -444,7 +516,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             resolvedVideoId[track.id] = videoId
             setCurrentIndex(index)
             currentVideoId = videoId
-            transitionInFlight = false
 
             player.setMediaItem(createMediaItem(track, audioUrl, index))
             player.prepare()
@@ -463,7 +534,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // El token se retira sea cual sea la `generation`: si esta carga
             // fue invalidada por otra operación, esta retirada no toca a nadie.
             // Lo que no podía quedar es el estado clavado en `true`, que era lo
-            // que dejaba el spinner y los controles muertos (B58).
+            // que dejaba el spinner y los controles muertos (B58). El candado
+            // se retira aquí también, sea o no suyo ya: mientras esté puesto,
+            // los saltos se apuntan y no se pierden (B59).
+            endTransition(transitionToken)
+            drainPendingSkips()
             endLoading(token)
         }
     }
@@ -500,7 +575,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             return
         }
 
-        transitionInFlight = true
+        // El candado se adquiere aquí mismo, no dentro de la corrutina: en
+        // cuanto `playIndex` decide mover la cola, los saltos tienen que
+        // empezar a apuntarse (B59).
+        val transitionToken = beginTransition()
         val gen = generation
 
         viewModelScope.launch {
@@ -538,7 +616,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     skipped++
                 }
 
-                transitionInFlight = false
+                // El candado se retira en el `finally`, no aquí: mientras se
+                // aplica el resultado la cola sigue moviéndose.
                 if (gen != generation || _exoPlayer !== player) return@launch
 
                 if (giveUp) {
@@ -563,6 +642,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 // invalidaba la resolución no cerraba nada por su cuenta, así
                 // que un `generation++` ajeno dejaba el estado en `true` para
                 // siempre: spinner para siempre y controles muertos (B58).
+                // El candado se retira aquí, en el `finally`, y solo por su
+                // token: si se soltara a mitad del cuerpo, un error o una
+                // cancelación lo dejaría puesto y a partir de ahí todos los
+                // saltos se caerían en silencio (B59).
+                endTransition(transitionToken)
+
+                // Los saltos que llegaron mientras se resolvía se aplican ya,
+                // con el índice ya movido. Si alguno pone en marcha otra
+                // transición, esta volverá a llamar aquí al terminar.
+                drainPendingSkips()
+
                 endLoading(token)
             }
         }
@@ -810,7 +900,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         windowStart = 0
         currentVideoId = null
-        transitionInFlight = false
+        // El candado no se toca: o lo lleva esta misma transición (y su
+        // `finally` lo retira), o lo lleva otra que sigue trabajando, y
+        // soltarlo desde aquí la dejaría sin candado a medio camino (B59).
         updateLoadingState()
     }
 
@@ -881,6 +973,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun invalidateLoads() {
         generation++
         loading.supersede()
+        // La operación que invalida se hace cargo: las transiciones anteriores
+        // ya no van a aplicar nada, así que su candado también caduca (B59).
+        transitions.supersede()
+        // Lo que se había apuntado pedía saltos respecto a la cola anterior:
+        // la nueva cola manda y esas peticiones ya no significan nada (B59).
+        pendingSkips.clear()
         updateLoadingState()
     }
 

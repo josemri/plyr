@@ -1,17 +1,17 @@
 # Reporte de análisis de PLYR
 
 **Fecha:** 2026-10-06 (última tanda)
-**Alcance:** `app/src/main/java/com/plyr` (78 archivos, ~16.000 líneas Kotlin) + Gradle + manifiesto + recursos.
-**Método:** auditoría estática manual, con cada hallazgo verificado leyendo el código. Lo que se da por cerrado se comprobó con `./run.sh test` (**413 tests, en verde**), `./run.sh build` y `./run.sh build release`. Esta tanda añade **17 tests más** (430 en total: 8 de B57 y 9 de B58) que **aún no se han ejecutado**.
+**Alcance:** `app/src/main/java/com/plyr` (79 archivos, ~16.100 líneas Kotlin) + Gradle + manifiesto + recursos.
+**Método:** auditoría estática manual, con cada hallazgo verificado leyendo el código. Lo que se da por cerrado se comprobó con `./run.sh test` (**413 tests, en verde**), `./run.sh build` y `./run.sh build release`. Esta tanda añade **25 tests más** (438 en total: 8 de B57, 9 de B58 y 8 de B59) que **aún no se han ejecutado**.
 
 ---
 
 ## 1. Estado
 
-- **5 bugs abiertos (B59–B63), documentados en §3.** Los **58** anteriores (B1–B58) siguen resueltos (§4); **B57 (el `>>` perdido) y B58 (el spinner clavado) se han corregido en esta tanda** — §4.
-- **B59, B60 y B63 son los "la canción nunca llega a reproducirse y se queda sin hacer nada"** (cada uno por un motivo distinto: salto descartado en silencio, corrutina cancelada con la pantalla, y player que queda en IDLE). B58 era el cuarto de la lista y era el mismo síntoma con el flag de carga clavado: ya está corregido (§4). Van encadenados: el agujero de B57 (una cola que no llega a rellenarse) era lo que abría la puerta a B58/B59.
+- **4 bugs abiertos (B60–B63), documentados en §3.** Los **59** anteriores (B1–B59) siguen resueltos (§4); **B57 (el `>>` perdido), B58 (el spinner clavado) y B59 (los saltos que no llegaban) se han corregido en esta tanda** — §4.
+- **B60 y B63 son los "la canción nunca llega a reproducirse y se queda sin hacer nada"** (uno porque la resolución corre en el `rememberCoroutineScope()` de la pantalla, y otro porque el player queda en IDLE). B58 y B59 eran los otros dos de esa lista —el flag de carga clavado y el salto descartado en silencio— y ya están corregidos (§4). Van encadenados: el agujero de B57 (una cola que no llega a rellenarse) era lo que abría la puerta a B58/B59.
 - **1 petición abierta** (§5.1): F2. **F1 está resuelta** (`PlaylistLocalRepository.visiblePlaylists`, filtro por `trackCount > 0` que se aplica en los dos listados).
-- **430 tests unitarios** en 33 archivos — los **17 nuevos** (6 de `QueueNextCommandTest` + 2 de `AudioUrlExtractionTest`, que cubren B57; y 9 de `LoadingStateTest`, que cubren B58) **faltan por ejecutar**. 0 instrumentados útiles.
+- **438 tests unitarios** en 34 archivos — los **25 nuevos** (8 de B57: 6 en `QueueNextCommandTest` y 2 en `AudioUrlExtractionTest`; 9 de B58 en `LoadingStateTest`; 8 de B59 en `PendingSkipsTest`) **faltan por ejecutar**. 0 instrumentados útiles.
 - Código muerto grande **borrado** (−301 líneas): `SongMenuDialog`, `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd`.
 - **0 claves de traducción sin uso** y **0 claves referenciadas que no existen**, con dos tests que lo garantizan.
 - Sync bidireccional con propagación de borrados (tombstones) verificado.
@@ -21,59 +21,27 @@
 
 | Métrica | Valor |
 |---|---|
-| Archivos Kotlin (main) | 78 (~16.000 líneas) |
-| Archivos de test | 33 (~5.270 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (1422), `PlayerViewModel.kt` (935), `ConfigScreen.kt` (665), `SongListItem.kt` (580), `FloatingMusicControls.kt` (538) |
+| Archivos Kotlin (main) | 79 (~16.100 líneas) |
+| Archivos de test | 34 (~5.400 líneas) |
+| Archivos más grandes | `PlaylistScreen.kt` (1422), `PlayerViewModel.kt` (1033), `ConfigScreen.kt` (665), `SongListItem.kt` (580), `FloatingMusicControls.kt` (538) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **430** en 33 archivos (413 ejecutados y en verde; **17 de B57 y B58 sin ejecutar**) |
+| Tests unitarios | **438** en 34 archivos (413 ejecutados y en verde; **25 de B57, B58 y B59 sin ejecutar**) |
 | Tests instrumentados | 0 útiles (solo `ExampleInstrumentedTest`) |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso / inexistentes | **0** / **0** |
 
 ## 3. Bugs abiertos
 
-**5 bugs (B59–B63).** Solo informe: no se ha tocado código en ellos. B59 es el último de los tres reportados desde fuera que sigue abierto ("la canción nunca llega a reproducirse y se queda sin hacer nada"); los demás han salido de la misma zona de código. **B57 y B58, los otros dos reportados, están corregidos y documentados en §4.**
+**4 bugs (B60–B63).** Solo informe: no se ha tocado código en ellos. Los tres que se reportaron desde fuera —B57, B58 y B59— ya están corregidos y documentados en §4; el resto han salido de la misma zona de código.
 
 | Bug | Síntoma | Raíz |
 |---|---|---|
-| **B59** | `<<`/`>>` de la notificación o de los auriculares no hacen nada durante varios segundos | `playIndex` descarta en silencio el salto con `transitionInFlight`, y el sistema ya lo ha dado por atendido |
 | **B60** | Tocar una canción de una lista puede no iniciar nada y sin error | La resolución corre en el `rememberCoroutineScope()` de la pantalla y `catch (_: Exception)` se traga la cancelación |
 | **B61** | En Android 12 y anteriores la notificación no tiene **ningún** botón | 0 llamadas a `addAction` en todo el proyecto |
 | **B62** | Suena una canción distinta de la que muestra la UI, o se cuela una duplicada en la ventana | `resolveItems` elimina los nulos y `playIndex` pasa el resultado con huecos a `setMediaItems` |
 | **B63** | Al terminar la cola, el `>` no hace nada y el título se queda en pantalla | `stopAtQueueEnd` deja `windowStart = 0` con la cola y `currentIndex` intactos; el player queda en IDLE sin `prepare()` |
-
----
-
-### B59 — Los saltos se descartan en silencio mientras hay una transición en vuelo
-
-**Síntoma.** Se pulsa `>>` en la notificación (o en los auriculares, `MediaButtonReceiver.kt:72-73`) y no pasa nada: ni salto, ni error, ni feedback. Dura mientras dure una resolución de red.
-
-**Causa.** Dos piezas que se cruzan:
-
-1. `playIndex` empieza con dos guardas que devuelven sin hacer nada ni decir nada (`PlayerViewModel.kt`):
-
-   ```kotlin
-   if (transitionInFlight) return      // L446
-   val player = _exoPlayer ?: return   // L447
-   ```
-
-2. El sistema **cree que el salto ya se atendió**. La cadena es: `MediaSessionLegacyStub` → `MusicService.kt:104-112` (`onPlayerCommandRequest`) → `SessionSkipCommand.handle` → `SessionSkipCommand.kt:65-68`, que invoca el callback y devuelve **siempre** `SessionResult.RESULT_INFO_SKIPPED`. En media3, `dispatchSessionTaskWithPlayerCommand` comprueba (`msls.java:881-884`):
-
-   ```java
-   int resultCode = sessionImpl.onPlayerCommandRequestOnHandler(controller, command);
-   if (resultCode != RESULT_SUCCESS) {
-       // Don't run rejected command.
-       return;
-   }
-   ```
-
-   Como `RESULT_INFO_SKIPPED = 1 ≠ 0`, media3 **no ejecuta el comando en el reproductor**. Ese "que no lo ejecute el reproductor" es intencional (si no, el salto ocurriría dos veces), pero significa que **si la app después se guarda el salto, no lo hace nadie**: ni la app ni el player. Y para el controlador el resultado es un código de *info*, no un error.
-
-`transitionInFlight` está en `true` durante toda la resolución de `playIndex` (L462 → L501), que encadena hasta `MAX_RESOLUTION_SKIPS = 5` intentos de `resolveItems`, cada uno con timeout de 30 s. Todo ese rato, los saltos de notificación y de auriculares no hacen nada.
-
-**Caso pariente: el final de canción también se descarta.** `onTrackEnded` (L675) empieza con `if (transitionInFlight) return`. Si la canción termina mientras hay una resolución en vuelo, el `STATE_ENDED` se ignora. Si además esa resolución se descarta por cambio de generación (el descarte sigue sin avisar, aunque el estado de carga ya no se queda clavado en `true` — B58, §4), el reproductor queda en `STATE_ENDED` sin nada que reproducir, sin que se haya publicado ningún error y sin que llegue otro evento: **parada permanente**. Es el otro lado de "no llega a reproducirse".
 
 ---
 
@@ -152,14 +120,16 @@ Es el escenario más plano de "no llega a reproducirse y se queda sin hacer nada
 
 ## 4. Bugs resueltos
 
-**58 bugs, todos cerrados.** Agrupados por área para no perderlos:
+**59 bugs, todos cerrados.** Agrupados por área para no perderlos:
+
+> Nota sobre las referencias de línea: las citas `L###` de `PlayerViewModel.kt` apuntan al archivo **en el momento en que se documentó cada bug**. El fichero ha crecido desde entonces (de 935 a 1033 líneas con B58 y B59), así que hay que leerlas como "cerca de aquí", no como coordenadas exactas. Las citas a otros ficheros (`MusicService.kt`, `SongListItem.kt`…) siguen vigentes salvo indicación.
 
 | Área | Bugs | Qué eran |
 |---|---|---|
-| **Reproducción** | B4, B5, B6, B35, B36, B42, B43, B46, B49, B50, B55, B56, B57, B58 | La canción se cargaba dos veces; la URL caducada nunca se invalidaba; `_error` no se limpiaba al recuperar; los botones `<<` y `>>` de la notificación se quedaban fuera de la cola; la notificación fantasma decía "Plyr / Reproduciendo"; falta de acción `STOP`; `onServiceDisconnected` anulaba la sesión; el `>>` de la notificación desaparecía tras dos saltos seguidos y no volvía; el `resolving` quedaba clavado en `true` y dejaba el spinner y los cinco controles muertos para siempre (los dos últimos, documentados abajo) |
+| **Reproducción** | B4, B5, B6, B35, B36, B42, B43, B46, B49, B50, B55, B56, B57, B58, B59 | La canción se cargaba dos veces; la URL caducada nunca se invalidaba; `_error` no se limpiaba al recuperar; los botones `<<` y `>>` de la notificación se quedaban fuera de la cola; la notificación fantasma decía "Plyr / Reproduciendo"; falta de acción `STOP`; `onServiceDisconnected` anulaba la sesión; el `>>` de la notificación desaparecía tras dos saltos seguidos y no volvía; el `resolving` quedaba clavado en `true` y dejaba el spinner y los cinco controles muertos para siempre; los saltos de la notificación y de los auriculares se descartaban en silencio mientras duraba una transición (los tres últimos, documentados abajo) |
 | **Listas y favoritos** | B1, B2, B3, B9, B12, B13, B14, B15, B16, B18, B28, B48 | El swipe a *liked* **borraba** la canción; "añadir a lista" era un no-op; la lista no se refrescaba al añadir/quitar; duplicados al añadir; `<rnd>` desincronizaba la UI; `toggleLikeTrack` sin transacción; quitar un favorito de *Liked* no se reflejaba |
 | **Compartir** | B19, B20, B30, B52, B53, B54 | El `share` de una canción mandaba el `remoteTrackId` de Spotify en vez del vídeo de YouTube (y llegaba al feed público); la URL de una lista era inválida; el diálogo se abría en blanco; el NFC no arrancaba; el QR se regeneraba en cada recomposición |
-| **Sincronización** | B40, B51 | El Uri del SAF acababa en el cloud-backup; el sync resucitaba los favoritos que se habían borrado (arreglado con tombstones por clave) |
+| **Sincronización** | B25, B40, B51 | Las fechas ilegibles de Supabase se disfrazaban de "ahora"; el Uri del SAF acababa en el cloud-backup; el sync resucitaba los favoritos que se habían borrado (arreglado con tombstones por clave) |
 | **Compose / UI / rendimiento** | B7, B8, B11, B17, B23, B26, B31, B34, B44, B47 | El gesto de swipe sin claves se rompía al cambiar de canción; la cámara no liberaba executor ni `unbind`; el polling de `SharedPreferences` cada 100 ms; `onThemeChanged` duplicado; AIOOBE en el sensor de luz; permiso de cámara denegado sin salida; el sync se cancelaba al cambiar de pestaña |
 | **Red / seguridad / build** | B32, B33, B38, B39, B41 | El mapa de cookies no estaba sincronizado y los logs volcaban cookies, cabeceras y cuerpos; `optString(key, null)`; receiver exportado sin permiso; R8 roto en release; `WAKE_LOCK` sin uso |
 | **i18n** | B21, B22, B24, B27, B45 | Valores japoneses dentro del mapa `català`, claves duplicadas, `"$ load_error"` literal, "1,5K" en `es-ES`, locale hardcodeado a `es-ES` |
@@ -309,6 +279,58 @@ Detalles que evitan regresiones:
 
 ---
 
+### B59 — Los saltos se descartaban en silencio mientras había una transición en vuelo (corregido)
+
+**Síntoma.** Se pulsa `>>` en la notificación (o en los auriculares, `MediaButtonReceiver.kt:72-73`) y no pasa nada: ni salto, ni error, ni feedback. Dura mientras dure una resolución de red.
+
+**Por qué pasaba.** Cuatro piezas que se cruzaban:
+
+1. El sistema **cree que el salto ya se atendió**. La cadena es: `MediaSessionLegacyStub` → `MusicService.kt:104-112` (`onPlayerCommandRequest`) → `SessionSkipCommand.handle` → `SessionSkipCommand.kt:65-68`, que invoca el callback y devuelve **siempre** `SessionResult.RESULT_INFO_SKIPPED`. En media3, `dispatchSessionTaskWithPlayerCommand` comprueba (`msls.java:881-884`):
+
+   ```java
+   int resultCode = sessionImpl.onPlayerCommandRequestOnHandler(controller, command);
+   if (resultCode != RESULT_SUCCESS) {
+       // Don't run rejected command.
+       return;
+   }
+   ```
+
+   Como `RESULT_INFO_SKIPPED = 1 ≠ 0`, media3 **no ejecuta el comando en el reproductor**. Ese "que no lo ejecute el reproductor" es intencional (si no, el salto ocurriría dos veces), pero significa que **si la app después se guardaba el salto, no lo hacía nadie**: ni la app ni el player. Y para el controlador el resultado es un código de *info*, no un error.
+
+2. `playIndex` empieza con un guard que devolvía sin hacer nada ni decir nada: `if (transitionInFlight) return`. El candado estaba puesto durante toda la resolución (hasta `MAX_RESOLUTION_SKIPS = 5` intentos de `resolveItems`, cada uno con timeout de `EXTRACTION_TIMEOUT_MS = 30_000` en `YouTubeManager.kt:17`). Todo ese rato, los saltos de notificación y de auriculares caían ahí.
+
+3. El candado **se apagaba a mitad del cuerpo** y no en un `finally`: `transitionInFlight = false` estaba justo antes de `if (gen != generation) return@launch`, es decir, no se ejecutaba si la corrutina daba error, se cancelaba o salía por ahí. Y había escritores ajenos a la transición que lo ponían a `false` desde fuera (`startAt`, `clearPlayerState`, `stopAtQueueEnd`), con lo que **soltaban el candado de otra operación mientras seguía trabajando**: el siguiente salto entraba a ciegas con la cola sin mover. Mismos dos fallos que B58 (§4), otra vez sobre el mismo `Boolean`.
+
+4. Además, `startAt` (tocar una canción de una lista) no adquiría el candado en absoluto, así que durante una carga normal de un tema desde la lista los saltos entraban con la cola a medio mover.
+
+**Caso pariente: el final de canción también se descarta.** `onTrackEnded` empieza con `if (transitionInFlight) return`, y se ha dejado así **a propósito**: una transición en vuelo aplica su propio destino al terminar, y si alguien la invalidó es porque otra operación se hizo cargo (B58). Lo que sí estaba mal era la segunda mitad del escenario: si esa resolución se descartaba por cambio de generación sin que nadie la cerrara, el reproductor quedaba en `STATE_ENDED` sin nada que reproducir y sin que llegara otro evento — **parada permanente**. Eso ya lo cierra B58.
+
+#### Corrección aplicada
+
+La raíz era la misma enfermedad que B58 aplicada a otro `Boolean` —dueño, caducidad y escritores ajenos—, con la particularidad de que aquí el efecto no era un spinner clavado sino **un trabajo que se tira a la basura sin avisar**. Cuatro piezas:
+
+**1. Se apuntan en vez de soltarse: `PendingSkips` (nueva clase pura, `viewmodel/PendingSkips.kt`).** Mientras hay una transición en vuelo, `navigateToNext`/`navigateToPrevious` registran la petición en una cola FIFO con tope (`MAX_PENDING = 5`) y devuelven. Al llenarse, **la que llega después se descarta** y el resto se conserva: una ráfaga de seis saltos seguidos tiene cero sentido, y lo que no tiene sentido es deshacer los cinco buenos. **El orden se respeta** y la dirección se vuelve a calcular *al aplicarla*, con el índice que la cola tiene entonces — que es justo lo que se quería pedir.
+
+**2. El candado pasa a ser un registro con tokens: `transitions = LoadingState()`.** Segunda instancia de la clase de B58 (cargas en `loading`, transiciones en `transitions`): `playIndex` y `startAt` cogen un token con `beginTransition()` y se lo llevan a `endTransition(token)` **en su `finally`**. Con esto desaparecen a la vez los tres fallos del `Boolean`: el cierre ya no puede saltarse por error o cancelación, y nadie de fuera puede soltar el candado de una transición que no es suya (un `end()` de un token que ya no está en el conjunto es inocuo).
+
+**3. `startAt` es una transición y también adquiere el candado**, justo antes de `beginLoading()`, y lo retira en su `finally`. Los escritores ajenos dejan de tocarlo: `clearPlayerState` se apoya en `invalidateLoads()` y `stopAtQueueEnd` no lo toca en absoluto (si está puesto, es de otra operación que sigue trabajando y soltarlo aquí la dejaría sin candado a medio camino).
+
+**4. Toda invalidación pasa por `invalidateLoads()`, que además vacía los saltos apuntados.** El método hace ahora `generation++` + `loading.supersede()` + `transitions.supersede()` + `pendingSkips.clear()` + `updateLoadingState()`, y se usa en `setCurrentPlaylist`, `clearPlayerState` y `startAt`. `addToQueue` **no** lo usa: encolar al final no desplaza índices, no invalida nada y, sobre todo, no debe tirar un salto que el usuario acaba de pedir (mismo criterio que en B58).
+
+**Drenaje.** Los dos `finally` hacen, en este orden: `endTransition(token)` → `drainPendingSkips()` → `endLoading(token)`. El orden importa: el candado se retira *antes* de drenar (si no, el bucle no entraría), y la carga se retira *después* (así, al encadenar saltos, el spinner no tiene ni un frame de parpadeo entre una transición y la siguiente). `drainPendingSkips()` consume peticiones en bucle mientras no haya candado y se detiene en cuanto una de ellas pone en marcha otra transición: esa volverá a llamar al terminar. Como todo corre síncrono en el hilo principal y cada vuelta consume una petición, **el bucle termina siempre**.
+
+Detalles que evitan regresiones:
+
+- **La invariante es:** cola no vacía ⟹ ningún `invalidateLoads()` se ha ejecutado desde que se pidió el salto. Por eso vaciar la cola es obligatorio en `invalidateLoads()` (cambiar de lista o tocar otra canción mientras se pedía un salto deja el pedido sin sentido, y aplicarlo apuntaría a la cola vieja).
+- **No se duplica el salto:** `SessionSkipCommand` ya ha dicho al sistema que no lo ejecute, así que el único que lo aplica es el drenaje. Exactamente uno.
+- **Los botones de la app no cambian de comportamiento:** siguen deshabilitados mientras hay carga (y ahora también transición), que es cuando no se podían calcular. Lo que gana es el transporte de notificación/auriculares, que no pasa por la UI de la app.
+- **`onTrackEnded` conserva su guard** (ver "Caso pariente"): es correcto que un salto automático no se pille a sí mismo con la cola en movimiento.
+- `transitionInFlight` ya no es una variable que se asigne: es `transitions.isLoading`, de solo lectura. El grep confirma que no queda ninguna asignación.
+
+**Cobertura nueva:** `PendingSkipsTest` (8 tests): cola recién creada, entrega FIFO en el orden de llegada, `size` que sigue a `poll()`, el tope (con `limit = 2`: se admiten dos y la tercera no, y el tope cuenta lo que *queda*, no lo que ya pasó) y `clear()` (vaciando y ya vacía, y que vuelva a aceptar después). Es la parte pura; la orquestación (`invalidateLoads()`/drenaje) sigue sin estar cubierta porque vive en `PlayerViewModel` (§5.6).
+
+---
+
 ## 5. Pendiente
 
 Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
@@ -341,12 +363,12 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
 
 ### 5.4 Arquitectura
 
-- `PlayerViewModel.kt` (935) — monolito con **tres** banderas que hay que mantener coherentes a mano (`generation`, `windowStart`, `transitionInFlight`); el cuarto, `resolving`, se ha sacado de ahí como `LoadingState` (B58). La lógica pura ya está extraída (`QueueIndex`, `PlaylistLocalRepository.likedTrackOf`, `LoadingState`, el núcleo de `YouTubeManager.getAudioUrl`); **el estado de la ventana no**. Es exactamente lo que ha producido B57 y B58 (los dos ya corregidos, §4) y B59, B62 y B63 (§3), y es lo que habría que cubrir con tests JVM: el patrón de "banderas a mano que se resetean condicionalmente" ya es la fuente de los bugs más caros del reproductor.
+- `PlayerViewModel.kt` (1033) — monolito con **dos** banderas que hay que mantener coherentes a mano (`generation`, `windowStart`). Las otras dos ya no son banderas: `resolving` y `transitionInFlight` son registros con tokens (`loading` y `transitions`, dos instancias de `LoadingState`) — B58 y B59. La lógica pura ya está extraída (`QueueIndex`, `PlaylistLocalRepository.likedTrackOf`, `LoadingState`, `PendingSkips`, el núcleo de `YouTubeManager.getAudioUrl`); **el estado de la ventana no**. Es exactamente lo que ha producido B57, B58 y B59 (los tres ya corregidos, §4) y B62 y B63 (§3), y es lo que habría que cubrir con tests JVM: el patrón de "banderas a mano que se resetean condicionalmente" ya es la fuente de los bugs más caros del reproductor.
 - `PlaylistScreen.kt` (1422) — mezcla UI, red, DB y lógica de negocio.
-- `MusicService.kt` — no es dueño del reproductor, solo proyecta la notificación sobre el `ExoPlayer` que vive en `PlayerViewModel`. El reparto es frágil: `SessionSkipCommand` (B49) decidió que la app atienda los saltos devolviendo `RESULT_INFO_SKIPPED`, y eso, sumado a los `return` mudos de `playIndex`, es B59 (§3). La notificación, además, no llega a tener botones propios (B57, B61).
+- `MusicService.kt` — no es dueño del reproductor, solo proyecta la notificación sobre el `ExoPlayer` que vive en `PlayerViewModel`. El reparto es frágil: `SessionSkipCommand` (B49) decidió que la app atienda los saltos devolviendo `RESULT_INFO_SKIPPED`, y eso, sumado a los `return` mudos que tenía `playIndex`, **era** B59 (§4, ya corregido apuntando los saltos en `PendingSkips`). La notificación, además, no llega a tener botones propios (B57, B61).
 - `ConfigScreen.kt` (665) y `SearchScreen.kt` (483) — Composables con carga, red y estado en `remember`/`rememberCoroutineScope`.
 
-**Nota positiva:** el patrón de **extraer lógica pura testeable** está consolidado en `QueueIndex`, `MediaButtonCommand`, `CoverCropMath`, `ImportManifest`, `ExportManifest`, `ImportArchive`, `ExportDigest`, `UrlParser`, `AudioUrlExtractionTest`, `ShareUrlPolicy`, `PlaylistShare`, `NfcPulse`, `SessionSkipCommand`, `PlaybackNotificationState` y `LoadingState`. Cero dependencias de Android y es el asset de calidad más valioso del repo: **el modelo a seguir**.
+**Nota positiva:** el patrón de **extraer lógica pura testeable** está consolidado en `QueueIndex`, `MediaButtonCommand`, `CoverCropMath`, `ImportManifest`, `ExportManifest`, `ImportArchive`, `ExportDigest`, `UrlParser`, `AudioUrlExtractionTest`, `ShareUrlPolicy`, `PlaylistShare`, `NfcPulse`, `SessionSkipCommand`, `PlaybackNotificationState`, `LoadingState` y `PendingSkips`. Cero dependencias de Android y es el asset de calidad más valioso del repo: **el modelo a seguir**.
 
 ### 5.5 Limpieza e i18n
 
@@ -355,6 +377,6 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
 
 ### 5.6 Tests
 
-1. **`PlayerViewModel` no tiene ningún test** — el mayor gap, y ya no es teórico: **B57, B58, B59, B62 y B63 son bugs de esta clase que ningún test detectó** (de los cinco, B57 y B58 ya están corregidos — §4 —, con tests sobre sus piezas nuevas: `QueueNextCommandTest` y los casos de `AudioUrlExtractionTest`, y `LoadingStateTest`; los otros tres siguen abiertos en §3). `QueueIndex` sí está cubierta y es correcta; lo que no está cubierta es la *orquestación* (invalidación de URL caducada, limpieza de `_error`, cuándo recargar la ventana, quién invalida la carga en vuelo, qué pasa cuando `resolveItems` devuelve nulos). El estado de carga ya vive en `LoadingState`, que es puro Kotlin y está testeado; **el de la ventana sigue dentro**, y sacarlo es la misma extracción que ya se hizo con `QueueIndex`.
+1. **`PlayerViewModel` no tiene ningún test** — el mayor gap, y ya no es teórico: **B57, B58, B59, B62 y B63 son bugs de esta clase que ningún test detectó** (de los cinco, B57, B58 y B59 ya están corregidos — §4 —, con tests sobre sus piezas nuevas: `QueueNextCommandTest` y los casos de `AudioUrlExtractionTest`, `LoadingStateTest` y `PendingSkipsTest`; los otros dos siguen abiertos en §3). `QueueIndex` sí está cubierta y es correcta; lo que no está cubierta es la *orquestación* (invalidación de URL caducada, limpieza de `_error`, cuándo recargar la ventana, quién invalida la carga en vuelo, qué pasa cuando `resolveItems` devuelve nulos, y ahora también cuándo se drenan los saltos apuntados). El estado de carga y el candado de transiciones ya viven en `LoadingState`, y los saltos aplazados en `PendingSkips`: los tres son puros y están testeados; **el de la ventana sigue dentro**, y sacarlo es la misma extracción que ya se hizo con `QueueIndex`.
 2. **`SongListItem` no tiene ningún test** y su lógica de swipe (umbral, dirección, acción) está embebida en lambdas de `pointerInput`. El primer paso es extraer la decisión "offset → acción" a una función pura, como se hizo con `QueueIndex`.
 3. **Tests instrumentados**: importación de playlist, escáner QR y escritura NFC no se pueden cubrir en JVM.
