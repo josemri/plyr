@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.plyr.service.MusicService
 import com.plyr.ui.AudioListScreen
 import com.plyr.ui.Screen
@@ -36,7 +35,6 @@ import com.plyr.ui.theme.PlyrTheme
 import com.plyr.utils.Config
 import com.plyr.utils.DataSync
 import com.plyr.database.TrackEntity
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.isSystemInDarkTheme
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
@@ -153,11 +151,7 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     playerViewModel.setCurrentPlaylist(playlist, index)
-                                    lifecycleScope.launch {
-                                        playerViewModel.loadAudioFromTrack(
-                                            playlist[index]
-                                        )
-                                    }
+                                    playerViewModel.playTrack(playlist[index])
                                 },
                                 onThemeChanged = { newTheme ->
                                     theme.value = newTheme

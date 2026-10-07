@@ -8,10 +8,10 @@
 
 ## 1. Estado
 
-- **4 bugs abiertos (B60–B63), documentados en §3.** Los **59** anteriores (B1–B59) siguen resueltos (§4); **B57 (el `>>` perdido), B58 (el spinner clavado) y B59 (los saltos que no llegaban) se han corregido en esta tanda** — §4.
-- **B60 y B63 son los "la canción nunca llega a reproducirse y se queda sin hacer nada"** (uno porque la resolución corre en el `rememberCoroutineScope()` de la pantalla, y otro porque el player queda en IDLE). B58 y B59 eran los otros dos de esa lista —el flag de carga clavado y el salto descartado en silencio— y ya están corregidos (§4). Van encadenados: el agujero de B57 (una cola que no llega a rellenarse) era lo que abría la puerta a B58/B59.
+- **2 bugs abiertos (B61 y B63), documentados en §3.** Los **61** anteriores (B1–B59, B60 y B62) siguen resueltos (§4); **B57 (el `>>` perdido), B58 (el spinner clavado), B59 (los saltos que no llegaban), B60 (la canción cancelada con la pantalla) y B62 (la ventana con huecos) se han corregido en esta tanda** — §4.
+- **B63 es el que queda de los "la canción nunca llega a reproducirse y se queda sin hacer nada"** (el player queda en IDLE sin `prepare()`). B58, B59, B60 y B62 eran los otros de esa lista —el flag de carga clavado, el salto descartado en silencio, la canción que moría con la pantalla y la ventana desalineada— y ya están corregidos (§4). Van encadenados: el agujero de B57 (una cola que no llega a rellenarse) era lo que abría la puerta a B58/B59.
 - **1 petición abierta** (§5.1): F2. **F1 está resuelta** (`PlaylistLocalRepository.visiblePlaylists`, filtro por `trackCount > 0` que se aplica en los dos listados).
-- **438 tests unitarios** en 34 archivos — los **25 nuevos** (8 de B57: 6 en `QueueNextCommandTest` y 2 en `AudioUrlExtractionTest`; 9 de B58 en `LoadingStateTest`; 8 de B59 en `PendingSkipsTest`) **faltan por ejecutar**. 0 instrumentados útiles.
+- **443 tests unitarios** en 34 archivos, **todos ejecutados y en verde** (los 25 nuevos de B57–B59 y los 5 de B62 incluidos). 0 instrumentados útiles.
 - Código muerto grande **borrado** (−301 líneas): `SongMenuDialog`, `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd`.
 - **0 claves de traducción sin uso** y **0 claves referenciadas que no existen**, con dos tests que lo garantizan.
 - Sync bidireccional con propagación de borrados (tombstones) verificado.
@@ -23,48 +23,23 @@
 |---|---|
 | Archivos Kotlin (main) | 79 (~16.100 líneas) |
 | Archivos de test | 34 (~5.400 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (1422), `PlayerViewModel.kt` (1033), `ConfigScreen.kt` (665), `SongListItem.kt` (580), `FloatingMusicControls.kt` (538) |
+| Archivos más grandes | `PlaylistScreen.kt` (1413), `PlayerViewModel.kt` (1085), `ConfigScreen.kt` (665), `SongListItem.kt` (580), `FloatingMusicControls.kt` (538) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **438** en 34 archivos (413 ejecutados y en verde; **25 de B57, B58 y B59 sin ejecutar**) |
+| Tests unitarios | **443** en 34 archivos (todos ejecutados y en verde) |
 | Tests instrumentados | 0 útiles (solo `ExampleInstrumentedTest`) |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso / inexistentes | **0** / **0** |
 
 ## 3. Bugs abiertos
 
-**4 bugs (B60–B63).** Solo informe: no se ha tocado código en ellos. Los tres que se reportaron desde fuera —B57, B58 y B59— ya están corregidos y documentados en §4; el resto han salido de la misma zona de código.
+**2 bugs (B61 y B63).** Solo informe: no se ha tocado código en ellos. Los reportados desde fuera —B57, B58 y B59—, B60 y B62 ya están corregidos y documentados en §4; los dos que quedan han salido de la misma zona de código.
 
 | Bug | Síntoma | Raíz |
 |---|---|---|
-| **B60** | Tocar una canción de una lista puede no iniciar nada y sin error | La resolución corre en el `rememberCoroutineScope()` de la pantalla y `catch (_: Exception)` se traga la cancelación |
 | **B61** | En Android 12 y anteriores la notificación no tiene **ningún** botón | 0 llamadas a `addAction` en todo el proyecto |
-| **B62** | Suena una canción distinta de la que muestra la UI, o se cuela una duplicada en la ventana | `resolveItems` elimina los nulos y `playIndex` pasa el resultado con huecos a `setMediaItems` |
 | **B63** | Al terminar la cola, el `>` no hace nada y el título se queda en pantalla | `stopAtQueueEnd` deja `windowStart = 0` con la cola y `currentIndex` intactos; el player queda en IDLE sin `prepare()` |
-
----
-
-### B60 — La canción tocada en una lista se cancela con la pantalla y el error se traga
-
-**Síntoma.** Se toca una canción (en una lista, en una playlist de búsqueda, en el feed) y no empieza a sonar; no hay error, y el spinner puede ni siquiera llegar a aparecer. Basta con que la pantalla salga de composición durante la resolución.
-
-**Causa.** `SongListItem.kt:221-226`:
-
-```kotlin
-coroutineScope.launch {
-    try {
-        viewModel.loadAudioFromTrack(selectedTrackEntity)
-    } catch (_: Exception) {
-    }
-}
-```
-
-- `coroutineScope` es el `rememberCoroutineScope()` de la pantalla (`PlaylistScreen.kt:93`, `PlaylistScreen.kt:1148`, etc.). Se cancela al salir de composición (navegación, *back*, cambio de pestaña) mientras `startAt` está en mitad de `withContext(Dispatchers.IO) { … }` resolviendo por red.
-- `startAt` propaga la `CancellationException` (L416-417) tras cerrar su `finally`, y `catch (_: Exception)` **la traga igual**: en Kotlin `CancellationException` es un `Exception`. El coroutine acaba en silencio.
-- Consecuencia: la canción pedida no se reproduce, `clearPlayerState()` ya había vaciado el reproductor (L327-333), la cola y `currentIndex` quedan apuntando a algo que no está cargado, y no hay mensaje de error. La app "no hace nada".
-
-**Casos iguales:** `FeedScreen.kt:184`, `PlaylistScreen.kt:330/352`, `YouTubePlaylistDetailView.kt:127/147`, `MainActivity.kt:155` — todos lanzan `loadAudioFromTrack` sin observar el resultado (`Boolean`) ni manejar excepciones. `SongListItem` incluso descarta el `Boolean`.
 
 ---
 
@@ -77,25 +52,6 @@ coroutineScope.launch {
 **Impacto:** la app anuncia `minSdk = 24`, así que toda la franja 24–32 queda sin transporte en la notificación. Es el mismo agujero de fondo que explica por qué B50 apuntaba al sitio equivocado (B57): la notificación de esta app nunca ha tenido botones propios.
 
 *(Inferencia de la documentación y del código, no probada en dispositivo — marcar al verificar.)*
-
----
-
-### B62 — `resolved` con huecos desalinea la ventana con la cola
-
-**Síntoma.** Al saltar a una canción que está fuera de la ventana, suena una canción distinta de la que enseña la UI, o la ventana acaba con un item repetido, y a partir de ahí `currentIndex` se desvía.
-
-**Causa.** `resolveItems` devuelve `mapIndexedNotNull`: descarta los nulos (canciones que no se pudieron resolver) pero conserva los índices originales. `playIndex` hace (L512-517):
-
-```kotlin
-val start = resolved.first().index
-windowStart = start
-setCurrentIndex(start)
-player.setMediaItems(resolved.map { it.mediaItem }, 0, C.TIME_UNSET)
-```
-
-Si la ventana pedida era `[5, 6, 7]` y el 6 falló, `resolved = [5, 7]` → `windowStart = 5` y los items del reproductor quedan `[5, 7]`. A partir de ahí `syncIndexFromWindow` / `growWindow` asumen contigüidad: `lastCovered = windowStart + mediaItemCount - 1 = 6`, cuando en realidad el `1` es la cola 7 → el siguiente `growWindow` vuelve a pedir el 7 (duplicado) y `currentIndex` se calcula sobre índices equivocados.
-
-`growWindow` a sí mismo sí protege su tramo con el check de `contiguous` (L572-579); **el que no lo hace es el `setMediaItems` de `playIndex`**, que mete la lista directamente.
 
 ---
 
@@ -120,13 +76,13 @@ Es el escenario más plano de "no llega a reproducirse y se queda sin hacer nada
 
 ## 4. Bugs resueltos
 
-**59 bugs, todos cerrados.** Agrupados por área para no perderlos:
+**61 bugs, todos cerrados.** Agrupados por área para no perderlos:
 
-> Nota sobre las referencias de línea: las citas `L###` de `PlayerViewModel.kt` apuntan al archivo **en el momento en que se documentó cada bug**. El fichero ha crecido desde entonces (de 935 a 1033 líneas con B58 y B59), así que hay que leerlas como "cerca de aquí", no como coordenadas exactas. Las citas a otros ficheros (`MusicService.kt`, `SongListItem.kt`…) siguen vigentes salvo indicación.
+> Nota sobre las referencias de línea: las citas `L###` de `PlayerViewModel.kt` apuntan al archivo **en el momento en que se documentó cada bug**. El fichero ha crecido desde entonces (de 935 a 1085 líneas con B58, B59, B60 y B62), así que hay que leerlas como "cerca de aquí", no como coordenadas exactas. Las citas a otros ficheros (`MusicService.kt`, `SongListItem.kt`…) siguen vigentes salvo indicación.
 
 | Área | Bugs | Qué eran |
 |---|---|---|
-| **Reproducción** | B4, B5, B6, B35, B36, B42, B43, B46, B49, B50, B55, B56, B57, B58, B59 | La canción se cargaba dos veces; la URL caducada nunca se invalidaba; `_error` no se limpiaba al recuperar; los botones `<<` y `>>` de la notificación se quedaban fuera de la cola; la notificación fantasma decía "Plyr / Reproduciendo"; falta de acción `STOP`; `onServiceDisconnected` anulaba la sesión; el `>>` de la notificación desaparecía tras dos saltos seguidos y no volvía; el `resolving` quedaba clavado en `true` y dejaba el spinner y los cinco controles muertos para siempre; los saltos de la notificación y de los auriculares se descartaban en silencio mientras duraba una transición (los tres últimos, documentados abajo) |
+| **Reproducción** | B4, B5, B6, B35, B36, B42, B43, B46, B49, B50, B55, B56, B57, B58, B59, B60, B62 | La canción se cargaba dos veces; la URL caducada nunca se invalidaba; `_error` no se limpiaba al recuperar; los botones `<<` y `>>` de la notificación se quedaban fuera de la cola; la notificación fantasma decía "Plyr / Reproduciendo"; falta de acción `STOP`; `onServiceDisconnected` anulaba la sesión; el `>>` de la notificación desaparecía tras dos saltos seguidos y no volvía; el `resolving` quedaba clavado en `true` y dejaba el spinner y los cinco controles muertos para siempre; los saltos de la notificación y de los auriculares se descartaban en silencio mientras duraba una transición; la canción pedida se cancelaba con la pantalla y el error se tragaba; la ventana con huecos se desalineaba con la cola (los seis últimos, documentados abajo) |
 | **Listas y favoritos** | B1, B2, B3, B9, B12, B13, B14, B15, B16, B18, B28, B48 | El swipe a *liked* **borraba** la canción; "añadir a lista" era un no-op; la lista no se refrescaba al añadir/quitar; duplicados al añadir; `<rnd>` desincronizaba la UI; `toggleLikeTrack` sin transacción; quitar un favorito de *Liked* no se reflejaba |
 | **Compartir** | B19, B20, B30, B52, B53, B54 | El `share` de una canción mandaba el `remoteTrackId` de Spotify en vez del vídeo de YouTube (y llegaba al feed público); la URL de una lista era inválida; el diálogo se abría en blanco; el NFC no arrancaba; el QR se regeneraba en cada recomposición |
 | **Sincronización** | B25, B40, B51 | Las fechas ilegibles de Supabase se disfrazaban de "ahora"; el Uri del SAF acababa en el cloud-backup; el sync resucitaba los favoritos que se habían borrado (arreglado con tombstones por clave) |
@@ -331,6 +287,47 @@ Detalles que evitan regresiones:
 
 ---
 
+### B62 — `resolved` con huecos desalineaba la ventana con la cola (corregido)
+
+**Síntoma exacto.** Al saltar a una canción que estaba fuera de la ventana, sonaba una canción distinta de la que enseñaba la UI, o la ventana acababa con un item repetido; a partir de ahí `currentIndex` se desviaba.
+
+**Causa.** `resolveItems` devuelve `mapIndexedNotNull`: descarta los nulos (las canciones que no se pudieron resolver) pero conserva los índices originales, así que la lista puede tener huecos. `playIndex` metía esa lista tal cual en `player.setMediaItems(...)`: con la ventana pedida `[5, 6, 7]` y el 6 fallando, quedaban items `[5, 7]` con `windowStart = 5`, y `fillTarget()` calculaba `lastCovered = 5 + 2 - 1 = 6` cuando el último preparado era en realidad el 7. El siguiente `growWindow` volvía a pedir el 7 (duplicado) mientras `currentIndex` se calculaba sobre índices equivocados. `fillWindow` ya protegía su propio tramo cortando en el primer hueco; **el que no lo hacía era `playIndex`**.
+
+**Corrección.** `playIndex` recorta `resolved` en el primer hueco antes de cargar la ventana, con la misma lógica que ya usaba `fillWindow`: la nueva función pura `QueueIndex.contiguousPrefixLength` devuelve la longitud del tramo contiguo inicial, y solo ese tramo se pasa a `setMediaItems`. Lo recortado no se pierde: el `growWindow()` de justo después vuelve a pedirlo desde `lastCovered + 1`, así que un fallo transitorio se reintenta en el mismo gesto. La ventana termina siempre contigua, que es el invariante de la que dependen `fillTarget`, `trimWindow` y `syncIndexFromWindow`.
+
+**Cobertura nueva:** 5 tests en `QueueIndexTest` (`contiguous_*`): tramo contiguo sin huecos, hueco al medio y hueco en el segundo elemento, rango que no empieza en 0, índice repetido y lista vacía. Como en los casos anteriores, está cubierta la decisión pura; la orquestación (`playIndex`) sigue sin test unitario (§5.6).
+
+---
+
+### B60 — La canción tocada en una lista se cancelaba con la pantalla y el error se tragaba (corregido)
+
+**Síntoma exacto.** Se toca una canción (en una lista, en una playlist de búsqueda, en el feed) y no empieza a sonar: sin error, y el spinner puede ni siquiera llegar a aparecer. Bastaba con que la pantalla saliera de composición durante la resolución (navegación, *back*, cambio de pestaña).
+
+**Causa.** `SongListItem.kt:221` lanzaba la resolución en el `rememberCoroutineScope()` de la pantalla y se tragaba cualquier excepción:
+
+```kotlin
+coroutineScope.launch {
+    try {
+        viewModel.loadAudioFromTrack(selectedTrackEntity)
+    } catch (_: Exception) {
+    }
+}
+```
+
+La corrutina moría con la pantalla en mitad de `withContext(Dispatchers.IO)`, y `catch (_: Exception)` se tragaba también la `CancellationException` (en Kotlin es un `Exception`): el coroutine acababa en silencio, `clearPlayerState()` ya había vaciado el reproductor, y cola e `currentIndex` quedaban apuntando a algo que no estaba cargado. Mismos sitios: `FeedScreen.kt:184`, `PlaylistScreen.kt:330/352`, `YouTubePlaylistDetailView.kt:127/147` y `MainActivity.kt:155`.
+
+**Corrección.** La resolución pasa a ser propiedad del ViewModel:
+
+- **`PlayerViewModel.playTrack(track, onFinished)`** es la única puerta de entrada: lanza `loadAudioFromTrack` en `viewModelScope` (muere con el ViewModel, no con la pantalla) y el callback —que se invoca también si se cancela— le dice a la UI cuándo apagar su estado de "iniciando". `loadAudioFromTrack` queda `private`.
+- **`cancelPendingPlayback()`** es el nuevo "stop": lo usan los botones de parar de `PlaylistScreen` (antes cancelaban los jobs que la propia pantalla tenía a mano).
+- **`clearPlayerState()` cancela también la resolución en vuelo:** ya no apuntaría a un estado que acaba de vaciar.
+- Las pantallas se reducen a una llamada: desaparecen los `launch` + `try/catch` de `SongListItem`, `YouTubePlaylistDetailView` y `PlaylistScreen`; `FeedScreen` deja de necesitar `suspend` en `handleRecommendationClick`/`playYoutubeVideo`; `MainActivity` pierde su `lifecycleScope.launch`. En `PlaylistScreen` se eliminan los jobs `randomJob`/`startJob` **y el `DisposableEffect` que los cancelaba al salir**, que era justo el disparo de este bug.
+- Cancelar es siempre seguro: el `finally` de `startAt` (B58/B59) retira los candados por token da igual cómo acabe la corrutina.
+
+**Cobertura:** sin tests nuevos — no hay lógica pura nueva: es un cambio de dueño del scope. La orquestación (`playTrack`/`clearPlayerState`) sigue sin estar cubierta (§5.6).
+
+---
+
 ## 5. Pendiente
 
 Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
@@ -363,7 +360,7 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
 
 ### 5.4 Arquitectura
 
-- `PlayerViewModel.kt` (1033) — monolito con **dos** banderas que hay que mantener coherentes a mano (`generation`, `windowStart`). Las otras dos ya no son banderas: `resolving` y `transitionInFlight` son registros con tokens (`loading` y `transitions`, dos instancias de `LoadingState`) — B58 y B59. La lógica pura ya está extraída (`QueueIndex`, `PlaylistLocalRepository.likedTrackOf`, `LoadingState`, `PendingSkips`, el núcleo de `YouTubeManager.getAudioUrl`); **el estado de la ventana no**. Es exactamente lo que ha producido B57, B58 y B59 (los tres ya corregidos, §4) y B62 y B63 (§3), y es lo que habría que cubrir con tests JVM: el patrón de "banderas a mano que se resetean condicionalmente" ya es la fuente de los bugs más caros del reproductor.
+- `PlayerViewModel.kt` (1085) — monolito con **dos** banderas que hay que mantener coherentes a mano (`generation`, `windowStart`). Las otras dos ya no son banderas: `resolving` y `transitionInFlight` son registros con tokens (`loading` y `transitions`, dos instancias de `LoadingState`) — B58 y B59. La lógica pura ya está extraída (`QueueIndex`, `PlaylistLocalRepository.likedTrackOf`, `LoadingState`, `PendingSkips`, el núcleo de `YouTubeManager.getAudioUrl`); **el estado de la ventana no**. Es exactamente lo que ha producido B57, B58, B59, B60 y B62 (los cinco ya corregidos, §4) y B63 (§3), y es lo que habría que cubrir con tests JVM: el patrón de "banderas a mano que se resetean condicionalmente" ya es la fuente de los bugs más caros del reproductor.
 - `PlaylistScreen.kt` (1422) — mezcla UI, red, DB y lógica de negocio.
 - `MusicService.kt` — no es dueño del reproductor, solo proyecta la notificación sobre el `ExoPlayer` que vive en `PlayerViewModel`. El reparto es frágil: `SessionSkipCommand` (B49) decidió que la app atienda los saltos devolviendo `RESULT_INFO_SKIPPED`, y eso, sumado a los `return` mudos que tenía `playIndex`, **era** B59 (§4, ya corregido apuntando los saltos en `PendingSkips`). La notificación, además, no llega a tener botones propios (B57, B61).
 - `ConfigScreen.kt` (665) y `SearchScreen.kt` (483) — Composables con carga, red y estado en `remember`/`rememberCoroutineScope`.
@@ -377,7 +374,7 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
 
 ### 5.6 Tests
 
-1. **`PlayerViewModel` no tiene ningún test** — el mayor gap, y ya no es teórico: **B57, B58, B59, B62 y B63 son bugs de esta clase que ningún test detectó** (de los cinco, B57, B58 y B59 ya están corregidos — §4 —, con tests sobre sus piezas nuevas: `QueueNextCommandTest` y los casos de `AudioUrlExtractionTest`, `LoadingStateTest` y `PendingSkipsTest`; los otros dos siguen abiertos en §3). `QueueIndex` sí está cubierta y es correcta; lo que no está cubierta es la *orquestación* (invalidación de URL caducada, limpieza de `_error`, cuándo recargar la ventana, quién invalida la carga en vuelo, qué pasa cuando `resolveItems` devuelve nulos, y ahora también cuándo se drenan los saltos apuntados). El estado de carga y el candado de transiciones ya viven en `LoadingState`, y los saltos aplazados en `PendingSkips`: los tres son puros y están testeados; **el de la ventana sigue dentro**, y sacarlo es la misma extracción que ya se hizo con `QueueIndex`.
+1. **`PlayerViewModel` no tiene ningún test** — el mayor gap, y ya no es teórico: **B57, B58, B59, B60, B62 y B63 son bugs de esta clase que ningún test detectó** (de los seis, solo B63 sigue abierto — §3 —; los otros cinco están corregidos en §4, con tests sobre las piezas puras nuevas: `QueueNextCommandTest` y los casos de `AudioUrlExtractionTest`, `LoadingStateTest`, `PendingSkipsTest` y `QueueIndexTest.contiguous_*`; B60, al ser solo un cambio del dueño del scope, no añadió lógica pura que testear). `QueueIndex` sí está cubierta y es correcta; lo que no está cubierta es la *orquestación* (invalidación de URL caducada, limpieza de `_error`, cuándo recargar la ventana, quién invalida la carga en vuelo, qué pasa cuando `resolveItems` devuelve nulos, y ahora también cuándo se drenan los saltos apuntados). El estado de carga y el candado de transiciones ya viven en `LoadingState`, y los saltos aplazados en `PendingSkips`: los tres son puros y están testeados; **el de la ventana sigue dentro**, y sacarlo es la misma extracción que ya se hizo con `QueueIndex`.
 2. **`SongListItem` no tiene ningún test** y su lógica de swipe (umbral, dirección, acción) está embebida en lambdas de `pointerInput`. El primer paso es extraer la decisión "offset → acción" a una función pura, como se hizo con `QueueIndex`.
 3. **Tests instrumentados**: importación de playlist, escáner QR y escritura NFC no se pueden cubrir en JVM.
 

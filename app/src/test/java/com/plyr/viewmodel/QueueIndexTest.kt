@@ -190,4 +190,39 @@ class QueueIndexTest {
         assertNull(QueueIndex.retryIndexFor(failed = 3, size = 3, repeatMode = all, backwards = true))
         assertNull(QueueIndex.retryIndexFor(failed = -1, size = 3, repeatMode = off, backwards = false))
     }
+
+    // --- contiguousPrefixLength (ventana contigua, B62) ---
+
+    @Test
+    fun contiguous_sinHuecos_devuelveElTamañoCompleto() {
+        assertEquals(3, QueueIndex.contiguousPrefixLength(listOf(5, 6, 7)))
+        assertEquals(1, QueueIndex.contiguousPrefixLength(listOf(0)))
+    }
+
+    /**
+     * `resolveItems` descarta los fallidos conservando el índice original:
+     * con la ventana `[5, 6, 8]`, cargar los tres items en el reproductor
+     * haría que `windowStart + mediaItemCount` contara el 7 que no existe y
+     * el siguiente relleno pidiera el 6 otra vez (duplicado).
+     */
+    @Test
+    fun contiguous_conHueco_seCortaEnElPrimero() {
+        assertEquals(2, QueueIndex.contiguousPrefixLength(listOf(5, 6, 8, 9)))
+        assertEquals(1, QueueIndex.contiguousPrefixLength(listOf(5, 7, 8, 9)))
+    }
+
+    @Test
+    fun contiguous_noEmpiezaEnCero_sigueSiendoContiguo() {
+        assertEquals(3, QueueIndex.contiguousPrefixLength(listOf(10, 11, 12)))
+    }
+
+    @Test
+    fun contiguous_indiceRepetido_seCortaAhí() {
+        assertEquals(1, QueueIndex.contiguousPrefixLength(listOf(5, 5, 6)))
+    }
+
+    @Test
+    fun contiguous_listaVacia_devuelveCero() {
+        assertEquals(0, QueueIndex.contiguousPrefixLength(emptyList()))
+    }
 }

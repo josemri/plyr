@@ -124,7 +124,7 @@ fun YouTubePlaylistDetailView(
                 modifier = Modifier.clickable(enabled = videos.isNotEmpty()) {
                     if (trackEntities.isNotEmpty() && playerViewModel != null) {
                         playerViewModel.setCurrentPlaylist(trackEntities, 0)
-                        coroutineScope.launch { playerViewModel.loadAudioFromTrack(trackEntities.first()) }
+                        playerViewModel.playTrack(trackEntities.first())
                     }
                 }
             )
@@ -144,7 +144,7 @@ fun YouTubePlaylistDetailView(
                             videos.firstOrNull { it.videoId == shuffledTrack.remoteTrackId }
                         }
                         playerViewModel.setCurrentPlaylist(shuffled, 0)
-                        coroutineScope.launch { playerViewModel.loadAudioFromTrack(shuffled.first()) }
+                        playerViewModel.playTrack(shuffled.first())
                     }
                 }
             )

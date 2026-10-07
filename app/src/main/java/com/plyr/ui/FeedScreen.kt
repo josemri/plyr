@@ -132,7 +132,7 @@ fun FeedScreen(
  * - YouTube Videos: Reproduce directamente
  * - YouTube Playlists: Navega a SearchScreen reutilizando NfcScanEvent
  */
-private suspend fun handleRecommendationClick(
+private fun handleRecommendationClick(
     recommendation: Recommendation,
     metadata: MediaMetadata?,
     playerViewModel: PlayerViewModel?,
@@ -161,7 +161,7 @@ private suspend fun handleRecommendationClick(
     }
 }
 
-private suspend fun playYoutubeVideo(
+private fun playYoutubeVideo(
     recommendation: Recommendation,
     metadata: MediaMetadata?,
     playerViewModel: PlayerViewModel?
@@ -181,7 +181,7 @@ private suspend fun playYoutubeVideo(
         lastSyncTime = System.currentTimeMillis()
     )
     playerViewModel.setCurrentPlaylist(listOf(track), 0)
-    playerViewModel.loadAudioFromTrack(track)
+    playerViewModel.playTrack(track)
 }
 
 @Composable

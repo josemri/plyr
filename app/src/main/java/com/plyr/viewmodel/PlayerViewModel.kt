@@ -191,6 +191,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     private var prefetchJob: Job? = null
 
+    /**
+     * Resolución de una canción pedida por la UI ([playTrack]). Vive en el
+     * scope del ViewModel, no en el de la pantalla que la pidió: navegar
+     * fuera no debe cancelarla (B60).
+     */
+    private var playbackJob: Job? = null
+
     // ------------------------------------------------------------------ //
     // Ciclo de vida del reproductor
     // ------------------------------------------------------------------ //
@@ -423,6 +430,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun clearPlayerState() {
         prefetchJob?.cancel()
         prefetchJob = null
+        // Una resolución en vuelo apuntaría a un estado que ya no existe:
+        // se cancela con ella (B60). El candado lo retira su propio `finally`.
+        playbackJob?.cancel()
+        playbackJob = null
         // `invalidateLoads()` también retira el candado de cualquier
         // transición en vuelo: esta operación se hace cargo de todo (B59).
         invalidateLoads()
@@ -449,13 +460,47 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     // ------------------------------------------------------------------ //
 
     /**
+     * Resuelve la URL de audio de [track] y empieza a reproducirla, en el
+     * scope del propio ViewModel.
+     *
+     * Antes cada pantalla lanzaba [loadAudioFromTrack] en su
+     * `rememberCoroutineScope()`: si la pantalla salía de composición
+     * mientras la resolución esperaba red, la corrutina se cancelaba y el
+     * `catch (_: Exception)` de la llamada se tragaba la
+     * `CancellationException` — la canción pedida no sonaba y no había
+     * error (B60). Esta función es la única puerta de entrada ahora.
+     *
+     * @param onFinished se invoca cuando la carga termina, **también si se
+     *   cancela**, para que la pantalla apague su estado de "iniciando".
+     */
+    fun playTrack(track: TrackEntity, onFinished: (() -> Unit)? = null) {
+        playbackJob?.cancel()
+        playbackJob = viewModelScope.launch {
+            try {
+                loadAudioFromTrack(track)
+            } finally {
+                onFinished?.invoke()
+            }
+        }
+    }
+
+    /**
+     * Cancela una resolución en vuelo sin tocar la cola: es el "stop" de la
+     * UI (antes cancelaba los jobs que la pantalla tenía a mano).
+     */
+    fun cancelPendingPlayback() {
+        playbackJob?.cancel()
+        playbackJob = null
+    }
+
+    /**
      * Resuelve la URL de audio de [track] y empieza a reproducirla.
      *
      * La posición en la cola se deduce de la que ya fijó [setCurrentPlaylist];
      * solo si la pista no pertenece a la cola actual, se añade al final para no
      * perder la lista en curso.
      */
-    suspend fun loadAudioFromTrack(track: TrackEntity): Boolean = withContext(Dispatchers.Main) {
+    private suspend fun loadAudioFromTrack(track: TrackEntity): Boolean = withContext(Dispatchers.Main) {
         val index = when {
             currentIndex in queue.indices && queue[currentIndex] == track -> currentIndex
             else -> queue.indexOfFirst { it == track }
@@ -628,10 +673,17 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                 // La ventana arranca en la primera canción que sí se resolvió, de
                 // modo que posición del reproductor e índice de la cola coinciden.
+                // `resolved` puede tener huecos (los que no se resolvieron se
+                // descartan conservando el índice original): cargarlos tal cual
+                // rompería la contigüedad de la ventana y a partir de ahí
+                // `growWindow`/`currentIndex` operarían sobre índices equivocados
+                // (B62). Se recorta en el primer hueco; lo recortado se vuelve a
+                // pedir en el `growWindow` de justo debajo.
+                val prefix = QueueIndex.contiguousPrefixLength(resolved.map { it.index })
                 val start = resolved.first().index
                 windowStart = start
                 setCurrentIndex(start)
-                player.setMediaItems(resolved.map { it.mediaItem }, 0, C.TIME_UNSET)
+                player.setMediaItems(resolved.take(prefix).map { it.mediaItem }, 0, C.TIME_UNSET)
                 player.prepare()
                 player.play()
                 onMediaSessionUpdate?.invoke(player)

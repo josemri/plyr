@@ -270,8 +270,6 @@ fun PlaylistsScreen(
                     // Estados para los botones de control
                     var isRandomizing by remember { mutableStateOf(false) }
                     var isStarting by remember { mutableStateOf(false) }
-                    var randomJob by remember { mutableStateOf<Job?>(null) }
-                    var startJob by remember { mutableStateOf<Job?>(null) }
                     var showShareDialog by remember { mutableStateOf(false) }
 
                     // Determinar si la playlist seleccionada es editable (es 'mía')
@@ -295,12 +293,9 @@ fun PlaylistsScreen(
                      fun stopAllPlayback() {
                          isRandomizing = false
                          isStarting = false
-                         randomJob?.cancel()
-                         startJob?.cancel()
-                         randomJob = null
-                         startJob = null
-                         // Cancelar espera de canción y pausar el reproductor
-                         //playerViewModel?.cancelWaitForSong()
+                         // Cancela la resolución que esté en vuelo: antes eran los
+                         // jobs de esta pantalla, ahora vive en el ViewModel (B60)
+                         playerViewModel?.cancelPendingPlayback()
                          playerViewModel?.pausePlayer()
                      }
 
@@ -311,25 +306,26 @@ fun PlaylistsScreen(
                         isRandomizing = true
 
                         if (playlistTracks.isNotEmpty() && playerViewModel != null) {
-                            randomJob = coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                                // Limpiar estado previo del reproductor
-                                playerViewModel.clearPlayerState()
+                            // Limpiar estado previo del reproductor
+                            playerViewModel.clearPlayerState()
 
-                                // Mezclar toda la lista de tracks
-                                val shuffledTracks = trackEntities.shuffled()
-                                val firstTrack = shuffledTracks.first()
+                            // Mezclar toda la lista de tracks
+                            val shuffledTracks = trackEntities.shuffled()
+                            val firstTrack = shuffledTracks.first()
 
-                                // Reproducir la canción usando PlayerViewModel
-                                playerViewModel.initializePlayer()
+                            // Reproducir la canción usando PlayerViewModel
+                            playerViewModel.initializePlayer()
 
-                                // Establecer la playlist mezclada completa desde el inicio (índice 0)
-                                playerViewModel.setCurrentPlaylist(shuffledTracks, 0)
+                            // Establecer la playlist mezclada completa desde el inicio (índice 0)
+                            playerViewModel.setCurrentPlaylist(shuffledTracks, 0)
 
-                                // Cargar y reproducir - PlayerViewModel manejará la navegación automática
-                                playerViewModel.loadAudioFromTrack(firstTrack)
-
+                            // Cargar y reproducir. La resolución corre en el scope del
+                            // ViewModel: salir de esta pantalla no la cancela (B60)
+                            playerViewModel.playTrack(firstTrack) {
                                 isRandomizing = false
                             }
+                        } else {
+                            isRandomizing = false
                         }
                     }
 
@@ -339,20 +335,15 @@ fun PlaylistsScreen(
                         isStarting = true
 
                         if (playlistTracks.isNotEmpty() && playerViewModel != null && trackEntities.isNotEmpty()) {
-                            startJob = coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                                // Limpiar estado previo del reproductor
-                                playerViewModel.clearPlayerState()
+                            // Limpiar estado previo del reproductor
+                            playerViewModel.clearPlayerState()
 
-                                // Replicar exactamente la lógica de SongListItem cuando haces clic en una canción
-                                playerViewModel.setCurrentPlaylist(trackEntities, 0)
-                                val selectedTrackEntity = trackEntities[0]
+                            // Replicar exactamente la lógica de SongListItem cuando haces clic en una canción
+                            playerViewModel.setCurrentPlaylist(trackEntities, 0)
 
-                                try {
-                                    playerViewModel.loadAudioFromTrack(selectedTrackEntity)
-                                } catch (e: Exception) {
-                                    Log.e("PlaylistScreen", "Error al reproducir track: ${e.message}")
-                                }
-
+                            // El callback apaga el "//" al terminar (o si se cancela);
+                            // la resolución no depende de la vida de esta pantalla (B60)
+                            playerViewModel.playTrack(trackEntities[0]) {
                                 isStarting = false
                             }
                         } else {
@@ -360,13 +351,6 @@ fun PlaylistsScreen(
                         }
                     }
 
-                    // Limpiar jobs al salir
-                    DisposableEffect(selectedPlaylist) {
-                        onDispose {
-                            randomJob?.cancel()
-                            startJob?.cancel()
-                        }
-                    }
                     Column {
                         // Botones de control
                         var showDeleteDialog by remember { mutableStateOf(false) }

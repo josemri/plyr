@@ -218,12 +218,7 @@ fun SongListItem(
 
                                 viewModel.setCurrentPlaylist(trackEntities, index)
                                 val selectedTrackEntity = trackEntities[index]
-                                coroutineScope.launch {
-                                    try {
-                                        viewModel.loadAudioFromTrack(selectedTrackEntity)
-                                    } catch (_: Exception) {
-                                    }
-                                }
+                                viewModel.playTrack(selectedTrackEntity)
                             }
                         }
                     } else {

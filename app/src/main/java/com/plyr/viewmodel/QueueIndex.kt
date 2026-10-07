@@ -103,4 +103,26 @@ object QueueIndex {
             else -> if (current + 1 < size) current + 1 else null
         }
     }
+
+    /**
+     * Longitud del tramo inicial contiguo de [indices] (`n, n+1, n+2, …`).
+     *
+     * La ventana del reproductor tiene que ser contigua: `resolveItems`
+     * descarta los que no se pudieron resolver pero conserva los índices
+     * originales, y cargar la lista con huecos haría que
+     * `windowStart + mediaItemCount` dejara de corresponder con la cola
+     * (B62). Se recorta en el primer hueco; lo que se corte se vuelve a
+     * pedir al crecer la ventana.
+     *
+     * @return longitud del prefijo contiguo; `0` si la lista está vacía.
+     */
+    fun contiguousPrefixLength(indices: List<Int>): Int {
+        if (indices.isEmpty()) return 0
+        var expected = indices.first()
+        for ((i, idx) in indices.withIndex()) {
+            if (idx != expected) return i
+            expected++
+        }
+        return indices.size
+    }
 }
