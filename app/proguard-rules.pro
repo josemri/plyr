@@ -9,6 +9,11 @@
 # extractor tal cual las carga ServiceList y el renderer de resultados (B41).
 -keep class org.schabi.newpipe.** { *; }
 
+# Nota: AGP ya genera el informe de código eliminado por R8 sin flags extra:
+#   app/build/outputs/mapping/release/usage.txt  (junto a mapping/seeds)
+# Es el listado de código no alcanzable (candidato a borrar); en local no hay
+# claves de release, así que ese informe sale del build de CI.
+
 # Rhino (org.mozilla.javascript, dependency de NewPipeExtractor) referencia clases
 # de escritorio desde org.mozilla.javascript.JavaToJSONConverters: java.beans es
 # parte de java.desktop y no existe en Android. La ruta no se ejecuta nunca en

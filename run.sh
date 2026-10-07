@@ -52,6 +52,8 @@ Comandos:
   run [release] [-log...]     Compila, instala y abre la app en el móvil.
   install [release] [-log...] Instala el APK ya compilado (sin recompilar).
   test [device]               Ejecuta los tests unitarios. Con "device", los del móvil.
+  check                       Análisis del código: detekt (código muerto y
+                              estructura), lint y cobertura de tests.
   env                         Imprime las variables de entorno (eval "$(./run.sh env)").
   setup                       (Re)monta el entorno en /tmp (igual que haría build/run solo).
   log [-tags...] [-split...]  Muestra los logs de la app en tiempo real.
@@ -70,6 +72,7 @@ Ejemplos:
   ./run.sh build release          # compilar el APK release
   ./run.sh run -log -tags Player  # compilar, instalar, abrir y ver los logs
   ./run.sh test device            # tests en el móvil
+  ./run.sh check                  # detekt + lint + cobertura
   ./run.sh log -tags Player       # ver los logs de la app
   ./run.sh clean                  # borrar todo lo generado
 EOF
@@ -353,6 +356,141 @@ cmd_test() {
     echo "Tests completados."
 }
 
+cmd_check() {
+    local detekt_rc=0 lint_rc=0 kover_rc=0
+
+    echo "=============================================================="
+    echo "  ANÁLISIS DE CÓDIGO"
+    echo "=============================================================="
+
+    # detektMain usa type resolution: sin ella no corren las reglas
+    # Unused* (código muerto). detekt falla si hay findings.
+    echo ""
+    echo "--- [1/3] detekt (código muerto + estructura) ---"
+    run_gradle :app:detektMain || detekt_rc=$?
+
+    echo ""
+    echo "--- [2/3] Android Lint ---"
+    run_gradle :app:lint || lint_rc=$?
+
+    echo ""
+    echo "--- [3/3] Cobertura (ejecuta los tests unitarios) ---"
+    run_gradle :app:koverXmlReport :app:koverHtmlReport || kover_rc=$?
+
+    echo ""
+    echo "=============================================================="
+    echo "  RESUMEN DEL ANÁLISIS"
+    echo "=============================================================="
+
+    # 1) detekt: desglose de findings por regla desde el informe markdown
+    local detekt_report="$SCRIPT_DIR/app/build/reports/detekt/debug.md"
+    if [[ -f "$detekt_report" ]]; then
+        echo ""
+        echo "detekt -> $detekt_report"
+        grep -E '^### ' "$detekt_report" | sed -E 's/^### /  /; s/ \(/ (/' \
+            || echo "  (sin findings)"
+        echo "  Total: $(grep -cE '^\* Error' "$detekt_report") findings"
+    else
+        echo "  (no se encontró el informe de detekt en $detekt_report)"
+    fi
+
+    # 2) lint: recuento de problemas desde el informe XML si existe
+    local lint_xml
+    lint_xml=$(ls -t "$SCRIPT_DIR"/app/build/reports/lint-results*.xml 2>/dev/null | head -1 || true)
+    if [[ -n "$lint_xml" ]]; then
+        echo ""
+        echo "lint -> ${lint_xml#"$SCRIPT_DIR"/}"
+        print_lint_summary "$lint_xml"
+    else
+        echo "  (no se encontró el informe de lint en app/build/reports/)"
+    fi
+
+    # 3) kover: líneas y ramas cubiertas desde el XML
+    local kover_xml
+    kover_xml=$(find "$SCRIPT_DIR/app/build/reports/kover" -name '*.xml' -type f 2>/dev/null | head -1 || true)
+    if [[ -n "$kover_xml" ]]; then
+        echo ""
+        echo "cobertura -> ${kover_xml#"$SCRIPT_DIR"/}"
+        print_kover_summary "$kover_xml"
+    else
+        echo "  (no se encontró el informe de cobertura en app/build/reports/kover/)"
+    fi
+
+    # 4) R8: lo que ya se elimina por no alcanzable (si hay build release)
+    local usage
+    usage=$(ls -t "$SCRIPT_DIR"/app/build/outputs/mapping/release/usage.txt 2>/dev/null | head -1 || true)
+    if [[ -z "$usage" ]]; then
+        usage=$(find "$SCRIPT_DIR/app/build" -name usage.txt -type f 2>/dev/null | head -1 || true)
+    fi
+    if [[ -n "$usage" ]]; then
+        echo ""
+        echo "R8 (código no alcanzable, del build release) -> ${usage#"$SCRIPT_DIR"/}"
+        echo "  $(grep -c '^' "$usage") líneas eliminadas;" \
+             "$(grep -c '^com\.plyr' "$usage" || true) entradas del paquete com.plyr"
+    fi
+
+    echo ""
+    [[ "$detekt_rc" -ne 0 ]] && echo "detekt: findings de código muerto/estructura (informe arriba)."
+    [[ "$lint_rc"   -ne 0 ]] && echo "lint: problemas detectados."
+    [[ "$kover_rc"  -ne 0 ]] && echo "cobertura: tests fallidos."
+
+    if [[ "$detekt_rc" -ne 0 || "$lint_rc" -ne 0 || "$kover_rc" -ne 0 ]]; then
+        die "Análisis con incidencias (detekt=$detekt_rc lint=$lint_rc cobertura=$kover_rc)."
+    fi
+    echo "Análisis sin incidencias."
+}
+
+print_lint_summary() {
+    local xml="$1"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "  (python3 no disponible; informe XML en: $xml)"
+        return 0
+    fi
+    python3 - "$xml" <<'PY'
+import sys, xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except ET.ParseError:
+    print("   [XML inválido]")
+    sys.exit(0)
+issues = root.findall(".//issue")
+from collections import Counter
+sev = Counter(i.get("severity", "?") for i in issues)
+print(f"  {len(issues)} problemas: "
+      + ", ".join(f"{v} {k}" for k, v in sev.most_common()))
+for i in sorted(issues, key=lambda x: x.get("severity", ""))[:15]:
+    print(f"   [{i.get('severity')}] {i.get('id')}: {i.get('message','')[:100]}")
+if len(issues) > 15:
+    print(f"   ... y {len(issues) - 15} más en el informe HTML")
+PY
+}
+
+print_kover_summary() {
+    local xml="$1"
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "  (python3 no disponible; XML en: $xml)"
+        return 0
+    fi
+    python3 - "$xml" <<'PY'
+import sys, xml.etree.ElementTree as ET
+try:
+    root = ET.parse(sys.argv[1]).getroot()
+except ET.ParseError:
+    print("   [XML inválido]")
+    sys.exit(0)
+# Kover XML: <report><counter type="LINE" missed=".." covered=".."/>...</report>
+counters = {c.get("type"): c for c in root.findall(".//counter")}
+for t, label in (("LINE", "líneas"), ("BRANCH", "ramas"), ("METHOD", "métodos")):
+    c = counters.get(t)
+    if c is None:
+        continue
+    missed, covered = int(c.get("missed", 0)), int(c.get("covered", 0))
+    total = missed + covered
+    pct = (100.0 * covered / total) if total else 0.0
+    print(f"  {label}: {covered}/{total} ({pct:.1f}%)")
+PY
+}
+
 cmd_env() {
     if ! env_installed; then
         die "El entorno aún no está montado. Ejecutá primero: ./run.sh setup"
@@ -509,7 +647,7 @@ parse_args() {
     COMMAND="$1"; shift
 
     case "$COMMAND" in
-        build|run|install|test|log|env|setup|stop|clean) ;;
+        build|run|install|test|check|log|env|setup|stop|clean) ;;
         help|-h|--help)  COMMAND="help" ;;
         reiniciar)       COMMAND="clean" ;;
         -stop)           COMMAND="stop" ;;
@@ -566,6 +704,7 @@ case "$COMMAND" in
     build)   ensure_env; cmd_build ;;
     run)     ensure_env; cmd_run ;;
     test)    ensure_env; cmd_test ;;
+    check)   ensure_env; cmd_check ;;
     install) ensure_env; cmd_install ;;
     log)     ensure_env; cmd_log ;;
     stop)    ensure_env; cmd_stop ;;

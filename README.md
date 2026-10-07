@@ -37,6 +37,7 @@ cd plyr
 ./run.sh build        # builds the debug APK
 ./run.sh run          # compiles, installs and launches the app on the device
 ./run.sh test         # runs the unit tests
+./run.sh check        # code analysis: detekt (dead code/structure), lint and test coverage
 ```
 
 The script mounts its own environment (Java, Android SDK) under `/tmp`, so nothing is written to your home directory. Run `./run.sh clean` to wipe everything it generates.

@@ -380,3 +380,63 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
 1. **`PlayerViewModel` no tiene ningún test** — el mayor gap, y ya no es teórico: **B57, B58, B59, B62 y B63 son bugs de esta clase que ningún test detectó** (de los cinco, B57, B58 y B59 ya están corregidos — §4 —, con tests sobre sus piezas nuevas: `QueueNextCommandTest` y los casos de `AudioUrlExtractionTest`, `LoadingStateTest` y `PendingSkipsTest`; los otros dos siguen abiertos en §3). `QueueIndex` sí está cubierta y es correcta; lo que no está cubierta es la *orquestación* (invalidación de URL caducada, limpieza de `_error`, cuándo recargar la ventana, quién invalida la carga en vuelo, qué pasa cuando `resolveItems` devuelve nulos, y ahora también cuándo se drenan los saltos apuntados). El estado de carga y el candado de transiciones ya viven en `LoadingState`, y los saltos aplazados en `PendingSkips`: los tres son puros y están testeados; **el de la ventana sigue dentro**, y sacarlo es la misma extracción que ya se hizo con `QueueIndex`.
 2. **`SongListItem` no tiene ningún test** y su lógica de swipe (umbral, dirección, acción) está embebida en lambdas de `pointerInput`. El primer paso es extraer la decisión "offset → acción" a una función pura, como se hizo con `QueueIndex`.
 3. **Tests instrumentados**: importación de playlist, escáner QR y escritura NFC no se pueden cubrir en JVM.
+
+---
+
+## 6. Análisis de calidad automatizado
+
+Se montó una capa de análisis de código sobre Gradle, sin instalar nada más allá de lo que ya usa el build. Todo se ejecuta con un comando:
+
+```
+./run.sh check
+```
+
+que encadena tres cosas y imprime un resumen con las rutas de los informes:
+
+| Herramienta | Task de Gradle | Qué detecta | Informe |
+|---|---|---|---|
+| **detekt 2.0.0-alpha.6** (con *type resolution*) | `:app:detektMain` | Código muerto (`Unused*`), estructura (`complexity`), bugs (`potential-bugs`) | `app/build/reports/detekt/debug.{md,html,xml,sarif}` |
+| **Android Lint** | `:app:lint` | Recursos sin uso, `NewApi`, deuda de dependencias | `app/build/reports/lint-results-debug.{html,xml}` |
+| **Kover 0.9.11** | `:app:koverXmlReport` `:app:koverHtmlReport` | Cobertura de los tests JVM (ejecuta los tests) | `app/build/reports/kover/report.xml`, `kover/html/index.html` |
+| **R8 (en CI)** | `assembleRelease` | Código que el shrinker elimina por no alcanzable | `app/build/outputs/mapping/release/usage.txt` (artifact `r8-usage` en el workflow de release) |
+
+Notas de configuración:
+
+- `app/detekt.yml` está deliberadamente recortado: solo quedan activas las reglas de *sin uso* (`UnusedImport`, `UnusedParameter`, `UnusedPrivate*`, `UnusedVariable`, `VarCouldBeVal`), todo el ruleset `complexity` y `potential-bugs`. El resto (formato, naming, `MagicNumber`, `WildcardImport`…) está apagado a mano para que el informe diga solo lo que interesa. Las reglas `Unused*` **solo** corren con type resolution, por eso `check` usa `detektMain` y no `detekt`.
+- `settings.gradle.kts`: el repositorio `google()` lleva ahora el mismo filtro de grupos que ya tenía `pluginManagement`; sin él, artefactos de Maven Central (el agent de Kover, el `asm` de lint) se buscan primero en `dl.google.com` y el build falla si ese host falla.
+- AGP ya genera `usage.txt` por defecto con el informe de R8; no hace falta `-printusage` (dejaba un duplicado de 6,4 MB en `app/usage.txt`).
+
+### 6.1 Hallazgos de código muerto
+
+**detekt (19 hallazgos con ubicación exacta):** 6 imports sin uso (`SupabaseClient.kt:3`, `HomeScreen.kt:35`, `PlaylistScreen.kt:12`, `SearchScreen.kt:7`, `PlyrComponents.kt:8`, `Utils.kt:4`), 4 parámetros sin usar (`PlaylistLocalRepository.kt:211,213`, `ConfigScreen.kt:257`, `HomeScreen.kt:51`), 5 variables sin usar (`FloatingMusicControls.kt:387`, `PlaylistScreen.kt:100`, `SearchScreen.kt:61`, `DataSync.kt:315`, `PlayerViewModel.kt:828`), 1 propiedad privada sin uso (`YouTubeSearchManager.kt:28`), 3 `var` que deberían ser `val`, y **1 bloque de código inalcanzable** (`CoverCache.kt:97`).
+
+**R8 (release, confirmación de inalcanzabilidad):**
+
+- `com.plyr.ui.MenuOption` — clase entera eliminada; solo existe su definición en `AudioListScreen.kt:29`, sin ningún uso.
+- `SupabaseClient.createGroup` y `SupabaseClient.joinGroup` — funciones eliminadas por R8 y sin ningún llamador fuera de `SupabaseClient.kt`; arrastran a `model.GroupMember`. **La feature "crear/unirse a grupo" está muerta** (en cambio `getGroups()` sí se usa desde `FeedScreen` y `QRDialog`).
+- `DataExporter.exportTo` + `utils.ExportDigest` — sin llamadores fuera de `DataExporter.kt`; R8 elimina las dos lambdas del flujo y la clase `ExportDigest` entera. El export vivo es el de `DataSync`.
+- `PlyrSymbols` aparece eliminada pero es solo el *inlining* de constantes (sus usos en `HomeScreen`/`PlyrComponents`/`YouTubeSearchResults` siguen ahí como literales): no es código a borrar.
+
+**Lint — recursos sin uso:** 70 avisos, de los cuales **58 son falsos positivos**: los `drawable-nodpi/ascii_*.png` se referencian dinámicamente en `HomeScreen.kt:63` con `resources.getIdentifier("ascii_$i")`, que lint no sigue. Reales: los colores de plantilla `purple_200/500/700`, `teal_200/700`, `black`, `white`, `splash_background_color` (solo existen en `colors.xml`) y el estilo `Theme_Plyr_SplashScreen_Fallback`.
+
+### 6.2 Bugs reales que saltaron
+
+- **`NewApi` (error, hace fallar `check`):** `MainActivity.kt:90` llama a `startForegroundService()` con `minSdk 24` — lanza `NoSuchMethodError`/crash en Android 7.x. Debería ser `ContextCompat.startForegroundService()`.
+- **`ImplicitDefaultLocale` ×8** — `String.format`/`toLowerCase` sin `Locale` (`ConfigScreen.kt:415,419,486`, `CoverCache.kt:75`, `ExportDigest.kt:83`, `ExportManifest.kt:147`, `Utils.kt:73,75`): resultados distintos según el idioma del dispositivo.
+- **`UnreachableCode`** en `CoverCache.kt:97` y **`UnnecessarySafeCall`** ×2 (`SimpleDownloader.kt:135`, `SpotifyImporter.kt:191`).
+
+### 6.3 Estructura (dónde está lo más enrevesado)
+
+`detekt` cuenta 119 hallazgos, la mayoría concentrados en los mismos ficheros (los que ya apunta §5.4): `PlaylistScreen.kt` (1422 líneas: `LongMethod` ×2, `CyclomaticComplexMethod` ×2, `TooManyFunctions`…), `ConfigScreen.kt` (×3 métodos largos), `FloatingMusicControls.kt` (×4), `SearchScreen.kt` (×3), `PlayerViewModel.kt` (`CyclomaticComplexMethod` en `:557`), `SongListItem.kt`, `QRDialog.kt`, `YouTubePlaylistDetailView.kt`. Además `PlaylistLocalRepository`, `TrackDao`, `Config` e `ImportManifest` superan el máximo de funciones por archivo/clase. Es deuda concentrada: refactorizar esos 8-10 ficheros cubriría ~80 de los 119 avisos.
+
+### 6.4 Cobertura
+
+Global: **13,6 % de líneas** (1111/8167) y 13,3 % de ramas. Por paquete:
+
+- `com.plyr.ui` + `ui.components` + `ui.components.search` + `ui.theme`: **~0 %** (ningún test toca Compose — coherente con que los tests son JVM).
+- `com.plyr.utils`: 40 % (676/1701) — es donde vive lo testado hoy.
+- `com.plyr.database`: ~5 % (los `*_Impl` de Room arrastran el número).
+- `com.plyr.viewmodel`: 8 % — confirma el gap de §5.6.1 (`PlayerViewModel` sin tests).
+- `com.plyr.network`: 24 %, `com.plyr.service`: 39 %.
+
+El número interesa como *tendencia* (sube si se cubre `viewmodel`/lógica pura nueva), no como objetivo por sí mismo: el UI Compose no se va a cubrir con Kover JVM.

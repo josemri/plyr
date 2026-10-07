@@ -143,6 +143,35 @@ jobs:
       - name: Build signed release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
+      - name: Extract R8 usage report (código eliminado)
+        run: |
+          # AGP genera el informe de lo que R8 descarta por no alcanzable en
+          # app/build/outputs/mapping/release/usage.txt. Se separa lo del
+          # paquete de la app (candidato real a borrar) y se publica.
+          USAGE="app/build/outputs/mapping/release/usage.txt"
+          if [ -f "$USAGE" ]; then
+            grep '^com\.plyr' "$USAGE" > r8-usage-plyr.txt || true
+            APP_CLASSES=$(wc -l < r8-usage-plyr.txt)
+            {
+              echo "### R8: código no alcanzable eliminado"
+              echo ""
+              echo "- **$APP_CLASSES clases/miembros de \`com.plyr\`** en el release (candidatos a borrar)"
+              echo "- Informe completo: artifact \`r8-usage\` (\`usage.txt\`, $(wc -l < "$USAGE") líneas)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning::No se encontró usage.txt (¿minify desactivado?)"
+          fi
+
+      - name: Upload R8 usage report
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-usage
+          path: |
+            app/build/outputs/mapping/release/usage.txt
+            r8-usage-plyr.txt
+          if-no-files-found: warn
+
       - name: Verify and locate APK
         id: find_apk
         run: |
