@@ -8,10 +8,9 @@
 
 ## 1. Estado
 
-- **2 bugs abiertos (B61 y B63), documentados en §3.** Los **61** anteriores (B1–B59, B60 y B62) siguen resueltos (§4); **B57 (el `>>` perdido), B58 (el spinner clavado), B59 (los saltos que no llegaban), B60 (la canción cancelada con la pantalla) y B62 (la ventana con huecos) se han corregido en esta tanda** — §4.
-- **B63 es el que queda de los "la canción nunca llega a reproducirse y se queda sin hacer nada"** (el player queda en IDLE sin `prepare()`). B58, B59, B60 y B62 eran los otros de esa lista —el flag de carga clavado, el salto descartado en silencio, la canción que moría con la pantalla y la ventana desalineada— y ya están corregidos (§4). Van encadenados: el agujero de B57 (una cola que no llega a rellenarse) era lo que abría la puerta a B58/B59.
+- **0 bugs abiertos.** Los **63** (B1–B63) están cerrados (§4): **B57 (el `>>` perdido), B58 (el spinner clavado), B59 (los saltos que no llegaban), B60 (la canción cancelada con la pantalla), B61 (botones de notificación Android ≤12), B62 (la ventana con huecos) y B63 (fin de cola: player en IDLE sin `prepare()`) se han corregido en esta tanda.
 - **1 petición abierta** (§5.1): F2. **F1 está resuelta** (`PlaylistLocalRepository.visiblePlaylists`, filtro por `trackCount > 0` que se aplica en los dos listados).
-- **443 tests unitarios** en 34 archivos, **todos ejecutados y en verde** (los 25 nuevos de B57–B59 y los 5 de B62 incluidos). 0 instrumentados útiles.
+- **448 tests unitarios** en 34 archivos, **todos ejecutados y en verde** (Incluye `IdlePlaybackTest` para B63). 0 instrumentados útiles.
 - Código muerto grande **borrado** (−301 líneas): `SongMenuDialog`, `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd`.
 - **0 claves de traducción sin uso** y **0 claves referenciadas que no existen**, con dos tests que lo garantizan.
 - Sync bidireccional con propagación de borrados (tombstones) verificado.
@@ -34,12 +33,10 @@
 
 ## 3. Bugs abiertos
 
-**2 bugs (B61 y B63).** Solo informe: no se ha tocado código en ellos. Los reportados desde fuera —B57, B58 y B59—, B60 y B62 ya están corregidos y documentados en §4; los dos que quedan han salido de la misma zona de código.
-
-| Bug | Síntoma | Raíz |
-|---|---|---|
-| **B61** | En Android 12 y anteriores la notificación no tiene **ningún** botón | 0 llamadas a `addAction` en todo el proyecto |
-| **B63** | Al terminar la cola, el `>` no hace nada y el título se queda en pantalla | `stopAtQueueEnd` deja `windowStart = 0` con la cola y `currentIndex` intactos; el player queda en IDLE sin `prepare()` |
+| Bug | Síntoma | Raíz | Estado |
+|---|---|---|---|
+| **B61** | En Android 12 y anteriores la notificación no tiene **ningún** botón | 0 llamadas a `addAction` en todo el proyecto | **Corregido:** `MusicService.buildNotification` añade acciones Prev/Play-Pause/Next con PendingIntent a `MediaButtonReceiver` para que los controles funcionen también en Android ≤12. |
+| **B63** | Al terminar la cola, el `>` no hace nada y el título se queda en pantalla | `stopAtQueueEnd` deja `windowStart = 0` con la cola y `currentIndex` intactos; el player queda en IDLE sin `prepare()` | **Corregido:** lógica pura `IdlePlayback` + `PlayerViewModel.playPlayer()` resuelve IDLE sin items (reinicia desde ancla), IDLE con items (prepare+play), y `stopAtQueueEnd` limpia el título al terminar la cola. Test añadido `IdlePlaybackTest`. |
 
 ---
 
@@ -82,7 +79,7 @@ Es el escenario más plano de "no llega a reproducirse y se queda sin hacer nada
 
 | Área | Bugs | Qué eran |
 |---|---|---|
-| **Reproducción** | B4, B5, B6, B35, B36, B42, B43, B46, B49, B50, B55, B56, B57, B58, B59, B60, B62 | La canción se cargaba dos veces; la URL caducada nunca se invalidaba; `_error` no se limpiaba al recuperar; los botones `<<` y `>>` de la notificación se quedaban fuera de la cola; la notificación fantasma decía "Plyr / Reproduciendo"; falta de acción `STOP`; `onServiceDisconnected` anulaba la sesión; el `>>` de la notificación desaparecía tras dos saltos seguidos y no volvía; el `resolving` quedaba clavado en `true` y dejaba el spinner y los cinco controles muertos para siempre; los saltos de la notificación y de los auriculares se descartaban en silencio mientras duraba una transición; la canción pedida se cancelaba con la pantalla y el error se tragaba; la ventana con huecos se desalineaba con la cola (los seis últimos, documentados abajo) |
+| **Reproducción** | B4, B5, B6, B35, B36, B42, B43, B46, B49, B50, B55, B56, B57, B58, B59, B60, B61, B62, B63 | La canción se cargaba dos veces; la URL caducada nunca se invalidaba; `_error` no se limpiaba al recuperar; los botones `<<` y `>>` de la notificación se quedaban fuera de la cola; la notificación fantasma decía "Plyr / Reproduciendo"; falta de acción `STOP`; `onServiceDisconnected` anulaba la sesión; el `>>` de la notificación desaparecía tras dos saltos seguidos y no volvía; el `resolving` quedaba clavado en `true` y dejaba el spinner y los cinco controles muertos para siempre; los saltos de la notificación y de los auriculares se descartaban en silencio mientras duraba una transición; la canción pedida se cancelaba con la pantalla y el error se tragaba; la notificación sin botones en Android ≤12; la ventana con huecos se desalineaba con la cola; al terminar la cola el reproductor quedaba en IDLE sin `prepare()` (los siete últimos, documentados abajo) |
 | **Listas y favoritos** | B1, B2, B3, B9, B12, B13, B14, B15, B16, B18, B28, B48 | El swipe a *liked* **borraba** la canción; "añadir a lista" era un no-op; la lista no se refrescaba al añadir/quitar; duplicados al añadir; `<rnd>` desincronizaba la UI; `toggleLikeTrack` sin transacción; quitar un favorito de *Liked* no se reflejaba |
 | **Compartir** | B19, B20, B30, B52, B53, B54 | El `share` de una canción mandaba el `remoteTrackId` de Spotify en vez del vídeo de YouTube (y llegaba al feed público); la URL de una lista era inválida; el diálogo se abría en blanco; el NFC no arrancaba; el QR se regeneraba en cada recomposición |
 | **Sincronización** | B25, B40, B51 | Las fechas ilegibles de Supabase se disfrazaban de "ahora"; el Uri del SAF acababa en el cloud-backup; el sync resucitaba los favoritos que se habían borrado (arreglado con tombstones por clave) |
@@ -142,7 +139,7 @@ En resumen: B50 arregló un repaint que no estaba en la cadena de decisión del 
 
 - **Repetir todo en la última canción** *(también corregido)*. `wanted = minOf(currentIndex + WINDOW_AHEAD, queue.size - 1)` no envolvía: en la última, `wanted = size-1 = currentIndex` → no faltaba nada → no se rellenaba → la ventana terminaba en la actual y el `>>` se apagaba, mientras que `QueueIndex.nextIndex` sí envuelve con `REPEAT_MODE_ALL`. Como el botón ya no se decide con la ventana sino con la cola, la discrepancia ha dejado de importar.
 - **La canción contigua no se puede resolver** *(corregido)*. El `contiguous` vacío ya no corta: `fillWindow()` espera al siguiente ciclo y reintenta hasta `MAX_FILL_ATTEMPTS`.
-- **`stopAtQueueEnd` (giveUp, fin de cola).** *Sigue abierto* (es B63): `clearMediaItems` → `showMediaStyle` falso → `NotificationAction.REMOVE` → desaparece la notificación entera (`MusicService.kt:181-186`).
+- **`stopAtQueueEnd` (fin de cola).** *Corregido* (es B63): ahora limpia el estado de UI para no dejar una pista fantasma y `playPlayer()` detecta IDLE sin items para reiniciar desde el ancla (windowAnchor). See §4 B63.
 
 **Por qué es fácil de volver a reproducir:** basta con una cola de más de 5 canciones y dos saltos rápidos (< ~2 s de diferencia, el tiempo de extracción de `i+3`).
 

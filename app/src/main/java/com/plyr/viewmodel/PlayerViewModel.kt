@@ -311,7 +311,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun pausePlayer() = _exoPlayer?.pause()
 
-    fun playPlayer() = _exoPlayer?.play()
+    @OptIn(UnstableApi::class)
+    fun playPlayer() {
+        val player = _exoPlayer ?: return
+        val action = IdlePlayback.decide(
+            isIdle = player.playbackState == Player.STATE_IDLE,
+            mediaItemCount = player.mediaItemCount,
+            queueSize = queue.size,
+            currentIndex = currentIndex,
+        )
+        when (action) {
+            IdlePlayback.Action.Resume -> player.play()
+            IdlePlayback.Action.PrepareAndPlay -> {
+                player.prepare()
+                player.play()
+            }
+            is IdlePlayback.Action.RestartAt -> {
+                // Tras stopAtQueueEnd (B63) el player está en IDLE sin items y la
+                // UI apunta a una canción que "debería" sonarse: arrancamos desde
+                // el ancla (currentIndex si es válido, o 0) reconstruyendo la ventana.
+                playIndex((action as IdlePlayback.Action.RestartAt).index)
+            }
+            IdlePlayback.Action.Nothing -> Unit
+        }
+    }
 
     fun navigateToNext() {
         // Mientras dura una transición la cola todavía no se ha movido, así
@@ -952,6 +975,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         windowStart = 0
         currentVideoId = null
+        // B63: al vaciar la ventana, la UI puede seguir apuntando a la última
+        // canción; al pulsar '>' (play) necesitamos que vuelva a arrancar con
+        // lógica coherente. Se limpia el título para no dejar una pista "fantasma"
+        // en pantalla, aunque la cola siga en memoria (no la borramos para que
+        // el usuario pueda reintentar).
+        trackAt(currentIndex)?.let { _ ->
+            // Mantener la pista en la cola, pero reflejar estado "detenido"
+            _currentTrack.publish(null)
+            _currentTitle.publish(null)
+        }
         // El candado no se toca: o lo lleva esta misma transición (y su
         // `finally` lo retira), o lo lleva otra que sigue trabajando, y
         // soltarlo desde aquí la dejaría sin candado a medio camino (B59).

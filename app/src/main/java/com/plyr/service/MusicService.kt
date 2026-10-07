@@ -1,22 +1,23 @@
 package com.plyr.service
 
+import android.app.Notification
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
-import android.app.Notification
-import android.app.PendingIntent
+import android.view.KeyEvent
 import androidx.annotation.OptIn
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.plyr.MainActivity
 import com.plyr.R
-import androidx.media3.common.Player
 
 class MusicService : Service() {
     private val CHANNEL_ID = "plyr_playback"
@@ -46,6 +47,9 @@ class MusicService : Service() {
 
     companion object {
         const val ACTION_STOP = "io.github.josemri.plyr.action.STOP"
+        const val ACTION_PREV = "io.github.josemri.plyr.action.PREV"
+        const val ACTION_PLAY_PAUSE = "io.github.josemri.plyr.action.PLAY_PAUSE"
+        const val ACTION_NEXT = "io.github.josemri.plyr.action.NEXT"
     }
 
     override fun onCreate() {
@@ -168,14 +172,51 @@ class MusicService : Service() {
             // dispositivo vibraría en cada salto, no solo al empezar a sonar.
             .setOnlyAlertOnce(true)
 
-        // El `MediaStyle` solo se monta si hay una sesión con items: sin ellos el
-        // sistema no pintaría botones, pero el estilo vacío era lo que dejaba la
-        // notificación fantasma.
         val session = mediaSession
         if (state.showMediaStyle && session != null) {
+            // A partir de Android 13 los controles vienen del PlaybackState, pero
+            // en Android 12 y anteriores el sistema pinta las acciones de la
+            // notificación (B61). Añadimos botones básicos delegando a la sesión.
+            builder.addAction(
+                NotificationCompat.Action(
+                    android.R.drawable.ic_media_previous,
+                    "Prev",
+                    mediaKeyPendingIntent(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+                )
+            )
+            builder.addAction(
+                NotificationCompat.Action(
+                    android.R.drawable.ic_media_play,
+                    "Play/Pause",
+                    mediaKeyPendingIntent(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+                )
+            )
+            builder.addAction(
+                NotificationCompat.Action(
+                    android.R.drawable.ic_media_next,
+                    "Next",
+                    mediaKeyPendingIntent(KeyEvent.KEYCODE_MEDIA_NEXT)
+                )
+            )
             builder.setStyle(MediaStyleNotificationHelper.MediaStyle(session))
         }
         return builder.build()
+    }
+
+    private fun mediaKeyPendingIntent(keyCode: Int): PendingIntent {
+        val intent = Intent(this, com.plyr.receivers.MediaButtonReceiver::class.java).apply {
+            action = Intent.ACTION_MEDIA_BUTTON
+            putExtra(
+                Intent.EXTRA_KEY_EVENT,
+                KeyEvent(KeyEvent.ACTION_DOWN, keyCode)
+            )
+        }
+        return PendingIntent.getBroadcast(
+            this,
+            keyCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
 
     private fun refreshNotification(player: ExoPlayer, event: NotificationEvent) {

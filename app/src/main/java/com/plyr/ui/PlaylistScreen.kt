@@ -143,7 +143,7 @@ fun PlaylistsScreen(
     // Cargar tracks reactivamente cuando cambia la playlist seleccionada
     var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
     // Contador para recargar los tracks tras añadir/eliminar en modo edición (B3)
-    var tracksRevision by remember { mutableStateOf(0) }
+    var tracksRevision by remember { androidx.compose.runtime.mutableIntStateOf(0) }
     LaunchedEffect(selectedPlaylistEntity?.remoteId, tracksRevision) {
         val id = selectedPlaylistEntity?.remoteId
         if (id != null) {

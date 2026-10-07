@@ -98,7 +98,7 @@ fun MarqueeText(
                 .onSizeChanged { size ->
                     textWidth = size.width
                 }
-                .offset(x = with(density) { animatedOffset.toDp() })
+                .offset { with(density) { androidx.compose.ui.unit.IntOffset(animatedOffset.toDp().roundToPx(), 0) } }
         )
     }
 }
