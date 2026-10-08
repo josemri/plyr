@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import androidx.core.net.toUri
 import android.util.Log
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
@@ -177,7 +178,7 @@ object DataExporter {
     }
 
     private fun readLocalCover(imageUrl: String): ByteArray? = try {
-        val path = Uri.parse(imageUrl).path
+        val path = imageUrl.toUri().path
         path?.let { File(it).takeIf { file -> file.isFile }?.readBytes() }
     } catch (e: Exception) {
         Log.w(TAG, "No se pudo leer la portada local: ${e.message}")

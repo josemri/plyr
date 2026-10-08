@@ -2,6 +2,7 @@ package com.plyr.ui
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.DocumentsContract
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -397,7 +398,7 @@ private fun SyncSection(context: Context) {
     var folderName by remember { mutableStateOf<String?>(null) }
     var hasBackupFile by remember { mutableStateOf(false) }
     LaunchedEffect(treeUri) {
-        val tree = treeUri?.let { Uri.parse(it) }
+        val tree = treeUri?.let { it.toUri() }
         folderName = tree?.let { loadFolderName(context, it) }
         hasBackupFile = tree != null && runCatching {
             BackupFolder.findExistingBackupFile(context, tree) != null
@@ -430,7 +431,7 @@ private fun SyncSection(context: Context) {
                 statusMessage = listOfNotNull(recuperadas, copiadas).joinToString(" ")
                 // El botón pasa a indicar que ya hay copia. El nombre se vuelve
                 // a resolver porque puede ser una carpeta nueva.
-                val tree = treeUri?.let { Uri.parse(it) }
+                val tree = treeUri?.let { it.toUri() }
                 folderName = tree?.let { loadFolderName(context, it) }
                 hasBackupFile = true
             }
@@ -474,7 +475,7 @@ private fun SyncSection(context: Context) {
             // Se suelta la carpeta anterior: dejar permisos huérfanos en el
             // sistema solo ocupa cuota y confunde al usuario.
             treeUri?.takeIf { it != selected.toString() }?.let { previous ->
-                runCatching { BackupFolder.releaseAccess(context, Uri.parse(previous)) }
+                runCatching { BackupFolder.releaseAccess(context, previous.toUri()) }
             }
 
             Config.setBackupTree(context, selected.toString(), documentId = null)
@@ -508,7 +509,7 @@ private fun SyncSection(context: Context) {
 
             val known = treeUri
             val target = known?.let {
-                runCatching { BackupFolder.findExistingBackupFile(context, Uri.parse(it)) }.getOrNull()
+                runCatching { BackupFolder.findExistingBackupFile(context, it.toUri()) }.getOrNull()
             }
 
             if (target == null) {

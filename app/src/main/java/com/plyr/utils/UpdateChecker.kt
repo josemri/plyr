@@ -1,6 +1,7 @@
 package com.plyr.utils
 
 import android.content.Context
+import androidx.core.content.edit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -159,7 +160,7 @@ object UpdateChecker {
      */
     private fun saveLastCheckTime(context: Context, time: Long) {
         val prefs = context.getSharedPreferences("update_checker", Context.MODE_PRIVATE)
-        prefs.edit().putLong("last_check", time).apply()
+        prefs.edit { putLong("last_check", time) }
     }
 
     /**
@@ -167,12 +168,12 @@ object UpdateChecker {
      */
     private fun cacheUpdateInfo(context: Context, info: UpdateInfo) {
         val prefs = context.getSharedPreferences("update_checker", Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString("latest_version", info.latestVersion)
-            .putString("download_url", info.downloadUrl)
-            .putString("release_notes", info.releaseNotes)
-            .putBoolean("is_update_available", info.isUpdateAvailable)
-            .apply()
+        prefs.edit {
+            putString("latest_version", info.latestVersion)
+            putString("download_url", info.downloadUrl)
+            putString("release_notes", info.releaseNotes)
+            putBoolean("is_update_available", info.isUpdateAvailable)
+        }
     }
 
     /**
@@ -195,6 +196,6 @@ object UpdateChecker {
      */
     fun clearCache(context: Context) {
         val prefs = context.getSharedPreferences("update_checker", Context.MODE_PRIVATE)
-        prefs.edit().clear().apply()
+        prefs.edit { clear() }
     }
 }

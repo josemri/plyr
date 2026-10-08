@@ -2,6 +2,7 @@ package com.plyr.service
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
@@ -75,7 +76,7 @@ object CoverImageManager {
     fun resizeToSquare(bitmap: Bitmap, maxSide: Int = MAX_OUTPUT_SIDE): Bitmap {
         val side = minOf(maxSide, minOf(bitmap.width, bitmap.height))
         if (side >= bitmap.width && side >= bitmap.height) return bitmap
-        return Bitmap.createScaledBitmap(bitmap, side, side, true)
+        return bitmap.scale(side, side, true)
     }
 
     /**

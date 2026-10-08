@@ -3,6 +3,7 @@ package com.plyr.utils
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.DocumentsContract
 import android.util.Log
 import java.io.IOException
@@ -244,7 +245,7 @@ object BackupFolder {
     fun requireTree(context: Context): Uri {
         val stored = Config.getBackupTreeUri(context)
             ?: throw IOException("No hay carpeta de copia de seguridad configurada")
-        val treeUri = Uri.parse(stored)
+        val treeUri = stored.toUri()
         if (!hasPersistedAccess(context, treeUri)) {
             // El permiso se perdió: se olvida la carpeta para no reintentar solos.
             Config.clearBackupTree(context)
