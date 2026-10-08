@@ -113,11 +113,16 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var queue: List<TrackEntity> = emptyList()
     private var currentIndex: Int = -1
 
+    /** Estado de la ventana deslizante. */
+    private var windowState: WindowState = WindowState.EMPTY
+
     /** Índice de cola del primer item de la ventana que tiene ExoPlayer. */
-    private var windowStart: Int = 0
+    private val windowStart: Int
+        get() = windowState.startIndex
 
     /** Se incrementa en cada cambio de cola; invalida resoluciones en vuelo. */
-    private var generation: Int = 0
+    private val generation: Int
+        get() = windowState.generation
 
     private var consecutiveFailures: Int = 0
 
@@ -297,7 +302,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         if (playlist.isEmpty()) {
             currentIndex = -1
-            windowStart = 0
+            windowState = windowState.reset()
             _currentTrackIndex.publish(0)
             _currentTrack.publish(null)
             _currentTitle.publish(null)
@@ -305,7 +310,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         currentIndex = startIndex.coerceIn(0, playlist.size - 1)
-        windowStart = currentIndex
+        windowState = windowState.anchorAt(currentIndex)
         publishCurrentTrack()
     }
 
@@ -464,7 +469,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         consecutiveFailures = 0
         currentVideoId = null
         resolvedVideoId.clear()
-        windowStart = 0
+            windowState = windowState.reset()
 
         _exoPlayer?.let { player ->
             player.stop()
@@ -580,7 +585,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 return false
             }
 
-            windowStart = index
+            windowState = windowState.anchorAt(index)
             resolvedVideoId[track.id] = videoId
             setCurrentIndex(index)
             currentVideoId = videoId
@@ -704,7 +709,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 // pedir en el `growWindow` de justo debajo.
                 val prefix = QueueIndex.contiguousPrefixLength(resolved.map { it.index })
                 val start = resolved.first().index
-                windowStart = start
+                windowState = windowState.anchorAt(start)
                 setCurrentIndex(start)
                 player.setMediaItems(resolved.take(prefix).map { it.mediaItem }, 0, C.TIME_UNSET)
                 player.prepare()
@@ -850,7 +855,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (removable <= 0 || removable >= player.mediaItemCount) return
 
         player.removeMediaItems(0, removable)
-        windowStart += removable
+        windowState = windowState.shiftForward(removable)
     }
 
     /**
@@ -973,7 +978,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             player.stop()
             player.clearMediaItems()
         }
-        windowStart = 0
+            windowState = windowState.reset()
         currentVideoId = null
         // B63: al vaciar la ventana, la UI puede seguir apuntando a la última
         // canción; al pulsar '>' (play) necesitamos que vuelva a arrancar con
@@ -1056,7 +1061,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * puesto no lo cerraba porque su generación ya no era la vigente.
      */
     private fun invalidateLoads() {
-        generation++
+        windowState = windowState.invalidate()
         loading.supersede()
         // La operación que invalida se hace cargo: las transiciones anteriores
         // ya no van a aplicar nada, así que su candado también caduca (B59).

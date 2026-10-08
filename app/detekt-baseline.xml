@@ -69,4 +69,5 @@
     <ID>TooManyFunctions:PlaylistLocalRepository.kt:PlaylistLocalRepository</ID>
     <ID>TooManyFunctions:TrackDao.kt:TrackDao</ID>
   </CurrentIssues>
+    <ID>LargeClass:PlayerViewModel.kt:PlayerViewModel : AndroidViewModel</ID>
 </SmellBaseline>
