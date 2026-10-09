@@ -1,22 +1,9 @@
 package com.plyr.ui.components
 
+import com.plyr.database.PlaylistSource
+
 /**
  * De dónde viene una lista guardada en la app, para poder compartirla.
- *
- * El bug (B53): el diálogo recibía el `remoteId` pelado y decidía el tipo de URL
- * por prefijos, así que una lista importada de Spotify (guardada como
- * `youtube_<idSpotify>`) se compartía como `youtube.com/watch?v=<idSpotify>`, y
- * los favoritos (`liked_songs`) o una lista creada en la app
- * (`youtube_yt_<timestamp>`) se compartían como si fueran un vídeo.
- *
- * **Aviso: aquí el origen se deduce, no se guarda.** `PlaylistEntity` no tiene
- * columna de origen, y lo único que separa lo importado de Spotify es la
- * description `"Imported from Spotify"` (`SpotifyImporter.kt:171`). La solución
- * seria es persistir `source`/`sourceId` con su migración de Room; mientras no
- * sea así, el orden de las comprobaciones está puesto para que **una heurística
- * dudosa nunca produzca una URL inventada**: los identificadores explícitos
- * mandan sobre la description, y lo que no se reconoce con certeza cae en
- * [UNKNOWN], que no se comparte.
  */
 enum class PlaylistOrigin {
     /** Lista real de YouTube: `PL…`, `UU…`, `FL…`, `RD…`. */
@@ -47,41 +34,68 @@ object PlaylistShare {
 
     private val YOUTUBE_PLAYLIST_PREFIXES = listOf("PL", "UU", "FL", "RD")
 
-    /**
-     * @param remoteId clave primaria de `PlaylistEntity`.
-     * @param description la description guardada, si la hay.
-     */
-    fun classify(remoteId: String?, description: String?): PlaylistOrigin {
+    fun classify(
+        remoteId: String?,
+        description: String?,
+        source: PlaylistSource? = null,
+        sourceId: String? = null,
+    ): PlaylistOrigin {
         val id = remoteId?.trim().orEmpty()
         if (id.isEmpty()) return PlaylistOrigin.UNKNOWN
-
-        // Identificadores explícitos: no hay nada que compartir y no se deducen
-        // por description.
-        if (id == LIKED_SONGS_ID) return PlaylistOrigin.UNKNOWN
-        if (id.startsWith(YOUTUBE_PREFIX + LOCAL_PREFIX)) return PlaylistOrigin.UNKNOWN
-
-        // El prefijo de id de YouTube es la señal más fuerte que hay: si el id
-        // tiene forma de lista de YouTube, es una lista de YouTube, diga lo que
-        // diga la description.
-        if (id.startsWithAny(YOUTUBE_PLAYLIST_PREFIXES) ||
-            id.removePrefix(YOUTUBE_PREFIX).startsWithAny(YOUTUBE_PLAYLIST_PREFIXES)) {
-            return PlaylistOrigin.YOUTUBE
+        val stored = classifyFromStoredSource(source, id, sourceId)
+        if (stored != null) return stored
+        if (isLiked(id) || isLocalCreated(id)) return PlaylistOrigin.UNKNOWN
+        if (isYoutubePlaylistId(id)) return PlaylistOrigin.YOUTUBE
+        val inner = extractInner(id)
+        return if (isMarkedAsSpotify(description) && isValidSpotifyId(inner)) {
+            PlaylistOrigin.SPOTIFY
+        } else {
+            PlaylistOrigin.UNKNOWN
         }
-
-        val inner = id.removePrefix(YOUTUBE_PREFIX)
-        val markedAsSpotify = description?.trim().orEmpty().equals(SPOTIFY_MARKER, ignoreCase = true)
-        if (markedAsSpotify && inner.length == SPOTIFY_ID_LENGTH && inner.all { it.isLetterOrDigit() }) {
-            return PlaylistOrigin.SPOTIFY
-        }
-
-        // Lista de YouTube guardada con un id que no lleva prefijo reconocible: no
-        // se sabe qué URL abrir, así que no se inventa una.
-        return PlaylistOrigin.UNKNOWN
     }
 
-    /** Si esta lista tiene una URL de verdad detrás. */
-    fun isShareable(remoteId: String?, description: String?): Boolean =
-        classify(remoteId, description) != PlaylistOrigin.UNKNOWN
+    private fun classifyFromStoredSource(
+        source: PlaylistSource?,
+        id: String,
+        sourceId: String?,
+    ): PlaylistOrigin? = when (source) {
+        PlaylistSource.SPOTIFY -> {
+            val sid = (sourceId ?: extractInner(id)).trim()
+            if (isValidSpotifyId(sid)) PlaylistOrigin.SPOTIFY else PlaylistOrigin.UNKNOWN
+        }
+        PlaylistSource.YOUTUBE -> PlaylistOrigin.YOUTUBE
+        PlaylistSource.LOCAL -> PlaylistOrigin.UNKNOWN
+        PlaylistSource.UNKNOWN -> null
+        null -> null
+    }
+
+    private fun isLiked(id: String): Boolean = id == LIKED_SONGS_ID
+
+    private fun isLocalCreated(id: String): Boolean =
+        id.startsWith(YOUTUBE_PREFIX + LOCAL_PREFIX)
+
+    private fun isYoutubePlaylistId(id: String): Boolean {
+        return id.startsWithAny(YOUTUBE_PLAYLIST_PREFIXES) ||
+            extractInner(id).startsWithAny(YOUTUBE_PLAYLIST_PREFIXES)
+    }
+
+    private fun extractInner(id: String): String = id.removePrefix(YOUTUBE_PREFIX)
+
+    private fun isMarkedAsSpotify(description: String?): Boolean =
+        description?.trim().orEmpty().equals(SPOTIFY_MARKER, ignoreCase = true)
+
+    private fun isValidSpotifyId(sid: String): Boolean {
+        if (sid.isEmpty()) return false
+        if (sid.length != SPOTIFY_ID_LENGTH) return false
+        return sid.all { it.isLetterOrDigit() }
+    }
+
+    fun isShareable(
+        remoteId: String?,
+        description: String?,
+        source: PlaylistSource? = null,
+        sourceId: String? = null,
+    ): Boolean = classify(remoteId, description, source, sourceId) != PlaylistOrigin.UNKNOWN
 
     private fun String.startsWithAny(prefixes: List<String>): Boolean =
         prefixes.any { startsWith(it) }

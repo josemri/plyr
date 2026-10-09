@@ -9,8 +9,8 @@
 ## 1. Estado
 
 - **0 bugs abiertos.** Los **63** (B1–B63) están cerrados (§4): **B57 (el `>>` perdido), B58 (el spinner clavado), B59 (los saltos que no llegaban), B60 (la canción cancelada con la pantalla), B61 (botones de notificación Android ≤12), B62 (la ventana con huecos) y B63 (fin de cola: player en IDLE sin `prepare()`) se han corregido en esta tanda.
-- **1 petición abierta** (§5.1): F2. **F1 está resuelta** (`PlaylistLocalRepository.visiblePlaylists`, filtro por `trackCount > 0` que se aplica en los dos listados).
-- **448 tests unitarios** en 34 archivos, **todos ejecutados y en verde** (Incluye `IdlePlaybackTest` para B63). 0 instrumentados útiles.
+- **0 peticiones abiertas. F1 y F2 resueltas.** (`PlaylistLocalRepository.visiblePlaylists`, filtro por `trackCount > 0` que se aplica en los dos listados).
+- **455 tests unitarios** en 35 archivos, **todos ejecutados y en verde** (Incluye `IdlePlaybackTest` y `WindowStateTest`). 0 instrumentados útiles.
 - Código muerto grande **borrado** (−301 líneas): `SongMenuDialog`, `CollapsibleSection`, `PlyrDimensions`, `loadPlaylists`, `QueueIndex.needsRefillAfterEnd`.
 - **0 claves de traducción sin uso** y **0 claves referenciadas que no existen**, con dos tests que lo garantizan.
 - Sync bidireccional con propagación de borrados (tombstones) verificado.
@@ -333,7 +333,7 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras.
 
 - **F1 — `liked` vacía no debería aparecer como lista — RESUELTA.** La fila se creaba siempre al arrancar (`ensureLikedSongsPlaylist`) con `trackCount = 0` y ninguno de los dos listados la filtraba. Ahora ambos pasan por `PlaylistLocalRepository.visiblePlaylists`, que descarta `album_*` y `liked` con `trackCount == 0`, y mantiene el orden *liked* primero.
   Es un **filtro, no un borrado**: `toggleLikeTrack`, `mergeLikedSongsTracks` e `ImportManifest.plan` dan por hecho que la fila existe, y borrarla "si está vacía" habría roto las tres. `trackCount` lo mantienen las tres rutas que la modifican y `getAllPlaylists()` es un `Flow` sobre la tabla, así que el corazón aparece y desaparece solo. Cubierto con 4 tests en `DatabaseMappingsTest`.
-- **F2 — Persistir el origen de la lista.** Hoy `PlaylistShare.classify` deduce si una lista es de Spotify o de YouTube a partir del `remoteId` y de la description (`description == "Imported from Spotify"`), así que si el usuario edita la description la lista deja de ser compartible. Lo correcto es una columna `source`/`sourceId` en `PlaylistEntity` (+ migración) y que `ShareUrlPolicy`/`PlaylistShare` lean el origen guardado.
+- **F2 — Persistir el origen de la lista — RESUELTA.** Hoy `PlaylistShare.classify` deduce si una lista es de Spotify o de YouTube a partir del `remoteId` y de la description (`description == "Imported from Spotify"`), así que si el usuario edita la description la lista deja de ser compartible. Lo correcto es una columna `source`/`sourceId` en `PlaylistEntity` (+ migración) y que `ShareUrlPolicy`/`PlaylistShare` lean el origen guardado.
   Criterio de fondo de F2: **compartir siempre el origen real de lo que se comparte** (canción → su vídeo de YouTube; lista de Spotify → `open.spotify.com/playlist/<id>`, que la propia app ya sabe volver a abrir; lista creada en la app → nada que compartir).
 - **Recorte de la ventana después del relleno.** `trimWindow()` recorta antes de que llegue el `addMediaItems`, así que durante uno o dos segundos el reproductor no tiene item siguiente y el botón `>>` parpadea; y si el relleno falla, la ventana se queda sin él. Mover el recorte *después* del `addMediaItems` cierra el hueco y, de rebote, mejora el `<<`. Toca el invariante de `windowStart`: va con tests. **Era un paliativo parcial de lo que era B57 (§4): cerraba el parpadeo, pero no el caso de que el relleno falle y no se reintente. Ese caso ya lo cubre `fillWindow`; queda el recorte en sí y el invariante de `windowStart`, que va con tests.**
 

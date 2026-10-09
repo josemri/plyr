@@ -11,5 +11,7 @@ data class PlaylistEntity(
     val description: String?,
     val trackCount: Int,
     val imageUrl: String?,
-    val lastSyncTime: Long = System.currentTimeMillis()
+    val lastSyncTime: Long = System.currentTimeMillis(),
+    val source: PlaylistSource = PlaylistSource.UNKNOWN,
+    val sourceId: String? = null
 )

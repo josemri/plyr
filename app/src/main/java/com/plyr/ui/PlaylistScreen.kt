@@ -285,6 +285,8 @@ fun PlaylistsScreen(
                         PlaylistShare.classify(
                             selectedPlaylistEntity?.remoteId,
                             selectedPlaylistEntity?.description,
+                            selectedPlaylistEntity?.source,
+                            selectedPlaylistEntity?.sourceId,
                         )
                     }
                     val isPlaylistShareable = playlistShareOrigin != PlaylistOrigin.UNKNOWN
@@ -962,7 +964,13 @@ fun PlaylistsScreen(
                                 item = ShareableItem(
                                     remoteId = toShare.id,
                                     shareUrl = null,
-                                    youtubeId = toShare.id.removePrefix("youtube_"),
+                                    youtubeId = run {
+                                        val ent = selectedPlaylistEntity
+                                        when (ent?.source) {
+                                            com.plyr.database.PlaylistSource.SPOTIFY -> ent.sourceId ?: toShare.id.removePrefix("youtube_")
+                                            else -> toShare.id.removePrefix("youtube_")
+                                        }
+                                    },
                                     title = toShare.name,
                                     artist = "Playlist",
                                     type = ShareType.PLAYLIST,

@@ -220,7 +220,9 @@ class PlaylistLocalRepository(context: Context) {
                 description = "YouTube Playlist by $uploader",
                 trackCount = tracks.size,
                 imageUrl = imageUrl,
-                lastSyncTime = System.currentTimeMillis()
+                lastSyncTime = System.currentTimeMillis(),
+                source = com.plyr.database.PlaylistSource.YOUTUBE,
+                sourceId = playlistId
             ),
             tracks
         )
@@ -241,7 +243,13 @@ class PlaylistLocalRepository(context: Context) {
                 description = description,
                 trackCount = tracks.size,
                 imageUrl = imageUrl,
-                lastSyncTime = System.currentTimeMillis()
+                lastSyncTime = System.currentTimeMillis(),
+                source = if (description?.trim()?.equals("Imported from Spotify", ignoreCase = true) == true) {
+                    com.plyr.database.PlaylistSource.SPOTIFY
+                } else {
+                    com.plyr.database.PlaylistSource.LOCAL
+                },
+                sourceId = playlistId
             ),
             tracks
         )

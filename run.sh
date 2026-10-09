@@ -22,7 +22,8 @@ XDG_CACHE_HOME="$TMP_ROOT/xdg/cache"
 XDG_CONFIG_HOME="$TMP_ROOT/xdg/config"
 
 CMD_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-JDK_URL="https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse"
+JDK_RELEASES_API="https://api.github.com/repos/adoptium/temurin21-binaries/releases/latest"
+JDK_URL_FALLBACK="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz"
 PLATFORM="platforms;android-36"
 BUILD_TOOLS="build-tools;36.0.0"
 
@@ -89,7 +90,7 @@ require_opts() {
     for c in "$@"; do
         [[ "$COMMAND" == "$c" ]] && return 0
     done
-    die "La opción '$opt' no se aplica a '$COMMAND' (usá ./run.sh help)"
+    die "La opción '$opt' no se aplica a '$COMMAND' (usa ./run.sh help)"
 }
 
 # ==============================================================
@@ -149,6 +150,18 @@ ensure_env() {
     export_env
 }
 
+resolve_jdk_url() {
+    # Intenta resolver el último JDK 21 x64 desde la API de GitHub; si falla
+    # (sin red, rate-limit, etc.) usa la URL fija de respaldo.
+    local url=""
+    url=$(curl -fsSL "$JDK_RELEASES_API" 2>/dev/null \
+        | grep -oE '"browser_download_url": *"[^"]*OpenJDK21U-jdk_x64_linux_hotspot_[^"]*\.tar\.gz"' \
+        | head -1 \
+        | sed -E 's/.*"(https:[^"]*)".*/\1/') || true
+    [[ -n "$url" ]] || url="$JDK_URL_FALLBACK"
+    printf '%s' "$url"
+}
+
 setup_env() {
     require_tools
 
@@ -161,7 +174,7 @@ setup_env() {
         echo "[1/4] JDK 21 listo"
     else
         echo "[1/4] Descargando JDK 21 ..."
-        curl -fsSL "$JDK_URL" -o "$TMP_ROOT/jdk.tar.gz"
+        curl -fsSL "$(resolve_jdk_url)" -o "$TMP_ROOT/jdk.tar.gz"
         mkdir -p "$TMP_ROOT/jdk-extract"
         tar -xzf "$TMP_ROOT/jdk.tar.gz" -C "$TMP_ROOT/jdk-extract" --strip-components=1
         mv "$TMP_ROOT/jdk-extract" "$JAVA_HOME"
@@ -225,7 +238,7 @@ run_gradle() {
 
 check_device() {
     local count
-    count=$(adb devices | grep -w "device" | wc -l)
+    count=$(adb devices | grep -cw "device" || true)
     [[ "$count" -gt 0 ]] || die "No hay ningún móvil conectado. Activa la depuración USB."
 }
 
@@ -651,7 +664,7 @@ parse_args() {
         help|-h|--help)  COMMAND="help" ;;
         reiniciar)       COMMAND="clean" ;;
         -stop)           COMMAND="stop" ;;
-        *) die "Comando desconocido: '$COMMAND' (usá ./run.sh help)" ;;
+        *) die "Comando desconocido: '$COMMAND' (usa ./run.sh help)" ;;
     esac
 
     while [[ $# -gt 0 ]]; do
@@ -686,7 +699,7 @@ parse_args() {
                 TMUX_SPLIT="$1"; shift
                 ;;
             *)
-                die "Opción desconocida para '$COMMAND': '$1' (usá ./run.sh help)"
+                die "Opción desconocida para '$COMMAND': '$1' (usa ./run.sh help)"
                 ;;
         esac
     done
