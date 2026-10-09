@@ -21,12 +21,12 @@
 | Métrica | Valor |
 |---|---|
 | Archivos Kotlin (main) | 79 (~16.100 líneas) |
-| Archivos de test | 34 (~5.400 líneas) |
+| Archivos de test | 35 (~5.400 líneas) |
 | Archivos más grandes | `PlaylistScreen.kt` (1413), `PlayerViewModel.kt` (1085), `ConfigScreen.kt` (665), `SongListItem.kt` (580), `FloatingMusicControls.kt` (538) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
-| DB Room | v7, migraciones `5→6` y `6→7` |
-| Tests unitarios | **443** en 34 archivos (todos ejecutados y en verde) |
+| DB Room | v8, migraciones `5→6`, `6→7`, `7→8` |
+| Tests unitarios | **455** en 35 archivos (todos ejecutados y en verde) |
 | Tests instrumentados | 0 útiles (solo `ExampleInstrumentedTest`) |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso / inexistentes | **0** / **0** |
