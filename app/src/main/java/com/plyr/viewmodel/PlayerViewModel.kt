@@ -831,6 +831,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             attempt = 1
             player.addMediaItems(contiguous)
+            trimWindow()
         }
     }
 
