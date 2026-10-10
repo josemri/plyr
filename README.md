@@ -77,8 +77,6 @@ CAMERA                    # QR code scanning (optional hardware)
 Everything already fixed is documented in [`report.md`](report.md) — **63 bugs resolved, 0 open**, 478 unit tests.
 
 - [ ] **Download lists** — download playlists for offline use
-  - [ ] Download the audio of each track and store it locally
-  - [ ] Play from local when available
   - [ ] Per-track progress/status and storage management
 - [ ] **Android Auto** — support for the Android Auto interface
   - [ ] Declare `automotive_app_desc.xml` and the automotive permissions

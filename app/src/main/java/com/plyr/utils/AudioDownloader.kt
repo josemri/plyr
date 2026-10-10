@@ -41,7 +41,7 @@ object AudioDownloader {
      */
     suspend fun download(context: Context, videoId: String, onProgress: (Float) -> Unit): Boolean =
         withContext(Dispatchers.IO) {
-            if (DownloadedAudioStore.contains(context, videoId)) {
+            if (DownloadedAudioStore.localUri(context, videoId) != null) {
                 onProgress(1f)
                 return@withContext true
             }

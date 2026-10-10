@@ -57,7 +57,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
         job = viewModelScope.launch {
             val context = getApplication<Application>()
-            val pending = DownloadPlan.pending(tracks) { DownloadedAudioStore.contains(context, it) }
+            val pending = DownloadPlan.pending(tracks) { DownloadedAudioStore.localUri(context, it) != null }
             val total = pending.size
             if (total == 0) {
                 _isDownloading.value = false

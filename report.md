@@ -131,8 +131,15 @@ Hubo un `DownloadManager` completo (tablas `downloaded_tracks`/`local_playlists`
 - `DownloadPlan` (pura): descarta pistas sin `youtubeVideoId`, de-duplica por vídeo y respeta el orden. Testeada en `DownloadPlanTest` (7).
 - `DownloadViewModel` en `PlyrApp` (scope de Application, igual que `ImportViewModel`): sobrevive a apagar la pantalla y a salir de la playlist sin Service/WorkManager.
 - UI en `PlaylistScreen`: botón `<dwn>` (↔ `<stop>` para cancelar) tras `<share>`, con el estilo de `<rnd>`; barra `LinearProgressIndicator` + mensaje justo bajo los botones de la lista (como la de import), con autoborrado del resultado a los 3 s.
-- Alcance de esta tanda: **solo descarga**. Reproducir desde local (usar el fichero en vez del streaming) queda para después.
 - Tests tras la tanda: **499/499** (41 archivos). Detekt: se extrajo `downloadOnce` (`CyclomaticComplexMethod` 16→OK) y se adelgazó el objeto del almacén (`TooManyFunctions` 12→10).
+
+### Download lists: reproducir desde local (roadmap)
+Siguiente subpunto del roadmap: si la pista está descargada, el reproductor usa el fichero en vez del streaming.
+- **`DownloadedAudioStore.localUri(context, videoId): Uri?`**: URI reproducible del `.m4a` si existe (`content://` del documento para SAF, `file://` para el respaldo local; Media3 reproduce ambos). Sustituye al antiguo `contains`.
+- **Índice cacheado por sesión** (`downloadedMap`): el listado de `audio/` se hace **una vez** por origen (carpeta SAF o `"local"`) y se reutiliza. Sin esto, cada pista al arrancar haría una consulta al proveedor (ida y vuelta de red si la carpeta es de nube). El índice se **añade en caliente** al terminar una descarga (`write`), y se rehace si cambia la carpeta de sync o su permiso.
+- **`PlayerViewModel`**: en el arranque (`startAt`) y en la construcción de la ventana (`resolveItems`) se prefiere `localUri` sobre `YouTubeManager.getAudioUrl` (nueva ayuda `resolveSourceUri`). El local no depende de la red ni de la caducidad de la URL de `googlevideo`, así que también sirve con `forceRefresh` (reintento tras 403/410).
+- Alcance de esta tanda: reproducir desde local. **Pendiente del roadmap**: progreso/estado por pista y gestión de almacenamiento (borrado).
+- Tests tras la tanda: **499/499** (41 archivos, sin tests nuevos: la resolución es Android-dependiente). Detekt: `DoubleMutabilityForCollection` en el índice del almacén → `Map` inmutable (`cache = cache + (id to uri)`) y renombrado `findChildId`→`listChildren` para no superar `TooManyFunctions`.
 
 ---
 

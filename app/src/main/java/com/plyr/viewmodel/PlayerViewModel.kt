@@ -1,6 +1,7 @@
 package com.plyr.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -16,6 +17,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.plyr.database.TrackEntity
 import com.plyr.network.YouTubeManager
 import com.plyr.utils.Config
+import com.plyr.utils.DownloadedAudioStore
 import com.plyr.utils.Translations
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -573,14 +575,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val videoId = withContext(Dispatchers.IO) {
                 YouTubeManager.resolveVideoId(track.name, track.artists, knownId)
             }
-            val audioUrl = videoId?.let {
-                withContext(Dispatchers.IO) { YouTubeManager.getAudioUrl(it) }
-            }
+            val sourceUri = withContext(Dispatchers.IO) { resolveSourceUri(videoId) }
 
             // La cola cambió mientras se resolvía: el resultado ya no vale.
             if (gen != generation) return false
 
-            if (videoId == null || audioUrl == null) {
+            if (videoId == null || sourceUri == null) {
                 _error.publish(Translations.get(getApplication(), "error_obtaining_audio"))
                 return false
             }
@@ -590,7 +590,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             setCurrentIndex(index)
             currentVideoId = videoId
 
-            player.setMediaItem(createMediaItem(track, audioUrl, index))
+            player.setMediaItem(createMediaItem(track, sourceUri, index))
             player.prepare()
             player.play()
 
@@ -894,9 +894,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                                 knownId
                             )
                             if (videoId != null) resolvedVideoId[track.id] = videoId
-                            videoId to videoId?.let {
-                                YouTubeManager.getAudioUrl(it, forceRefresh = forceRefresh)
+                            // Preferir el fichero descargado: sin red y sin que
+                            // le afecte la caducidad de la URL de googlevideo.
+                            val sourceUri = videoId?.let { id ->
+                                DownloadedAudioStore.localUri(getApplication(), id)
+                                    ?: YouTubeManager.getAudioUrl(id, forceRefresh = forceRefresh)?.let(Uri::parse)
                             }
+                            videoId to sourceUri
                         }
                     }
                 }
@@ -906,8 +910,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         if (gen != generation) return emptyList()
 
-        return resolved.mapIndexedNotNull { i, (_, url) ->
-            if (url == null) null else ResolvedItem(start + i, createMediaItem(tracks[i], url, start + i))
+        return resolved.mapIndexedNotNull { i, (_, uri) ->
+            if (uri == null) null else ResolvedItem(start + i, createMediaItem(tracks[i], uri, start + i))
         }
     }
 
@@ -1096,9 +1100,20 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _isLoading.publish(loading.isLoading || buffering)
     }
 
-    private fun createMediaItem(track: TrackEntity, audioUrl: String, queueIndex: Int): MediaItem =
+    /**
+     * URI reproducible de un vídeo: el fichero descargado si existe (offline,
+     * sin caducidad), o si no la URL de streaming de YouTube ([forceRefresh]
+     * salta la caché de URLs tras un 403/410).
+     */
+    private suspend fun resolveSourceUri(videoId: String?, forceRefresh: Boolean = false): Uri? {
+        if (videoId == null) return null
+        DownloadedAudioStore.localUri(getApplication(), videoId)?.let { return it }
+        return YouTubeManager.getAudioUrl(videoId, forceRefresh)?.let(Uri::parse)
+    }
+
+    private fun createMediaItem(track: TrackEntity, uri: Uri, queueIndex: Int): MediaItem =
         MediaItem.Builder()
-            .setUri(audioUrl)
+            .setUri(uri)
             .setMediaId("${track.id}#$queueIndex")
             .setMediaMetadata(
                 androidx.media3.common.MediaMetadata.Builder()

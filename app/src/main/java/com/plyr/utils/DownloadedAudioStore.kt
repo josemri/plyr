@@ -28,30 +28,40 @@ import java.io.OutputStream
  * `filesDir/audio` como respaldo (queda en el dispositivo, sin viajar).
  *
  * "Ya descargado" = existe el fichero. No hay tabla Room nueva ni migración.
+ *
+ * El índice de lo descargado se listan **una vez por sesión** y se cachea
+ * ([downloadedMap]): comprobar cada pista al reproducir no debe costar una
+ * consulta al proveedor (que para una carpeta de nube es una ida y vuelta).
  */
 object DownloadedAudioStore {
 
     private const val TAG = "DownloadedAudioStore"
     private const val DIR_NAME = "audio"
     private const val EXTENSION = "m4a"
+    private const val SUFFIX = ".$EXTENSION"
     private const val MIME_AUDIO = "audio/mp4"
     private const val MIME_OCTET = "application/octet-stream"
     private const val MIME_DIR = "vnd.android.document/directory"
+    private const val LOCAL_KEY = "local"
+
+    /**
+     * Índice cacheado: [cacheKey] identifica el origen (la carpeta SAF, o
+     * `"local"`), y [cache] mapea `videoId` → URI reproducible del fichero.
+     */
+    @Volatile private var cacheKey: String? = null
+    @Volatile private var cache: Map<String, Uri> = emptyMap()
 
     /** Nombre del fichero de audio de un vídeo. */
     fun fileName(videoId: String): String = "$videoId.$EXTENSION"
 
-    /** ¿Existe ya el audio de [videoId] en el almacén? */
-    fun contains(context: Context, videoId: String): Boolean {
-        if (videoId.isBlank()) return false
-        val name = fileName(videoId)
-        val tree = backupTree(context)
-        if (tree != null) {
-            val rootId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull() ?: return false
-            val dirId = findChildId(context, tree, rootId, DIR_NAME) ?: return false
-            return findChildId(context, tree, dirId, name) != null
-        }
-        return File(localDir(context), name).exists()
+    /**
+     * URI reproducible del audio de [videoId] si está descargado, o `null`.
+     * Para SAF es un `content://` del documento; para el respaldo local, un
+     * `file://`. Ambos los reproduce Media3.
+     */
+    fun localUri(context: Context, videoId: String): Uri? {
+        if (videoId.isBlank()) return null
+        return downloadedMap(context)[videoId]
     }
 
     /**
@@ -66,11 +76,15 @@ object DownloadedAudioStore {
     fun write(context: Context, videoId: String, produce: (OutputStream) -> Unit): Boolean {
         val name = fileName(videoId)
         val tree = backupTree(context)
-        return if (tree != null) {
+        val uri = if (tree != null) {
             writeSaf(context, tree, name, produce)
         } else {
             writeFile(context, name, produce)
         }
+        if (uri != null && cacheKey == (tree?.toString() ?: LOCAL_KEY)) {
+            cache = cache + (videoId to uri)
+        }
+        return uri != null
     }
 
     // === SAF ===
@@ -80,33 +94,34 @@ object DownloadedAudioStore {
         tree: Uri,
         name: String,
         produce: (OutputStream) -> Unit
-    ): Boolean {
+    ): Uri? {
         val resolver = context.contentResolver
-        val rootId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull() ?: return false
-        val dirId = ensureAudioDir(context, tree, rootId) ?: return false
-        val tempUri = createDocument(resolver, tree, dirId, name + ".part") ?: return false
+        val rootId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull() ?: return null
+        val dirId = ensureAudioDir(context, tree, rootId) ?: return null
+        val tempUri = createDocument(resolver, tree, dirId, name + ".part") ?: return null
         return try {
             resolver.openOutputStream(tempUri, "w")?.use { out -> produce(out) }
                 ?: run {
                     runCatching { DocumentsContract.deleteDocument(resolver, tempUri) }
-                    return false
+                    return null
                 }
             val renamed = runCatching { DocumentsContract.renameDocument(resolver, tempUri, name) }.getOrNull()
             if (renamed == null) {
                 Log.e(TAG, "El proveedor no dejo renombrar $name")
                 runCatching { DocumentsContract.deleteDocument(resolver, tempUri) }
-                return false
+                null
+            } else {
+                renamed
             }
-            true
         } catch (e: Exception) {
             Log.e(TAG, "Error escribiendo audio en la carpeta de sync: ${e.message}")
             runCatching { DocumentsContract.deleteDocument(resolver, tempUri) }
-            false
+            null
         }
     }
 
     private fun ensureAudioDir(context: Context, tree: Uri, rootId: String): String? {
-        findChildId(context, tree, rootId, DIR_NAME)?.let { return it }
+        listChildren(context, tree, rootId)[DIR_NAME]?.let { return it }
         val parent = runCatching { DocumentsContract.buildDocumentUriUsingTree(tree, rootId) }.getOrNull() ?: return null
         val created = runCatching {
             DocumentsContract.createDocument(context.contentResolver, parent, MIME_DIR, DIR_NAME)
@@ -124,10 +139,11 @@ object DownloadedAudioStore {
         return null
     }
 
-    private fun findChildId(context: Context, tree: Uri, parentId: String, name: String): String? {
+    /** Hijos directos de [parentId] como `nombre → documentId`. */
+    private fun listChildren(context: Context, tree: Uri, parentId: String): Map<String, String> {
         val childrenUri = runCatching {
             DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
-        }.getOrNull() ?: return null
+        }.getOrNull() ?: return emptyMap()
         return try {
             context.contentResolver.query(
                 childrenUri,
@@ -138,15 +154,17 @@ object DownloadedAudioStore {
             )?.use { cursor ->
                 val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
                 val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                if (idColumn < 0 || nameColumn < 0) return null
+                if (idColumn < 0 || nameColumn < 0) return emptyMap()
+                val children = HashMap<String, String>()
                 while (cursor.moveToNext()) {
-                    if (cursor.getString(nameColumn) == name) return cursor.getString(idColumn)
+                    val name = cursor.getString(nameColumn) ?: continue
+                    children[name] = cursor.getString(idColumn)
                 }
-                null
-            }
+                children
+            } ?: emptyMap()
         } catch (e: Exception) {
             Log.w(TAG, "No se pudo listar la carpeta de audio: ${e.message}")
-            null
+            emptyMap()
         }
     }
 
@@ -162,25 +180,51 @@ object DownloadedAudioStore {
     private fun localDir(context: Context): File =
         File(context.filesDir, DIR_NAME).apply { if (!exists()) mkdirs() }
 
-    private fun writeFile(
-        context: Context,
-        name: String,
-        produce: (OutputStream) -> Unit
-    ): Boolean {
+    private fun writeFile(context: Context, name: String, produce: (OutputStream) -> Unit): Uri? {
         val dir = localDir(context)
         val temp = File(dir, "$name.part")
         return try {
             temp.outputStream().use { out -> produce(out) }
             if (temp.length() == 0L) {
                 temp.delete()
-                false
+                null
             } else {
-                temp.renameTo(File(dir, name))
+                val target = File(dir, name)
+                if (temp.renameTo(target)) Uri.fromFile(target) else null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error escribiendo audio local: ${e.message}")
             temp.delete()
-            false
+            null
         }
+    }
+
+    /**
+     * Índice `videoId → URI` de todo lo descargado, cacheado por origen. Se
+     * reconstruye solo si cambia la carpeta (o su permiso) entre llamadas.
+     */
+    private fun downloadedMap(context: Context): Map<String, Uri> {
+        val tree = backupTree(context)
+        val key = tree?.toString() ?: LOCAL_KEY
+        if (cacheKey == key) return cache
+
+        val map: Map<String, Uri> = if (tree == null) {
+            localDir(context).listFiles().orEmpty()
+                .filter { it.name.endsWith(SUFFIX) }
+                .associate { it.name.removeSuffix(SUFFIX) to Uri.fromFile(it) }
+        } else {
+            val rootId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull()
+            val dirId = rootId?.let { listChildren(context, tree, it)[DIR_NAME] }
+            val children = if (dirId == null) emptyMap() else listChildren(context, tree, dirId)
+            children.mapNotNull { (name, docId) ->
+                if (!name.endsWith(SUFFIX)) return@mapNotNull null
+                runCatching { DocumentsContract.buildDocumentUriUsingTree(tree, docId) }.getOrNull()
+                    ?.let { name.removeSuffix(SUFFIX) to it }
+            }.toMap()
+        }
+
+        cache = map
+        cacheKey = key
+        return map
     }
 }
