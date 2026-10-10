@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /** Cuánto se deja visible el mensaje de resultado del sync. */
 private const val RESULT_TIMEOUT_MS = 4000L
@@ -60,7 +61,6 @@ fun ConfigScreen(
         onThemeChanged(selectedTheme)
     }
 
-    val haptic = LocalHapticFeedback.current
     val dimensions = calculateResponsiveDimensionsFallback()
 
     BackHandler { onBack() }
@@ -77,62 +77,21 @@ fun ConfigScreen(
             Spacer(modifier = Modifier.height(dimensions.itemSpacing))
 
             // Theme
-            SettingRow(
-                title = Translations.get(context, "theme"),
-                options = listOf(
-                    Translations.get(context, "theme_system"),
-                    Translations.get(context, "theme_dark"),
-                    Translations.get(context, "theme_light"),
-                    Translations.get(context, "theme_auto")
-                ),
-                selectedIndex = when (selectedTheme) {
-                    "system" -> 0
-                    "dark" -> 1
-                    "light" -> 2
-                    "auto" -> 3
-                    else -> 0
-                },
-                onSelected = { idx ->
-                    selectedTheme = when (idx) {
-                        0 -> "system"
-                        1 -> "dark"
-                        2 -> "light"
-                        3 -> "auto"
-                        else -> "system"
-                    }
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                }
+            ThemeSettingRow(
+                context = context,
+                selectedTheme = selectedTheme,
+                onThemeSelected = { selectedTheme = it }
             )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Language
-            SettingRow(
-                title = Translations.get(context, "language"),
-                options = listOf(
-                    Translations.get(context, "lang_spanish"),
-                    Translations.get(context, "lang_english"),
-                    Translations.get(context, "lang_catalan"),
-                    Translations.get(context, "lang_japanese")
-                ),
-                selectedIndex = when (selectedLanguage) {
-                    Config.LANGUAGE_SPANISH -> 0
-                    Config.LANGUAGE_ENGLISH -> 1
-                    Config.LANGUAGE_CATALAN -> 2
-                    Config.LANGUAGE_JAPANESE -> 3
-                    else -> 0
-                },
-                onSelected = { idx ->
-                    val newLang = when (idx) {
-                        0 -> Config.LANGUAGE_SPANISH
-                        1 -> Config.LANGUAGE_ENGLISH
-                        2 -> Config.LANGUAGE_CATALAN
-                        3 -> Config.LANGUAGE_JAPANESE
-                        else -> Config.LANGUAGE_SPANISH
-                    }
+            LanguageSettingRow(
+                context = context,
+                selectedLanguage = selectedLanguage,
+                onLanguageSelected = { newLang ->
                     Config.setLanguage(context, newLang)
                     selectedLanguage = newLang
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 }
             )
 
@@ -158,6 +117,84 @@ fun ConfigScreen(
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
         }
     }
+}
+
+@Composable
+private fun ThemeSettingRow(
+    context: Context,
+    selectedTheme: String,
+    onThemeSelected: (String) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    SettingRow(
+        title = Translations.get(context, "theme"),
+        options = listOf(
+            Translations.get(context, "theme_system"),
+            Translations.get(context, "theme_dark"),
+            Translations.get(context, "theme_light"),
+            Translations.get(context, "theme_auto")
+        ),
+        selectedIndex = themeIndex(selectedTheme),
+        onSelected = { idx ->
+            onThemeSelected(themeAt(idx))
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    )
+}
+
+@Composable
+private fun LanguageSettingRow(
+    context: Context,
+    selectedLanguage: String,
+    onLanguageSelected: (String) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    SettingRow(
+        title = Translations.get(context, "language"),
+        options = listOf(
+            Translations.get(context, "lang_spanish"),
+            Translations.get(context, "lang_english"),
+            Translations.get(context, "lang_catalan"),
+            Translations.get(context, "lang_japanese")
+        ),
+        selectedIndex = languageIndex(selectedLanguage),
+        onSelected = { idx ->
+            onLanguageSelected(languageAt(idx))
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    )
+}
+
+private fun themeIndex(theme: String): Int = when (theme) {
+    "system" -> 0
+    "dark" -> 1
+    "light" -> 2
+    "auto" -> 3
+    else -> 0
+}
+
+private fun themeAt(index: Int): String = when (index) {
+    0 -> "system"
+    1 -> "dark"
+    2 -> "light"
+    3 -> "auto"
+    else -> "system"
+}
+
+private fun languageIndex(language: String): Int = when (language) {
+    Config.LANGUAGE_SPANISH -> 0
+    Config.LANGUAGE_ENGLISH -> 1
+    Config.LANGUAGE_CATALAN -> 2
+    Config.LANGUAGE_JAPANESE -> 3
+    else -> 0
+}
+
+private fun languageAt(index: Int): String = when (index) {
+    0 -> Config.LANGUAGE_SPANISH
+    1 -> Config.LANGUAGE_ENGLISH
+    2 -> Config.LANGUAGE_CATALAN
+    3 -> Config.LANGUAGE_JAPANESE
+    else -> Config.LANGUAGE_SPANISH
 }
 
 @Composable
@@ -194,65 +231,74 @@ private fun SettingRow(
 private fun GesturesSection(context: Context) {
     var selectedSwipeLeftAction by remember { mutableStateOf(Config.getSwipeLeftAction(context)) }
     var selectedSwipeRightAction by remember { mutableStateOf(Config.getSwipeRightAction(context)) }
-    val haptic = LocalHapticFeedback.current
 
-    SettingRow(
-        title = Translations.get(context, "swipe_left"),
-        options = listOf(
-            Translations.get(context, "swipe_action_queue"),
-            Translations.get(context, "swipe_action_liked"),
-            Translations.get(context, "swipe_action_playlist"),
-            Translations.get(context, "swipe_action_share")
-        ),
-        selectedIndex = when (selectedSwipeLeftAction) {
-            Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
-            Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
-            Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
-            Config.SWIPE_ACTION_SHARE -> 3
-            else -> 0
-        },
-        onSelected = { idx ->
-            selectedSwipeLeftAction = when (idx) {
-                0 -> Config.SWIPE_ACTION_ADD_TO_QUEUE
-                1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
-                2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
-                3 -> Config.SWIPE_ACTION_SHARE
-                else -> Config.SWIPE_ACTION_ADD_TO_QUEUE
-            }
-            Config.setSwipeLeftAction(context, selectedSwipeLeftAction)
-            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    SwipeActionSettingRow(
+        context = context,
+        titleKey = "swipe_left",
+        selectedAction = selectedSwipeLeftAction,
+        defaultIndex = 0,
+        defaultAction = Config.SWIPE_ACTION_ADD_TO_QUEUE,
+        onActionSelected = { newAction ->
+            selectedSwipeLeftAction = newAction
+            Config.setSwipeLeftAction(context, newAction)
         }
     )
 
     Spacer(modifier = Modifier.height(8.dp))
 
+    SwipeActionSettingRow(
+        context = context,
+        titleKey = "swipe_right",
+        selectedAction = selectedSwipeRightAction,
+        defaultIndex = 1,
+        defaultAction = Config.SWIPE_ACTION_ADD_TO_LIKED,
+        onActionSelected = { newAction ->
+            selectedSwipeRightAction = newAction
+            Config.setSwipeRightAction(context, newAction)
+        }
+    )
+}
+
+@Composable
+private fun SwipeActionSettingRow(
+    context: Context,
+    titleKey: String,
+    selectedAction: String,
+    defaultIndex: Int,
+    defaultAction: String,
+    onActionSelected: (String) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
     SettingRow(
-        title = Translations.get(context, "swipe_right"),
+        title = Translations.get(context, titleKey),
         options = listOf(
             Translations.get(context, "swipe_action_queue"),
             Translations.get(context, "swipe_action_liked"),
             Translations.get(context, "swipe_action_playlist"),
             Translations.get(context, "swipe_action_share")
         ),
-        selectedIndex = when (selectedSwipeRightAction) {
-            Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
-            Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
-            Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
-            Config.SWIPE_ACTION_SHARE -> 3
-            else -> 1
-        },
+        selectedIndex = swipeActionIndex(selectedAction, defaultIndex),
         onSelected = { idx ->
-            selectedSwipeRightAction = when (idx) {
-                0 -> Config.SWIPE_ACTION_ADD_TO_QUEUE
-                1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
-                2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
-                3 -> Config.SWIPE_ACTION_SHARE
-                else -> Config.SWIPE_ACTION_ADD_TO_LIKED
-            }
-            Config.setSwipeRightAction(context, selectedSwipeRightAction)
+            onActionSelected(swipeActionAt(idx, defaultAction))
             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         }
     )
+}
+
+private fun swipeActionIndex(action: String, defaultIndex: Int): Int = when (action) {
+    Config.SWIPE_ACTION_ADD_TO_QUEUE -> 0
+    Config.SWIPE_ACTION_ADD_TO_LIKED -> 1
+    Config.SWIPE_ACTION_ADD_TO_PLAYLIST -> 2
+    Config.SWIPE_ACTION_SHARE -> 3
+    else -> defaultIndex
+}
+
+private fun swipeActionAt(index: Int, defaultAction: String): String = when (index) {
+    0 -> Config.SWIPE_ACTION_ADD_TO_QUEUE
+    1 -> Config.SWIPE_ACTION_ADD_TO_LIKED
+    2 -> Config.SWIPE_ACTION_ADD_TO_PLAYLIST
+    3 -> Config.SWIPE_ACTION_SHARE
+    else -> defaultAction
 }
 
 @Composable
@@ -286,71 +332,93 @@ private fun SpotifyImportSection(importViewModel: ImportViewModel? = null) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         if (isImporting) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            SpotifyImportProgress(message = message, progress = progress)
         } else if (resultMessage != null) {
-            val importResult = resultMessage ?: ""
-            Text(
-                text = importResult,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    color = if (importResult.startsWith("error"))
-                        MaterialTheme.colorScheme.error
-                    else
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            SpotifyImportResult(importResult = resultMessage ?: "")
         } else {
-            OutlinedTextField(
-                value = playlistUrl,
-                onValueChange = { playlistUrl = it },
-                placeholder = {
-                    Text(
-                        text = "spotify playlist url or id",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    )
-                },
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { startImport() }),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+            SpotifyUrlField(
+                playlistUrl = playlistUrl,
+                onUrlChange = { playlistUrl = it },
+                onGo = { startImport() }
             )
         }
     }
+}
+
+@Composable
+private fun SpotifyImportProgress(message: String, progress: Float) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun SpotifyImportResult(importResult: String) {
+    Text(
+        text = importResult,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            color = if (importResult.startsWith("error"))
+                MaterialTheme.colorScheme.error
+            else
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+        ),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
+}
+
+@Composable
+private fun SpotifyUrlField(
+    playlistUrl: String,
+    onUrlChange: (String) -> Unit,
+    onGo: () -> Unit
+) {
+    OutlinedTextField(
+        value = playlistUrl,
+        onValueChange = onUrlChange,
+        placeholder = {
+            Text(
+                text = "spotify playlist url or id",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            )
+        },
+        singleLine = true,
+        textStyle = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface
+        ),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+        keyboardActions = KeyboardActions(onGo = { onGo() }),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    )
 }
 
 /**
@@ -383,7 +451,6 @@ private fun SyncSection(context: Context) {
     // Scope de aplicación (B23): si el usuario sale de Ajustes con un swipe
     // mientras se sincroniza, la escritura del ZIP no debe cortarse a medias.
     val coroutineScope = remember { (context.applicationContext as PlyrApp).backgroundScope }
-    val dimensions = calculateResponsiveDimensionsFallback()
     var isSyncing by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var statusIsError by remember { mutableStateOf(false) }
@@ -398,11 +465,9 @@ private fun SyncSection(context: Context) {
     var folderName by remember { mutableStateOf<String?>(null) }
     var hasBackupFile by remember { mutableStateOf(false) }
     LaunchedEffect(treeUri) {
-        val tree = treeUri?.let { it.toUri() }
-        folderName = tree?.let { loadFolderName(context, it) }
-        hasBackupFile = tree != null && runCatching {
-            BackupFolder.findExistingBackupFile(context, tree) != null
-        }.getOrDefault(false)
+        val info = resolveBackupFolder(context, treeUri)
+        folderName = info.folderName
+        hasBackupFile = info.hasBackupFile
     }
 
     // Un solo mensaje para la sección, en vez de uno por botón.
@@ -415,45 +480,18 @@ private fun SyncSection(context: Context) {
 
     suspend fun syncNow() {
         isSyncing = true
-        when (val result = DataSync.flush(context, force = true)) {
-            is SyncResult.Written -> {
-                statusIsError = false
-                val copiadas = Translations.get(context, "sync_done")
-                    .format(locale, result.summary.playlistCount, result.summary.trackCount)
-                val recuperadas = result.merged
-                    ?.let { merged ->
-                        Translations.get(context, "sync_merged")
-                            .format(
-                                locale,
-                                merged.importedPlaylists, merged.mergedLikedTracks, merged.deletedPlaylists
-                            )
-                    }
-                statusMessage = listOfNotNull(recuperadas, copiadas).joinToString(" ")
-                // El botón pasa a indicar que ya hay copia. El nombre se vuelve
-                // a resolver porque puede ser una carpeta nueva.
-                val tree = treeUri?.let { it.toUri() }
-                folderName = tree?.let { loadFolderName(context, it) }
-                hasBackupFile = true
-            }
-            // "force" solo salta la comparación de huellas, no la falta de
-            // listas: sin listas no hay nada que copiar. El estado del botón no
-            // se toca, porque no se ha escrito nada.
-            SyncResult.UpToDate -> {
-                statusIsError = false
-                statusMessage = Translations.get(context, "sync_empty")
-            }
-            SyncResult.NotConfigured -> {
-                statusIsError = true
-                statusMessage = Translations.get(context, "sync_need_folder")
-            }
-            is SyncResult.ArchiveUnreadable -> {
-                statusIsError = true
-                statusMessage = Translations.get(context, "sync_archive_unreadable")
-            }
-            is SyncResult.Failed -> {
-                statusIsError = true
-                statusMessage = Translations.get(context, "sync_error")
-            }
+        // "force" solo salta la comparación de huellas, no la falta de
+        // listas: sin listas no hay nada que copiar. El estado del botón no
+        // se toca, porque no se ha escrito nada.
+        val outcome = buildSyncOutcome(context, locale, DataSync.flush(context, force = true))
+        statusIsError = outcome.isError
+        statusMessage = outcome.message
+        if (outcome.markBackupPresent) {
+            // El botón pasa a indicar que ya hay copia. El nombre se vuelve
+            // a resolver porque puede ser una carpeta nueva.
+            val tree = treeUri?.let { it.toUri() }
+            folderName = tree?.let { loadFolderName(context, it) }
+            hasBackupFile = true
         }
         isSyncing = false
     }
@@ -464,22 +502,14 @@ private fun SyncSection(context: Context) {
         if (selected == null) return@rememberLauncherForActivityResult
 
         coroutineScope.launch {
-            // Sin este permiso el acceso se pierde al reiniciar y la copia
-            // automática solo funcionaría hasta que apagues el móvil.
-            if (!BackupFolder.persistAccess(context, selected)) {
+            val selection = selectBackupFolder(context, selected, treeUri)
+            if (selection.accessDenied) {
                 statusIsError = true
                 statusMessage = Translations.get(context, "sync_folder_denied")
                 return@launch
             }
 
-            // Se suelta la carpeta anterior: dejar permisos huérfanos en el
-            // sistema solo ocupa cuota y confunde al usuario.
-            treeUri?.takeIf { it != selected.toString() }?.let { previous ->
-                runCatching { BackupFolder.releaseAccess(context, previous.toUri()) }
-            }
-
-            Config.setBackupTree(context, selected.toString(), documentId = null)
-            treeUri = selected.toString()
+            treeUri = selection.treeUri
 
             // Elegir carpeta y sincronizar es una sola acción: no tiene
             // sentido pedirla y dejar el archivo sin crear.
@@ -491,12 +521,7 @@ private fun SyncSection(context: Context) {
     // "< sync >", y con ZIP puesto el nombre de la carpeta donde vive. Si el
     // proveedor no resuelve el nombre, se muestra el del archivo, que al menos
     // dice dónde está la copia.
-    val syncLabel = if (hasBackupFile) {
-        Translations.get(context, "sync_synced")
-            .format(locale, folderName ?: BackupFolder.BACKUP_FILE_NAME)
-    } else {
-        Translations.get(context, "sync")
-    }
+    val syncLabel = syncButtonLabel(context, locale, hasBackupFile, folderName)
 
     DataActionRow(
         context = context,
@@ -507,12 +532,7 @@ private fun SyncSection(context: Context) {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             if (isSyncing) return@DataActionRow
 
-            val known = treeUri
-            val target = known?.let {
-                runCatching { BackupFolder.findExistingBackupFile(context, it.toUri()) }.getOrNull()
-            }
-
-            if (target == null) {
+            if (existingBackupTarget(context, treeUri) == null) {
                 // O no hay carpeta, o el archivo ya no está donde se esperaba.
                 // En ambos casos solo el usuario puede decir dónde escribir.
                 folderLauncher.launch(null)
@@ -522,26 +542,130 @@ private fun SyncSection(context: Context) {
         }
     )
 
-    statusMessage?.let { message ->
-        Spacer(modifier = Modifier.height(dimensions.itemSpacing))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall.copy(
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                color = if (statusIsError) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.primary
-                }
-            ),
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+    SyncStatusMessage(message = statusMessage, isError = statusIsError)
+}
+
+@Composable
+private fun SyncStatusMessage(message: String?, isError: Boolean) {
+    if (message == null) return
+
+    val dimensions = calculateResponsiveDimensionsFallback()
+    Spacer(modifier = Modifier.height(dimensions.itemSpacing))
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 11.sp,
+            color = if (isError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            }
+        ),
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    )
+}
+
+private data class BackupFolderInfo(val folderName: String?, val hasBackupFile: Boolean)
+
+private suspend fun resolveBackupFolder(context: Context, treeUri: String?): BackupFolderInfo {
+    val tree = treeUri?.let { it.toUri() }
+        ?: return BackupFolderInfo(folderName = null, hasBackupFile = false)
+    val folderName = loadFolderName(context, tree)
+    val hasBackupFile = runCatching {
+        BackupFolder.findExistingBackupFile(context, tree) != null
+    }.getOrDefault(false)
+    return BackupFolderInfo(folderName = folderName, hasBackupFile = hasBackupFile)
+}
+
+private data class FolderSelection(val treeUri: String?, val accessDenied: Boolean)
+
+private fun selectBackupFolder(
+    context: Context,
+    selected: Uri,
+    previousTreeUri: String?
+): FolderSelection {
+    // Sin este permiso el acceso se pierde al reiniciar y la copia
+    // automática solo funcionaría hasta que apagues el móvil.
+    if (!BackupFolder.persistAccess(context, selected)) {
+        return FolderSelection(treeUri = previousTreeUri, accessDenied = true)
+    }
+
+    // Se suelta la carpeta anterior: dejar permisos huérfanos en el
+    // sistema solo ocupa cuota y confunde al usuario.
+    previousTreeUri?.takeIf { it != selected.toString() }?.let { previous ->
+        runCatching { BackupFolder.releaseAccess(context, previous.toUri()) }
+    }
+
+    Config.setBackupTree(context, selected.toString(), documentId = null)
+    return FolderSelection(treeUri = selected.toString(), accessDenied = false)
+}
+
+private fun existingBackupTarget(context: Context, treeUri: String?): Uri? =
+    treeUri?.let {
+        runCatching { BackupFolder.findExistingBackupFile(context, it.toUri()) }.getOrNull()
+    }
+
+private data class SyncOutcome(
+    val message: String?,
+    val isError: Boolean,
+    val markBackupPresent: Boolean
+)
+
+private fun buildSyncOutcome(context: Context, locale: Locale, result: SyncResult): SyncOutcome = when (result) {
+    is SyncResult.Written -> {
+        val copiadas = Translations.get(context, "sync_done")
+            .format(locale, result.summary.playlistCount, result.summary.trackCount)
+        val recuperadas = result.merged
+            ?.let { merged ->
+                Translations.get(context, "sync_merged")
+                    .format(
+                        locale,
+                        merged.importedPlaylists, merged.mergedLikedTracks, merged.deletedPlaylists
+                    )
+            }
+        SyncOutcome(
+            message = listOfNotNull(recuperadas, copiadas).joinToString(" "),
+            isError = false,
+            markBackupPresent = true
         )
     }
+    SyncResult.UpToDate -> SyncOutcome(
+        message = Translations.get(context, "sync_empty"),
+        isError = false,
+        markBackupPresent = false
+    )
+    SyncResult.NotConfigured -> SyncOutcome(
+        message = Translations.get(context, "sync_need_folder"),
+        isError = true,
+        markBackupPresent = false
+    )
+    is SyncResult.ArchiveUnreadable -> SyncOutcome(
+        message = Translations.get(context, "sync_archive_unreadable"),
+        isError = true,
+        markBackupPresent = false
+    )
+    is SyncResult.Failed -> SyncOutcome(
+        message = Translations.get(context, "sync_error"),
+        isError = true,
+        markBackupPresent = false
+    )
+}
+
+private fun syncButtonLabel(
+    context: Context,
+    locale: Locale,
+    hasBackupFile: Boolean,
+    folderName: String?
+): String = if (hasBackupFile) {
+    Translations.get(context, "sync_synced")
+        .format(locale, folderName ?: BackupFolder.BACKUP_FILE_NAME)
+} else {
+    Translations.get(context, "sync")
 }
 
 /**

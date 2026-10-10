@@ -662,60 +662,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 _error.publish(null)
 
-                var candidate = target
-                var skipped = 0
-                var resolved: List<ResolvedItem> = emptyList()
-                var giveUp = false
-
-                while (resolved.isEmpty()) {
-                    val endExclusive = minOf(candidate + WINDOW_AHEAD, queue.size - 1) + 1
-                    resolved = resolveItems(candidate, endExclusive, gen, forceRefresh = reResolve)
-                    if (resolved.isNotEmpty()) break
-
-                    // Ninguna se pudo resolver: se prueban las siguientes antes de
-                    // rendirse, y solo un número acotado de saltos. Hacia atrás se
-                    // busca hacia atrás: si no, el `<<` acababa sonando una
-                    // canción distinta hacia delante (B49).
-                    val following = if (skipped < MAX_RESOLUTION_SKIPS) {
-                        QueueIndex.retryIndexFor(candidate, queue.size, queueRepeatMode, backwards)
-                    } else {
-                        null
-                    }
-                    if (following == null) {
-                        giveUp = true
-                        break
-                    }
-                    candidate = following
-                    skipped++
-                }
+                val outcome = resolveWithSkips(target, reResolve, backwards, gen)
 
                 // El candado se retira en el `finally`, no aquí: mientras se
                 // aplica el resultado la cola sigue moviéndose.
                 if (gen != generation || _exoPlayer !== player) return@launch
 
-                if (giveUp) {
+                if (outcome.gaveUp) {
                     _error.publish(Translations.get(getApplication(), "error_obtaining_audio"))
                     stopAtQueueEnd()
                     return@launch
                 }
 
-                // La ventana arranca en la primera canción que sí se resolvió, de
-                // modo que posición del reproductor e índice de la cola coinciden.
-                // `resolved` puede tener huecos (los que no se resolvieron se
-                // descartan conservando el índice original): cargarlos tal cual
-                // rompería la contigüedad de la ventana y a partir de ahí
-                // `growWindow`/`currentIndex` operarían sobre índices equivocados
-                // (B62). Se recorta en el primer hueco; lo recortado se vuelve a
-                // pedir en el `growWindow` de justo debajo.
-                val prefix = QueueIndex.contiguousPrefixLength(resolved.map { it.index })
-                val start = resolved.first().index
-                windowState = windowState.anchorAt(start)
-                setCurrentIndex(start)
-                player.setMediaItems(resolved.take(prefix).map { it.mediaItem }, 0, C.TIME_UNSET)
-                player.prepare()
-                player.play()
-                onMediaSessionUpdate?.invoke(player)
-                growWindow()
+                applyResolvedWindow(player, outcome.resolved)
             } finally {
                 // El token se retira sea cual sea la `generation`. Antes el
                 // cierre era condicional (`if (gen == generation)`) y quien
@@ -736,6 +695,66 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 endLoading(token)
             }
         }
+    }
+
+    /** Resultado de intentar resolver una pista, con saltos acotados si no se puede. */
+    private data class ResolutionOutcome(val resolved: List<ResolvedItem>, val gaveUp: Boolean)
+
+    /**
+     * Resuelve a partir de [target] y, si no se puede, prueba con las siguientes
+     * canciones (o anteriores si [backwards]) hasta un número acotado de saltos
+     * ([MAX_RESOLUTION_SKIPS]). Hacia atrás se busca hacia atrás: si no, el `<<`
+     * acababa sonando una canción distinta hacia delante (B49).
+     */
+    private suspend fun resolveWithSkips(
+        target: Int,
+        reResolve: Boolean,
+        backwards: Boolean,
+        gen: Int
+    ): ResolutionOutcome {
+        var candidate = target
+        var skipped = 0
+        var resolved: List<ResolvedItem> = emptyList()
+
+        while (resolved.isEmpty()) {
+            val endExclusive = minOf(candidate + WINDOW_AHEAD, queue.size - 1) + 1
+            resolved = resolveItems(candidate, endExclusive, gen, forceRefresh = reResolve)
+            if (resolved.isNotEmpty()) break
+
+            // Ninguna se pudo resolver: se prueban las siguientes antes de
+            // rendirse, y solo un número acotado de saltos.
+            val following = if (skipped < MAX_RESOLUTION_SKIPS) {
+                QueueIndex.retryIndexFor(candidate, queue.size, queueRepeatMode, backwards)
+            } else {
+                null
+            }
+            if (following == null) return ResolutionOutcome(emptyList(), gaveUp = true)
+            candidate = following
+            skipped++
+        }
+        return ResolutionOutcome(resolved, gaveUp = false)
+    }
+
+    /**
+     * Vuelca en el reproductor las pistas ya resueltas. La ventana arranca en la
+     * primera canción que sí se resolvió, de modo que posición del reproductor e
+     * índice de la cola coinciden. `resolved` puede tener huecos (los que no se
+     * resolvieron se descartan conservando el índice original): cargarlos tal
+     * cual rompería la contigüedad de la ventana y a partir de ahí
+     * `growWindow`/`currentIndex` operarían sobre índices equivocados (B62). Se
+     * recorta en el primer hueco; lo recortado se vuelve a pedir en el
+     * `growWindow` de justo debajo.
+     */
+    private fun applyResolvedWindow(player: ExoPlayer, resolved: List<ResolvedItem>) {
+        val prefix = QueueIndex.contiguousPrefixLength(resolved.map { it.index })
+        val start = resolved.first().index
+        windowState = windowState.anchorAt(start)
+        setCurrentIndex(start)
+        player.setMediaItems(resolved.take(prefix).map { it.mediaItem }, 0, C.TIME_UNSET)
+        player.prepare()
+        player.play()
+        onMediaSessionUpdate?.invoke(player)
+        growWindow()
     }
 
     /**

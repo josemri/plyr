@@ -41,70 +41,65 @@ object UpdateChecker {
                 )
             }
 
-            val url = URL(GITHUB_API_URL)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 10000
-            connection.readTimeout = 10000
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+            val json = fetchLatestReleaseJson() ?: return@withContext getCachedUpdateInfo(context)
+            val updateInfo = parseReleaseInfo(json, currentVersion)
 
-            val responseCode = connection.responseCode
-
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().use { it.readText() }
-                val json = JSONObject(response)
-
-                val tagName = json.optString("tag_name", "")
-                val releaseName = json.optString("name", "")
-
-                // Handle both "latest" tag and version tags like "v1.0.3"
-                val latestVersion = if (tagName == "latest" || tagName.isEmpty()) {
-                    // If tag is "latest" or empty, try to get version from name field
-                    // Try to extract version from name (e.g., "Release 1.0.3" -> "1.0.3" or "1.0.3" -> "1.0.3")
-                    val versionRegex = Regex("""(\d+\.\d+(?:\.\d+)?)""")
-                    val matchResult = versionRegex.find(releaseName)
-                    if (matchResult != null) {
-                        matchResult.value
-                    } else {
-                        // Sin versión legible en la release: no damos por hecho que
-                        // haya update, así que la app se considera al día.
-                        currentVersion
-                    }
-                } else {
-                    tagName.removePrefix("v")
-                }
-
-                val downloadUrl = json.optJSONArray("assets")?.let { assets ->
-                    for (i in 0 until assets.length()) {
-                        val asset = assets.getJSONObject(i)
-                        val name = asset.optString("name", "")
-                        if (name.endsWith(".apk")) {
-                            return@let asset.optString("browser_download_url", "")
-                        }
-                    }
-                    ""
-                } ?: ""
-
-                val releaseNotes = json.optString("body", "")
-                val isUpdateAvailable = isNewerVersion(currentVersion, latestVersion)
-
-                val updateInfo = UpdateInfo(
-                    latestVersion = latestVersion,
-                    downloadUrl = downloadUrl,
-                    releaseNotes = releaseNotes,
-                    isUpdateAvailable = isUpdateAvailable
-                )
-
-                saveLastCheckTime(context, now)
-                cacheUpdateInfo(context, updateInfo)
-
-                return@withContext updateInfo
-            } else {
-                return@withContext getCachedUpdateInfo(context)
-            }
+            saveLastCheckTime(context, now)
+            cacheUpdateInfo(context, updateInfo)
+            updateInfo
         } catch (e: Exception) {
-            return@withContext getCachedUpdateInfo(context)
+            getCachedUpdateInfo(context)
         }
+    }
+
+    /** Descarga el JSON de la última release, o null si la respuesta no es 200. */
+    private fun fetchLatestReleaseJson(): JSONObject? {
+        val connection = (URL(GITHUB_API_URL).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10000
+            readTimeout = 10000
+            setRequestProperty("Accept", "application/vnd.github.v3+json")
+        }
+        if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
+        val response = connection.inputStream.bufferedReader().use { it.readText() }
+        return JSONObject(response)
+    }
+
+    /** Interpreta la release de GitHub y decide si hay actualización. */
+    private fun parseReleaseInfo(json: JSONObject, currentVersion: String): UpdateInfo {
+        val latestVersion = resolveLatestVersion(json, currentVersion)
+        return UpdateInfo(
+            latestVersion = latestVersion,
+            downloadUrl = findApkDownloadUrl(json),
+            releaseNotes = json.optString("body", ""),
+            isUpdateAvailable = isNewerVersion(currentVersion, latestVersion)
+        )
+    }
+
+    /**
+     * La versión viene del `tag_name` (`v1.0.3` -> `1.0.3`). Si la release usa el
+     * tag `latest` o vacío, se intenta extraer del nombre; sin nada legible, se
+     * considera que la app está al día devolviendo la versión instalada.
+     */
+    private fun resolveLatestVersion(json: JSONObject, currentVersion: String): String {
+        val tagName = json.optString("tag_name", "")
+        if (tagName != "latest" && tagName.isNotEmpty()) return tagName.removePrefix("v")
+
+        val releaseName = json.optString("name", "")
+        val matchResult = Regex("""(\d+\.\d+(?:\.\d+)?)""").find(releaseName)
+        return matchResult?.value ?: currentVersion
+    }
+
+    /** URL de descarga del primer asset `.apk`, o cadena vacía. */
+    private fun findApkDownloadUrl(json: JSONObject): String {
+        val assets = json.optJSONArray("assets") ?: return ""
+        for (i in 0 until assets.length()) {
+            val asset = assets.getJSONObject(i)
+            if (asset.optString("name", "").endsWith(".apk")) {
+                return asset.optString("browser_download_url", "")
+            }
+        }
+        return ""
     }
 
     /**

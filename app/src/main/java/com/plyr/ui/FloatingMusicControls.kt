@@ -123,48 +123,7 @@ fun FloatingMusicControls(
     val currentPlaylist by playerViewModel.currentPlaylist.observeAsState()
     val currentTrackIndex by playerViewModel.currentTrackIndex.observeAsState()
 
-    // Estados locales del reproductor
-    var isPlaying by remember { mutableStateOf(false) }
-    var duration by remember { mutableLongStateOf(0L) }
-    var position by remember { mutableLongStateOf(0L) }
-    var progress by remember { mutableFloatStateOf(0f) }
-
-    
-    // === EFECTOS Y ACTUALIZACIONES DE ESTADO ===
-    
-    /**
-     * Refleja el estado del reproductor en la UI.
-     *
-     * Antes se escribía en los estados sin comparar con el valor anterior, así
-     * que cada tick provocaba una recomposición aunque nada hubiera cambiado.
-     * Ahora solo se escribe cuando algún valor difiere, y se lee de una
-     * referencia fija al reproductor para no tocar uno ya liberado.
-     */
-    LaunchedEffect(Unit) {
-        var lastTotal = 0L
-        while (true) {
-            // B35: `exoPlayer` es un `var` no observable; si se usara de clave,
-            // una composición con el reproductor a null (y sin recomposiciones
-            // posteriores) dejaba el poll sin arrancar nunca. Se relee en cada
-            // vuelta y el lazo aguanta hasta que el reproductor exista.
-            val player = playerViewModel.exoPlayer ?: run { delay(500); continue }
-            val active = player.playbackState == Player.STATE_READY ||
-                player.playbackState == Player.STATE_BUFFERING
-            val total = if (active && player.duration > 0) player.duration else 0L
-            val pos = if (active) player.currentPosition else 0L
-            val ratio = if (total > 0) pos.toFloat() / total.toFloat() else 0f
-
-            if (player.isPlaying != isPlaying) isPlaying = player.isPlaying
-            if (total != lastTotal) {
-                lastTotal = total
-                duration = if (total > 0) total else 1L
-            }
-            if (pos != position) position = pos
-            if (ratio != progress) progress = ratio
-
-            delay(500)
-        }
-    }
+    val playback = rememberPlaybackState(playerViewModel)
 
     // Mostrar controles solo si hay contenido o estado relevante
     if (currentTitle != null || isLoading || error != null) {
@@ -188,22 +147,22 @@ fun FloatingMusicControls(
                     currentTrack = currentTrack,
                     currentPlaylist = currentPlaylist,
                     currentTrackIndex = currentTrackIndex,
-                    position = position,
-                    duration = duration
+                    position = playback.position,
+                    duration = playback.duration
                 )
 
                 // Barra de progreso/loading
                 ProgressBar(
                     isLoading = isLoading,
-                    progress = progress,
-                    duration = duration,
+                    progress = playback.progress,
+                    duration = playback.duration,
                     playerViewModel = playerViewModel
                 )
 
                 // Controles de reproducción
                 PlaybackControls(
                     isLoading = isLoading,
-                    isPlaying = isPlaying,
+                    isPlaying = playback.isPlaying,
                     playerViewModel = playerViewModel,
                     currentTrack = currentTrack,
                     onShowQueue = onShowQueue
@@ -211,6 +170,73 @@ fun FloatingMusicControls(
             }
         }
     }
+}
+
+private data class PlaybackState(
+    val isPlaying: Boolean,
+    val duration: Long,
+    val position: Long,
+    val progress: Float
+)
+
+private data class PlaybackSnapshot(
+    val isPlaying: Boolean,
+    val total: Long,
+    val position: Long,
+    val progress: Float
+)
+
+/**
+ * Refleja el estado del reproductor en la UI.
+ *
+ * Antes se escribía en los estados sin comparar con el valor anterior, así
+ * que cada tick provocaba una recomposición aunque nada hubiera cambiado.
+ * Ahora solo se escribe cuando algún valor difiere, y se lee de una
+ * referencia fija al reproductor para no tocar uno ya liberado.
+ */
+@Composable
+private fun rememberPlaybackState(playerViewModel: PlayerViewModel): PlaybackState {
+    var isPlaying by remember { mutableStateOf(false) }
+    var duration by remember { mutableLongStateOf(0L) }
+    var position by remember { mutableLongStateOf(0L) }
+    var progress by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        var lastTotal = 0L
+        while (true) {
+            // B35: `exoPlayer` es un `var` no observable; si se usara de clave,
+            // una composición con el reproductor a null (y sin recomposiciones
+            // posteriores) dejaba el poll sin arrancar nunca. Se relee en cada
+            // vuelta y el lazo aguanta hasta que el reproductor exista.
+            val player = playerViewModel.exoPlayer
+            if (player == null) {
+                delay(500)
+                continue
+            }
+            val snapshot = readPlaybackSnapshot(player)
+
+            if (snapshot.isPlaying != isPlaying) isPlaying = snapshot.isPlaying
+            if (snapshot.total != lastTotal) {
+                lastTotal = snapshot.total
+                duration = if (snapshot.total > 0) snapshot.total else 1L
+            }
+            if (snapshot.position != position) position = snapshot.position
+            if (snapshot.progress != progress) progress = snapshot.progress
+
+            delay(500)
+        }
+    }
+
+    return PlaybackState(isPlaying, duration, position, progress)
+}
+
+private fun readPlaybackSnapshot(player: Player): PlaybackSnapshot {
+    val active = player.playbackState == Player.STATE_READY ||
+        player.playbackState == Player.STATE_BUFFERING
+    val total = if (active && player.duration > 0) player.duration else 0L
+    val pos = if (active) player.currentPosition else 0L
+    val ratio = if (total > 0) pos.toFloat() / total.toFloat() else 0f
+    return PlaybackSnapshot(player.isPlaying, total, pos, ratio)
 }
 
 /**
@@ -239,57 +265,90 @@ private fun StatusAndTitleRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isLoading) {
-                Text(
-                    text = "$ loading",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                )
+                LoadingStatusLabel()
             } else {
-                val displayTitle = when {
-                    currentTrack != null -> "${currentTrack.name} - ${currentTrack.artists}"
-                    currentTitle != null -> currentTitle
-                    else -> "Playing audio..."
-                }
-
-                MarqueeText(
-                    text = displayTitle,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp
-                    ),
-                    color = MaterialTheme.colorScheme.primary
+                NowPlayingTitle(
+                    currentTitle = currentTitle,
+                    currentTrack = currentTrack
                 )
             }
         }
 
         // Información de tiempo y playlist
-        Column(
-            horizontalAlignment = Alignment.End
-        ) {
-            if (!isLoading) {
+        PlaybackTimeAndPlaylist(
+            isLoading = isLoading,
+            position = position,
+            duration = duration,
+            currentPlaylist = currentPlaylist,
+            currentTrackIndex = currentTrackIndex
+        )
+    }
+}
+
+@Composable
+private fun LoadingStatusLabel() {
+    Text(
+        text = "$ loading",
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.tertiary
+        )
+    )
+}
+
+@Composable
+private fun RowScope.NowPlayingTitle(
+    currentTitle: String?,
+    currentTrack: TrackEntity?
+) {
+    val displayTitle = when {
+        currentTrack != null -> "${currentTrack.name} - ${currentTrack.artists}"
+        currentTitle != null -> currentTitle
+        else -> "Playing audio..."
+    }
+
+    MarqueeText(
+        text = displayTitle,
+        modifier = Modifier.weight(1f),
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp
+        ),
+        color = MaterialTheme.colorScheme.primary
+    )
+}
+
+@Composable
+private fun PlaybackTimeAndPlaylist(
+    isLoading: Boolean,
+    position: Long,
+    duration: Long,
+    currentPlaylist: List<TrackEntity>?,
+    currentTrackIndex: Int?
+) {
+    Column(
+        horizontalAlignment = Alignment.End
+    ) {
+        if (!isLoading) {
+            Text(
+                text = "${formatTime(position)}/${formatTime(duration)}",
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            )
+
+            if (currentPlaylist != null && currentTrackIndex != null && currentPlaylist.isNotEmpty()) {
                 Text(
-                    text = "${formatTime(position)}/${formatTime(duration)}",
+                    text = "${currentTrackIndex + 1}/${currentPlaylist.size}",
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
+                        fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.secondary
                     )
                 )
-
-                if (currentPlaylist != null && currentTrackIndex != null && currentPlaylist.isNotEmpty()) {
-                    Text(
-                        text = "${currentTrackIndex + 1}/${currentPlaylist.size}",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    )
-                }
             }
         }
     }
@@ -315,60 +374,86 @@ private fun ProgressBar(
             .height(8.dp)
     ) {
         if (isLoading) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = MaterialTheme.colorScheme.tertiary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-            )
+            LoadingProgressIndicator()
         } else {
-            // Barra de progreso minimalista - solo barra, sin indicador circular
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .pointerInput(duration) {
-                        detectDragGestures(
-                            onDragStart = { offset ->
-                                if (duration > 0) {
-                                    isDragging = true
-                                    dragProgress = (offset.x / size.width).coerceIn(0f, 1f)
-                                }
-                            },
-                            onDrag = { change, _ ->
-                                if (duration > 0) {
-                                    dragProgress = (change.position.x / size.width).coerceIn(0f, 1f)
-                                }
-                            },
-                            onDragEnd = {
-                                if (isDragging && duration > 0) {
-                                    playerViewModel.exoPlayer?.seekTo((duration * dragProgress).toLong())
-                                    isDragging = false
-                                }
-                            }
-                        )
+            DraggableProgressBar(
+                displayProgress = displayProgress,
+                duration = duration,
+                onDragStart = { fraction ->
+                    isDragging = true
+                    dragProgress = fraction
+                },
+                onDrag = { fraction ->
+                    dragProgress = fraction
+                },
+                onDragEnd = {
+                    if (isDragging && duration > 0) {
+                        playerViewModel.exoPlayer?.seekTo((duration * dragProgress).toLong())
+                        isDragging = false
                     }
-            ) {
-                // Barra de progreso (parte llena)
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .fillMaxWidth(displayProgress)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                )
-                // Barra vacía (parte restante)
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .weight(1f)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingProgressIndicator() {
+    LinearProgressIndicator(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(RoundedCornerShape(2.dp)),
+        color = MaterialTheme.colorScheme.tertiary,
+        trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    )
+}
+
+@Composable
+private fun DraggableProgressBar(
+    displayProgress: Float,
+    duration: Long,
+    onDragStart: (Float) -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit
+) {
+    // Barra de progreso minimalista - solo barra, sin indicador circular
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .pointerInput(duration) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        if (duration > 0) {
+                            onDragStart((offset.x / size.width).coerceIn(0f, 1f))
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        if (duration > 0) {
+                            onDrag((change.position.x / size.width).coerceIn(0f, 1f))
+                        }
+                    },
+                    onDragEnd = { onDragEnd() }
                 )
             }
-        }
+    ) {
+        // Barra de progreso (parte llena)
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(displayProgress)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary)
+        )
+        // Barra vacía (parte restante)
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .weight(1f)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+        )
     }
 }
 
@@ -399,82 +484,119 @@ private fun PlaybackControls(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Espacio izquierdo con el botón ^ centrado
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "^",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 16.sp
-                    ),
-                    color = if (!isLoading && currentTrack != null) MaterialTheme.colorScheme.primary 
-                            else MaterialTheme.colorScheme.outline,
-                    modifier = Modifier
-                        .offset(y = (-2).dp)
-                        .clickable(enabled = !isLoading && currentTrack != null) { onShowQueue() }
-                        .padding(6.dp)
-                )
-            }
+            QueueToggleButton(
+                isEnabled = !isLoading && currentTrack != null,
+                onClick = onShowQueue
+            )
 
             // Botones principales centrados
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Botón anterior
-            PlaybackButton(
-                text = "<<",
-                fontSize = 16.sp,
-                isEnabled = !isLoading,
-                onClick = { playerViewModel.navigateToPrevious() }
+            MainPlaybackButtons(
+                isLoading = isLoading,
+                isPlaying = isPlaying,
+                playerViewModel = playerViewModel
             )
-
-            Spacer(modifier = Modifier.width(24.dp))
-
-            // Botón play/pause principal
-            PlaybackButton(
-                text = if (isPlaying) "//" else ">",
-                fontSize = 24.sp,
-                isEnabled = !isLoading,
-                onClick = {
-                    if (isPlaying) playerViewModel.pausePlayer()
-                    else playerViewModel.playPlayer()
-                }
-            )
-
-            Spacer(modifier = Modifier.width(24.dp))
-
-            // Botón siguiente
-            PlaybackButton(
-                text = ">>",
-                fontSize = 16.sp,
-                isEnabled = !isLoading,
-                onClick = { playerViewModel.navigateToNext() }
-            )
-            }
 
             // Espacio derecho con el botón de repetición centrado
-            Box(
-                modifier = Modifier.weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                RepeatButton(
-                    currentMode = currentRepeatMode,
-                    isEnabled = !isLoading,
-                    onClick = {
-                        val nextMode = Config.getNextRepeatMode(currentRepeatMode)
-                        currentRepeatMode = nextMode
-                        Config.setRepeatMode(context, nextMode)
-                        playerViewModel.updateRepeatMode()
-                    }
-                )
-            }
+            RepeatControl(
+                currentMode = currentRepeatMode,
+                isEnabled = !isLoading,
+                onClick = {
+                    val nextMode = Config.getNextRepeatMode(currentRepeatMode)
+                    currentRepeatMode = nextMode
+                    Config.setRepeatMode(context, nextMode)
+                    playerViewModel.updateRepeatMode()
+                }
+            )
         }
     }
 
     // Popup del menú de canción usando el componente reutilizable (mantenido para uso futuro)
+}
+
+@Composable
+private fun RowScope.QueueToggleButton(
+    isEnabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier.weight(1f),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "^",
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 16.sp
+            ),
+            color = if (isEnabled) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline,
+            modifier = Modifier
+                .offset(y = (-2).dp)
+                .clickable(enabled = isEnabled) { onClick() }
+                .padding(6.dp)
+        )
+    }
+}
+
+@Composable
+private fun MainPlaybackButtons(
+    isLoading: Boolean,
+    isPlaying: Boolean,
+    playerViewModel: PlayerViewModel
+) {
+    Row(
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Botón anterior
+        PlaybackButton(
+            text = "<<",
+            fontSize = 16.sp,
+            isEnabled = !isLoading,
+            onClick = { playerViewModel.navigateToPrevious() }
+        )
+
+        Spacer(modifier = Modifier.width(24.dp))
+
+        // Botón play/pause principal
+        PlaybackButton(
+            text = if (isPlaying) "//" else ">",
+            fontSize = 24.sp,
+            isEnabled = !isLoading,
+            onClick = {
+                if (isPlaying) playerViewModel.pausePlayer()
+                else playerViewModel.playPlayer()
+            }
+        )
+
+        Spacer(modifier = Modifier.width(24.dp))
+
+        // Botón siguiente
+        PlaybackButton(
+            text = ">>",
+            fontSize = 16.sp,
+            isEnabled = !isLoading,
+            onClick = { playerViewModel.navigateToNext() }
+        )
+    }
+}
+
+@Composable
+private fun RowScope.RepeatControl(
+    currentMode: String,
+    isEnabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier.weight(1f),
+        contentAlignment = Alignment.Center
+    ) {
+        RepeatButton(
+            currentMode = currentMode,
+            isEnabled = isEnabled,
+            onClick = onClick
+        )
+    }
 }
 
 /**

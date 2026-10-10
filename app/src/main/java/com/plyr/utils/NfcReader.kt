@@ -10,6 +10,7 @@ import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.Ndef
 import android.os.Build
+import android.os.Parcelable
 import android.util.Log
 import com.plyr.model.ScanResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -119,49 +120,57 @@ object NfcReader {
 
         Log.d(TAG, "🏷️ Intent NFC recibido: $action")
 
-        // Intentar leer mensaje NDEF
-        val rawMessages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val ndefUrl = firstPlayableUrlFromNdef(intent)
+        if (ndefUrl != null) {
+            Log.d(TAG, "✅ URL encontrada en NDEF: $ndefUrl")
+            rememberUrl(ndefUrl)
+            return ndefUrl
+        }
+
+        val tag = readTagExtra(intent)
+        val tagUrl = tag?.let { readUrlFromTag(it) }
+        if (tagUrl != null) {
+            Log.d(TAG, "✅ URL leída del tag: $tagUrl")
+            rememberUrl(tagUrl)
+            return tagUrl
+        }
+
+        Log.w(TAG, "⚠️ No se encontró URL válida en el tag")
+        return null
+    }
+
+    /** Primer registro NDEF del intent que contenga una URL reproducible. */
+    private fun firstPlayableUrlFromNdef(intent: Intent): String? {
+        val rawMessages = ndefMessages(intent) ?: return null
+        for (rawMessage in rawMessages) {
+            val ndefMessage = rawMessage as? NdefMessage ?: continue
+            for (record in ndefMessage.records) {
+                val url = extractUrlFromRecord(record)
+                if (url != null && UrlParser.isPlayableUrl(url)) return url
+            }
+        }
+        return null
+    }
+
+    private fun ndefMessages(intent: Intent): Array<out Parcelable>? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES, NdefMessage::class.java)
         } else {
             @Suppress("DEPRECATION")
             intent.getParcelableArrayExtra(NfcAdapter.EXTRA_NDEF_MESSAGES)
         }
 
-        if (rawMessages != null && rawMessages.isNotEmpty()) {
-            for (rawMessage in rawMessages) {
-                val ndefMessage = rawMessage as? NdefMessage ?: continue
-                for (record in ndefMessage.records) {
-                    val url = extractUrlFromRecord(record)
-                    if (url != null && UrlParser.isPlayableUrl(url)) {
-                        Log.d(TAG, "✅ URL encontrada en NDEF: $url")
-                        _lastReadUrl.value = url
-                        _lastScanResult.value = UrlParser.parseScanText(url)
-                        return url
-                    }
-                }
-            }
-        }
-
-        // Si no hay NDEF, intentar leer del tag directamente
-        val tag: Tag? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    private fun readTagExtra(intent: Intent): Tag? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
         } else {
             @Suppress("DEPRECATION")
             intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
         }
 
-        if (tag != null) {
-            val url = readUrlFromTag(tag)
-            if (url != null) {
-                Log.d(TAG, "✅ URL leída del tag: $url")
-                _lastReadUrl.value = url
-                _lastScanResult.value = UrlParser.parseScanText(url)
-                return url
-            }
-        }
-
-        Log.w(TAG, "⚠️ No se encontró URL válida en el tag")
-        return null
+    private fun rememberUrl(url: String) {
+        _lastReadUrl.value = url
+        _lastScanResult.value = UrlParser.parseScanText(url)
     }
 
     /**

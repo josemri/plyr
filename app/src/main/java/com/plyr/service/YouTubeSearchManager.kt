@@ -12,7 +12,9 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.Image
+import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.ServiceList
+import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 
 /**
@@ -221,57 +223,65 @@ class YouTubeSearchManager(context: Context) {
             val searchExtractor = service.getSearchExtractor(query)
             searchExtractor.fetchPage()
 
-            val videos = mutableListOf<YouTubeVideoInfo>()
-            val playlists = mutableListOf<YouTubePlaylistInfo>()
-            val items = searchExtractor.initialPage.items
-
-            for (item in items) {
-                when (item) {
-                    is StreamInfoItem -> {
-                        if (videos.size < maxVideos) {
-                            val videoId = UrlParser.extractYoutubeVideoId(item.url)
-                            if (videoId != null && videoId.length == 11) {
-                                videos.add(YouTubeVideoInfo(
-                                    videoId = videoId,
-                                    title = item.name,
-                                    uploader = item.uploaderName ?: unknownArtist,
-                                    duration = item.duration,
-                                    viewCount = item.viewCount,
-                                    thumbnailUrl = getThumbnailUrl(videoId)
-                                ))
-                            }
-                        }
-                    }
-                    is org.schabi.newpipe.extractor.playlist.PlaylistInfoItem -> {
-                        if (playlists.size < maxPlaylists) {
-                            val playlistId = UrlParser.extractYoutubePlaylistId(item.url)
-                            if (playlistId != null) {
-                                playlists.add(YouTubePlaylistInfo(
-                                    playlistId = playlistId,
-                                    title = item.name,
-                                    uploader = item.uploaderName ?: unknownArtist,
-                                    videoCount = item.streamCount.toInt(),
-                                    thumbnailUrl = getPlaylistThumbnailUrl(item.thumbnails),
-                                    description = null
-                                ))
-                            }
-                        }
-                    }
+            collectSearchResults(searchExtractor.initialPage.items, maxVideos, maxPlaylists)
+                .also { result ->
+                    Log.d(
+                        TAG,
+                        "✅ YouTube búsqueda completa: ${result.videos.size} videos, ${result.playlists.size} playlists"
+                    )
                 }
-
-                // Parar si ya tenemos suficientes resultados
-                if (videos.size >= maxVideos && playlists.size >= maxPlaylists) {
-                    break
-                }
-            }
-
-            Log.d(TAG, "✅ YouTube búsqueda completa: ${videos.size} videos, ${playlists.size} playlists")
-            YouTubeSearchAllResult(videos, playlists)
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error en búsqueda completa YouTube: ${e.message}", e)
             YouTubeSearchAllResult(emptyList(), emptyList())
         }
+    }
+
+    /** Separa los items de la búsqueda en vídeos y playlists, respetando los topes. */
+    private fun collectSearchResults(
+        items: List<InfoItem>,
+        maxVideos: Int,
+        maxPlaylists: Int
+    ): YouTubeSearchAllResult {
+        val videos = mutableListOf<YouTubeVideoInfo>()
+        val playlists = mutableListOf<YouTubePlaylistInfo>()
+
+        for (item in items) {
+            when (item) {
+                is StreamInfoItem ->
+                    if (videos.size < maxVideos) videoInfoFrom(item)?.let { videos.add(it) }
+                is PlaylistInfoItem ->
+                    if (playlists.size < maxPlaylists) playlistInfoFrom(item)?.let { playlists.add(it) }
+            }
+            if (videos.size >= maxVideos && playlists.size >= maxPlaylists) break
+        }
+
+        return YouTubeSearchAllResult(videos, playlists)
+    }
+
+    private fun videoInfoFrom(item: StreamInfoItem): YouTubeVideoInfo? {
+        val videoId = UrlParser.extractYoutubeVideoId(item.url)
+        if (videoId == null || videoId.length != 11) return null
+        return YouTubeVideoInfo(
+            videoId = videoId,
+            title = item.name,
+            uploader = item.uploaderName ?: unknownArtist,
+            duration = item.duration,
+            viewCount = item.viewCount,
+            thumbnailUrl = getThumbnailUrl(videoId)
+        )
+    }
+
+    private fun playlistInfoFrom(item: PlaylistInfoItem): YouTubePlaylistInfo? {
+        val playlistId = UrlParser.extractYoutubePlaylistId(item.url) ?: return null
+        return YouTubePlaylistInfo(
+            playlistId = playlistId,
+            title = item.name,
+            uploader = item.uploaderName ?: unknownArtist,
+            videoCount = item.streamCount.toInt(),
+            thumbnailUrl = getPlaylistThumbnailUrl(item.thumbnails),
+            description = null
+        )
     }
 
     /**

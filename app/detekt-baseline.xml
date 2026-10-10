@@ -2,77 +2,9 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ComplexCondition:CoverCropMath.kt:CoverCropMath$viewportW &lt;= 0f || viewportH &lt;= 0f || imageW &lt;= 0f || imageH &lt;= 0f</ID>
-    <ID>CyclomaticComplexMethod:ConfigScreen.kt:@Composable fun ConfigScreen</ID>
-    <ID>CyclomaticComplexMethod:ConfigScreen.kt:@Composable private fun GesturesSection</ID>
-    <ID>CyclomaticComplexMethod:ConfigScreen.kt:@Composable private fun SyncSection</ID>
-    <ID>CyclomaticComplexMethod:FloatingMusicControls.kt:@Composable fun FloatingMusicControls</ID>
-    <ID>CyclomaticComplexMethod:HomeScreen.kt:@SuppressLint("DiscouragedApi") @OptIn(ExperimentalLayoutApi::class) @Composable fun HomeScreen</ID>
-    <ID>CyclomaticComplexMethod:NfcReader.kt:NfcReader$fun processNfcIntent: String?</ID>
-    <ID>CyclomaticComplexMethod:PlayerViewModel.kt:PlayerViewModel$private fun playIndex</ID>
-    <ID>CyclomaticComplexMethod:PlaylistScreen.kt:@Composable fun CreatePlaylistScreen</ID>
-    <ID>CyclomaticComplexMethod:PlaylistScreen.kt:@OptIn(DelicateCoroutinesApi::class) @Composable fun PlaylistsScreen</ID>
-    <ID>CyclomaticComplexMethod:QRDialog.kt:@Composable fun ShareDialog</ID>
-    <ID>CyclomaticComplexMethod:ResponsiveUtils.kt:@Composable fun calculateResponsiveDimensionsFallback: ResponsiveDimensions</ID>
-    <ID>CyclomaticComplexMethod:SearchScreen.kt:@Composable fun SearchScreen</ID>
-    <ID>CyclomaticComplexMethod:SimpleDownloader.kt:SimpleDownloader$@Throws(IOException::class, ReCaptchaException::class) override fun execute: Response</ID>
-    <ID>CyclomaticComplexMethod:SongListItem.kt:@Composable fun SongListItem</ID>
-    <ID>CyclomaticComplexMethod:SpotifyImporter.kt:SpotifyImporter$internal suspend fun fetchPlaylistFromEmbed: Result&lt;SpotifyPlaylist&gt;</ID>
-    <ID>CyclomaticComplexMethod:YouTubePlaylistDetailView.kt:@Composable fun YouTubePlaylistDetailView</ID>
-    <ID>CyclomaticComplexMethod:YouTubeSearchManager.kt:YouTubeSearchManager$suspend fun searchYouTubeAll: YouTubeSearchAllResult</ID>
-    <ID>LongMethod:AudioListScreen.kt:@Composable fun AudioListScreen</ID>
-    <ID>LongMethod:ConfigScreen.kt:@Composable fun ConfigScreen</ID>
-    <ID>LongMethod:ConfigScreen.kt:@Composable private fun SpotifyImportSection</ID>
-    <ID>LongMethod:ConfigScreen.kt:@Composable private fun SyncSection</ID>
-    <ID>LongMethod:CoverCropDialog.kt:@Composable fun CoverCropDialog</ID>
-    <ID>LongMethod:DataImporter.kt:DataImporter$suspend fun importFrom: Result&lt;ImportSummary&gt;</ID>
-    <ID>LongMethod:FeedScreen.kt:@Composable fun FeedScreen</ID>
-    <ID>LongMethod:FeedScreen.kt:@Composable private fun RecommendationItem</ID>
-    <ID>LongMethod:FloatingMusicControls.kt:@Composable fun FloatingMusicControls</ID>
-    <ID>LongMethod:FloatingMusicControls.kt:@Composable private fun PlaybackControls</ID>
-    <ID>LongMethod:FloatingMusicControls.kt:@Composable private fun ProgressBar</ID>
-    <ID>LongMethod:FloatingMusicControls.kt:@Composable private fun StatusAndTitleRow</ID>
-    <ID>LongMethod:HomeScreen.kt:@Composable private fun HomePlaylistCarousel</ID>
-    <ID>LongMethod:HomeScreen.kt:@SuppressLint("DiscouragedApi") @OptIn(ExperimentalLayoutApi::class) @Composable fun HomeScreen</ID>
-    <ID>LongMethod:MainActivity.kt:MainActivity$override fun onCreate</ID>
-    <ID>LongMethod:PlayerViewModel.kt:PlayerViewModel$private fun playIndex</ID>
-    <ID>LongMethod:PlaylistScreen.kt:@Composable fun CreatePlaylistScreen</ID>
-    <ID>LongMethod:PlaylistScreen.kt:@OptIn(DelicateCoroutinesApi::class) @Composable fun PlaylistsScreen</ID>
-    <ID>LongMethod:QRDialog.kt:@Composable fun ShareDialog</ID>
-    <ID>LongMethod:QrScannerDialog.kt:@Composable fun QrScannerDialog</ID>
-    <ID>LongMethod:QueueScreen.kt:@Composable fun QueueScreen</ID>
-    <ID>LongMethod:ResponsiveUtils.kt:@Composable fun calculateResponsiveDimensionsFallback: ResponsiveDimensions</ID>
-    <ID>LongMethod:SearchScreen.kt:@Composable fun CollapsibleYouTubeSearchResultsView</ID>
-    <ID>LongMethod:SearchScreen.kt:@Composable fun SearchScreen</ID>
-    <ID>LongMethod:SearchScreen.kt:@Composable private fun SearchMainView</ID>
-    <ID>LongMethod:SimpleDownloader.kt:SimpleDownloader$@Throws(IOException::class, ReCaptchaException::class) override fun execute: Response</ID>
-    <ID>LongMethod:SongListItem.kt:@Composable fun SongListItem</ID>
-    <ID>LongMethod:SpotifyImporter.kt:SpotifyImporter$suspend fun importPlaylistByUri: Result&lt;ImportResult&gt;</ID>
-    <ID>LongMethod:UpdateChecker.kt:UpdateChecker$suspend fun checkForUpdate: UpdateInfo?</ID>
-    <ID>LongMethod:YouTubePlaylistDetailView.kt:@Composable fun YouTubePlaylistDetailView</ID>
-    <ID>LongMethod:YouTubeSearchResults.kt:@Composable private fun YouTubeCollapsibleResults</ID>
-    <ID>LongParameterList:AudioListScreen.kt:@Composable fun AudioListScreen</ID>
-    <ID>LongParameterList:CoverCropMath.kt:CoverCropMath$fun clampState: CoverCropState</ID>
-    <ID>LongParameterList:CoverCropMath.kt:CoverCropMath$fun focalZoom: CoverCropState</ID>
-    <ID>LongParameterList:CoverCropMath.kt:CoverCropMath$fun sourceRect: CoverCropRect</ID>
-    <ID>LongParameterList:FloatingMusicControls.kt:@Composable private fun StatusAndTitleRow</ID>
-    <ID>LongParameterList:PlaylistScreen.kt:@OptIn(DelicateCoroutinesApi::class) @Composable fun PlaylistsScreen</ID>
-    <ID>LongParameterList:SearchScreen.kt:@Composable fun SearchScreen</ID>
-    <ID>LongParameterList:SearchScreen.kt:@Composable private fun SearchMainView</ID>
-    <ID>LongParameterList:SongListItem.kt:@Composable fun SongListItem</ID>
-    <ID>LongParameterList:SongListItem.kt:fun executeSwipeAction</ID>
-    <ID>LongParameterList:YouTubeSearchResults.kt:@Composable fun YouTubeSearchResults</ID>
-    <ID>NestedBlockDepth:SimpleDownloader.kt:SimpleDownloader$@Throws(IOException::class, ReCaptchaException::class) override fun execute: Response</ID>
+    <ID>LargeClass:PlayerViewModel.kt:PlayerViewModel : AndroidViewModel</ID>
     <ID>TooManyFunctions:Config.kt:Config</ID>
-    <ID>TooManyFunctions:ImportManifest.kt:ImportManifest</ID>
     <ID>TooManyFunctions:PlayerViewModel.kt:PlayerViewModel : AndroidViewModel</ID>
     <ID>TooManyFunctions:PlaylistLocalRepository.kt:PlaylistLocalRepository</ID>
-    <ID>TooManyFunctions:TrackDao.kt:TrackDao</ID>
   </CurrentIssues>
-    <ID>LargeClass:PlayerViewModel.kt:PlayerViewModel : AndroidViewModel</ID>
-
-
-
-    <ID>CyclomaticComplexMethod:PlaylistShare.kt:PlaylistShare$fun classify</ID>
-    <ID>CyclomaticComplexMethod:PlaylistShare.kt:60:9</ID>
 </SmellBaseline>

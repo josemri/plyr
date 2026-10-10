@@ -24,6 +24,19 @@ exceptions:
 # Estructura / mala estructura: umbrales por defecto de detekt.
 complexity:
   active: true
+  # Un DAO de Room es un contrato de acceso a datos: tener muchas operaciones
+  # (lecturas, escrituras, agregados) es normal y no indica mala estructura.
+  # Se ignoran las interfaces anotadas con @Dao para no fragmentarlas.
+  # Además, los helpers privados no cuentan: dividir un método largo en varios
+  # privados mejora la cohesión y no supone una API inflada.
+  TooManyFunctions:
+    ignoreAnnotated: ['Dao']
+    ignorePrivate: true
+  # Las funciones @Composable reciben estado y callbacks (a menudo más de 5):
+  # es el patrón normal en Compose y no indica mala estructura. La complejidad
+  # real se vigila con LongMethod/CyclomaticComplexMethod.
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
 
 # Bugs reales: UnreachableCode (código muerto), UnsafeCallOnNullableType, etc.
 potential-bugs:

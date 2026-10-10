@@ -23,7 +23,9 @@ class TranslationKeysUsageTest {
 
         /** Claves que se resuelven en tiempo de ejecución, no con un literal. */
         private val dynamicKeys = setOf(
-            "sync_working" // ConfigScreen.DataActionRow(workingKey = "sync_working")
+            "sync_working", // ConfigScreen.DataActionRow(workingKey = "sync_working")
+            "swipe_left", // ConfigScreen.SwipeActionSettingRow(titleKey = "swipe_left")
+            "swipe_right" // ConfigScreen.SwipeActionSettingRow(titleKey = "swipe_right")
         )
 
         private val GET_CALL = Regex("""Translations\.get\(\s*[^,]+,\s*"([^"]+)"\s*\)""")

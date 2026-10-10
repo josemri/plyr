@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.Translations
 import com.plyr.ui.components.Titulo
@@ -23,7 +24,6 @@ fun QueueScreen(
     onBack: () -> Unit,
     playerViewModel: PlayerViewModel? = null
 ) {
-    val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
     // Handle back button
@@ -41,78 +41,106 @@ fun QueueScreen(
 
         // Contenido de la playlist
         if (playerViewModel != null) {
-            val currentPlaylist by playerViewModel.currentPlaylist.observeAsState()
-            val currentTrackIndex by playerViewModel.currentTrackIndex.observeAsState()
-
-            val playlist = currentPlaylist
-            if (playlist != null && playlist.isNotEmpty()) {
-                // Claves estables: el `id` de la pista desambiguado con el número de
-                // aparición. Antes la clave incluía la posición, así que cualquier
-                // inserción/borrado la cambiaba y Compose perdía el estado de cada fila.
-                val itemKeys = remember(playlist) { stableKeys(playlist.map { it.id }) }
-                // Lista de canciones con SongListItem
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(
-                        count = playlist.size,
-                        key = { index -> itemKeys[index] }
-                    ) { index ->
-                        val track = playlist[index]
-                        val isCurrentTrack = currentTrackIndex == index
-
-                        // Convertir TrackEntity a Song
-                        val song = Song(
-                            number = index + 1,
-                            title = track.name,
-                            artist = track.artists.ifEmpty { Translations.get(context, "unknown_artist") },
-                            remoteId = track.remoteTrackId,
-                            youtubeId = track.youtubeVideoId,
-                            shareUrl = null // TrackEntity no tiene shareUrl
-                        )
-
-                        SongListItem(
-                            song = song,
-                            trackEntities = playlist,
-                            index = index,
-                            playerViewModel = playerViewModel,
-                            coroutineScope = coroutineScope,
-                            isCurrentlyPlaying = isCurrentTrack,
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
-                    }
-                }
-            } else {
-                // Estado vacío
-            Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-				    Text(
-                        text = Translations.get(context, "no_tracks_loaded"),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    )
-                }
-		    }
+            QueueContent(playerViewModel)
         } else {
             // PlayerViewModel no disponible
-		    Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = Translations.get(context, "player_not_available"),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                )
-             }
-         }
-     }
- }
+            PlayerNotAvailable()
+        }
+    }
+}
+
+@Composable
+private fun QueueContent(playerViewModel: PlayerViewModel) {
+    val currentPlaylist by playerViewModel.currentPlaylist.observeAsState()
+    val currentTrackIndex by playerViewModel.currentTrackIndex.observeAsState()
+
+    val playlist = currentPlaylist
+    if (playlist != null && playlist.isNotEmpty()) {
+        // Claves estables: el `id` de la pista desambiguado con el número de
+        // aparición. Antes la clave incluía la posición, así que cualquier
+        // inserción/borrado la cambiaba y Compose perdía el estado de cada fila.
+        val itemKeys = remember(playlist) { stableKeys(playlist.map { it.id }) }
+        QueueList(playlist, currentTrackIndex, itemKeys, playerViewModel)
+    } else {
+        EmptyQueue()
+    }
+}
+
+@Composable
+private fun QueueList(
+    playlist: List<TrackEntity>,
+    currentTrackIndex: Int?,
+    itemKeys: List<String>,
+    playerViewModel: PlayerViewModel
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(bottom = 16.dp)
+    ) {
+        items(
+            count = playlist.size,
+            key = { index -> itemKeys[index] }
+        ) { index ->
+            val track = playlist[index]
+            val isCurrentTrack = currentTrackIndex == index
+
+            // Convertir TrackEntity a Song
+            val song = Song(
+                number = index + 1,
+                title = track.name,
+                artist = track.artists.ifEmpty { Translations.get(context, "unknown_artist") },
+                remoteId = track.remoteTrackId,
+                youtubeId = track.youtubeVideoId,
+                shareUrl = null // TrackEntity no tiene shareUrl
+            )
+
+            SongListItem(
+                song = song,
+                trackEntities = playlist,
+                index = index,
+                playerViewModel = playerViewModel,
+                coroutineScope = coroutineScope,
+                isCurrentlyPlaying = isCurrentTrack,
+                modifier = Modifier.padding(vertical = 2.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyQueue() {
+    val context = LocalContext.current
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = Translations.get(context, "no_tracks_loaded"),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.outline
+            )
+        )
+    }
+}
+
+@Composable
+private fun PlayerNotAvailable() {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = Translations.get(context, "player_not_available"),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.outline
+            )
+        )
+    }
+}

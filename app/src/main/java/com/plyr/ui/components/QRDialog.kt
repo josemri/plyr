@@ -2,6 +2,7 @@ package com.plyr.ui.components
 
 import android.app.Activity
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.nfc.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -35,6 +37,7 @@ import com.plyr.network.SupabaseClient
 import com.plyr.utils.NfcReader
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.Translations
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -112,12 +115,16 @@ fun generateQrBitmap(content: String): Bitmap? {
     }
 }
 
+private data class ShareDialogState(
+    val nfcState: MutableState<NfcWriteState>,
+    val nfcAdapter: MutableState<NfcAdapter?>,
+    val groups: MutableState<List<Group>>,
+    val recommendationState: MutableState<RecommendationState>,
+)
+
 @Composable
 fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    val haptic = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
 
     // La URL la decide ShareUrlPolicy, no quien la construyó: antes se cogía
     // `shareUrl` por precedencia y eso descartaba el `youtubeVideoId` correcto
@@ -129,22 +136,67 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
         playlistOrigin = item.playlistOrigin,
     )
 
-    var nfcState by remember { mutableStateOf(NfcWriteState.IDLE) }
-    var nfcAdapter by remember { mutableStateOf<NfcAdapter?>(null) }
-    var groups by remember { mutableStateOf<List<Group>>(emptyList()) }
-    var recommendationState by remember { mutableStateOf<RecommendationState>(RecommendationState.IDLE) }
+    val dialogState = rememberShareDialogState(context, shareUrl)
 
-    val detectedTag by NfcTagEvent.detectedTag.collectAsState()
+    ShareDialogContent(
+        context = context,
+        shareUrl = shareUrl,
+        state = dialogState,
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
+private fun rememberShareDialogState(context: Context, shareUrl: String?): ShareDialogState {
+    val nfcState = remember { mutableStateOf(NfcWriteState.IDLE) }
+    val nfcAdapter = remember { mutableStateOf<NfcAdapter?>(null) }
+    val groups = remember { mutableStateOf<List<Group>>(emptyList()) }
+    val recommendationState = remember { mutableStateOf<RecommendationState>(RecommendationState.IDLE) }
 
     // Load groups on start
     LaunchedEffect(Unit) {
-        groups = SupabaseClient.getGroups()
+        groups.value = SupabaseClient.getGroups()
     }
 
     // Procesar el tag cuando se detecte
+    ShareDialogTagProcessor(shareUrl, nfcState)
+
+    // Inicializar NFC adapter
+    LaunchedEffect(Unit) {
+        nfcAdapter.value = NfcAdapter.getDefaultAdapter(context)
+    }
+
+    ShareDialogForegroundDispatch(context, nfcState.value, nfcAdapter.value)
+
+    // Resetear estado después de éxito/error
+    LaunchedEffect(nfcState.value) {
+        if (nfcState.value == NfcWriteState.SUCCESS || nfcState.value == NfcWriteState.ERROR) {
+            delay(2000)
+            nfcState.value = NfcWriteState.IDLE
+        }
+    }
+
+    // Resetear estado de recomendación después de éxito/error
+    LaunchedEffect(recommendationState.value) {
+        if (recommendationState.value == RecommendationState.SUCCESS || recommendationState.value == RecommendationState.ERROR) {
+            delay(2000)
+            recommendationState.value = RecommendationState.IDLE
+        }
+    }
+
+    return ShareDialogState(nfcState, nfcAdapter, groups, recommendationState)
+}
+
+// Procesar el tag cuando se detecte
+@Composable
+private fun ShareDialogTagProcessor(
+    shareUrl: String?,
+    nfcState: MutableState<NfcWriteState>,
+) {
+    val detectedTag by NfcTagEvent.detectedTag.collectAsState()
     LaunchedEffect(detectedTag) {
         val tag = detectedTag
-        if (tag != null && nfcState == NfcWriteState.WAITING && shareUrl != null) {
+        if (tag != null && nfcState.value == NfcWriteState.WAITING && shareUrl != null) {
             val fullUrl = if (!shareUrl.startsWith("http://") && !shareUrl.startsWith("https://")) {
                 "https://$shareUrl"
             } else {
@@ -152,20 +204,24 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
             }
             val message = NdefMessage(arrayOf(NdefRecord.createUri(fullUrl)))
             val success = writeNdefMessageToTag(tag, message)
-            nfcState = if (success) NfcWriteState.SUCCESS else NfcWriteState.ERROR
+            nfcState.value = if (success) NfcWriteState.SUCCESS else NfcWriteState.ERROR
             NfcTagEvent.clear()
         }
     }
+}
 
-    // Inicializar NFC adapter
-    LaunchedEffect(Unit) {
-        nfcAdapter = NfcAdapter.getDefaultAdapter(context)
-    }
+// Manejar el foreground dispatch para NFC
+// `nfcAdapter` es clave también: se asigna en LaunchedEffect(Unit), así que
+// si solo dependiera del estado, el primer frame (adapter == null) dejaría
+// el dispatch sin activar nunca (B19).
+@Composable
+private fun ShareDialogForegroundDispatch(
+    context: Context,
+    nfcState: NfcWriteState,
+    nfcAdapter: NfcAdapter?,
+) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
-    // Manejar el foreground dispatch para NFC
-    // `nfcAdapter` es clave también: se asigna en LaunchedEffect(Unit), así que
-    // si solo dependiera del estado, el primer frame (adapter == null) dejaría
-    // el dispatch sin activar nunca (B19).
     DisposableEffect(lifecycleOwner, nfcState, nfcAdapter) {
         val activity = context as? Activity
         val adapter = nfcAdapter
@@ -194,23 +250,15 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
             }
         }
     }
+}
 
-    // Resetear estado después de éxito/error
-    LaunchedEffect(nfcState) {
-        if (nfcState == NfcWriteState.SUCCESS || nfcState == NfcWriteState.ERROR) {
-            delay(2000)
-            nfcState = NfcWriteState.IDLE
-        }
-    }
-
-    // Resetear estado de recomendación después de éxito/error
-    LaunchedEffect(recommendationState) {
-        if (recommendationState == RecommendationState.SUCCESS || recommendationState == RecommendationState.ERROR) {
-            delay(2000)
-            recommendationState = RecommendationState.IDLE
-        }
-    }
-
+@Composable
+private fun ShareDialogContent(
+    context: Context,
+    shareUrl: String?,
+    state: ShareDialogState,
+    onDismiss: () -> Unit,
+) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -225,31 +273,7 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (shareUrl != null) {
-                    val qrBitmap = remember(shareUrl) { generateQrBitmap(shareUrl) }
-                    if (qrBitmap != null) {
-                        Card(
-                            modifier = Modifier.size(220.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize().padding(8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    bitmap = qrBitmap.asImageBitmap(),
-                                    contentDescription = "QR Code",
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = "Error generando QR",
-                            color = Color(0xFFFF6B6B),
-                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
-                        )
-                    }
+                    ShareQrSection(shareUrl)
                 }
 
                 Row(
@@ -257,115 +281,178 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                // Sin URL no hay QR, ni <share>, ni NFC, ni <recomendar>. Antes
-                // todo eso se ocultaba y lo que quedaba era un `Card` con padding
-                // y nada dentro: un diálogo en blanco sin explicación (B54).
-                if (shareUrl == null) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text(
-                            text = Translations.get(context, "no_share_url"),
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurface
-                            ),
-                            textAlign = TextAlign.Center
-                        )
-                        TextButton(onClick = onDismiss) {
-                            Text(
-                                text = Translations.get(context, "close"),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            )
-                        }
+                    if (shareUrl == null) {
+                        NoShareUrlSection(context, onDismiss)
                     }
-                }
-
-                if (shareUrl != null) {
-                        Text(
-                            text = Translations.get(context, "btn_share"),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 16.sp,
-                                color = Color(0xFFFF6B9D)
-                            ),
-                            modifier = Modifier
-                                .clickable {
-                                    val sendIntent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, shareUrl)
-                                        type = "text/plain"
-                                    }
-                                    val chooserIntent = Intent.createChooser(sendIntent, Translations.get(context, "share_via"))
-                                    chooserIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    context.startActivity(chooserIntent)
-                                }
-                                .padding(8.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        NfcButton(
-                            state = nfcState,
-                            onToggle = {
-                                when (nfcState) {
-                                    NfcWriteState.IDLE -> {
-                                        nfcState = if (nfcAdapter == null || nfcAdapter?.isEnabled == false) {
-                                            NfcWriteState.ERROR
-                                        } else {
-                                            NfcWriteState.WAITING
-                                        }
-                                    }
-                                    NfcWriteState.WAITING -> nfcState = NfcWriteState.IDLE
-                                    else -> {}
-                                }
-                            }
-                        )
+                    if (shareUrl != null) {
+                        ShareLinksRow(context, shareUrl, state)
                     }
                 }
 
                 // Recommend button in a new row
                 if (shareUrl != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RecommendButton(
-                            state = recommendationState,
-                            onClick = {
-                                if (recommendationState == RecommendationState.IDLE) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    recommendationState = RecommendationState.ADDING
-                                    scope.launch {
-                                        val nickname = com.plyr.utils.Config.getUserNickname(context)
-                                        val generalGroup = groups.find { it.groupType == "general" }
-                                        if (!nickname.isNullOrBlank() && generalGroup != null) {
-                                            val result = SupabaseClient.createRecommendation(
-                                                groupId = generalGroup.id,
-                                                nickname = nickname,
-                                                url = shareUrl,
-                                                comment = null
-                                            )
-                                            recommendationState = if (result != null) {
-                                                RecommendationState.SUCCESS
-                                            } else {
-                                                RecommendationState.ERROR
-                                            }
-                                        } else {
-                                            recommendationState = RecommendationState.ERROR
-                                        }
-                                    }
-                                }
-                            }
-                        )
-                    }
+                    RecommendRow(shareUrl, state)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ShareQrSection(shareUrl: String) {
+    val qrBitmap = remember(shareUrl) { generateQrBitmap(shareUrl) }
+    if (qrBitmap != null) {
+        Card(
+            modifier = Modifier.size(220.dp),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    bitmap = qrBitmap.asImageBitmap(),
+                    contentDescription = "QR Code",
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    } else {
+        Text(
+            text = "Error generando QR",
+            color = Color(0xFFFF6B6B),
+            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+        )
+    }
+}
+
+// Sin URL no hay QR, ni <share>, ni NFC, ni <recomendar>. Antes
+// todo eso se ocultaba y lo que quedaba era un `Card` con padding
+// y nada dentro: un diálogo en blanco sin explicación (B54).
+@Composable
+private fun NoShareUrlSection(context: Context, onDismiss: () -> Unit) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = Translations.get(context, "no_share_url"),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
+            textAlign = TextAlign.Center
+        )
+        TextButton(onClick = onDismiss) {
+            Text(
+                text = Translations.get(context, "close"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShareLinksRow(context: Context, shareUrl: String, state: ShareDialogState) {
+    Text(
+        text = Translations.get(context, "btn_share"),
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = 16.sp,
+            color = Color(0xFFFF6B9D)
+        ),
+        modifier = Modifier
+            .clickable {
+                val sendIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    putExtra(Intent.EXTRA_TEXT, shareUrl)
+                    type = "text/plain"
+                }
+                val chooserIntent = Intent.createChooser(sendIntent, Translations.get(context, "share_via"))
+                chooserIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(chooserIntent)
+            }
+            .padding(8.dp)
+    )
+
+    Spacer(modifier = Modifier.width(16.dp))
+
+    NfcButton(
+        state = state.nfcState.value,
+        onToggle = {
+            state.nfcState.value = nextNfcState(state.nfcState.value, state.nfcAdapter.value)
+        }
+    )
+}
+
+private fun nextNfcState(current: NfcWriteState, adapter: NfcAdapter?): NfcWriteState {
+    return when (current) {
+        NfcWriteState.IDLE -> if (adapter == null || !adapter.isEnabled) {
+            NfcWriteState.ERROR
+        } else {
+            NfcWriteState.WAITING
+        }
+        NfcWriteState.WAITING -> NfcWriteState.IDLE
+        else -> current
+    }
+}
+
+@Composable
+private fun RecommendRow(shareUrl: String, state: ShareDialogState) {
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RecommendButton(
+            state = state.recommendationState.value,
+            onClick = {
+                requestRecommendation(
+                    context = context,
+                    haptic = haptic,
+                    scope = scope,
+                    shareUrl = shareUrl,
+                    state = state,
+                )
+            }
+        )
+    }
+}
+
+private fun requestRecommendation(
+    context: Context,
+    haptic: HapticFeedback,
+    scope: CoroutineScope,
+    shareUrl: String,
+    state: ShareDialogState,
+) {
+    if (state.recommendationState.value != RecommendationState.IDLE) return
+    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    state.recommendationState.value = RecommendationState.ADDING
+    scope.launch {
+        val nickname = com.plyr.utils.Config.getUserNickname(context)
+        val generalGroup = state.groups.value.find { it.groupType == "general" }
+        if (!nickname.isNullOrBlank() && generalGroup != null) {
+            val result = SupabaseClient.createRecommendation(
+                groupId = generalGroup.id,
+                nickname = nickname,
+                url = shareUrl,
+                comment = null
+            )
+            state.recommendationState.value = if (result != null) {
+                RecommendationState.SUCCESS
+            } else {
+                RecommendationState.ERROR
+            }
+        } else {
+            state.recommendationState.value = RecommendationState.ERROR
         }
     }
 }

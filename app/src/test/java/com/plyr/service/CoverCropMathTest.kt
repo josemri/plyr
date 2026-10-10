@@ -16,6 +16,12 @@ class CoverCropMathTest {
     private val viewportH = 450f
     private val square = 400f
 
+    private fun geometry(imageW: Float, imageH: Float) =
+        CoverCropGeometry(viewportW, viewportH, square, imageW, imageH)
+
+    private fun gesture(cx: Float, cy: Float, panX: Float, panY: Float, zoom: Float) =
+        CoverCropGesture(cx, cy, panX, panY, zoom)
+
     @Test
     fun coverScale_picksTheBiggestRatio() {
         // Imagen vertical en viewport horizontal: debe cubrir por ancho
@@ -52,8 +58,9 @@ class CoverCropMathTest {
     @Test
     fun focalZoom_keepsFocalPointFixed() {
         val result = CoverCropMath.focalZoom(
-            CoverCropState(), 200f, 350f, 0f, 0f, 2f,
-            viewportW, viewportH, square, 1600f, 900f
+            CoverCropState(),
+            gesture(200f, 350f, 0f, 0f, 2f),
+            geometry(1600f, 900f)
         )
         assertEquals(2f, result.zoom, 0.0001f)
         assertEquals(-200f, result.offsetX, 0.0001f)
@@ -67,8 +74,9 @@ class CoverCropMathTest {
     @Test
     fun focalZoom_followsPan() {
         val result = CoverCropMath.focalZoom(
-            CoverCropState(), 200f, 350f, 10f, 5f, 2f,
-            viewportW, viewportH, square, 1600f, 900f
+            CoverCropState(),
+            gesture(200f, 350f, 10f, 5f, 2f),
+            geometry(1600f, 900f)
         )
         assertEquals(2f, result.zoom, 0.0001f)
         assertEquals(-190f, result.offsetX, 0.0001f)
@@ -82,8 +90,9 @@ class CoverCropMathTest {
     fun focalZoom_onZoomedStateKeepsCenterFixed() {
         val state = CoverCropState(zoom = 2f, offsetX = -400f, offsetY = -225f)
         val result = CoverCropMath.focalZoom(
-            state, 400f, 225f, 0f, 0f, 1.5f,
-            viewportW, viewportH, square, 1600f, 900f
+            state,
+            gesture(400f, 225f, 0f, 0f, 1.5f),
+            geometry(1600f, 900f)
         )
         assertEquals(3f, result.zoom, 0.0001f)
         assertEquals(-800f, result.offsetX, 0.0001f)
@@ -96,8 +105,9 @@ class CoverCropMathTest {
     fun focalZoom_zoomOutAllowedAndKeepsFocalPoint() {
         // Zoom-out hasta el mínimo permitido (0.8889 para 16:9)
         val result = CoverCropMath.focalZoom(
-            CoverCropState(), 400f, 225f, 0f, 0f, 0.5f,
-            viewportW, viewportH, square, 1600f, 900f
+            CoverCropState(),
+            gesture(400f, 225f, 0f, 0f, 0.5f),
+            geometry(1600f, 900f)
         )
         assertEquals(400f / 450f, result.zoom, 0.0001f)
         assertEquals(400f - 400f * (400f / 450f), result.offsetX, 0.001f)
@@ -111,8 +121,8 @@ class CoverCropMathTest {
     fun focalZoom_zoomOutClampedAtMinZoom() {
         val result = CoverCropMath.focalZoom(
             CoverCropState(zoom = 2f, offsetX = -100f, offsetY = -50f),
-            400f, 225f, 0f, 0f, 0.2f,
-            viewportW, viewportH, square, 1600f, 900f
+            gesture(400f, 225f, 0f, 0f, 0.2f),
+            geometry(1600f, 900f)
         )
         assertEquals(400f / 450f, result.zoom, 0.0001f)
         assertEquals(400f - 250f * (400f / 450f), result.offsetX, 0.001f)
@@ -123,7 +133,7 @@ class CoverCropMathTest {
     fun clampState_forcesZoomToAtLeastMinZoomAndCoversFrame() {
         val clamped = CoverCropMath.clampState(
             CoverCropState(zoom = 0.2f, offsetX = 999f, offsetY = 999f),
-            viewportW, viewportH, square, 1600f, 900f
+            geometry(1600f, 900f)
         )
         assertEquals(400f / 450f, clamped.zoom, 0.0001f)
         // La imagen (711x400) solo debe cubrir el marco, que va de x=200 a 600:
@@ -136,7 +146,7 @@ class CoverCropMathTest {
     fun clampState_centersImageWhenSmallerThanViewport() {
         val clamped = CoverCropMath.clampState(
             CoverCropState(zoom = 0.3f, offsetX = 500f, offsetY = 500f),
-            viewportW, viewportH, square, 800f, 800f
+            geometry(800f, 800f)
         )
         // minZoom 0.5 -> imagen 400x400 == marco: queda encajada en el marco
         assertEquals(0.5f, clamped.zoom, 0.0001f)
@@ -150,7 +160,7 @@ class CoverCropMathTest {
         // deslizarse mientras el marco de recorte quede cubierto.
         val inRange = CoverCropMath.clampState(
             CoverCropState(zoom = 1f, offsetX = 150f, offsetY = -10f),
-            viewportW, viewportH, square, 1600f, 900f
+            geometry(1600f, 900f)
         )
         assertEquals(1f, inRange.zoom, 0.0001f)
         assertEquals(150f, inRange.offsetX, 0.0001f)
@@ -158,7 +168,7 @@ class CoverCropMathTest {
         // Rango horizontal [-200, 200] y vertical [-25, 25]
         val extremes = CoverCropMath.clampState(
             CoverCropState(zoom = 1f, offsetX = 999f, offsetY = -999f),
-            viewportW, viewportH, square, 1600f, 900f
+            geometry(1600f, 900f)
         )
         assertEquals(200f, extremes.offsetX, 0.0001f)
         assertEquals(-25f, extremes.offsetY, 0.0001f)
@@ -169,7 +179,7 @@ class CoverCropMathTest {
         // Imagen muy ancha (3000x1000): antes quedaba clavada verticalmente ([0,0]).
         val clamped = CoverCropMath.clampState(
             CoverCropState(zoom = 1f, offsetX = 0f, offsetY = 10f),
-            viewportW, viewportH, square, 3000f, 1000f
+            geometry(3000f, 1000f)
         )
         assertEquals(10f, clamped.offsetY, 0.0001f)
     }
@@ -179,7 +189,7 @@ class CoverCropMathTest {
         // Imagen muy alta (200x500): antes quedaba clavada horizontalmente ([0,0]).
         val clamped = CoverCropMath.clampState(
             CoverCropState(zoom = 1f, offsetX = 100f, offsetY = 0f),
-            viewportW, viewportH, square, 200f, 500f
+            geometry(200f, 500f)
         )
         assertEquals(100f, clamped.offsetX, 0.0001f)
     }
@@ -188,7 +198,7 @@ class CoverCropMathTest {
     fun clampState_clampsOffsetToBounds() {
         val clamped = CoverCropMath.clampState(
             CoverCropState(zoom = 2f, offsetX = 500f, offsetY = -900f),
-            viewportW, viewportH, square, 1600f, 900f
+            geometry(1600f, 900f)
         )
         assertEquals(2f, clamped.zoom, 0.0001f)
         // A zoom 2: imagen 1600x900; el marco (x 200..600, y 25..425) exige
@@ -201,7 +211,7 @@ class CoverCropMathTest {
     fun clampState_inRangeOffsetIsUnchanged() {
         val clamped = CoverCropMath.clampState(
             CoverCropState(zoom = 2f, offsetX = -400f, offsetY = -100f),
-            viewportW, viewportH, square, 1600f, 900f
+            geometry(1600f, 900f)
         )
         assertEquals(2f, clamped.zoom, 0.0001f)
         assertEquals(-400f, clamped.offsetX, 0.0001f)
@@ -212,14 +222,14 @@ class CoverCropMathTest {
     fun clampState_capsZoomAtMax() {
         val clamped = CoverCropMath.clampState(
             CoverCropState(zoom = 99f, offsetX = 0f, offsetY = 0f),
-            viewportW, viewportH, square, 1600f, 900f
+            geometry(1600f, 900f)
         )
         assertEquals(CoverCropMath.MAX_ZOOM, clamped.zoom, 0.0001f)
     }
 
     @Test
     fun sourceRect_noOffset_centeredCrop() {
-        val rect = CoverCropMath.sourceRect(viewportW, viewportH, square, 1600f, 900f, CoverCropState())
+        val rect = CoverCropMath.sourceRect(geometry(1600f, 900f), CoverCropState())
         assertEquals(800f, rect.width(), 0.0001f)
         assertEquals(800f, rect.height(), 0.0001f)
         // Centrado en la imagen
@@ -232,7 +242,7 @@ class CoverCropMathTest {
     @Test
     fun sourceRect_zoomShrinksSide() {
         val rect = CoverCropMath.sourceRect(
-            viewportW, viewportH, square, 1600f, 900f,
+            geometry(1600f, 900f),
             CoverCropState(zoom = 2f)
         )
         // El recorte es un cuadrado (square/(zoom*cover)): la mitad que sin zoom
@@ -245,7 +255,7 @@ class CoverCropMathTest {
     fun sourceRect_zoomOutGrowsSide() {
         // Al mínimo de zoom la imagen queda centrada: se captura la imagen completa
         val rect = CoverCropMath.sourceRect(
-            viewportW, viewportH, square, 1600f, 900f,
+            geometry(1600f, 900f),
             CoverCropState(zoom = 400f / 450f, offsetX = 44.444f, offsetY = 25f)
         )
         assertEquals(900f, rect.width(), 0.001f)
@@ -257,9 +267,9 @@ class CoverCropMathTest {
 
     @Test
     fun sourceRect_offsetMovesWindow() {
-        val centered = CoverCropMath.sourceRect(viewportW, viewportH, square, 1600f, 900f, CoverCropState(zoom = 2f))
+        val centered = CoverCropMath.sourceRect(geometry(1600f, 900f), CoverCropState(zoom = 2f))
         val moved = CoverCropMath.sourceRect(
-            viewportW, viewportH, square, 1600f, 900f,
+            geometry(1600f, 900f),
             CoverCropState(zoom = 2f, offsetX = -200f)
         )
         // Trasladar la capa a la izquierda muestra más zona derecha de la imagen
@@ -271,7 +281,7 @@ class CoverCropMathTest {
     @Test
     fun sourceRect_staysInsideImage() {
         val rect = CoverCropMath.sourceRect(
-            viewportW, viewportH, square, 1600f, 900f,
+            geometry(1600f, 900f),
             CoverCropState(zoom = 3f, offsetX = 9999f, offsetY = -9999f)
         )
         assertTrue(rect.left >= 0f && rect.right <= 1600f)
@@ -280,7 +290,7 @@ class CoverCropMathTest {
 
     @Test
     fun sourceRect_verticalImageCenteredCrop() {
-        val rect = CoverCropMath.sourceRect(viewportW, viewportH, square, 200f, 500f, CoverCropState())
+        val rect = CoverCropMath.sourceRect(geometry(200f, 500f), CoverCropState())
         assertEquals(100f, rect.width(), 0.0001f)
         assertEquals(100f, rect.height(), 0.0001f)
         assertEquals(200f / 2f, rect.left + rect.width() / 2f, 0.0001f)
@@ -290,7 +300,7 @@ class CoverCropMathTest {
     @Test
     fun sourceRect_squareImageWithZoomIsCenteredSquare() {
         val rect = CoverCropMath.sourceRect(
-            viewportW, viewportH, square, 800f, 800f,
+            geometry(800f, 800f),
             CoverCropState(zoom = 2f)
         )
         // Zoom sobre la esquina superior izquierda sin arrastre: se ve la zona

@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -43,6 +45,7 @@ import com.plyr.network.AppPlaylist
 import com.plyr.network.AppTrack
 import com.plyr.network.AppArtist
 import com.plyr.viewmodel.PlayerViewModel
+import com.plyr.viewmodel.DownloadViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.service.YouTubePlaylistCreator
 import com.plyr.service.CoverImageManager
@@ -54,6 +57,7 @@ import com.plyr.ui.components.ShareDialog
 import com.plyr.ui.components.ShareableItem
 import com.plyr.ui.components.ShareType
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -87,1186 +91,1647 @@ fun PlaylistsScreen(
     onInitialConsumed: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
-
-    // Repositorio local y manager de búsqueda
     val localRepository = remember { PlaylistLocalRepository(context) }
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
+    val downloadViewModel = remember { (context.applicationContext as? com.plyr.PlyrApp)?.downloadViewModel }
+    val state = rememberPlaylistsScreenState(
+        context = context,
+        initialPlaylistId = initialPlaylistId,
+        localRepository = localRepository,
+        youtubeSearchManager = youtubeSearchManager,
+        coroutineScope = coroutineScope,
+        playerViewModel = playerViewModel,
+        downloadViewModel = downloadViewModel,
+    )
 
-    // Observar el track actual para actualización reactiva del indicador de reproducción
     val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
-
-    // Descarga de audio de lista (Application-scoped, como el import): sobrevive
-    // a apagar la pantalla y a salir de la playlist.
-    val downloadViewModel = context.applicationContext as? com.plyr.PlyrApp
-    val downloadPlaylistId by downloadViewModel?.downloadViewModel?.playlistId?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf<String?>(null) }
-    val isDownloading by downloadViewModel?.downloadViewModel?.isDownloading?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf(false) }
-    val downloadProgress by downloadViewModel?.downloadViewModel?.progress?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf(0f) }
-    val downloadMessage by downloadViewModel?.downloadViewModel?.message?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf("") }
-    val downloadResult by downloadViewModel?.downloadViewModel?.resultMessage?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf<String?>(null) }
-    val downloadCurrentVideoId by downloadViewModel?.downloadViewModel?.currentVideoId?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf<String?>(null) }
-    val downloadCurrentFraction by downloadViewModel?.downloadViewModel?.currentFraction?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf(0f) }
-    val downloadRevision by downloadViewModel?.downloadViewModel?.revision?.collectAsStateWithLifecycle()
-        ?: remember { mutableStateOf(0) }
-
-    var showStorageDialog by remember { mutableStateOf(false) }
-
-    // Autoborrar el resultado de la descarga a los 3 s, igual que el import
-    LaunchedEffect(downloadResult) {
-        if (downloadResult != null) {
-            kotlinx.coroutines.delay(3000)
-            downloadViewModel?.downloadViewModel?.dismissResult()
-        }
-    }
-
-    // Estado para las playlists y autenticación
     val playlistsFromDB by localRepository.getAllPlaylistsLiveData().asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
-    var isEditing by remember { mutableStateOf(false) }
-
-    // Estado para Liked Songs - ahora desde DB
-    val likedSongsPlaylist by localRepository.getTracksByPlaylistLiveData("liked_songs")
-        .asFlow()
-        .collectAsStateWithLifecycle(initialValue = emptyList())
-    var likedSongsCount by remember { mutableIntStateOf(0) }
-
-    // Actualizar contador de Liked Songs
-    LaunchedEffect(likedSongsPlaylist) {
-        likedSongsCount = likedSongsPlaylist.size
-    }
-
-    // Estados para detectar cambios en modo edición (movidos aquí para ser accesibles globalmente)
-    var showExitEditDialog by remember { mutableStateOf(false) }
-    var hasUnsavedChanges by remember { mutableStateOf(false) }
-    var originalTitle by remember { mutableStateOf("") }
-    var originalDesc by remember { mutableStateOf("") }
-    var newTitle by remember { mutableStateOf("") }
-    var newDesc by remember { mutableStateOf("") }
-
-    // Convertir entidades a AppPlaylist para compatibilidad con UI existente
-    // (oculta los álbumes y la lista de favoritos vacía — F1)
-    val playlists = PlaylistLocalRepository.visiblePlaylists(playlistsFromDB)
-        .map { it.toAppPlaylist() }
-
-    // Estado para mostrar tracks de una playlist
-    var selectedPlaylist by remember { mutableStateOf<AppPlaylist?>(null) }
-    var selectedPlaylistEntity by remember { mutableStateOf<PlaylistEntity?>(null) }
-    var playlistTracks by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
-    var isLoadingTracks by remember { mutableStateOf(false) }
-    var showCreatePlaylistScreen by remember { mutableStateOf(false) }
-
-    // Estado y lanzador para cambiar la portada de una playlist (solo locales youtube_)
-    var coverPickUri by remember { mutableStateOf<Uri?>(null) }
-    val coverImagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) coverPickUri = uri
-    }
-
-    // Estado para manejar navegación pendiente cuando hay cambios sin guardar
-    var pendingPlaylist by remember { mutableStateOf<AppPlaylist?>(null) }
-
-    // Cargar tracks reactivamente cuando cambia la playlist seleccionada
-    var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
-    // Contador para recargar los tracks tras añadir/eliminar en modo edición (B3)
-    var tracksRevision by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    // Reordenado por arrastre (pulsación larga) de la lista principal
-    val reorderState = remember { ReorderState() }
-    LaunchedEffect(selectedPlaylistEntity?.remoteId, tracksRevision) {
-        val id = selectedPlaylistEntity?.remoteId
-        if (id != null) {
-            isLoadingTracks = true
-            val tracks = com.plyr.database.PlaylistDatabase.getDatabase(context).trackDao().getTracksByPlaylistSync(id)
-            trackEntities = tracks
-            playlistTracks = tracks.map { it.toAppTrack() }
-            isLoadingTracks = false
-        } else {
-            trackEntities = emptyList()
-            playlistTracks = emptyList()
-        }
-    }
-
-    // Qué pistas de la lista actual están ya en el almacén offline. Se recalcula
-    // al cambiar de lista o tras cada descarga/borrado (downloadRevision).
-    var downloadedVideoIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    LaunchedEffect(trackEntities, downloadRevision) {
-        downloadedVideoIds = withContext(Dispatchers.IO) {
-            trackEntities.mapNotNull { it.youtubeVideoId }
-                .filter { DownloadedAudioStore.localUri(context, it) != null }
-                .toSet()
-        }
-    }
-
+    val likedSongsPlaylist by localRepository.getTracksByPlaylistLiveData("liked_songs").asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
+    val download = rememberPlaylistDownloadValues(downloadViewModel)
+    val playlists = PlaylistLocalRepository.visiblePlaylists(playlistsFromDB).map { it.toAppPlaylist() }
     val loadPlaylistTracks: (AppPlaylist) -> Unit = { playlist ->
-        selectedPlaylist = playlist
-        selectedPlaylistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
+        state.selectedPlaylist = playlist
+        state.selectedPlaylistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
     }
 
-    // Abrir una playlist directamente desde el Home (carrusel)
-    var pendingInitialPlaylist by remember { mutableStateOf(initialPlaylistId) }
-    val openedFromHome = remember { initialPlaylistId != null }
-    LaunchedEffect(pendingInitialPlaylist) {
-        val pendingId = pendingInitialPlaylist
-        if (pendingId != null) {
-            val entity = playlistsFromDB.find { it.remoteId == pendingId }
-                ?: com.plyr.database.PlaylistDatabase.getDatabase(context).playlistDao().getPlaylistById(pendingId)
-            pendingInitialPlaylist = null
-            onInitialConsumed()
-            if (entity != null) {
-                selectedPlaylist = entity.toAppPlaylist()
-                selectedPlaylistEntity = entity
+    LikedSongsCountEffect(likedSongsPlaylist, state)
+    PlaylistsDownloadResultEffect(downloadViewModel, download.result)
+    PlaylistsTrackLoaderEffect(state)
+    PlaylistsDownloadedIdsEffect(state, download.revision)
+    PlaylistsInitialPlaylistEffect(state, playlistsFromDB, onInitialConsumed, onBack)
+    PlaylistsOpenCreateEffect(openCreate, state, onInitialConsumed)
+    PlaylistsBackHandler(state, onBack)
+
+    PlaylistsScreenContent(
+        state = state,
+        playlists = playlists,
+        playlistsFromDB = playlistsFromDB,
+        currentPlayingTrack = currentPlayingTrack,
+        download = download,
+        loadPlaylistTracks = loadPlaylistTracks,
+        haptic = haptic,
+        onBack = onBack,
+    )
+}
+
+@Composable
+private fun rememberPlaylistsScreenState(
+    context: Context,
+    initialPlaylistId: String?,
+    localRepository: PlaylistLocalRepository,
+    youtubeSearchManager: YouTubeSearchManager,
+    coroutineScope: CoroutineScope,
+    playerViewModel: PlayerViewModel?,
+    downloadViewModel: DownloadViewModel?,
+): PlaylistsScreenState = remember {
+    PlaylistsScreenState(
+        initialPlaylistId = initialPlaylistId,
+        deps = PlaylistsDependencies(
+            context = context,
+            localRepository = localRepository,
+            youtubeSearchManager = youtubeSearchManager,
+            coroutineScope = coroutineScope,
+            playerViewModel = playerViewModel,
+            downloadViewModel = downloadViewModel,
+        ),
+    )
+}
+
+private data class PlaylistsDependencies(
+    val context: Context,
+    val localRepository: PlaylistLocalRepository,
+    val youtubeSearchManager: YouTubeSearchManager,
+    val coroutineScope: CoroutineScope,
+    val playerViewModel: PlayerViewModel?,
+    val downloadViewModel: DownloadViewModel?,
+)
+
+@Stable
+private class PlaylistsScreenState(
+    initialPlaylistId: String?,
+    val deps: PlaylistsDependencies,
+) {
+    val context: Context get() = deps.context
+    val localRepository: PlaylistLocalRepository get() = deps.localRepository
+    val youtubeSearchManager: YouTubeSearchManager get() = deps.youtubeSearchManager
+    val coroutineScope: CoroutineScope get() = deps.coroutineScope
+    val playerViewModel: PlayerViewModel? get() = deps.playerViewModel
+    val downloadViewModel: DownloadViewModel? get() = deps.downloadViewModel
+
+    var isEditing by mutableStateOf(false)
+    var showExitEditDialog by mutableStateOf(false)
+    var hasUnsavedChanges by mutableStateOf(false)
+    var originalTitle by mutableStateOf("")
+    var originalDesc by mutableStateOf("")
+    var newTitle by mutableStateOf("")
+    var newDesc by mutableStateOf("")
+    var selectedPlaylist by mutableStateOf<AppPlaylist?>(null)
+    var selectedPlaylistEntity by mutableStateOf<PlaylistEntity?>(null)
+    var playlistTracks by mutableStateOf<List<AppTrack>>(emptyList())
+    var isLoadingTracks by mutableStateOf(false)
+    var showCreatePlaylistScreen by mutableStateOf(false)
+    var coverPickUri by mutableStateOf<Uri?>(null)
+    var pendingPlaylist by mutableStateOf<AppPlaylist?>(null)
+    var trackEntities by mutableStateOf<List<TrackEntity>>(emptyList())
+    var tracksRevision by mutableIntStateOf(0)
+    var downloadedVideoIds by mutableStateOf<Set<String>>(emptySet())
+    var showStorageDialog by mutableStateOf(false)
+    var pendingInitialPlaylist by mutableStateOf(initialPlaylistId)
+    var likedSongsCount by mutableIntStateOf(0)
+    var isRandomizing by mutableStateOf(false)
+    var isStarting by mutableStateOf(false)
+    var showShareDialog by mutableStateOf(false)
+    var showDeleteDialog by mutableStateOf(false)
+    val openedFromHome = initialPlaylistId != null
+    val reorderState = ReorderState()
+
+    fun enterEditMode() {
+        originalTitle = selectedPlaylist?.name ?: ""
+        originalDesc = selectedPlaylist?.description ?: ""
+        newTitle = originalTitle
+        newDesc = originalDesc
+        hasUnsavedChanges = false
+        isEditing = true
+    }
+
+    fun saveEdits(onBack: () -> Unit) {
+        if (hasUnsavedChanges) {
+            val toEdit = selectedPlaylist
+            if (toEdit != null) {
+                isLoadingTracks = true
+                coroutineScope.launch {
+                    val success = localRepository.updatePlaylistDetails(
+                        localPlaylistId = toEdit.id,
+                        newTitle = if (newTitle != originalTitle) newTitle else null,
+                        newDesc = if (newDesc != originalDesc) newDesc else null
+                    )
+                    isLoadingTracks = false
+                    if (success) {
+                        isEditing = false
+                        hasUnsavedChanges = false
+                        selectedPlaylist = null
+                        playlistTracks = emptyList()
+                        onBack()
+                    } else {
+                        Log.e("PlaylistScreen", "Error actualizando playlist")
+                    }
+                }
             } else {
-                onBack()
+                hasUnsavedChanges = false
+                isEditing = false
             }
+        } else {
+            hasUnsavedChanges = false
+            isEditing = false
         }
     }
 
-    // Abrir la pantalla de crear playlist desde el Home si se pidió
-    LaunchedEffect(Unit) {
-        if (openCreate) {
-            showCreatePlaylistScreen = true
-            onInitialConsumed()
-        }
-    }
-
-    // Manejar botón de retroceso del sistema
-    BackHandler {
-        if (isEditing && hasUnsavedChanges) {
-            showExitEditDialog = true
-        } else if (selectedPlaylist != null) {
-            if (openedFromHome) {
-                onBack()
-            } else {
+    fun deletePlaylist(onBack: () -> Unit) {
+        val toDelete = selectedPlaylist
+        if (toDelete != null) {
+            coroutineScope.launch {
+                localRepository.deletePlaylist(toDelete.id)
                 isEditing = false
                 hasUnsavedChanges = false
                 selectedPlaylist = null
-                selectedPlaylistEntity = null
                 playlistTracks = emptyList()
+                onBack()
             }
-        } else {
-            isEditing = false
-            hasUnsavedChanges = false
-            onBack()
         }
     }
 
+    fun stopAllPlayback() {
+        isRandomizing = false
+        isStarting = false
+        playerViewModel?.cancelPendingPlayback()
+        playerViewModel?.pausePlayer()
+    }
+
+    fun startRandomizing() {
+        stopAllPlayback()
+        isRandomizing = true
+        val pvm = playerViewModel
+        if (playlistTracks.isNotEmpty() && pvm != null) {
+            pvm.clearPlayerState()
+            val shuffledTracks = trackEntities.shuffled()
+            val firstTrack = shuffledTracks.first()
+            pvm.initializePlayer()
+            pvm.setCurrentPlaylist(shuffledTracks, 0)
+            pvm.playTrack(firstTrack) {
+                isRandomizing = false
+            }
+        } else {
+            isRandomizing = false
+        }
+    }
+
+    fun startOrderedPlayback() {
+        stopAllPlayback()
+        isStarting = true
+        val pvm = playerViewModel
+        if (playlistTracks.isNotEmpty() && pvm != null && trackEntities.isNotEmpty()) {
+            pvm.clearPlayerState()
+            pvm.setCurrentPlaylist(trackEntities, 0)
+            pvm.playTrack(trackEntities[0]) {
+                isStarting = false
+            }
+        } else {
+            isStarting = false
+        }
+    }
+
+    fun reorderTracks(from: Int, to: Int) {
+        if (from != to) {
+            val reordered = Reorder.move(playlistTracks, from, to)
+            playlistTracks = reordered
+            val playlistId = selectedPlaylistEntity?.remoteId
+            if (playlistId != null) {
+                coroutineScope.launch {
+                    localRepository.reorderTracks(
+                        localPlaylistId = playlistId,
+                        orderedTrackIds = reordered.map { it.id }
+                    )
+                    tracksRevision++
+                }
+            }
+        }
+    }
+
+    fun addTrackToPlaylist(track: AppTrack, onError: (String) -> Unit) {
+        val toAdd = selectedPlaylist ?: return
+        coroutineScope.launch {
+            val success = localRepository.addTrackToYouTubePlaylist(
+                localPlaylistId = toAdd.id,
+                track = TrackEntity(
+                    id = "",
+                    playlistId = toAdd.id,
+                    remoteTrackId = track.id,
+                    name = track.name,
+                    artists = track.getArtistNames(),
+                    youtubeVideoId = track.id.takeIf { isYouTubeVideoId(it) },
+                    audioUrl = null,
+                    position = 0,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            )
+            if (success) {
+                tracksRevision++
+            } else {
+                onError(Translations.get(context, "error_adding_track"))
+            }
+        }
+    }
+
+    fun removeTrackFromPlaylist(track: AppTrack, onError: (String) -> Unit) {
+        val toRemove = selectedPlaylist ?: return
+        coroutineScope.launch {
+            val success = localRepository.removeTrackFromYouTubePlaylist(
+                localPlaylistId = toRemove.id,
+                remoteTrackId = track.id
+            )
+            if (success) {
+                tracksRevision++
+            } else {
+                onError(Translations.get(context, "error_removing_track"))
+            }
+        }
+    }
+
+    fun resetTransientUi() {
+        isRandomizing = false
+        isStarting = false
+        showShareDialog = false
+        showDeleteDialog = false
+    }
+
+    fun confirmExitEdit(loadPlaylistTracks: (AppPlaylist) -> Unit) {
+        showExitEditDialog = false
+        isEditing = false
+        hasUnsavedChanges = false
+        val pending = pendingPlaylist
+        if (pending != null) {
+            selectedPlaylist = pending
+            loadPlaylistTracks(pending)
+            pendingPlaylist = null
+        } else {
+            selectedPlaylist = null
+            playlistTracks = emptyList()
+        }
+    }
+}
+
+private data class PlaylistDownloadValues(
+    val viewModel: DownloadViewModel?,
+    val playlistId: String?,
+    val isDownloading: Boolean,
+    val progress: Float,
+    val message: String,
+    val result: String?,
+    val currentVideoId: String?,
+    val currentFraction: Float,
+    val revision: Int,
+)
+
+@Composable
+private fun rememberPlaylistDownloadValues(viewModel: DownloadViewModel?): PlaylistDownloadValues {
+    val playlistId by viewModel?.playlistId?.collectAsStateWithLifecycle() ?: remember { mutableStateOf<String?>(null) }
+    val isDownloading by viewModel?.isDownloading?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
+    val progress by viewModel?.progress?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(0f) }
+    val message by viewModel?.message?.collectAsStateWithLifecycle() ?: remember { mutableStateOf("") }
+    val result by viewModel?.resultMessage?.collectAsStateWithLifecycle() ?: remember { mutableStateOf<String?>(null) }
+    val currentVideoId by viewModel?.currentVideoId?.collectAsStateWithLifecycle() ?: remember { mutableStateOf<String?>(null) }
+    val currentFraction by viewModel?.currentFraction?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(0f) }
+    val revision by viewModel?.revision?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(0) }
+    return PlaylistDownloadValues(
+        viewModel = viewModel,
+        playlistId = playlistId,
+        isDownloading = isDownloading,
+        progress = progress,
+        message = message,
+        result = result,
+        currentVideoId = currentVideoId,
+        currentFraction = currentFraction,
+        revision = revision,
+    )
+}
+
+@Composable
+private fun LikedSongsCountEffect(
+    likedSongsPlaylist: List<TrackEntity>,
+    state: PlaylistsScreenState,
+) {
+    LaunchedEffect(likedSongsPlaylist) {
+        state.likedSongsCount = likedSongsPlaylist.size
+    }
+}
+
+@Composable
+private fun PlaylistsDownloadResultEffect(
+    downloadViewModel: DownloadViewModel?,
+    downloadResult: String?,
+) {
+    LaunchedEffect(downloadResult) {
+        if (downloadResult != null) {
+            kotlinx.coroutines.delay(3000)
+            downloadViewModel?.dismissResult()
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsTrackLoaderEffect(state: PlaylistsScreenState) {
+    LaunchedEffect(state.selectedPlaylistEntity?.remoteId, state.tracksRevision) {
+        val id = state.selectedPlaylistEntity?.remoteId
+        if (id != null) {
+            state.isLoadingTracks = true
+            val tracks = PlaylistDatabase.getDatabase(state.context).trackDao().getTracksByPlaylistSync(id)
+            state.trackEntities = tracks
+            state.playlistTracks = tracks.map { it.toAppTrack() }
+            state.isLoadingTracks = false
+        } else {
+            state.trackEntities = emptyList()
+            state.playlistTracks = emptyList()
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsDownloadedIdsEffect(
+    state: PlaylistsScreenState,
+    downloadRevision: Int,
+) {
+    LaunchedEffect(state.trackEntities, downloadRevision) {
+        state.downloadedVideoIds = withContext(Dispatchers.IO) {
+            state.trackEntities.mapNotNull { it.youtubeVideoId }
+                .filter { DownloadedAudioStore.localUri(state.context, it) != null }
+                .toSet()
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsInitialPlaylistEffect(
+    state: PlaylistsScreenState,
+    playlistsFromDB: List<PlaylistEntity>,
+    onInitialConsumed: () -> Unit,
+    onBack: () -> Unit,
+) {
+    LaunchedEffect(state.pendingInitialPlaylist) {
+        val pendingId = state.pendingInitialPlaylist
+        if (pendingId != null) {
+            val entity = playlistsFromDB.find { it.remoteId == pendingId }
+                ?: PlaylistDatabase.getDatabase(state.context).playlistDao().getPlaylistById(pendingId)
+            state.pendingInitialPlaylist = null
+            onInitialConsumed()
+            if (entity != null) {
+                state.selectedPlaylist = entity.toAppPlaylist()
+                state.selectedPlaylistEntity = entity
+            } else {
+                onBack()
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsOpenCreateEffect(
+    openCreate: Boolean,
+    state: PlaylistsScreenState,
+    onInitialConsumed: () -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        if (openCreate) {
+            state.showCreatePlaylistScreen = true
+            onInitialConsumed()
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsBackHandler(
+    state: PlaylistsScreenState,
+    onBack: () -> Unit,
+) {
+    BackHandler {
+        if (state.isEditing && state.hasUnsavedChanges) {
+            state.showExitEditDialog = true
+        } else if (state.selectedPlaylist != null) {
+            if (state.openedFromHome) {
+                onBack()
+            } else {
+                state.isEditing = false
+                state.hasUnsavedChanges = false
+                state.selectedPlaylist = null
+                state.selectedPlaylistEntity = null
+                state.playlistTracks = emptyList()
+            }
+        } else {
+            state.isEditing = false
+            state.hasUnsavedChanges = false
+            onBack()
+        }
+    }
+}
+
+@Composable
+private fun PlaylistsScreenContent(
+    state: PlaylistsScreenState,
+    playlists: List<AppPlaylist>,
+    playlistsFromDB: List<PlaylistEntity>,
+    currentPlayingTrack: TrackEntity?,
+    download: PlaylistDownloadValues,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+    haptic: HapticFeedback,
+    onBack: () -> Unit,
+) {
     Column(
         Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
         //si se pulsa boton de <new> mostrar CreatePlaylistScreen
-        if (showCreatePlaylistScreen) {
+        if (state.showCreatePlaylistScreen) {
             CreatePlaylistScreen(
-                onBack = { showCreatePlaylistScreen = false; onBack() },
-                onPlaylistCreated = { showCreatePlaylistScreen = false; onBack() },
-                playerViewModel = playerViewModel
+                onBack = { state.showCreatePlaylistScreen = false; onBack() },
+                onPlaylistCreated = { state.showCreatePlaylistScreen = false; onBack() },
+                playerViewModel = state.playerViewModel
             )
             return@Column
         }
-        val playlistSel = selectedPlaylist
+        val playlistSel = state.selectedPlaylist
         if (playlistSel != null) {
-            Titulo(playlistSel.name)
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Descripción de la playlist entre el título y los botones,
-            // pegada a la derecha (estilo WhatsApp "~descripción").
-            // Para playlists de YouTube el autor se guarda como "YouTube Playlist by USER"
-            // y aquí se muestra solo "USER".
-            val rawDescription = selectedPlaylistEntity?.description ?: selectedPlaylist?.description
-            val channelName = youtubeAuthorFromDescription(selectedPlaylistEntity?.description)
-            val playlistDescription = (channelName ?: rawDescription)?.takeIf { it.isNotBlank() }
-            if (playlistDescription != null) {
-                Text(
-                    text = "~$playlistDescription",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    textAlign = TextAlign.End,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-
-                // Vista de tracks de playlist
-                if (isLoadingTracks) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = Translations.get(context, "loading_tracks"),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        )
-                    }   
-                } else {
-                    // Estados para los botones de control
-                    var isRandomizing by remember { mutableStateOf(false) }
-                    var isStarting by remember { mutableStateOf(false) }
-                    var showShareDialog by remember { mutableStateOf(false) }
-
-                    // Determinar si la playlist seleccionada es editable (es 'mía')
-                    // Las playlists de YouTube (prefijo youtube_) también son editables: son locales
-                    val isYouTubePlaylistView = isYouTubePlaylistId(selectedPlaylist?.id)
-                    val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs"
-
-                    // Origen de la lista para compartir (B53). Sin una columna que
-                    // lo guarde se deduce del id y la description, y si no se
-                    // reconoce con certeza la lista no ofrece compartir: antes se
-                    // montaba una URL adivinada que no abría nada.
-                    val playlistShareOrigin = remember(selectedPlaylistEntity) {
-                        PlaylistShare.classify(
-                            selectedPlaylistEntity?.remoteId,
-                            selectedPlaylistEntity?.description,
-                            selectedPlaylistEntity?.source,
-                            selectedPlaylistEntity?.sourceId,
-                        )
-                    }
-                    val isPlaylistShareable = playlistShareOrigin != PlaylistOrigin.UNKNOWN
-
- // Función para parar todas las reproducciones
-                     fun stopAllPlayback() {
-                         isRandomizing = false
-                         isStarting = false
-                         // Cancela la resolución que esté en vuelo: antes eran los
-                         // jobs de esta pantalla, ahora vive en el ViewModel (B60)
-                         playerViewModel?.cancelPendingPlayback()
-                         playerViewModel?.pausePlayer()
-                     }
-
-
-                    // Función para randomización simplificada - mezcla toda la playlist
-                    fun startRandomizing() {
-                        stopAllPlayback()
-                        isRandomizing = true
-
-                        if (playlistTracks.isNotEmpty() && playerViewModel != null) {
-                            // Limpiar estado previo del reproductor
-                            playerViewModel.clearPlayerState()
-
-                            // Mezclar toda la lista de tracks
-                            val shuffledTracks = trackEntities.shuffled()
-                            val firstTrack = shuffledTracks.first()
-
-                            // Reproducir la canción usando PlayerViewModel
-                            playerViewModel.initializePlayer()
-
-                            // Establecer la playlist mezclada completa desde el inicio (índice 0)
-                            playerViewModel.setCurrentPlaylist(shuffledTracks, 0)
-
-                            // Cargar y reproducir. La resolución corre en el scope del
-                            // ViewModel: salir de esta pantalla no la cancela (B60)
-                            playerViewModel.playTrack(firstTrack) {
-                                isRandomizing = false
-                            }
-                        } else {
-                            isRandomizing = false
-                        }
-                    }
-
-                    // Función para reproducción ordenada simplificada - replica exactamente el comportamiento de hacer clic en la primera canción
-                    fun startOrderedPlayback() {
-                        stopAllPlayback()
-                        isStarting = true
-
-                        if (playlistTracks.isNotEmpty() && playerViewModel != null && trackEntities.isNotEmpty()) {
-                            // Limpiar estado previo del reproductor
-                            playerViewModel.clearPlayerState()
-
-                            // Replicar exactamente la lógica de SongListItem cuando haces clic en una canción
-                            playerViewModel.setCurrentPlaylist(trackEntities, 0)
-
-                            // El callback apaga el "//" al terminar (o si se cancela);
-                            // la resolución no depende de la vida de esta pantalla (B60)
-                            playerViewModel.playTrack(trackEntities[0]) {
-                                isStarting = false
-                            }
-                        } else {
-                            isStarting = false
-                        }
-                    }
-
-                    Column {
-                        // Botones de control
-                        var showDeleteDialog by remember { mutableStateOf(false) }
-
-                        val buttons = buildList {
-                            if (!isEditing) {
-                                // Botón start
-                                add(ActionButtonData(
-                                    text = if (isStarting) "//" else ">",
-                                    color = if (isStarting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                                    onClick = {
-                                        if (isStarting) {
-                                            stopAllPlayback()
-                                        } else {
-                                            startOrderedPlayback()
-                                        }
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                ))
-
-                                // Botón rand
-                                add(ActionButtonData(
-                                    text = if (isRandomizing) "<stop>" else "<rnd>",
-                                    color = if (isRandomizing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
-                                    onClick = {
-                                        if (isRandomizing) {
-                                            stopAllPlayback()
-                                        } else {
-                                            startRandomizing()
-                                        }
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                ))
-
-                                // Botón share: solo si hay una URL de verdad detrás
-                                // (B53). Los favoritos y las listas creadas en la
-                                // app no son de ningún servicio, así que antes
-                                // producían un QR a una página inexistente.
-                                if (isPlaylistShareable) {
-                                    add(ActionButtonData(
-                                        text = "<share>",
-                                        color = MaterialTheme.colorScheme.error,
-                                        onClick = {
-                                            showShareDialog = true
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                    ))
-                                }
-
-                                // Botón download: baja el audio de la lista que
-                                // falte (solo si hay filas con videoId en BD)
-                                if (selectedPlaylistEntity != null) {
-                                    val downloadingThis = isDownloading && downloadPlaylistId == selectedPlaylist?.id
-                                    add(ActionButtonData(
-                                        text = if (downloadingThis) "<stop>" else "<dwn>",
-                                        color = if (downloadingThis) MaterialTheme.colorScheme.error
-                                            else MaterialTheme.colorScheme.tertiary,
-                                        onClick = {
-                                            if (downloadingThis) {
-                                                downloadViewModel?.downloadViewModel?.cancel()
-                                            } else {
-                                                downloadViewModel?.downloadViewModel?.startDownload(
-                                                    playlistId = selectedPlaylist?.id.orEmpty(),
-                                                    playlistTitle = selectedPlaylist?.name.orEmpty(),
-                                                    tracks = trackEntities
-                                                )
-                                            }
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                    ))
-                                }
-
-                                // Botón de gestión del audio offline (tamaño y borrado)
-                                if (selectedPlaylistEntity != null) {
-                                    add(ActionButtonData(
-                                        text = "<clean>",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        onClick = {
-                                            showStorageDialog = true
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        }
-                                    ))
-                                }
-                            }
-
-                            // Botón edit/save
-                            if (canEdit) {
-                                add(ActionButtonData(
-                                    text = if (isEditing) "<save>" else "<edit>",
-                                    color = if (isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    onClick = {
-                                        if (isEditing) {
-                                            // Al hacer clic en save, verificar si hay cambios sin guardar
-                                                if (hasUnsavedChanges) {
-                                                    // Guardar cambios en la playlist local
-                                                    val toEdit = selectedPlaylist
-                                                    if (toEdit != null) {
-                                                        isLoadingTracks = true
-                                                        coroutineScope.launch {
-                                                            val success = localRepository.updatePlaylistDetails(
-                                                                localPlaylistId = toEdit.id,
-                                                            newTitle = if (newTitle != originalTitle) newTitle else null,
-                                                            newDesc = if (newDesc != originalDesc) newDesc else null
-                                                        )
-                                                        isLoadingTracks = false
-                                                        if (success) {
-                                                            isEditing = false
-                                                            hasUnsavedChanges = false
-                                                            selectedPlaylist = null
-                                                            playlistTracks = emptyList()
-                                                            onBack()
-                                                        } else {
-                                                            Log.e("PlaylistScreen", "Error actualizando playlist")
-                                                        }
-                                                    }
-                                                } else {
-                                                    hasUnsavedChanges = false
-                                                    isEditing = false
-                                                }
-                                            } else {
-                                                // Si no hay cambios, solo salir del modo edición
-                                                isEditing = false
-                                            }
-                                        } else {
-                                            // Al entrar al modo edición, guardar valores originales e inicializar campos
-                                            originalTitle = selectedPlaylist?.name ?: ""
-                                            originalDesc = selectedPlaylist?.description ?: ""
-                                            newTitle = originalTitle
-                                            newDesc = originalDesc
-                                            hasUnsavedChanges = false
-                                            isEditing = true
-                                        }
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                ))
-                            }
-
-                            // Botón delete
-                            if (canEdit && isEditing) {
-                                add(ActionButtonData(
-                                    text = "<delete>",
-                                    color = MaterialTheme.colorScheme.error,
-                                    onClick = {
-                                        showDeleteDialog = true
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    }
-                                ))
-                            }
-                        }
-
-                        ActionButtonsGroup(
-                            buttons = buttons,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 4.dp)
-                        )
-
-                        // Barra de descarga de la lista (como la de import):
-                        // solo aparece para la lista que se está descargando.
-                        if (downloadPlaylistId == selectedPlaylist?.id && (isDownloading || downloadResult != null)) {
-                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                Text(
-                                    text = if (isDownloading) downloadMessage else downloadResult.orEmpty(),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = if (isDownloading) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.outline
-                                    )
-                                )
-                                if (isDownloading) {
-                                    Spacer(Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { downloadProgress },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
-
-                        // Diálogo de gestión del audio offline (tamaño y borrado)
-                        if (showStorageDialog) {
-                            OfflineStorageDialog(
-                                context = context,
-                                onDeleteAll = { downloadViewModel?.downloadViewModel?.clearDownloads() },
-                                onDismiss = { showStorageDialog = false }
-                            )
-                        }
-
-                        // Diálogo de confirmación para eliminar playlist
-                        if (showDeleteDialog) {
-                            AlertDialog(
-                                onDismissRequest = { showDeleteDialog = false },
-                                title = {
-                                    Text(
-                                        Translations.get(context, "delete_playlist_title"),
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    )
-                                },
-                                text = {
-                                    Text(
-                                        String.format(
-Locale.ROOT,
-                                            Translations.get(context, "delete_playlist_message"),
-                                            selectedPlaylist?.name ?: ""
-                                        ),
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    )
-                                },
-                                confirmButton = {
-                                    TextButton(
-                                        onClick = {
-                                            showDeleteDialog = false
-                                            val toDelete = selectedPlaylist
-                                            if (toDelete != null) {
-                                                // Eliminar playlist local
-                                                coroutineScope.launch {
-                                                    // remoteId completo: deleteYouTubePlaylist
-                                                    // anteponía "youtube_" y no borraba las
-                                                    // listas que no lo llevan
-                                                    localRepository.deletePlaylist(toDelete.id)
-                                                    isEditing = false
-                                                    hasUnsavedChanges = false
-                                                    selectedPlaylist = null
-                                                    playlistTracks = emptyList()
-                                                    onBack()
-                                                }
-                                            }
-                                        }
-                                    ) {
-                                        Text(
-                                            Translations.get(context, "delete"),
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                        )
-                                    }
-                                },
-                                dismissButton = {
-                                    TextButton(
-                                        onClick = { showDeleteDialog = false }
-                                    ) {
-                                        Text(
-                                            Translations.get(context, "cancel"),
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        )
-                                    }
-                                }
-                            )
-                        }
-                        if (isEditing) {
-                            // Estados para el buscador de canciones en edición
-                            var searchQuery by remember { mutableStateOf("") }
-                            var isSearching by remember { mutableStateOf(false) }
-                            var searchResults by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
-                            var editError by remember { mutableStateOf<String?>(null) }
-
-                            // Detectar cambios en los campos
-                            LaunchedEffect(newTitle, newDesc) {
-                                hasUnsavedChanges = (newTitle != originalTitle || newDesc != originalDesc)
-                            }
-
-                            // Usar LazyColumn para permitir scroll
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                contentPadding = PaddingValues(bottom = 8.dp)
-                            ) {
-                                // Nombre y descripción, con la portada a la izquierda
-                                // (la propia portada es el botón para cambiarla)
-                                if (isYouTubePlaylistView) {
-                                    item {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            AsyncImage(
-                                                model = youtubeThumbTo16to9(selectedPlaylistEntity?.imageUrl),
-                                                contentDescription = "Portada actual (pulsar para cambiar)",
-                                                modifier = Modifier
-                                                    .size(120.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .clickable {
-                                                        coverImagePickerLauncher.launch(
-                                                            PickVisualMediaRequest(
-                                                                ActivityResultContracts.PickVisualMedia.ImageOnly
-                                                            )
-                                                        )
-                                                    },
-                                                contentScale = ContentScale.Crop,
-                                                placeholder = null,
-                                                error = null,
-                                                fallback = null
-                                            )
-                                            Spacer(Modifier.width(12.dp))
-                                            Column(Modifier.weight(1f)) {
-                                                OutlinedTextField(
-                                                    value = newTitle,
-                                                    onValueChange = { newTitle = it },
-                                                    label = { Text(Translations.get(context, "playlist_name")) },
-                                                    modifier = Modifier.fillMaxWidth()
-                                                )
-                                                Spacer(Modifier.height(8.dp))
-                                                OutlinedTextField(
-                                                    value = newDesc,
-                                                    onValueChange = { newDesc = it },
-                                                    label = { Text(Translations.get(context, "description")) },
-                                                    modifier = Modifier.fillMaxWidth()
-                                                )
-                                            }
-                                        }
-                                        Spacer(Modifier.height(16.dp))
-                                    }
-                                } else {
-                                    item {
-                                        OutlinedTextField(
-                                            value = newTitle,
-                                            onValueChange = { newTitle = it },
-                                            label = { Text(Translations.get(context, "playlist_name")) },
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                        Spacer(Modifier.height(8.dp))
-                                    }
-                                    item {
-                                        OutlinedTextField(
-                                            value = newDesc,
-                                            onValueChange = { newDesc = it },
-                                            label = { Text(Translations.get(context, "description")) },
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                        Spacer(Modifier.height(16.dp))
-                                    }
-                                }
-
-                                // Campo de búsqueda
-                                item {
-                                    OutlinedTextField(
-                                        value = searchQuery,
-                                        onValueChange = { searchQuery = it },
-                                        label = { Text(Translations.get(context, "search_tracks_label")) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        trailingIcon = {
-                                            if (searchQuery.isNotEmpty()) {
-                                                IconButton(onClick = { searchQuery = "" }) {
-                                                    Text(
-                                                        text = "x",
-                                                        style = MaterialTheme.typography.titleMedium.copy(
-                                                            fontFamily = FontFamily.Monospace
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                        },
-                                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                        keyboardActions = KeyboardActions(
-                                            onSearch = {
-                                                if (searchQuery.isNotBlank() && !isSearching) {
-                                                    isSearching = true
-                                                    // Búsqueda de vídeos de YouTube con la integración existente
-                                                    coroutineScope.launch {
-                                                        val result = try {
-                                                            youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
-                                                        } catch (e: Exception) {
-                                                            Log.e("PlaylistScreen", "Error buscando en YouTube: ${e.message}")
-                                                            null
-                                                        }
-                                                        isSearching = false
-                                                        if (result != null) {
-                                                            searchResults = result.videos.map { video ->
-                                                                AppTrack(
-                                                                    id = video.videoId,
-                                                                    name = video.title,
-                                                                    artists = listOf(AppArtist(video.uploader))
-                                                                )
-                                                            }
-                                                        } else {
-                                                            editError = Translations.get(context, "youtube_search_failed")
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        ),
-                                        enabled = !isSearching
-                                    )
-                                }
-
-                                // Mostrar indicador de búsqueda
-                                if (isSearching) {
-                                    item {
-                                        Spacer(Modifier.height(8.dp))
-                                        Text(
-                                            text = "$ searching...",
-                                            style = MaterialTheme.typography.bodySmall.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.tertiary
-                                            )
-                                        )
-                                    }
-                                }
-
-                                // Resultados de búsqueda usando SongListItem
-                                if (searchResults.isNotEmpty()) {
-                                    item {
-                                        Spacer(Modifier.height(8.dp))
-                                        Text(
-                                            text = "results:",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.onBackground
-                                            )
-                                        )
-                                    }
-
-                                    // Crear trackEntities para los resultados de búsqueda
-                                    val searchTrackEntities = buildSearchTrackEntities(
-                                        tracks = searchResults,
-                                        idPrefix = "edit_search",
-                                        timestamp = System.currentTimeMillis(),
-                                    )
-
-                                    val searchItemKeys = stableKeys(searchResults.take(10).map { it.id })
-                                    items(searchResults.take(10).size, key = { index -> searchItemKeys[index] }) { index ->
-                                        val track = searchResults[index]
-                                        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                                         SongListItem(
-                                             song = Song(
-                                                 number = index + 1,
-                                                 title = track.name,
-                                                 artist = track.getArtistNames(),
-                                                 remoteId = track.id,
-                                                 youtubeId = track.id.takeIf { isYouTubeVideoId(it) },
-                                                 shareUrl = "https://www.youtube.com/watch?v=${track.id}"
-                                             ),
-                                             trackEntities = searchTrackEntities,
-                                             index = index,
-                                             playerViewModel = playerViewModel,
-                                             coroutineScope = coroutineScope,
-                                             isCurrentlyPlaying = isPlaying,
-                                             customButtonIcon = "+",
-                                             customButtonAction = {
-                                                 val toAdd = selectedPlaylist
-                                                 if (toAdd != null) {
-                                                     // Añadir track a la playlist de YouTube local (videoId ya resuelto)
-                                                     coroutineScope.launch {
-                                                         val success = localRepository.addTrackToYouTubePlaylist(
-                                                             localPlaylistId = toAdd.id,
-                                                             track = TrackEntity(
-                                                                 id = "",
-                                                                 playlistId = toAdd.id,
-                                                                 remoteTrackId = track.id,
-                                                                 name = track.name,
-                                                                 artists = track.getArtistNames(),
-                                                                 youtubeVideoId = track.id.takeIf { isYouTubeVideoId(it) },
-                                                                 audioUrl = null,
-                                                                 position = 0,
-                                                                 lastSyncTime = System.currentTimeMillis()
-                                                             )
-                                                         )
-                                                         if (success) {
-                                                             tracksRevision++
-                                                         } else {
-                                                             editError = Translations.get(context, "error_adding_track")
-                                                         }
-                                                     }
-                                                 }
-                                             },
-                                             modifier = Modifier.fillMaxWidth()
-                                         )
-                                    }
-                                }
-
-                                // Mostrar error si hay
-                                editError?.let {
-                                    item {
-                                        Spacer(Modifier.height(8.dp))
-                                        Text("${Translations.get(context, "error_prefix")}$it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
-                                    }
-                                }
-
-                                item {
-                                    Spacer(Modifier.height(16.dp))
-                                }
-
-                                // Lista de canciones actuales usando SongListItem
-                                if (playlistTracks.isNotEmpty()) {
-                                    item {
-                                        Text(
-                                            text = "current tracks [${playlistTracks.size}]:",
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        )
-                                        Spacer(Modifier.height(8.dp))
-                                    }
-
-                                    val playlistItemKeys = stableKeys(playlistTracks.map { it.id })
-                                    items(playlistTracks.size, key = { index -> playlistItemKeys[index] }) { index ->
-                                        val track = playlistTracks[index]
-                                        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                                         SongListItem(
-                                             song = Song(
-                                                 number = index + 1,
-                                                 title = track.name,
-                                                 artist = track.getArtistNames(),
-                                                 remoteId = track.id,
-                                                 youtubeId = track.youtubeVideoId,
-                                                 shareUrl = null
-                                             ),
-                                             trackEntities = trackEntities,
-                                             index = index,
-                                             playerViewModel = playerViewModel,
-                                             coroutineScope = coroutineScope,
-                                             isCurrentlyPlaying = isPlaying,
-                                             customButtonIcon = "x",
-                                             customButtonAction = {
-                                                 val toRemove = selectedPlaylist
-                                                 if (toRemove != null) {
-                                                     // Eliminar track de la playlist de YouTube local
-                                                     coroutineScope.launch {
-                                                         val success = localRepository.removeTrackFromYouTubePlaylist(
-                                                             localPlaylistId = toRemove.id,
-                                                             remoteTrackId = track.id
-                                                         )
-                                                         if (success) {
-                                                             tracksRevision++
-                                                         } else {
-                                                             editError = Translations.get(context, "error_removing_track")
-                                                         }
-                                                     }
-                                                 }
-                                             },
-                                             modifier = Modifier.fillMaxWidth()
-                                         )
-                                    }
-                                }
-                            }
-                        }
-                        // Lista de tracks (solo visible cuando NO está en modo edición)
-                        if (!isEditing) {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentPadding = PaddingValues(bottom = 16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Prepara trackEntities - si no hay en DB, crear temporales
-                                val trackEntitiesList = trackEntities.ifEmpty {
-                                    // Crear TrackEntities temporales para álbumes u otras fuentes sin BD
-                                    playlistTracks.mapIndexed { trackIndex, track ->
-                                        TrackEntity(
-                                            id = "temp_${selectedPlaylist?.id}_${track.id}",
-                                            playlistId = selectedPlaylist?.id ?: "unknown",
-                                            remoteTrackId = track.id,
-                                            name = track.name,
-                                            artists = track.getArtistNames(),
-                                            youtubeVideoId = null,
-                                            audioUrl = null,
-                                            position = trackIndex,
-                                            lastSyncTime = System.currentTimeMillis()
-                                        )
-                                    }
-                                }
-
-                                val playlistItemKeys = stableKeys(playlistTracks.map { it.id })
-                                items(playlistTracks.size, key = { index -> playlistItemKeys[index] }) { index ->
-                                    val track = playlistTracks[index]
-                                     val song = Song(
-                                         number = index + 1,
-                                         title = track.name,
-                                         artist = track.getArtistNames(),
-                                         remoteId = track.id,
-                                         youtubeId = track.youtubeVideoId,
-                                         shareUrl = null
-                                     )
-                                    val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                                    val videoId = track.youtubeVideoId
-                                    val isDownloaded = videoId != null && videoId in downloadedVideoIds
-                                    val trackProgress = if (isDownloading && videoId != null && videoId == downloadCurrentVideoId) {
-                                        downloadCurrentFraction
-                                    } else null
-                                    Box(
-                                        modifier = reorderState.itemModifier(
-                                            id = track.id,
-                                            index = index,
-                                            itemCount = playlistTracks.size
-                                        ) { from, to ->
-                                            if (from != to) {
-                                                val reordered = Reorder.move(playlistTracks, from, to)
-                                                playlistTracks = reordered
-                                                val playlistId = selectedPlaylistEntity?.remoteId
-                                                if (playlistId != null) {
-                                                    coroutineScope.launch {
-                                                        localRepository.reorderTracks(
-                                                            localPlaylistId = playlistId,
-                                                            orderedTrackIds = reordered.map { it.id }
-                                                        )
-                                                        tracksRevision++
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    ) {
-                                        SongListItem(
-                                            song = song,
-                                            trackEntities = trackEntitiesList,
-                                            index = index,
-                                            playerViewModel = playerViewModel,
-                                            coroutineScope = coroutineScope,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            isCurrentlyPlaying = isPlaying,
-                                            onLikedStatusChanged = { tracksRevision++ },
-                                            isDownloaded = isDownloaded,
-                                            downloadProgress = trackProgress,
-                                            onDeleteDownload = if (isDownloaded && videoId != null) {
-                                                { downloadViewModel?.downloadViewModel?.removeDownload(videoId) }
-                                            } else null
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Diálogo de confirmación para salir sin guardar
-                    if (showExitEditDialog) {
-                        AlertDialog(
-                            onDismissRequest = {
-                                showExitEditDialog = false
-                                pendingPlaylist = null
-                            },
-                            title = {
-                                Text(
-                                    Translations.get(context, "unsaved_changes_title"),
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                )
-                            },
-                            text = {
-                                Text(
-                                    Translations.get(context, "unsaved_changes_message"),
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                )
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        showExitEditDialog = false
-                                        isEditing = false
-                                        hasUnsavedChanges = false
-
-                                        // Si hay una playlist pendiente, cargarla
-                                        val pending = pendingPlaylist
-                                        if (pending != null) {
-                                            selectedPlaylist = pending
-                                            loadPlaylistTracks(pending)
-                                            pendingPlaylist = null
-                                        } else {
-                                            // Si no hay playlist pendiente, salir de la vista actual
-                                            selectedPlaylist = null
-                                            playlistTracks = emptyList()
-                                        }
-                                    }
-                                ) {
-                                    Text(
-                                        Translations.get(context, "exit"),
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    )
-                                }
-                            },
-                            dismissButton = {
-                                TextButton(
-                                    onClick = {
-                                        showExitEditDialog = false
-                                        pendingPlaylist = null
-                                    }
-                                ) {
-                                    Text(
-                                        Translations.get(context, "cancel"),
-                                        style = MaterialTheme.typography.bodyMedium.copy(
-                                            fontFamily = FontFamily.Monospace,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    )
-                                }
-                            }
-                        )
-                    }
-
-                    // Diálogo de compartir - debe estar dentro del mismo scope que showShareDialog
-                    if (showShareDialog) {
-                        val toShare = selectedPlaylist
-                        if (toShare != null) {
-                            ShareDialog(
-                                item = ShareableItem(
-                                    remoteId = toShare.id,
-                                    shareUrl = null,
-                                    youtubeId = run {
-                                        val ent = selectedPlaylistEntity
-                                        when (ent?.source) {
-                                            com.plyr.database.PlaylistSource.SPOTIFY -> ent.sourceId ?: stripYouTubePlaylistId(toShare.id)
-                                            else -> stripYouTubePlaylistId(toShare.id)
-                                        }
-                                    },
-                                    title = toShare.name,
-                                    artist = "Playlist",
-                                    type = ShareType.PLAYLIST,
-                                    playlistOrigin = playlistShareOrigin,
-                                ),
-                                onDismiss = { showShareDialog = false }
-                            )
-                        }
-                    }
-                }
-            }
-
+            PlaylistDetailView(
+                state = state,
+                playlist = playlistSel,
+                currentPlayingTrack = currentPlayingTrack,
+                download = download,
+                haptic = haptic,
+                onBack = onBack,
+                loadPlaylistTracks = loadPlaylistTracks
+            )
+        }
 
         // Lista de playlists (visible cuando no hay playlist seleccionada ni creando)
-        if (selectedPlaylist == null && !showCreatePlaylistScreen && pendingInitialPlaylist == null) {
-            Titulo(
-                titulo = Translations.get(context, "plyr_lists"),
-                trailing = {
-                    Text(
-                        text = "+",
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 24.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.clickable {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            showCreatePlaylistScreen = true
-                        }.padding(start = 8.dp)
-                    )
-                }
+        if (state.selectedPlaylist == null && !state.showCreatePlaylistScreen && state.pendingInitialPlaylist == null) {
+            PlaylistGridView(
+                state = state,
+                playlists = playlists,
+                playlistsFromDB = playlistsFromDB,
+                loadPlaylistTracks = loadPlaylistTracks,
+                haptic = haptic
             )
-            Spacer(modifier = Modifier.height(8.dp))
+        }
+        CoverPickDialog(state)
+    }
+}
 
-            if (playlists.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = Translations.get(context, "no_playlists"),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 150.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    val playlistIdsKeys = stableKeys(playlists.map { it.id })
-                    items(playlists.size, key = { index -> playlistIdsKeys[index] }) { index ->
-                        val playlist = playlists[index]
-                        val isLiked = playlist.id == "liked_songs"
-                        val playlistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
-                        val channelName = youtubeAuthorFromDescription(playlistEntity?.description)
+@Composable
+private fun PlaylistDetailView(
+    state: PlaylistsScreenState,
+    playlist: AppPlaylist,
+    currentPlayingTrack: TrackEntity?,
+    download: PlaylistDownloadValues,
+    haptic: HapticFeedback,
+    onBack: () -> Unit,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+) {
+    Titulo(playlist.name)
+    Spacer(modifier = Modifier.height(4.dp))
 
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    loadPlaylistTracks(playlist)
-                                },
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                        ) {
-                            if (isLiked) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(150.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "♥",
-                                        fontSize = 48.sp,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            } else {
-                                AsyncImage(
-                                    model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
-                                    contentDescription = "Portada de ${playlist.name}",
-                                    modifier = Modifier
-                                        .size(150.dp)
-                                        .clip(RoundedCornerShape(8.dp)),
-                                    contentScale = ContentScale.Crop,
-                                    placeholder = null,
-                                    error = null,
-                                    fallback = null
-                                )
-                            }
-                            Text(
-                                text = playlist.name,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
-                                ),
-                                modifier = Modifier.padding(top = 8.dp),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center
-                            )
-                            if (channelName != null) {
-                                Text(
-                                    text = channelName,
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    ),
-                                    modifier = Modifier.padding(top = 2.dp),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                }
+    // Descripción de la playlist entre el título y los botones,
+    // pegada a la derecha (estilo WhatsApp "~descripción").
+    // Para playlists de YouTube el autor se guarda como "YouTube Playlist by USER"
+    // y aquí se muestra solo "USER".
+    PlaylistDescription(state, playlist)
+
+    // Vista de tracks de playlist
+    if (state.isLoadingTracks) {
+        PlaylistLoading(state.context)
+    } else {
+        PlaylistDetailLoaded(
+            state = state,
+            currentPlayingTrack = currentPlayingTrack,
+            download = download,
+            haptic = haptic,
+            onBack = onBack,
+            loadPlaylistTracks = loadPlaylistTracks
+        )
+    }
+}
+
+@Composable
+private fun PlaylistDescription(
+    state: PlaylistsScreenState,
+    playlist: AppPlaylist,
+) {
+    val rawDescription = state.selectedPlaylistEntity?.description ?: playlist.description
+    val channelName = youtubeAuthorFromDescription(state.selectedPlaylistEntity?.description)
+    val playlistDescription = (channelName ?: rawDescription)?.takeIf { it.isNotBlank() }
+    if (playlistDescription != null) {
+        Text(
+            text = "~$playlistDescription",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+    }
+}
+
+@Composable
+private fun PlaylistLoading(context: Context) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = Translations.get(context, "loading_tracks"),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+private fun PlaylistDetailLoaded(
+    state: PlaylistsScreenState,
+    currentPlayingTrack: TrackEntity?,
+    download: PlaylistDownloadValues,
+    haptic: HapticFeedback,
+    onBack: () -> Unit,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+) {
+    // Determinar si la playlist seleccionada es editable (es 'mía')
+    // Las playlists de YouTube (prefijo youtube_) también son editables: son locales
+    val isYouTubePlaylistView = isYouTubePlaylistId(state.selectedPlaylist?.id)
+    val canEdit = state.selectedPlaylistEntity != null && state.selectedPlaylist?.id != "liked_songs"
+
+    // Origen de la lista para compartir (B53). Sin una columna que
+    // lo guarde se deduce del id y la description, y si no se
+    // reconoce con certeza la lista no ofrece compartir: antes se
+    // montaba una URL adivinada que no abría nada.
+    val playlistShareOrigin = remember(state.selectedPlaylistEntity) {
+        PlaylistShare.classify(
+            state.selectedPlaylistEntity?.remoteId,
+            state.selectedPlaylistEntity?.description,
+            state.selectedPlaylistEntity?.source,
+            state.selectedPlaylistEntity?.sourceId,
+        )
+    }
+    val isPlaylistShareable = playlistShareOrigin != PlaylistOrigin.UNKNOWN
+
+    PlaylistDetailBody(
+        state = state,
+        currentPlayingTrack = currentPlayingTrack,
+        download = download,
+        haptic = haptic,
+        onBack = onBack,
+        isPlaylistShareable = isPlaylistShareable,
+        canEdit = canEdit,
+        isYouTubePlaylistView = isYouTubePlaylistView
+    )
+    PlaylistDetailDialogs(
+        state = state,
+        playlistShareOrigin = playlistShareOrigin,
+        loadPlaylistTracks = loadPlaylistTracks
+    )
+    DisposableEffect(Unit) {
+        onDispose { state.resetTransientUi() }
+    }
+}
+
+@Composable
+private fun PlaylistDetailBody(
+    state: PlaylistsScreenState,
+    currentPlayingTrack: TrackEntity?,
+    download: PlaylistDownloadValues,
+    haptic: HapticFeedback,
+    onBack: () -> Unit,
+    isPlaylistShareable: Boolean,
+    canEdit: Boolean,
+    isYouTubePlaylistView: Boolean,
+) {
+    Column {
+        // Botones de control
+        PlaylistActionButtons(
+            state = state,
+            download = download,
+            isPlaylistShareable = isPlaylistShareable,
+            canEdit = canEdit,
+            haptic = haptic,
+            onBack = onBack
+        )
+
+        // Barra de descarga de la lista (como la de import):
+        // solo aparece para la lista que se está descargando.
+        PlaylistDownloadBar(state, download)
+
+        // Diálogo de gestión del audio offline (tamaño y borrado)
+        if (state.showStorageDialog) {
+            OfflineStorageDialog(
+                context = state.context,
+                onDeleteAll = { state.downloadViewModel?.clearDownloads() },
+                onDismiss = { state.showStorageDialog = false }
+            )
+        }
+
+        // Diálogo de confirmación para eliminar playlist
+        if (state.showDeleteDialog) {
+            PlaylistDeleteDialog(state, onBack)
+        }
+
+        if (state.isEditing) {
+            PlaylistEditContent(state, isYouTubePlaylistView, currentPlayingTrack)
+        } else {
+            PlaylistTracksList(state, currentPlayingTrack, download)
+        }
+    }
+}
+
+@Composable
+private fun PlaylistDetailDialogs(
+    state: PlaylistsScreenState,
+    playlistShareOrigin: PlaylistOrigin,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+) {
+    // Diálogo de confirmación para salir sin guardar
+    if (state.showExitEditDialog) {
+        ExitEditDialog(state, loadPlaylistTracks)
+    }
+
+    // Diálogo de compartir - debe estar dentro del mismo scope que showShareDialog
+    if (state.showShareDialog) {
+        PlaylistShareDialog(state, playlistShareOrigin)
+    }
+}
+
+@Composable
+private fun PlaylistActionButtons(
+    state: PlaylistsScreenState,
+    download: PlaylistDownloadValues,
+    isPlaylistShareable: Boolean,
+    canEdit: Boolean,
+    haptic: HapticFeedback,
+    onBack: () -> Unit,
+) {
+    val buttons = buildList {
+        if (!state.isEditing) {
+            // Botón start
+            add(playbackStartButton(state, haptic))
+
+            // Botón rand
+            add(playbackRandomButton(state, haptic))
+
+            // Botón share: solo si hay una URL de verdad detrás
+            // (B53). Los favoritos y las listas creadas en la
+            // app no son de ningún servicio, así que antes
+            // producían un QR a una página inexistente.
+            if (isPlaylistShareable) {
+                add(sharePlaylistButton(state, haptic))
+            }
+
+            // Botón download: baja el audio de la lista que
+            // falte (solo si hay filas con videoId en BD)
+            if (state.selectedPlaylistEntity != null) {
+                add(downloadPlaylistButton(state, download, haptic))
+            }
+
+            // Botón de gestión del audio offline (tamaño y borrado)
+            if (state.selectedPlaylistEntity != null) {
+                add(cleanAudioButton(state, haptic))
             }
         }
-        coverPickUri?.let { uri ->
-            val entity = selectedPlaylistEntity
-            if (entity != null && isEditing && isYouTubePlaylistId(entity.remoteId)) {
-                CoverCropDialog(
-                    uri = uri,
-                    onDismiss = { coverPickUri = null },
-                    onConfirm = { cropped ->
-                        coverPickUri = null
-                        coroutineScope.launch {
-                            val path = CoverImageManager.save(
-                                context,
-                                stripYouTubePlaylistId(entity.remoteId),
-                                cropped
-                            )
-                            if (path != null) {
-                                localRepository.updatePlaylistImage(entity.remoteId, path)
-                                // Refrescar la entidad para que la preview en modo edición se actualice
-                                selectedPlaylistEntity = entity.copy(imageUrl = path)
-                            }
-                        }
-                    }
+
+        // Botón edit/save
+        if (canEdit) {
+            add(editPlaylistButton(state, haptic, onBack))
+        }
+
+        // Botón delete
+        if (canEdit && state.isEditing) {
+            add(deletePlaylistButton(state, haptic))
+        }
+    }
+
+    ActionButtonsGroup(
+        buttons = buttons,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 4.dp)
+    )
+}
+
+@Composable
+private fun playbackStartButton(
+    state: PlaylistsScreenState,
+    haptic: HapticFeedback,
+): ActionButtonData = ActionButtonData(
+    text = if (state.isStarting) "//" else ">",
+    color = if (state.isStarting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+    onClick = {
+        if (state.isStarting) {
+            state.stopAllPlayback()
+        } else {
+            state.startOrderedPlayback()
+        }
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+)
+
+@Composable
+private fun playbackRandomButton(
+    state: PlaylistsScreenState,
+    haptic: HapticFeedback,
+): ActionButtonData = ActionButtonData(
+    text = if (state.isRandomizing) "<stop>" else "<rnd>",
+    color = if (state.isRandomizing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+    onClick = {
+        if (state.isRandomizing) {
+            state.stopAllPlayback()
+        } else {
+            state.startRandomizing()
+        }
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+)
+
+@Composable
+private fun sharePlaylistButton(
+    state: PlaylistsScreenState,
+    haptic: HapticFeedback,
+): ActionButtonData = ActionButtonData(
+    text = "<share>",
+    color = MaterialTheme.colorScheme.error,
+    onClick = {
+        state.showShareDialog = true
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+)
+
+@Composable
+private fun downloadPlaylistButton(
+    state: PlaylistsScreenState,
+    download: PlaylistDownloadValues,
+    haptic: HapticFeedback,
+): ActionButtonData {
+    val downloadingThis = download.isDownloading && download.playlistId == state.selectedPlaylist?.id
+    return ActionButtonData(
+        text = if (downloadingThis) "<stop>" else "<dwn>",
+        color = if (downloadingThis) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+        onClick = {
+            if (downloadingThis) {
+                download.viewModel?.cancel()
+            } else {
+                download.viewModel?.startDownload(
+                    playlistId = state.selectedPlaylist?.id.orEmpty(),
+                    playlistTitle = state.selectedPlaylist?.name.orEmpty(),
+                    tracks = state.trackEntities
+                )
+            }
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        }
+    )
+}
+
+@Composable
+private fun cleanAudioButton(
+    state: PlaylistsScreenState,
+    haptic: HapticFeedback,
+): ActionButtonData = ActionButtonData(
+    text = "<clean>",
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick = {
+        state.showStorageDialog = true
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+)
+
+@Composable
+private fun editPlaylistButton(
+    state: PlaylistsScreenState,
+    haptic: HapticFeedback,
+    onBack: () -> Unit,
+): ActionButtonData = ActionButtonData(
+    text = if (state.isEditing) "<save>" else "<edit>",
+    color = if (state.isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick = {
+        if (state.isEditing) {
+            state.saveEdits(onBack)
+        } else {
+            state.enterEditMode()
+        }
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+)
+
+@Composable
+private fun deletePlaylistButton(
+    state: PlaylistsScreenState,
+    haptic: HapticFeedback,
+): ActionButtonData = ActionButtonData(
+    text = "<delete>",
+    color = MaterialTheme.colorScheme.error,
+    onClick = {
+        state.showDeleteDialog = true
+        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+)
+
+@Composable
+private fun PlaylistDownloadBar(
+    state: PlaylistsScreenState,
+    download: PlaylistDownloadValues,
+) {
+    if (download.playlistId == state.selectedPlaylist?.id && (download.isDownloading || download.result != null)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Text(
+                text = if (download.isDownloading) download.message else download.result.orEmpty(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = if (download.isDownloading) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outline
+                )
+            )
+            if (download.isDownloading) {
+                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { download.progress },
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PlaylistDeleteDialog(
+    state: PlaylistsScreenState,
+    onBack: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = { state.showDeleteDialog = false },
+        title = {
+            Text(
+                Translations.get(state.context, "delete_playlist_title"),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            )
+        },
+        text = {
+            Text(
+                String.format(
+                    Locale.ROOT,
+                    Translations.get(state.context, "delete_playlist_message"),
+                    state.selectedPlaylist?.name ?: ""
+                ),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace
+                )
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    state.showDeleteDialog = false
+                    state.deletePlaylist(onBack)
+                }
+            ) {
+                Text(
+                    Translations.get(state.context, "delete"),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = { state.showDeleteDialog = false }
+            ) {
+                Text(
+                    Translations.get(state.context, "cancel"),
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+        }
+    )
+}
+
+@Stable
+private class PlaylistEditSearchState {
+    var query by mutableStateOf("")
+    var isSearching by mutableStateOf(false)
+    var results by mutableStateOf<List<AppTrack>>(emptyList())
+    var error by mutableStateOf<String?>(null)
+}
+
+@Composable
+private fun ColumnScope.PlaylistEditContent(
+    state: PlaylistsScreenState,
+    isYouTubePlaylistView: Boolean,
+    currentPlayingTrack: TrackEntity?,
+) {
+    val context = state.context
+    // Estados para el buscador de canciones en edición
+    val search = remember { PlaylistEditSearchState() }
+
+    val coverImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) state.coverPickUri = uri
+    }
+
+    // Detectar cambios en los campos
+    LaunchedEffect(state.newTitle, state.newDesc) {
+        state.hasUnsavedChanges = (state.newTitle != state.originalTitle || state.newDesc != state.originalDesc)
+    }
+
+    // Usar LazyColumn para permitir scroll
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f),
+        contentPadding = PaddingValues(bottom = 8.dp)
+    ) {
+        playlistEditFields(
+            state = state,
+            isYouTubePlaylistView = isYouTubePlaylistView,
+            onPickCover = {
+                coverImagePickerLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            }
+        )
+
+        // Campo de búsqueda
+        item {
+            PlaylistEditSearchField(context, state, search)
+        }
+
+        // Mostrar indicador de búsqueda
+        playlistEditSearchingIndicator(search)
+
+        // Resultados de búsqueda usando SongListItem
+        playlistEditSearchResults(state, search, currentPlayingTrack)
+
+        // Mostrar error si hay
+        playlistEditErrorMessage(search, context)
+
+        item {
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // Lista de canciones actuales usando SongListItem
+        playlistEditCurrentTracks(state, currentPlayingTrack, search)
+    }
+}
+
+// Nombre y descripción, con la portada a la izquierda
+// (la propia portada es el botón para cambiarla)
+private fun LazyListScope.playlistEditFields(
+    state: PlaylistsScreenState,
+    isYouTubePlaylistView: Boolean,
+    onPickCover: () -> Unit,
+) {
+    if (isYouTubePlaylistView) {
+        item {
+            PlaylistEditCoverAndFields(
+                state = state,
+                onPickCover = onPickCover
+            )
+        }
+    } else {
+        item {
+            PlaylistEditTitleField(state)
+        }
+        item {
+            PlaylistEditDescField(state)
+        }
+    }
+}
+
+private fun LazyListScope.playlistEditSearchingIndicator(search: PlaylistEditSearchState) {
+    if (search.isSearching) {
+        item {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "$ searching...",
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistEditCoverAndFields(
+    state: PlaylistsScreenState,
+    onPickCover: () -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AsyncImage(
+            model = youtubeThumbTo16to9(state.selectedPlaylistEntity?.imageUrl),
+            contentDescription = "Portada actual (pulsar para cambiar)",
+            modifier = Modifier
+                .size(120.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { onPickCover() },
+            contentScale = ContentScale.Crop,
+            placeholder = null,
+            error = null,
+            fallback = null
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            OutlinedTextField(
+                value = state.newTitle,
+                onValueChange = { state.newTitle = it },
+                label = { Text(Translations.get(state.context, "playlist_name")) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = state.newDesc,
+                onValueChange = { state.newDesc = it },
+                label = { Text(Translations.get(state.context, "description")) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+    Spacer(Modifier.height(16.dp))
+}
+
+@Composable
+private fun PlaylistEditTitleField(state: PlaylistsScreenState) {
+    OutlinedTextField(
+        value = state.newTitle,
+        onValueChange = { state.newTitle = it },
+        label = { Text(Translations.get(state.context, "playlist_name")) },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun PlaylistEditDescField(state: PlaylistsScreenState) {
+    OutlinedTextField(
+        value = state.newDesc,
+        onValueChange = { state.newDesc = it },
+        label = { Text(Translations.get(state.context, "description")) },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(16.dp))
+}
+
+@Composable
+private fun PlaylistEditSearchField(
+    context: Context,
+    state: PlaylistsScreenState,
+    search: PlaylistEditSearchState,
+) {
+    OutlinedTextField(
+        value = search.query,
+        onValueChange = { search.query = it },
+        label = { Text(Translations.get(context, "search_tracks_label")) },
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            if (search.query.isNotEmpty()) {
+                IconButton(onClick = { search.query = "" }) {
+                    Text(
+                        text = "x",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace
+                        )
+                    )
+                }
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                if (search.query.isNotBlank() && !search.isSearching) {
+                    search.isSearching = true
+                    // Búsqueda de vídeos de YouTube con la integración existente
+                    state.coroutineScope.launch {
+                        val result = try {
+                            state.youtubeSearchManager.searchYouTubeAll(search.query, maxVideos = 10, maxPlaylists = 0)
+                        } catch (e: Exception) {
+                            Log.e("PlaylistScreen", "Error buscando en YouTube: ${e.message}")
+                            null
+                        }
+                        search.isSearching = false
+                        if (result != null) {
+                            search.results = result.videos.map { video ->
+                                AppTrack(
+                                    id = video.videoId,
+                                    name = video.title,
+                                    artists = listOf(AppArtist(video.uploader))
+                                )
+                            }
+                        } else {
+                            search.error = Translations.get(context, "youtube_search_failed")
+                        }
+                    }
+                }
+            }
+        ),
+        enabled = !search.isSearching
+    )
+}
+
+private fun LazyListScope.playlistEditSearchResults(
+    state: PlaylistsScreenState,
+    search: PlaylistEditSearchState,
+    currentPlayingTrack: TrackEntity?,
+) {
+    if (search.results.isEmpty()) return
+    item {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "results:",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        )
+    }
+
+    // Crear trackEntities para los resultados de búsqueda
+    val searchTrackEntities = buildSearchTrackEntities(
+        tracks = search.results,
+        idPrefix = "edit_search",
+        timestamp = System.currentTimeMillis(),
+    )
+
+    val searchItemKeys = stableKeys(search.results.take(10).map { it.id })
+    items(search.results.take(10).size, key = { index -> searchItemKeys[index] }) { index ->
+        val track = search.results[index]
+        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
+        SongListItem(
+            song = Song(
+                number = index + 1,
+                title = track.name,
+                artist = track.getArtistNames(),
+                remoteId = track.id,
+                youtubeId = track.id.takeIf { isYouTubeVideoId(it) },
+                shareUrl = "https://www.youtube.com/watch?v=${track.id}"
+            ),
+            trackEntities = searchTrackEntities,
+            index = index,
+            playerViewModel = state.playerViewModel,
+            coroutineScope = state.coroutineScope,
+            isCurrentlyPlaying = isPlaying,
+            customButtonIcon = "+",
+            customButtonAction = {
+                // Añadir track a la playlist de YouTube local (videoId ya resuelto)
+                state.addTrackToPlaylist(track) { message -> search.error = message }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+private fun LazyListScope.playlistEditErrorMessage(
+    search: PlaylistEditSearchState,
+    context: Context,
+) {
+    search.error?.let {
+        item {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${Translations.get(context, "error_prefix")}$it",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+            )
+        }
+    }
+}
+
+private fun LazyListScope.playlistEditCurrentTracks(
+    state: PlaylistsScreenState,
+    currentPlayingTrack: TrackEntity?,
+    search: PlaylistEditSearchState,
+) {
+    if (state.playlistTracks.isEmpty()) return
+    item {
+        Text(
+            text = "current tracks [${state.playlistTracks.size}]:",
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary
+            )
+        )
+        Spacer(Modifier.height(8.dp))
+    }
+
+    val playlistItemKeys = stableKeys(state.playlistTracks.map { it.id })
+    items(state.playlistTracks.size, key = { index -> playlistItemKeys[index] }) { index ->
+        val track = state.playlistTracks[index]
+        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
+        SongListItem(
+            song = Song(
+                number = index + 1,
+                title = track.name,
+                artist = track.getArtistNames(),
+                remoteId = track.id,
+                youtubeId = track.youtubeVideoId,
+                shareUrl = null
+            ),
+            trackEntities = state.trackEntities,
+            index = index,
+            playerViewModel = state.playerViewModel,
+            coroutineScope = state.coroutineScope,
+            isCurrentlyPlaying = isPlaying,
+            customButtonIcon = "x",
+            customButtonAction = {
+                // Eliminar track de la playlist de YouTube local
+                state.removeTrackFromPlaylist(track) { message -> search.error = message }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+// Lista de tracks (solo visible cuando NO está en modo edición)
+@Composable
+private fun PlaylistTracksList(
+    state: PlaylistsScreenState,
+    currentPlayingTrack: TrackEntity?,
+    download: PlaylistDownloadValues,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Prepara trackEntities - si no hay en DB, crear temporales
+        val trackEntitiesList = state.trackEntities.ifEmpty {
+            // Crear TrackEntities temporales para álbumes u otras fuentes sin BD
+            state.playlistTracks.mapIndexed { trackIndex, track ->
+                TrackEntity(
+                    id = "temp_${state.selectedPlaylist?.id}_${track.id}",
+                    playlistId = state.selectedPlaylist?.id ?: "unknown",
+                    remoteTrackId = track.id,
+                    name = track.name,
+                    artists = track.getArtistNames(),
+                    youtubeVideoId = null,
+                    audioUrl = null,
+                    position = trackIndex,
+                    lastSyncTime = System.currentTimeMillis()
+                )
+            }
+        }
+
+        val playlistItemKeys = stableKeys(state.playlistTracks.map { it.id })
+        items(state.playlistTracks.size, key = { index -> playlistItemKeys[index] }) { index ->
+            PlaylistTrackRow(
+                state = state,
+                currentPlayingTrack = currentPlayingTrack,
+                download = download,
+                trackEntitiesList = trackEntitiesList,
+                index = index
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlaylistTrackRow(
+    state: PlaylistsScreenState,
+    currentPlayingTrack: TrackEntity?,
+    download: PlaylistDownloadValues,
+    trackEntitiesList: List<TrackEntity>,
+    index: Int,
+) {
+    val track = state.playlistTracks[index]
+    val song = Song(
+        number = index + 1,
+        title = track.name,
+        artist = track.getArtistNames(),
+        remoteId = track.id,
+        youtubeId = track.youtubeVideoId,
+        shareUrl = null
+    )
+    val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
+    val videoId = track.youtubeVideoId
+    val isDownloaded = videoId != null && videoId in state.downloadedVideoIds
+    val trackProgress = if (download.isDownloading && videoId != null && videoId == download.currentVideoId) {
+        download.currentFraction
+    } else null
+    Box(
+        modifier = state.reorderState.itemModifier(
+            id = track.id,
+            index = index,
+            itemCount = state.playlistTracks.size,
+            onDrop = state::reorderTracks
+        )
+    ) {
+        SongListItem(
+            song = song,
+            trackEntities = trackEntitiesList,
+            index = index,
+            playerViewModel = state.playerViewModel,
+            coroutineScope = state.coroutineScope,
+            modifier = Modifier.fillMaxWidth(),
+            isCurrentlyPlaying = isPlaying,
+            onLikedStatusChanged = { state.tracksRevision++ },
+            isDownloaded = isDownloaded,
+            downloadProgress = trackProgress,
+            onDeleteDownload = if (isDownloaded && videoId != null) {
+                { download.viewModel?.removeDownload(videoId) }
+            } else null
+        )
+    }
+}
+
+@Composable
+private fun ExitEditDialog(
+    state: PlaylistsScreenState,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = {
+            state.showExitEditDialog = false
+            state.pendingPlaylist = null
+        },
+        title = {
+            Text(
+                Translations.get(state.context, "unsaved_changes_title"),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            )
+        },
+        text = {
+            Text(
+                Translations.get(state.context, "unsaved_changes_message"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace
+                )
+            )
+        },
+        confirmButton = { ExitEditConfirmButton(state, loadPlaylistTracks) },
+        dismissButton = { ExitEditDismissButton(state) }
+    )
+}
+
+@Composable
+private fun ExitEditConfirmButton(
+    state: PlaylistsScreenState,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+) {
+    TextButton(onClick = { state.confirmExitEdit(loadPlaylistTracks) }) {
+        Text(
+            Translations.get(state.context, "exit"),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.error
+            )
+        )
+    }
+}
+
+@Composable
+private fun ExitEditDismissButton(state: PlaylistsScreenState) {
+    TextButton(
+        onClick = {
+            state.showExitEditDialog = false
+            state.pendingPlaylist = null
+        }
+    ) {
+        Text(
+            Translations.get(state.context, "cancel"),
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary
+            )
+        )
+    }
+}
+
+@Composable
+private fun PlaylistShareDialog(
+    state: PlaylistsScreenState,
+    playlistShareOrigin: PlaylistOrigin,
+) {
+    val toShare = state.selectedPlaylist ?: return
+    ShareDialog(
+        item = ShareableItem(
+            remoteId = toShare.id,
+            shareUrl = null,
+            youtubeId = run {
+                val ent = state.selectedPlaylistEntity
+                when (ent?.source) {
+                    PlaylistSource.SPOTIFY -> ent.sourceId ?: stripYouTubePlaylistId(toShare.id)
+                    else -> stripYouTubePlaylistId(toShare.id)
+                }
+            },
+            title = toShare.name,
+            artist = "Playlist",
+            type = ShareType.PLAYLIST,
+            playlistOrigin = playlistShareOrigin,
+        ),
+        onDismiss = { state.showShareDialog = false }
+    )
+}
+
+@Composable
+private fun CoverPickDialog(state: PlaylistsScreenState) {
+    val uri = state.coverPickUri ?: return
+    val entity = state.selectedPlaylistEntity
+    if (entity != null && state.isEditing && isYouTubePlaylistId(entity.remoteId)) {
+        CoverCropDialog(
+            uri = uri,
+            onDismiss = { state.coverPickUri = null },
+            onConfirm = { cropped ->
+                state.coverPickUri = null
+                state.coroutineScope.launch {
+                    val path = CoverImageManager.save(
+                        state.context,
+                        stripYouTubePlaylistId(entity.remoteId),
+                        cropped
+                    )
+                    if (path != null) {
+                        state.localRepository.updatePlaylistImage(entity.remoteId, path)
+                        // Refrescar la entidad para que la preview en modo edición se actualice
+                        state.selectedPlaylistEntity = entity.copy(imageUrl = path)
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun PlaylistGridView(
+    state: PlaylistsScreenState,
+    playlists: List<AppPlaylist>,
+    playlistsFromDB: List<PlaylistEntity>,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+    haptic: HapticFeedback,
+) {
+    Titulo(
+        titulo = Translations.get(state.context, "plyr_lists"),
+        trailing = {
+            Text(
+                text = "+",
+                style = MaterialTheme.typography.headlineMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 24.sp,
+                    color = MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    state.showCreatePlaylistScreen = true
+                }.padding(start = 8.dp)
+            )
+        }
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+
+    if (playlists.isEmpty()) {
+        PlaylistEmptyState(state.context)
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 150.dp),
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            val playlistIdsKeys = stableKeys(playlists.map { it.id })
+            items(playlists.size, key = { index -> playlistIdsKeys[index] }) { index ->
+                PlaylistGridItem(
+                    playlist = playlists[index],
+                    playlistsFromDB = playlistsFromDB,
+                    loadPlaylistTracks = loadPlaylistTracks,
+                    haptic = haptic
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistEmptyState(context: Context) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = Translations.get(context, "no_playlists"),
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+private fun PlaylistGridItem(
+    playlist: AppPlaylist,
+    playlistsFromDB: List<PlaylistEntity>,
+    loadPlaylistTracks: (AppPlaylist) -> Unit,
+    haptic: HapticFeedback,
+) {
+    val isLiked = playlist.id == "liked_songs"
+    val playlistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
+    val channelName = youtubeAuthorFromDescription(playlistEntity?.description)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                loadPlaylistTracks(playlist)
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        if (isLiked) {
+            PlaylistLikedCover()
+        } else {
+            AsyncImage(
+                model = youtubeThumbTo16to9(playlistEntity?.imageUrl),
+                contentDescription = "Portada de ${playlist.name}",
+                modifier = Modifier
+                    .size(150.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop,
+                placeholder = null,
+                error = null,
+                fallback = null
+            )
+        }
+        PlaylistGridItemLabel(playlist.name, isLiked, channelName)
+    }
+}
+
+@Composable
+private fun PlaylistLikedCover() {
+    Box(
+        modifier = Modifier
+            .size(150.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "♥",
+            fontSize = 48.sp,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+}
+
+@Composable
+private fun PlaylistGridItemLabel(
+    name: String,
+    isLiked: Boolean,
+    channelName: String?,
+) {
+    Text(
+        text = name,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+        ),
+        modifier = Modifier.padding(top = 8.dp),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center
+    )
+    if (channelName != null) {
+        Text(
+            text = channelName,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+            modifier = Modifier.padding(top = 2.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -1331,29 +1796,135 @@ private fun offlineStorageMessage(context: Context, summary: DownloadedAudioStor
     )
 }
 
+@Stable
+private class CreatePlaylistScreenState(
+    val context: Context,
+    val localRepository: PlaylistLocalRepository,
+    val youtubeSearchManager: YouTubeSearchManager,
+    val coroutineScope: CoroutineScope,
+    val playerViewModel: PlayerViewModel?,
+) {
+    var name by mutableStateOf("")
+    var description by mutableStateOf("")
+    var isLoading by mutableStateOf(false)
+    var error by mutableStateOf<String?>(null)
+    var discardWarning by mutableStateOf<Int?>(null)
+    var createJob by mutableStateOf<Job?>(null)
+    var searchQuery by mutableStateOf("")
+    var isSearching by mutableStateOf(false)
+    var searchResults by mutableStateOf<List<AppTrack>>(emptyList())
+    var selectedTracks by mutableStateOf<List<AppTrack>>(emptyList())
+
+    fun search() {
+        if (searchQuery.isNotBlank() && !isSearching) {
+            isSearching = true
+            error = null
+            // Búsqueda de vídeos de YouTube con la integración existente
+            coroutineScope.launch {
+                val result = try {
+                    youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
+                } catch (e: Exception) {
+                    null
+                }
+                isSearching = false
+                if (result != null) {
+                    searchResults = result.videos.map { video ->
+                        AppTrack(
+                            id = video.videoId,
+                            name = video.title,
+                            artists = listOf(AppArtist(video.uploader))
+                        )
+                    }
+                } else {
+                    error = Translations.get(context, "youtube_search_failed")
+                }
+            }
+        }
+    }
+
+    fun addTrack(track: AppTrack) {
+        if (!selectedTracks.contains(track)) {
+            selectedTracks = selectedTracks + track
+        }
+    }
+
+    fun removeTrack(index: Int) {
+        selectedTracks = selectedTracks.filterIndexed { i, _ -> i != index }
+    }
+
+    fun createPlaylist(onPlaylistCreated: () -> Unit) {
+        // Acción de crear playlist con las canciones seleccionadas
+        isLoading = true
+        error = null
+        discardWarning = null
+        // Crear playlist de YouTube usando la integración existente.
+        // build es suspend (B16): se puede cancelar, tiene timeout por
+        // resolución y reporta cuántas canciones se descartan (B15).
+        createJob = coroutineScope.launch {
+            val creator = YouTubePlaylistCreator()
+            val rawId = "yt_${System.currentTimeMillis()}"
+            // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
+            val resolvedVideoIds = selectedTracks
+                .filter { isYouTubeVideoId(it.id) }
+                .associate { it.id to it.id }
+            val created = creator.build(
+                title = name,
+                description = description.ifBlank { null },
+                sourceTracks = creator.buildSourceTracks(selectedTracks),
+                targetPlaylistId = "youtube_$rawId",
+                resolvedVideoIds = resolvedVideoIds
+            )
+            val saved = withContext(Dispatchers.IO) {
+                localRepository.saveCreatedYouTubePlaylist(
+                    created = CreatedPlaylist(
+                        playlistId = rawId,
+                        title = created.title,
+                        description = created.description,
+                        imageUrl = null
+                    ),
+                    tracks = created.tracks
+                )
+            }
+            isLoading = false
+            if (saved) {
+                if (created.discardedTracks > 0) {
+                    // No se navega sin avisar (B15): el usuario decide
+                    // si continuar sabiendo que faltan canciones.
+                    discardWarning = created.discardedTracks
+                } else {
+                    onPlaylistCreated()
+                }
+            } else {
+                error = "${created.tracks.size} tracks (${created.discardedTracks} sin vídeo)"
+            }
+        }
+    }
+
+    fun cancelCreate() {
+        createJob?.cancel()
+        isLoading = false
+    }
+}
+
 @Composable
 fun CreatePlaylistScreen(
     onBack: () -> Unit,
     onPlaylistCreated: () -> Unit,
     playerViewModel: PlayerViewModel? = null
 ) {
-    var playlistName by remember { mutableStateOf("") }
-    var playlistDesc by remember { mutableStateOf("") }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var discardWarning by remember { mutableStateOf<Int?>(null) }
-    var createJob by remember { mutableStateOf<Job?>(null) }
-
-    // Estados para el buscador de canciones
-    var searchQuery by remember { mutableStateOf("") }
-    var isSearching by remember { mutableStateOf(false) }
-    var searchResults by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
-    var selectedTracks by remember { mutableStateOf<List<AppTrack>>(emptyList()) }
-
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val localRepository = remember { PlaylistLocalRepository(context) }
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
+    val state = remember {
+        CreatePlaylistScreenState(
+            context = context,
+            localRepository = localRepository,
+            youtubeSearchManager = youtubeSearchManager,
+            coroutineScope = coroutineScope,
+            playerViewModel = playerViewModel,
+        )
+    }
 
     // Observar el track actual para actualización reactiva del indicador de reproducción
     val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
@@ -1370,251 +1941,222 @@ fun CreatePlaylistScreen(
     ) {
         Titulo(Translations.get(context, "create_playlist"))
         Spacer(Modifier.height(16.dp))
-        OutlinedTextField(
-            value = playlistName,
-            onValueChange = { playlistName = it },
-            label = { Text(Translations.get(context, "playlist_name")) },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = playlistDesc,
-            onValueChange = { playlistDesc = it },
-            label = { Text(Translations.get(context, "description_optional")) },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(8.dp))
-        // Campo de búsqueda
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            label = { Text(Translations.get(context, "search_tracks_label")) },
-            modifier = Modifier.fillMaxWidth(),
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Text(
-                            text = "x",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace
-                            )
+        CreatePlaylistForm(state)
+        CreatePlaylistSearchSection(state, currentPlayingTrack)
+        CreatePlaylistSelectedSection(state, currentPlayingTrack)
+        CreatePlaylistActions(state, onPlaylistCreated)
+    }
+}
+
+@Composable
+private fun CreatePlaylistForm(state: CreatePlaylistScreenState) {
+    val context = state.context
+    OutlinedTextField(
+        value = state.name,
+        onValueChange = { state.name = it },
+        label = { Text(Translations.get(context, "playlist_name")) },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(8.dp))
+    OutlinedTextField(
+        value = state.description,
+        onValueChange = { state.description = it },
+        label = { Text(Translations.get(context, "description_optional")) },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Spacer(Modifier.height(8.dp))
+    // Campo de búsqueda
+    CreatePlaylistSearchField(state)
+}
+
+@Composable
+private fun CreatePlaylistSearchField(state: CreatePlaylistScreenState) {
+    val context = state.context
+    OutlinedTextField(
+        value = state.searchQuery,
+        onValueChange = { state.searchQuery = it },
+        label = { Text(Translations.get(context, "search_tracks_label")) },
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            if (state.searchQuery.isNotEmpty()) {
+                IconButton(onClick = { state.searchQuery = "" }) {
+                    Text(
+                        text = "x",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace
                         )
-                    }
+                    )
                 }
-            },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    if (searchQuery.isNotBlank() && !isSearching) {
-                        isSearching = true
-                        error = null
-                        // Búsqueda de vídeos de YouTube con la integración existente
-                        coroutineScope.launch {
-                            val result = try {
-                                youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
-                            } catch (e: Exception) {
-                                null
-                            }
-                            isSearching = false
-                            if (result != null) {
-                                searchResults = result.videos.map { video ->
-                                    AppTrack(
-                                        id = video.videoId,
-                                        name = video.title,
-                                        artists = listOf(AppArtist(video.uploader))
-                                    )
-                                }
-                            } else {
-                                error = Translations.get(context, "youtube_search_failed")
-                            }
-                        }
-                    }
-                }
+            }
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { state.search() }),
+        enabled = !state.isSearching
+    )
+}
+
+@Composable
+private fun CreatePlaylistSearchSection(
+    state: CreatePlaylistScreenState,
+    currentPlayingTrack: TrackEntity?,
+) {
+    // Mostrar indicador de búsqueda
+    if (state.isSearching) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "$ searching...",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.tertiary
+            )
+        )
+    }
+
+    // Resultados de búsqueda
+    if (state.searchResults.isNotEmpty()) {
+        CreatePlaylistSearchResults(state, currentPlayingTrack)
+    }
+}
+
+@Composable
+private fun CreatePlaylistSearchResults(
+    state: CreatePlaylistScreenState,
+    currentPlayingTrack: TrackEntity?,
+) {
+    val trackEntities = buildSearchTrackEntities(
+        tracks = state.searchResults,
+        idPrefix = "yt_search",
+        timestamp = System.currentTimeMillis(),
+    )
+
+    state.searchResults.take(10).forEachIndexed { index, track ->
+        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
+        SongListItem(
+            song = Song(
+                number = index + 1,
+                title = track.name,
+                artist = track.getArtistNames(),
+                youtubeId = track.id,
+                shareUrl = "https://www.youtube.com/watch?v=${track.id}"
             ),
-            enabled = !isSearching
+            trackEntities = trackEntities,
+            index = index,
+            playerViewModel = state.playerViewModel,
+            coroutineScope = state.coroutineScope,
+            isCurrentlyPlaying = isPlaying,
+            isSelected = state.selectedTracks.contains(track),
+            customButtonIcon = "+",
+            customButtonAction = {
+                state.addTrack(track)
+            },
+            modifier = Modifier.fillMaxWidth()
         )
+    }
+}
 
-        // Mostrar indicador de búsqueda
-        if (isSearching) {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "$ searching...",
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-            )
-        }
-
-        // Resultados de búsqueda
-        if (searchResults.isNotEmpty()) {
-            val trackEntities = buildSearchTrackEntities(
-                tracks = searchResults,
-                idPrefix = "yt_search",
-                timestamp = System.currentTimeMillis(),
-            )
-
-            searchResults.take(10).forEachIndexed { index, track ->
-                val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                SongListItem(
-                    song = Song(
-                        number = index + 1,
-                        title = track.name,
-                        artist = track.getArtistNames(),
-                        youtubeId = track.id,
-                        shareUrl = "https://www.youtube.com/watch?v=${track.id}"
-                    ),
-                    trackEntities = trackEntities,
-                    index = index,
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope,
-                    isCurrentlyPlaying = isPlaying,
-                    isSelected = selectedTracks.contains(track),
-                    customButtonIcon = "+",
-                    customButtonAction = {
-                        if (!selectedTracks.contains(track)) {
-                            selectedTracks = selectedTracks + track
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        // Lista de canciones seleccionadas
-        if (selectedTracks.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            Text(
-                text = "selected [${selectedTracks.size}]:",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            )
-            val tracksEntities = buildSearchTrackEntities(
-                tracks = selectedTracks,
-                idPrefix = "yt_search",
-                timestamp = System.currentTimeMillis(),
-            )
-
-            selectedTracks.forEachIndexed { index, track ->
-                val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                SongListItem(
-                    song = Song(
-                        number = index + 1,
-                        title = track.name,
-                        artist = track.getArtistNames(),
-                        youtubeId = track.id,
-                        shareUrl = "https://www.youtube.com/watch?v=${track.id}"
-                    ),
-                    trackEntities = tracksEntities,
-                    index = index,
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope,
-                    isCurrentlyPlaying = isPlaying,
-                    isSelected = true,
-                    customButtonIcon = "x",
-                    customButtonAction = {
-                        selectedTracks = selectedTracks.filterIndexed { i, _ -> i != index }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-        ActionButton(
-            data = ActionButtonData(
-                text = if (isLoading) "<creating...>" else "<create>",
-                color = if (isLoading) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                enabled = !isLoading && playlistName.isNotBlank(),
-                onClick = {
-                    // Acción de crear playlist con las canciones seleccionadas
-                    isLoading = true
-                    error = null
-                    discardWarning = null
-                    // Crear playlist de YouTube usando la integración existente.
-                    // build es suspend (B16): se puede cancelar, tiene timeout por
-                    // resolución y reporta cuántas canciones se descartan (B15).
-                    createJob = coroutineScope.launch {
-                        val creator = YouTubePlaylistCreator()
-                        val rawId = "yt_${System.currentTimeMillis()}"
-                        // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
-                        val resolvedVideoIds = selectedTracks
-                            .filter { isYouTubeVideoId(it.id) }
-                            .associate { it.id to it.id }
-                        val created = creator.build(
-                            title = playlistName,
-                            description = playlistDesc.ifBlank { null },
-                            sourceTracks = creator.buildSourceTracks(selectedTracks),
-                            targetPlaylistId = "youtube_$rawId",
-                            resolvedVideoIds = resolvedVideoIds
-                        )
-                        val saved = withContext(Dispatchers.IO) {
-                            localRepository.saveCreatedYouTubePlaylist(
-                                created = CreatedPlaylist(
-                                    playlistId = rawId,
-                                    title = created.title,
-                                    description = created.description,
-                                    imageUrl = null
-                                ),
-                                tracks = created.tracks
-                            )
-                        }
-                        isLoading = false
-                        if (saved) {
-                            if (created.discardedTracks > 0) {
-                                // No se navega sin avisar (B15): el usuario decide
-                                // si continuar sabiendo que faltan canciones.
-                                discardWarning = created.discardedTracks
-                            } else {
-                                onPlaylistCreated()
-                            }
-                        } else {
-                            error = "${created.tracks.size} tracks (${created.discardedTracks} sin vídeo)"
-                        }
-                    }
-                }
-            )
+@Composable
+private fun CreatePlaylistSelectedSection(
+    state: CreatePlaylistScreenState,
+    currentPlayingTrack: TrackEntity?,
+) {
+    // Lista de canciones seleccionadas
+    if (state.selectedTracks.isEmpty()) return
+    Spacer(Modifier.height(16.dp))
+    Text(
+        text = "selected [${state.selectedTracks.size}]:",
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.primary
         )
-        error?.let {
-            Spacer(Modifier.height(8.dp))
-            Text("${Translations.get(context, "error_prefix")}$it", color = MaterialTheme.colorScheme.error)
-        }
-        discardWarning?.let { discarded ->
-            Spacer(Modifier.height(8.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    String.format(
-                        Locale.ROOT,
-                        Translations.get(context, "create_playlist_discarded"),
-                        selectedTracks.size - discarded,
-                        selectedTracks.size,
-                        discarded
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-                TextButton(onClick = {
-                    discardWarning = null
-                    onPlaylistCreated()
-                }) {
-                    Text(Translations.get(context, "continue"))
-                }
-            }
-        }
-        if (isLoading) {
-            Spacer(Modifier.height(4.dp))
-            TextButton(
-                onClick = {
-                    createJob?.cancel()
-                    isLoading = false
-                }
-            ) {
-                Text(Translations.get(context, "cancel"))
-            }
+    )
+    val tracksEntities = buildSearchTrackEntities(
+        tracks = state.selectedTracks,
+        idPrefix = "yt_search",
+        timestamp = System.currentTimeMillis(),
+    )
+
+    state.selectedTracks.forEachIndexed { index, track ->
+        val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
+        SongListItem(
+            song = Song(
+                number = index + 1,
+                title = track.name,
+                artist = track.getArtistNames(),
+                youtubeId = track.id,
+                shareUrl = "https://www.youtube.com/watch?v=${track.id}"
+            ),
+            trackEntities = tracksEntities,
+            index = index,
+            playerViewModel = state.playerViewModel,
+            coroutineScope = state.coroutineScope,
+            isCurrentlyPlaying = isPlaying,
+            isSelected = true,
+            customButtonIcon = "x",
+            customButtonAction = {
+                state.removeTrack(index)
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun CreatePlaylistActions(
+    state: CreatePlaylistScreenState,
+    onPlaylistCreated: () -> Unit,
+) {
+    val context = state.context
+    Spacer(Modifier.height(16.dp))
+    ActionButton(
+        data = ActionButtonData(
+            text = if (state.isLoading) "<creating...>" else "<create>",
+            color = if (state.isLoading) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+            enabled = !state.isLoading && state.name.isNotBlank(),
+            onClick = { state.createPlaylist(onPlaylistCreated) }
+        )
+    )
+    state.error?.let {
+        Spacer(Modifier.height(8.dp))
+        Text("${Translations.get(context, "error_prefix")}$it", color = MaterialTheme.colorScheme.error)
+    }
+    state.discardWarning?.let { discarded ->
+        CreatePlaylistDiscardWarning(state, onPlaylistCreated, discarded)
+    }
+    if (state.isLoading) {
+        Spacer(Modifier.height(4.dp))
+        TextButton(
+            onClick = { state.cancelCreate() }
+        ) {
+            Text(Translations.get(context, "cancel"))
         }
     }
 }
 
-
+@Composable
+private fun CreatePlaylistDiscardWarning(
+    state: CreatePlaylistScreenState,
+    onPlaylistCreated: () -> Unit,
+    discarded: Int,
+) {
+    val context = state.context
+    Spacer(Modifier.height(8.dp))
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            String.format(
+                Locale.ROOT,
+                Translations.get(context, "create_playlist_discarded"),
+                state.selectedTracks.size - discarded,
+                state.selectedTracks.size,
+                discarded
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.tertiary
+        )
+        TextButton(onClick = {
+            state.discardWarning = null
+            onPlaylistCreated()
+        }) {
+            Text(Translations.get(context, "continue"))
+        }
+    }
+}

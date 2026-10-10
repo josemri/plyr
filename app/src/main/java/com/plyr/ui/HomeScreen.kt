@@ -32,9 +32,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.plyr.database.PlaylistEntity
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.ui.components.*
 import com.plyr.ui.theme.PlyrSymbols
+import com.plyr.ui.utils.ResponsiveDimensions
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import com.plyr.utils.Translations
 import com.plyr.utils.UpdateChecker
@@ -82,122 +84,158 @@ fun HomeScreen(
         modifier = Modifier.fillMaxSize()
     ) {
         if (dimensions.showSideBySideLayout) {
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (selectedRes != 0) {
-                    val painter = painterResource(id = selectedRes)
-                    val intrinsic = painter.intrinsicSize
-                    var imgModifier = Modifier
-                        .widthIn(max = dimensions.imageMaxWidth)
-                        .heightIn(max = dimensions.imageMaxHeight)
-                    if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
-                        imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
-                    }
-                    Column(
-                        modifier = Modifier
-                            .widthIn(max = dimensions.imageMaxWidth)
-                            .padding(end = 16.dp),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Image(
-                            painter = painter,
-                            contentDescription = Translations.get(context, "app_logo"),
-                            contentScale = ContentScale.Fit,
-                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                            modifier = imgModifier
-                        )
-                        VersionBadge(context = context)
-                    }
-                }
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    HomePlaylistCarousel(
-                        context = context,
-                        onOpenPlaylist = onOpenPlaylist
-                    )
-
-                    ActionButtonsGroup(
-                        buttons = buttons,
-                        isHorizontal = true,
-                        spacing = 24.dp,
-                        fontSize = 20.sp,
-                        modifier = Modifier.wrapContentWidth()
-                    )
-
-                    if (showExitMessage) {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        PlyrErrorText(
-                            text = Translations.get(context, "exit_message"),
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
-                        )
-                    }
-                }
-            }
+            HomeSideBySideContent(
+                context = context,
+                dimensions = dimensions,
+                selectedRes = selectedRes,
+                buttons = buttons,
+                showExitMessage = showExitMessage,
+                onOpenPlaylist = onOpenPlaylist
+            )
         } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (selectedRes != 0) {
-                    val painter = painterResource(id = selectedRes)
-                    val intrinsic = painter.intrinsicSize
-                    var imgModifier = Modifier
-                        .widthIn(max = dimensions.imageMaxWidth)
-                        .heightIn(max = dimensions.imageMaxHeight)
-                    if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
-                        imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
-                    }
-                    Column(
-                        modifier = Modifier.widthIn(max = dimensions.imageMaxWidth),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Image(
-                            painter = painter,
-                            contentDescription = Translations.get(context, "app_logo"),
-                            contentScale = ContentScale.Fit,
-                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
-                            modifier = imgModifier
-                        )
-                        VersionBadge(context = context)
-                    }
-                    Spacer(modifier = Modifier.height(40.dp))
-                }
+            HomeStackedContent(
+                context = context,
+                dimensions = dimensions,
+                selectedRes = selectedRes,
+                buttons = buttons,
+                showExitMessage = showExitMessage,
+                onOpenPlaylist = onOpenPlaylist
+            )
+        }
+    }
+}
 
-                HomePlaylistCarousel(
-                    context = context,
-                    onOpenPlaylist = onOpenPlaylist
-                )
+@Composable
+private fun HomeSideBySideContent(
+    context: Context,
+    dimensions: ResponsiveDimensions,
+    selectedRes: Int,
+    buttons: List<ActionButtonData>,
+    showExitMessage: Boolean,
+    onOpenPlaylist: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HomeLogoWithVersion(
+            context = context,
+            dimensions = dimensions,
+            selectedRes = selectedRes,
+            modifier = Modifier.padding(end = 16.dp)
+        )
 
-                Spacer(modifier = Modifier.height(24.dp))
-                ActionButtonsGroup(
-                    buttons = buttons,
-                    isHorizontal = true,
-                    spacing = 24.dp,
-                    fontSize = 20.sp,
-                    modifier = Modifier.wrapContentWidth()
-                )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            HomePlaylistCarousel(
+                context = context,
+                onOpenPlaylist = onOpenPlaylist
+            )
 
-                if (showExitMessage) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    PlyrErrorText(
-                        text = Translations.get(context, "exit_message"),
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
-                }
+            HomeActionButtons(buttons = buttons)
+
+            if (showExitMessage) {
+                HomeExitMessage(context = context)
             }
         }
     }
+}
+
+@Composable
+private fun HomeStackedContent(
+    context: Context,
+    dimensions: ResponsiveDimensions,
+    selectedRes: Int,
+    buttons: List<ActionButtonData>,
+    showExitMessage: Boolean,
+    onOpenPlaylist: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        HomeLogoWithVersion(
+            context = context,
+            dimensions = dimensions,
+            selectedRes = selectedRes
+        )
+        if (selectedRes != 0) {
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+
+        HomePlaylistCarousel(
+            context = context,
+            onOpenPlaylist = onOpenPlaylist
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HomeActionButtons(buttons = buttons)
+
+        if (showExitMessage) {
+            HomeExitMessage(context = context)
+        }
+    }
+}
+
+@Composable
+private fun HomeLogoWithVersion(
+    context: Context,
+    dimensions: ResponsiveDimensions,
+    selectedRes: Int,
+    modifier: Modifier = Modifier
+) {
+    if (selectedRes == 0) return
+    val painter = painterResource(id = selectedRes)
+    val intrinsic = painter.intrinsicSize
+    var imgModifier = Modifier
+        .widthIn(max = dimensions.imageMaxWidth)
+        .heightIn(max = dimensions.imageMaxHeight)
+    if (intrinsic != Size.Unspecified && intrinsic.width > 0f && intrinsic.height > 0f) {
+        imgModifier = imgModifier.aspectRatio(intrinsic.width / intrinsic.height)
+    }
+    Column(
+        modifier = Modifier
+            .widthIn(max = dimensions.imageMaxWidth)
+            .then(modifier),
+        horizontalAlignment = Alignment.End
+    ) {
+        Image(
+            painter = painter,
+            contentDescription = Translations.get(context, "app_logo"),
+            contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+            modifier = imgModifier
+        )
+        VersionBadge(context = context)
+    }
+}
+
+@Composable
+private fun HomeActionButtons(buttons: List<ActionButtonData>) {
+    ActionButtonsGroup(
+        buttons = buttons,
+        isHorizontal = true,
+        spacing = 24.dp,
+        fontSize = 20.sp,
+        modifier = Modifier.wrapContentWidth()
+    )
+}
+
+@Composable
+private fun ColumnScope.HomeExitMessage(context: Context) {
+    Spacer(modifier = Modifier.height(24.dp))
+    PlyrErrorText(
+        text = Translations.get(context, "exit_message"),
+        modifier = Modifier.align(Alignment.CenterHorizontally)
+    )
 }
 
 /**
@@ -265,7 +303,6 @@ private fun HomePlaylistCarousel(
     context: Context,
     onOpenPlaylist: (String) -> Unit
 ) {
-    val haptic = LocalHapticFeedback.current
     val playlistRepository = remember { PlaylistLocalRepository(context) }
     val playlistEntities by playlistRepository.getAllPlaylistsLiveData()
         .asFlow()
@@ -285,64 +322,93 @@ private fun HomePlaylistCarousel(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         items(playlists, key = { it.remoteId }) { playlist ->
-            val isLiked = playlist.remoteId == "liked_songs"
-            val coverUrl = if (isLiked) null else UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
-            Column(
+            HomePlaylistItem(
+                playlist = playlist,
+                onOpenPlaylist = onOpenPlaylist
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomePlaylistItem(
+    playlist: PlaylistEntity,
+    onOpenPlaylist: (String) -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val isLiked = playlist.remoteId == "liked_songs"
+    val coverUrl = if (isLiked) null else UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onOpenPlaylist(playlist.remoteId)
+            },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        HomePlaylistCover(
+            isLiked = isLiked,
+            coverUrl = coverUrl,
+            name = playlist.name
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = playlist.name,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun HomePlaylistCover(
+    isLiked: Boolean,
+    coverUrl: String?,
+    name: String
+) {
+    when {
+        isLiked -> {
+            Box(
                 modifier = Modifier
-                    .width(140.dp)
+                    .size(140.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onOpenPlaylist(playlist.remoteId)
-                    },
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
             ) {
-                if (isLiked) {
-                    Box(
-                        modifier = Modifier
-                            .size(140.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "♥",
-                            fontSize = 48.sp,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                } else if (coverUrl != null) {
-                    AsyncImage(
-                        model = coverUrl,
-                        contentDescription = playlist.name,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .size(140.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(140.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = playlist.name.take(1),
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center
+                    text = "♥",
+                    fontSize = 48.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+        coverUrl != null -> {
+            AsyncImage(
+                model = coverUrl,
+                contentDescription = name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(140.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            )
+        }
+        else -> {
+            Box(
+                modifier = Modifier
+                    .size(140.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = name.take(1),
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

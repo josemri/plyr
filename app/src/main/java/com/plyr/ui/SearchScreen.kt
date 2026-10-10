@@ -20,10 +20,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.plyr.model.AudioItem
+import com.plyr.model.ScanResult
 import com.plyr.utils.Translations
 import com.plyr.utils.NfcScanEvent
 import com.plyr.database.TrackEntity
 import com.plyr.database.SearchHistoryEntity
+import com.plyr.database.SearchHistoryDao
 import com.plyr.database.PlaylistDatabase
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.service.YouTubeSearchManager
@@ -40,33 +42,51 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import com.plyr.ui.components.Titulo
 
-@Composable
-fun SearchScreen(
-    context: Context,
-    initialQuery: String? = null,
-    onBack: () -> Unit,
-    playerViewModel: PlayerViewModel? = null,
-    isActive: Boolean = true
+private data class SearchResultActions(
+    val onResults: (List<AudioItem>) -> Unit,
+    val onYouTubeAllResults: (YouTubeSearchManager.YouTubeSearchAllResult?) -> Unit,
+    val onShowYouTubeAllResults: (Boolean) -> Unit,
+    val onLoadingChange: (Boolean) -> Unit,
+    val onError: (String?) -> Unit,
+)
+
+private data class ScanResultActions(
+    val onPlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
+    val onSearchVideo: (String) -> Unit,
+    val onError: (String) -> Unit,
+    val onLoadingChange: (Boolean) -> Unit,
+)
+
+private data class SearchDependencies(
+    val youtubeSearchManager: YouTubeSearchManager,
+    val searchHistoryDao: SearchHistoryDao,
+    val errorPrefix: String,
+)
+
+@Stable
+private class SearchScreenState(
+    initialQuery: String?,
+    val context: Context,
+    val youtubeSearchManager: YouTubeSearchManager,
+    val searchHistoryDao: SearchHistoryDao,
+    val coroutineScope: CoroutineScope,
 ) {
-    var searchQuery by remember { mutableStateOf(initialQuery ?: "") }
-    var results by remember { mutableStateOf<List<AudioItem>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var searchQuery by mutableStateOf(initialQuery ?: "")
+    var results by mutableStateOf<List<AudioItem>>(emptyList())
+    var isLoading by mutableStateOf(false)
+    var error by mutableStateOf<String?>(null)
+    var youtubeAllResults by mutableStateOf<YouTubeSearchManager.YouTubeSearchAllResult?>(null)
+    var showYouTubeAllResults by mutableStateOf(false)
+    var selectedYouTubePlaylist by mutableStateOf<YouTubeSearchManager.YouTubePlaylistInfo?>(null)
+    var showQrScanner by mutableStateOf(false)
 
-    var youtubeAllResults by remember { mutableStateOf<YouTubeSearchManager.YouTubeSearchAllResult?>(null) }
-    var showYouTubeAllResults by remember { mutableStateOf(false) }
-    var selectedYouTubePlaylist by remember { mutableStateOf<YouTubeSearchManager.YouTubePlaylistInfo?>(null) }
-
-    val youtubeSearchManager = remember { YouTubeSearchManager(context) }
-    val coroutineScope = rememberCoroutineScope()
-
-
-    var showQrScanner by remember { mutableStateOf(false) }
-
-    val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
-
-    val database = remember { PlaylistDatabase.getDatabase(context) }
-    val searchHistoryDao = database.searchHistoryDao()
+    private val resultActions = SearchResultActions(
+        onResults = { results = it },
+        onYouTubeAllResults = { youtubeAllResults = it },
+        onShowYouTubeAllResults = { showYouTubeAllResults = it },
+        onLoadingChange = { isLoading = it },
+        onError = { error = it },
+    )
 
     val performSearch: (String, Boolean) -> Unit = { query, isLoadMore ->
         if (query.isNotBlank() && (!isLoading || isLoadMore)) {
@@ -81,176 +101,247 @@ fun SearchScreen(
             error = null
 
             coroutineScope.launch {
-                try {
-                    if (!isLoadMore) {
-                        try {
-                            searchHistoryDao.deleteSearchByQuery(query, "youtube")
-                            searchHistoryDao.insertSearch(
-                                SearchHistoryEntity(
-                                    query = query,
-                                    searchEngine = "youtube"
-                                )
-                            )
-                        } catch (_: Exception) {
-                        }
-                    }
-
-                    youtubeAllResults = null
-                    showYouTubeAllResults = false
-
-                    val searchResults = youtubeSearchManager.searchYouTubeAll(query)
-                    youtubeAllResults = searchResults
-                    showYouTubeAllResults = true
-
-                    val newResults = searchResults.videos.map { videoInfo ->
-                        AudioItem(
-                            title = videoInfo.title,
-                            url = "",
-                            videoId = videoInfo.videoId,
-                            channel = videoInfo.uploader,
-                            duration = videoInfo.getFormattedDuration()
-                        )
-                    }
-
-                    results = newResults
-                    isLoading = false
-
-                } catch (e: Exception) {
-                    isLoading = false
-                    error = "${Translations.get(context, "search_error")}: ${e.message}"
-                }
+                executeSearch(
+                    query = query,
+                    isLoadMore = isLoadMore,
+                    deps = SearchDependencies(
+                        youtubeSearchManager = youtubeSearchManager,
+                        searchHistoryDao = searchHistoryDao,
+                        errorPrefix = Translations.get(context, "search_error")
+                    ),
+                    actions = resultActions
+                )
             }
         }
     }
 
+    private val scanActions = ScanResultActions(
+        onPlaylistSelected = { selectedYouTubePlaylist = it },
+        onSearchVideo = { url ->
+            searchQuery = url
+            performSearch(url, false)
+        },
+        onError = { error = it },
+        onLoadingChange = { isLoading = it },
+    )
+
+    suspend fun processScan(result: ScanResult) {
+        processScanResult(result, context, youtubeSearchManager, scanActions)
+    }
+}
+
+private suspend fun executeSearch(
+    query: String,
+    isLoadMore: Boolean,
+    deps: SearchDependencies,
+    actions: SearchResultActions,
+) {
+    try {
+        if (!isLoadMore) {
+            try {
+                deps.searchHistoryDao.deleteSearchByQuery(query, "youtube")
+                deps.searchHistoryDao.insertSearch(
+                    SearchHistoryEntity(
+                        query = query,
+                        searchEngine = "youtube"
+                    )
+                )
+            } catch (_: Exception) {
+            }
+        }
+
+        actions.onYouTubeAllResults(null)
+        actions.onShowYouTubeAllResults(false)
+
+        val searchResults = deps.youtubeSearchManager.searchYouTubeAll(query)
+        actions.onYouTubeAllResults(searchResults)
+        actions.onShowYouTubeAllResults(true)
+
+        val newResults = searchResults.videos.map { videoInfo ->
+            AudioItem(
+                title = videoInfo.title,
+                url = "",
+                videoId = videoInfo.videoId,
+                channel = videoInfo.uploader,
+                duration = videoInfo.getFormattedDuration()
+            )
+        }
+
+        actions.onResults(newResults)
+        actions.onLoadingChange(false)
+
+    } catch (e: Exception) {
+        actions.onLoadingChange(false)
+        actions.onError("${deps.errorPrefix}: ${e.message}")
+    }
+}
+
+private suspend fun processScanResult(
+    result: ScanResult,
+    context: Context,
+    youtubeSearchManager: YouTubeSearchManager,
+    actions: ScanResultActions,
+) {
+    val prefix = Translations.get(context, "search_error_processing_qr")
+    try {
+        when (result.source) {
+            "youtube" -> processYouTubeScanResult(result, youtubeSearchManager, prefix, actions)
+            else -> {
+                actions.onError("$prefix: unsupported source '${result.source}'")
+                actions.onLoadingChange(false)
+            }
+        }
+    } catch (e: Exception) {
+        actions.onError("$prefix: ${e.message}")
+        actions.onLoadingChange(false)
+    }
+}
+
+private suspend fun processYouTubeScanResult(
+    result: ScanResult,
+    youtubeSearchManager: YouTubeSearchManager,
+    prefix: String,
+    actions: ScanResultActions,
+) {
+    if (result.type == "playlist") {
+        val info = youtubeSearchManager.getYouTubePlaylistInfo(result.id)
+        if (info != null) {
+            actions.onPlaylistSelected(info)
+        } else {
+            actions.onError("$prefix: playlist not available")
+            actions.onLoadingChange(false)
+        }
+    } else {
+        val videoUrl = "https://www.youtube.com/watch?v=${result.id}"
+        actions.onSearchVideo(videoUrl)
+    }
+}
+
+@Composable
+fun SearchScreen(
+    context: Context,
+    initialQuery: String? = null,
+    onBack: () -> Unit,
+    playerViewModel: PlayerViewModel? = null,
+    isActive: Boolean = true
+) {
+    val youtubeSearchManager = remember { YouTubeSearchManager(context) }
+    val coroutineScope = rememberCoroutineScope()
+    val database = remember { PlaylistDatabase.getDatabase(context) }
+    val state = remember {
+        SearchScreenState(
+            initialQuery = initialQuery,
+            context = context,
+            youtubeSearchManager = youtubeSearchManager,
+            searchHistoryDao = database.searchHistoryDao(),
+            coroutineScope = coroutineScope
+        )
+    }
+
+    val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
+
     LaunchedEffect(Unit) {
         val query = initialQuery
         if (!query.isNullOrBlank()) {
-            performSearch(query, false)
+            state.performSearch(query, false)
         }
     }
 
     LaunchedEffect(nfcScanResult) {
         val result = nfcScanResult ?: return@LaunchedEffect
-
         NfcScanEvent.consumeResult()
-
-        try {
-            when (result.source) {
-                "youtube" -> {
-                    if (result.type == "playlist") {
-                        val info = youtubeSearchManager.getYouTubePlaylistInfo(result.id)
-                        if (info != null) {
-                            selectedYouTubePlaylist = info
-                        } else {
-                            error = "${Translations.get(context, "search_error_processing_qr")}: playlist not available"
-                            isLoading = false
-                        }
-                    } else {
-                        val videoUrl = "https://www.youtube.com/watch?v=${result.id}"
-                        searchQuery = videoUrl
-                        performSearch(videoUrl, false)
-                    }
-                }
-                else -> {
-                    error = "${Translations.get(context, "search_error_processing_qr")}: unsupported source '${result.source}'"
-                    isLoading = false
-                }
-            }
-        } catch (e: Exception) {
-            error = "${Translations.get(context, "search_error_processing_qr")}: ${e.message}"
-            isLoading = false
-        }
+        state.processScan(result)
     }
 
+    SearchBackHandler(
+        showQrScanner = state.showQrScanner,
+        hasPlaylist = state.selectedYouTubePlaylist != null,
+        onCloseQrScanner = { state.showQrScanner = false },
+        onClosePlaylist = { state.selectedYouTubePlaylist = null },
+        onBack = onBack
+    )
+
+    SearchScreenContent(
+        context = context,
+        state = state,
+        playerViewModel = playerViewModel,
+        coroutineScope = coroutineScope,
+        onSearchTriggered = state.performSearch,
+        onQrScanned = { qrResult -> coroutineScope.launch { state.processScan(qrResult) } },
+        isActive = isActive
+    )
+}
+
+@Composable
+private fun SearchBackHandler(
+    showQrScanner: Boolean,
+    hasPlaylist: Boolean,
+    onCloseQrScanner: () -> Unit,
+    onClosePlaylist: () -> Unit,
+    onBack: () -> Unit
+) {
     BackHandler {
         when {
-            showQrScanner -> {
-                showQrScanner = false
-            }
-            selectedYouTubePlaylist != null -> {
-                selectedYouTubePlaylist = null
-            }
+            showQrScanner -> onCloseQrScanner()
+            hasPlaylist -> onClosePlaylist()
             else -> onBack()
         }
     }
+}
 
+@Composable
+private fun SearchScreenContent(
+    context: Context,
+    state: SearchScreenState,
+    playerViewModel: PlayerViewModel?,
+    coroutineScope: CoroutineScope,
+    onSearchTriggered: (String, Boolean) -> Unit,
+    onQrScanned: (ScanResult) -> Unit,
+    isActive: Boolean
+) {
     Column(
         Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        val ytPlaylist = selectedYouTubePlaylist
-        when {
-            ytPlaylist != null -> {
-                YouTubePlaylistDetailView(
-                    playlist = ytPlaylist,
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope
-                )
-            }
-            else -> {
-                SearchMainView(
-                    context = context,
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = { searchQuery = it },
-                    results = results,
-                    isLoading = isLoading,
-                    error = error,
-                    onSearchTriggered = performSearch,
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope,
-                    youtubeAllResults = youtubeAllResults,
-                    showYouTubeAllResults = showYouTubeAllResults,
-                    onYouTubePlaylistSelected = { playlist ->
-                        selectedYouTubePlaylist = playlist
-                    },
-                    onShowQrScannerChange = { showQrScanner = it },
-                    isActive = isActive
-                )
-                if (showQrScanner) {
-                    QrScannerDialog(
-                        onDismiss = { showQrScanner = false },
-                        onQrScanned = { qrResult ->
-                            showQrScanner = false
-                            if (qrResult != null) {
-                                coroutineScope.launch {
-                                    try {
-                                        when (qrResult.source) {
-                                            "youtube" -> {
-                                                if (qrResult.type == "playlist") {
-                                                    val info = youtubeSearchManager.getYouTubePlaylistInfo(qrResult.id)
-                                                    if (info != null) {
-                                                        selectedYouTubePlaylist = info
-                                                    } else {
-                                                        error = "${Translations.get(context, "search_error_processing_qr")}: playlist not available"
-                                                        isLoading = false
-                                                    }
-                                                } else {
-                                                    val videoUrl = "https://www.youtube.com/watch?v=${qrResult.id}"
-                                                    searchQuery = videoUrl
-                                                    performSearch(videoUrl, false)
-                                                }
-                                            }
-                                            else -> {
-                                                error = "${Translations.get(context, "search_error_processing_qr")}: unsupported source '${qrResult.source}'"
-                                                isLoading = false
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        error = "${Translations.get(context, "search_error_processing_qr")}: ${e.message}"
-                                        isLoading = false
-                                    }
-                                }
-                            }
+        val ytPlaylist = state.selectedYouTubePlaylist
+        if (ytPlaylist != null) {
+            YouTubePlaylistDetailView(
+                playlist = ytPlaylist,
+                playerViewModel = playerViewModel,
+                coroutineScope = coroutineScope
+            )
+        } else {
+            SearchMainView(
+                context = context,
+                searchQuery = state.searchQuery,
+                onSearchQueryChange = { state.searchQuery = it },
+                results = state.results,
+                isLoading = state.isLoading,
+                error = state.error,
+                onSearchTriggered = onSearchTriggered,
+                playerViewModel = playerViewModel,
+                coroutineScope = coroutineScope,
+                youtubeAllResults = state.youtubeAllResults,
+                showYouTubeAllResults = state.showYouTubeAllResults,
+                onYouTubePlaylistSelected = { state.selectedYouTubePlaylist = it },
+                onShowQrScannerChange = { state.showQrScanner = it },
+                isActive = isActive
+            )
+            if (state.showQrScanner) {
+                QrScannerDialog(
+                    onDismiss = { state.showQrScanner = false },
+                    onQrScanned = { qrResult ->
+                        state.showQrScanner = false
+                        if (qrResult != null) {
+                            onQrScanned(qrResult)
                         }
-                    )
-                }
+                    }
+                )
             }
         }
     }
 }
-
 
 @Composable
 private fun SearchMainView(
@@ -284,10 +375,124 @@ private fun SearchMainView(
     val coverSemaphore = remember { Semaphore(PLAYLIST_COVER_CONCURRENCY) }
 
     // Expansión de las secciones (hoisteada: los items viven en un LazyListScope).
-    var videosExpanded by remember { mutableStateOf(true) }
-    var playlistsExpanded by remember { mutableStateOf(false) }
-    var legacyVideosExpanded by remember { mutableStateOf(true) }
+    val expansion = remember { SearchExpansionState() }
 
+    val trackData = rememberSearchTrackData(youtubeAllResults, results)
+    val deps = SearchResultsDeps(
+        playerViewModel = playerViewModel,
+        youtubeManager = youtubeManager,
+        coverCache = coverCache,
+        coverSemaphore = coverSemaphore,
+        coroutineScope = coroutineScope,
+        currentTrack = currentTrack,
+        videoTrackEntities = trackData.videoTrackEntities,
+        legacyTrackEntities = trackData.legacyTrackEntities,
+        youtubeLabel = Translations.get(context, "search_youtube_results"),
+        loadMoreLabel = Translations.get(context, "search_load_more"),
+        onPlaylistSelected = onYouTubePlaylistSelected
+    )
+
+    SearchMainList(
+        context = context,
+        searchQuery = searchQuery,
+        isLoading = isLoading,
+        error = error,
+        showYouTubeAllResults = showYouTubeAllResults,
+        youtubeAllResults = youtubeAllResults,
+        results = results,
+        deps = deps,
+        expansion = expansion,
+        focusRequester = focusRequester,
+        onSearchQueryChange = onSearchQueryChange,
+        onSearchTriggered = onSearchTriggered,
+        onShowQrScannerChange = onShowQrScannerChange
+    )
+}
+
+@Composable
+private fun SearchMainList(
+    context: Context,
+    searchQuery: String,
+    isLoading: Boolean,
+    error: String?,
+    showYouTubeAllResults: Boolean,
+    youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
+    results: List<AudioItem>,
+    deps: SearchResultsDeps,
+    expansion: SearchExpansionState,
+    focusRequester: FocusRequester,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchTriggered: (String, Boolean) -> Unit,
+    onShowQrScannerChange: (Boolean) -> Unit
+) {
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item(key = "search_title") {
+            Titulo(Translations.get(context, "search_title"))
+        }
+
+        item(key = "search_field") {
+            SearchInputField(
+                context = context,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                onSearchTriggered = onSearchTriggered,
+                onShowQrScannerChange = onShowQrScannerChange,
+                isLoading = isLoading,
+                focusRequester = focusRequester
+            )
+        }
+
+        item(key = "search_spacer") { Spacer(Modifier.height(12.dp)) }
+
+        if (isLoading) {
+            item(key = "search_loading") { SearchLoadingIndicator(context) }
+        }
+
+        error?.let { err ->
+            item(key = "search_error") { SearchErrorMessage(context, err) }
+        }
+
+        if (showYouTubeAllResults && youtubeAllResults != null) {
+            youtubeResultsSection(deps, expansion, youtubeAllResults)
+        }
+
+        if (results.isNotEmpty() && !showYouTubeAllResults) {
+            legacyResultsSection(deps, expansion, results, searchQuery, onSearchTriggered)
+        }
+    }
+}
+
+@Stable
+private class SearchExpansionState {
+    var videosExpanded by mutableStateOf(true)
+    var playlistsExpanded by mutableStateOf(false)
+    var legacyVideosExpanded by mutableStateOf(true)
+}
+
+private data class SearchResultsDeps(
+    val playerViewModel: PlayerViewModel?,
+    val youtubeManager: YouTubeSearchManager,
+    val coverCache: MutableMap<String, String>,
+    val coverSemaphore: Semaphore,
+    val coroutineScope: CoroutineScope,
+    val currentTrack: TrackEntity?,
+    val videoTrackEntities: List<TrackEntity>,
+    val legacyTrackEntities: List<TrackEntity>,
+    val youtubeLabel: String,
+    val loadMoreLabel: String,
+    val onPlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
+)
+
+private data class SearchTrackData(
+    val videoTrackEntities: List<TrackEntity>,
+    val legacyTrackEntities: List<TrackEntity>,
+)
+
+@Composable
+private fun rememberSearchTrackData(
+    youtubeAllResults: YouTubeSearchManager.YouTubeSearchAllResult?,
+    results: List<AudioItem>
+): SearchTrackData {
     val allVideos = youtubeAllResults?.videos ?: emptyList()
     val videoPlaylistId = remember(allVideos) { "youtube_search_${System.currentTimeMillis()}" }
     val videoTrackEntities = remember(allVideos, videoPlaylistId) {
@@ -320,149 +525,173 @@ private fun SearchMainView(
             )
         }
     }
+    return remember(videoTrackEntities, legacyTrackEntities) {
+        SearchTrackData(videoTrackEntities, legacyTrackEntities)
+    }
+}
 
-    val youtubeLabel = Translations.get(context, "search_youtube_results")
-    val loadMoreLabel = Translations.get(context, "search_load_more")
+private fun LazyListScope.youtubeResultsSection(
+    deps: SearchResultsDeps,
+    expansion: SearchExpansionState,
+    allResults: YouTubeSearchManager.YouTubeSearchAllResult
+) {
+    youtubeSearchResultsSection(
+        YouTubeSearchResultsState(
+            deps = YouTubeSearchSectionDeps(
+                youtubeManager = deps.youtubeManager,
+                coverCache = deps.coverCache,
+                coverSemaphore = deps.coverSemaphore,
+                playerViewModel = deps.playerViewModel,
+                coroutineScope = deps.coroutineScope,
+            ),
+            allResults = allResults,
+            videosExpanded = expansion.videosExpanded,
+            onToggleVideos = { expansion.videosExpanded = !expansion.videosExpanded },
+            playlistsExpanded = expansion.playlistsExpanded,
+            onTogglePlaylists = { expansion.playlistsExpanded = !expansion.playlistsExpanded },
+            currentTrack = deps.currentTrack,
+            videoTrackEntities = deps.videoTrackEntities,
+            onPlaylistSelected = deps.onPlaylistSelected
+        )
+    )
+}
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item(key = "search_title") {
-            Titulo(Translations.get(context, "search_title"))
-        }
+private fun LazyListScope.legacyResultsSection(
+    deps: SearchResultsDeps,
+    expansion: SearchExpansionState,
+    results: List<AudioItem>,
+    searchQuery: String,
+    onSearchTriggered: (String, Boolean) -> Unit
+) {
+    collapsibleYouTubeSearchResultsSection(
+        LegacyResultsSectionState(
+            results = results,
+            videosExpanded = expansion.legacyVideosExpanded,
+            onToggle = { expansion.legacyVideosExpanded = !expansion.legacyVideosExpanded },
+            currentTrack = deps.currentTrack,
+            trackEntities = deps.legacyTrackEntities,
+            playerViewModel = deps.playerViewModel,
+            coroutineScope = deps.coroutineScope,
+            youtubeLabel = deps.youtubeLabel,
+            loadMoreLabel = deps.loadMoreLabel,
+            onLoadMore = { onSearchTriggered(searchQuery, true) }
+        )
+    )
+}
 
-        item(key = "search_field") {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                label = {
-                    Text(
-                        Translations.get(context, "search_placeholder"),
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Monospace
-                        )
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester),
-                trailingIcon = {
-                    Row {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = {
-                                onSearchQueryChange("")
-                            }) {
-                                Text(
-                                    text = "x",
-                                    style = MaterialTheme.typography.titleMedium.copy(
-                                        fontFamily = FontFamily.Monospace
-                                    )
-                                )
-                            }
-                        }
-                        IconButton(onClick = { onShowQrScannerChange(true) }) {
-                            Text(
-                                text = Translations.get(context, "search_scan_qr"),
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontFamily = FontFamily.Monospace
-                                )
-                            )
-                        }
-                    }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        if (searchQuery.isNotBlank() && !isLoading) {
-                            onSearchTriggered(searchQuery, false)
-                        }
-                    }
-                ),
-                enabled = !isLoading,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
-                    focusedLabelColor = MaterialTheme.colorScheme.primary,
-                    unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                ),
-                textStyle = MaterialTheme.typography.titleMedium.copy(
+@Composable
+private fun SearchInputField(
+    context: Context,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchTriggered: (String, Boolean) -> Unit,
+    onShowQrScannerChange: (Boolean) -> Unit,
+    isLoading: Boolean,
+    focusRequester: FocusRequester
+) {
+    OutlinedTextField(
+        value = searchQuery,
+        onValueChange = onSearchQueryChange,
+        label = {
+            Text(
+                Translations.get(context, "search_placeholder"),
+                style = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace
                 )
             )
-        }
-
-        item(key = "search_spacer") { Spacer(Modifier.height(12.dp)) }
-
-        if (isLoading) {
-            item(key = "search_loading") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "\$ ${Translations.get(context, "search_loading")}",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
-                    )
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester),
+        trailingIcon = {
+            SearchFieldTrailingIcon(
+                context = context,
+                searchQuery = searchQuery,
+                onSearchQueryChange = onSearchQueryChange,
+                onShowQrScannerChange = onShowQrScannerChange
+            )
+        },
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(
+            onSearch = {
+                if (searchQuery.isNotBlank() && !isLoading) {
+                    onSearchTriggered(searchQuery, false)
                 }
             }
-        }
+        ),
+        enabled = !isLoading,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+        ),
+        textStyle = MaterialTheme.typography.titleMedium.copy(
+            fontFamily = FontFamily.Monospace
+        )
+    )
+}
 
-        error?.let { err ->
-            item(key = "search_error") {
-                Spacer(Modifier.height(8.dp))
+@Composable
+private fun SearchFieldTrailingIcon(
+    context: Context,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    onShowQrScannerChange: (Boolean) -> Unit
+) {
+    Row {
+        if (searchQuery.isNotEmpty()) {
+            IconButton(onClick = {
+                onSearchQueryChange("")
+            }) {
                 Text(
-                    "${Translations.get(context, "search_error")}: $err",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall.copy(
+                    text = "x",
+                    style = MaterialTheme.typography.titleMedium.copy(
                         fontFamily = FontFamily.Monospace
                     )
                 )
             }
         }
-
-        if (showYouTubeAllResults && youtubeAllResults != null) {
-            youtubeSearchResultsSection(
-                YouTubeSearchResultsState(
-                    deps = YouTubeSearchSectionDeps(
-                        youtubeManager = youtubeManager,
-                        coverCache = coverCache,
-                        coverSemaphore = coverSemaphore,
-                        playerViewModel = playerViewModel,
-                        coroutineScope = coroutineScope,
-                    ),
-                    allResults = youtubeAllResults,
-                    videosExpanded = videosExpanded,
-                    onToggleVideos = { videosExpanded = !videosExpanded },
-                    playlistsExpanded = playlistsExpanded,
-                    onTogglePlaylists = { playlistsExpanded = !playlistsExpanded },
-                    currentTrack = currentTrack,
-                    videoTrackEntities = videoTrackEntities,
-                    onPlaylistSelected = onYouTubePlaylistSelected
-                )
-            )
-        }
-
-        if (results.isNotEmpty() && !showYouTubeAllResults) {
-            collapsibleYouTubeSearchResultsSection(
-                LegacyResultsSectionState(
-                    results = results,
-                    videosExpanded = legacyVideosExpanded,
-                    onToggle = { legacyVideosExpanded = !legacyVideosExpanded },
-                    currentTrack = currentTrack,
-                    trackEntities = legacyTrackEntities,
-                    playerViewModel = playerViewModel,
-                    coroutineScope = coroutineScope,
-                    youtubeLabel = youtubeLabel,
-                    loadMoreLabel = loadMoreLabel,
-                    onLoadMore = { onSearchTriggered(searchQuery, true) }
+        IconButton(onClick = { onShowQrScannerChange(true) }) {
+            Text(
+                text = Translations.get(context, "search_scan_qr"),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace
                 )
             )
         }
     }
+}
+
+@Composable
+private fun SearchLoadingIndicator(context: Context) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "\$ ${Translations.get(context, "search_loading")}",
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.tertiary
+            )
+        )
+    }
+}
+
+@Composable
+private fun SearchErrorMessage(context: Context, error: String) {
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "${Translations.get(context, "search_error")}: $error",
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace
+        )
+    )
 }
 
 /**

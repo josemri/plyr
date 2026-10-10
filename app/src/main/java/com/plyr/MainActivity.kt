@@ -73,86 +73,99 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 123)
-        }
+        requestNotificationPermissionIfNeeded()
 
         enableEdgeToEdge()
 
         // Inicializar LightSensorDetector para tema automático
         initializeLightSensorDetector()
 
+        startAndBindMusicService()
+
+        setContent { AppRoot() }
+    }
+
+    /** Pide el permiso de notificaciones en Android 13+ (necesario para el foreground service). */
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 123)
+        }
+    }
+
+    /** Arranca el servicio en primer plano y se enlaza a él. */
+    private fun startAndBindMusicService() {
         Intent(this, MusicService::class.java).also {
             // startForegroundService solo existe desde API 26; con minSdk 24
             // esta llamada crasheaba en Android 7.x (lint: NewApi).
             ContextCompat.startForegroundService(this, it)
             bindService(it, serviceConnection, BIND_AUTO_CREATE)
         }
+    }
 
-        setContent {
-            val playerViewModel = (application as PlyrApp).playerViewModel
-            val importViewModel = (application as PlyrApp).importViewModel
-            val theme = remember { mutableStateOf(Config.getTheme(this)) }
+    @Composable
+    private fun AppRoot() {
+        val playerViewModel = (application as PlyrApp).playerViewModel
+        val importViewModel = (application as PlyrApp).importViewModel
+        val theme = remember { mutableStateOf(Config.getTheme(this)) }
 
-            // Estado para tema automático basado en sensor de luz
-            val autoThemeDark by isAutoThemeDark
+        // Estado para tema automático basado en sensor de luz
+        val autoThemeDark by isAutoThemeDark
 
-            // Observar si hay contenido cargado para mostrar los controles
-            val currentTitle by playerViewModel.currentTitle.observeAsState()
-            val isLoading by playerViewModel.isLoading.observeAsState(false)
-            val error by playerViewModel.error.observeAsState()
+        // Observar si hay contenido cargado para mostrar los controles
+        val currentTitle by playerViewModel.currentTitle.observeAsState()
+        val isLoading by playerViewModel.isLoading.observeAsState(false)
+        val error by playerViewModel.error.observeAsState()
 
-            // Determinar si los controles flotantes están visibles
-            val isControlsVisible = currentTitle != null || isLoading || error != null
+        // Determinar si los controles flotantes están visibles
+        val isControlsVisible = currentTitle != null || isLoading || error != null
 
-            // Determinar el modo efectivo: 'dark', 'light', 'system' o 'auto'
-            val effectiveDark = when (theme.value) {
-                "dark" -> true
-                "light" -> false
-                "auto" -> autoThemeDark
-                "system" -> isSystemInDarkTheme()
-                else -> isSystemInDarkTheme()
-            }
+        // Determinar el modo efectivo: 'dark', 'light', 'system' o 'auto'
+        val effectiveDark = when (theme.value) {
+            "dark" -> true
+            "light" -> false
+            "auto" -> autoThemeDark
+            "system" -> isSystemInDarkTheme()
+            else -> isSystemInDarkTheme()
+        }
 
-            // Calcular dimensiones responsivas para layouts
-            val dimensions = calculateResponsiveDimensionsFallback()
+        // Calcular dimensiones responsivas para layouts
+        val dimensions = calculateResponsiveDimensionsFallback()
 
-            PlyrTheme(darkTheme = effectiveDark) {
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    var navigateToScreenRequest by remember { mutableStateOf<String?>(null) }
+        PlyrTheme(darkTheme = effectiveDark) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                var navigateToScreenRequest by remember { mutableStateOf<String?>(null) }
 
-                    Box(Modifier.fillMaxSize().statusBarsPadding()) {
-                        Box(
-                            Modifier
-                                .fillMaxSize()
-                                .padding(bottom = if (isControlsVisible) dimensions.contentBottomPadding else 0.dp)
-                        ) {
-                            AudioListScreen(
-                                context = this@MainActivity,
-                                navigateToScreenRequest = navigateToScreenRequest,
-                                onNavigateHandled = { navigateToScreenRequest = null },
-                                onThemeChanged = { newTheme ->
-                                    theme.value = newTheme
-                                    // Activar/desactivar sensor de luz según el tema
-                                    if (newTheme == "auto") {
-                                        lightSensorDetector?.start()
-                                    } else {
-                                        lightSensorDetector?.stop()
-                                    }
-                                },
-                                playerViewModel = playerViewModel,
-                                importViewModel = importViewModel
-                            )
-                        }
-
-                        FloatingMusicControls(
+                Box(Modifier.fillMaxSize().statusBarsPadding()) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(bottom = if (isControlsVisible) dimensions.contentBottomPadding else 0.dp)
+                    ) {
+                        AudioListScreen(
+                            context = this@MainActivity,
+                            navigateToScreenRequest = navigateToScreenRequest,
+                            onNavigateHandled = { navigateToScreenRequest = null },
+                            onThemeChanged = { newTheme ->
+                                theme.value = newTheme
+                                // Activar/desactivar sensor de luz según el tema
+                                if (newTheme == "auto") {
+                                    lightSensorDetector?.start()
+                                } else {
+                                    lightSensorDetector?.stop()
+                                }
+                            },
                             playerViewModel = playerViewModel,
-                            modifier = Modifier.align(Alignment.BottomCenter)
-                                .padding(bottom = dimensions.floatingControlsBottomPadding),
-                            onShowQueue = { navigateToScreenRequest = Screen.QUEUE.name }
+                            importViewModel = importViewModel
                         )
                     }
+
+                    FloatingMusicControls(
+                        playerViewModel = playerViewModel,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                            .padding(bottom = dimensions.floatingControlsBottomPadding),
+                        onShowQueue = { navigateToScreenRequest = Screen.QUEUE.name }
+                    )
                 }
             }
         }

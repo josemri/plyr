@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Los dibujos `ascii_1..ascii_50` se referencian por nombre en tiempo de
+     ejecución desde HomeScreen.kt (resources.getIdentifier("ascii_$i", ...)),
+     por lo que el análisis estático no puede verlos y lint los marca como
+     UnusedResources. Declararlos aquí es la forma canónica de indicar que la
+     referencia es dinámica (y evita que un futuro shrinkResources los elimine). -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ascii_*" />

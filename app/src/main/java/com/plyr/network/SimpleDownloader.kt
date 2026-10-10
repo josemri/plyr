@@ -10,7 +10,6 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.ResponseBody
 
 class SimpleDownloader private constructor() : Downloader() {
 
@@ -82,95 +81,11 @@ class SimpleDownloader private constructor() : Downloader() {
     override fun execute(request: Request): Response {
         Log.d(TAG, "🌐 Ejecutando petición: ${request.httpMethod()} ${request.url()}")
 
-        val httpMethod = request.httpMethod()
         val url = request.url()
-        val headers = request.headers()
-        val dataToSend = request.dataToSend()
+        val builtRequest = buildRequest(request)
 
-        // Crear RequestBody si hay datos
-        val requestBody = if (dataToSend != null) {
-            dataToSend.toRequestBody(null)
-        } else {
-            null
-        }
-
-        // Construir request de OkHttp
-        val requestBuilder = okhttp3.Request.Builder()
-            .method(httpMethod, requestBody)
-            .url(url)
-            .addHeader("User-Agent", USER_AGENT)
-
-        // Agregar cookies
-        val cookiesString = getCookies(url)
-        if (cookiesString.isNotEmpty()) {
-            requestBuilder.addHeader("Cookie", cookiesString)
-            Log.d(TAG, "🍪 Cookies enviadas: ${describeCookieNames(cookiesString)}")
-        }
-
-        // Agregar headers personalizados
-        headers?.forEach { (headerName, headerValueList) ->
-            requestBuilder.removeHeader(headerName)
-            headerValueList.forEach { headerValue ->
-                requestBuilder.addHeader(headerName, headerValue)
-            }
-        }
-
-        // Log de headers (los valores sensibles se ocultan: B32)
-        val builtRequest = requestBuilder.build()
-        Log.d(TAG, "📋 Headers enviados:")
-        Log.d(TAG, describeHeaders(builtRequest.headers.toMultimap()))
-
-        // Ejecutar petición
         return try {
-            client.newCall(builtRequest).execute().use { response ->
-                val responseCode = response.code
-                Log.d(TAG, "📥 Código de respuesta: $responseCode")
-
-                // Detectar reCaptcha challenge
-                if (responseCode == 429) {
-                    Log.e(TAG, "⚠️ reCaptcha Challenge detectado (429)")
-                    throw ReCaptchaException("reCaptcha Challenge requested", url)
-                }
-
-                // Leer body (OkHttp 5: body no nullable)
-                val responseBodyString: String = response.body.use { body: ResponseBody ->
-                    body.string()
-                }
-
-                if (responseCode < 400) {
-                    Log.d(TAG, "✅ Respuesta exitosa: ${responseBodyString.length} caracteres")
-                    // Log adicional para peticiones del player de YouTube: solo el
-                    // estado, nunca el volcado de la respuesta (puede llevar
-                    // visitorData, tokens y datos de la cuenta)
-                    if (url.contains("/youtubei/v1/player")) {
-                        playabilityStatusOf(responseBodyString)?.let { status ->
-                            Log.d(TAG, "🎬 PlayabilityStatus: $status")
-                        }
-                    }
-                } else {
-                    Log.e(TAG, "❌ Error ($responseCode): ${responseBodyString.length} caracteres")
-                }
-
-                // Obtener URL final (después de redirecciones)
-                val latestUrl = response.request.url.toString()
-                if (latestUrl != url) {
-                    Log.d(TAG, "🔄 Redirección: $latestUrl")
-                }
-
-                // Convertir headers de OkHttp a formato de NewPipe
-                val headersMap = mutableMapOf<String, MutableList<String>>()
-                response.headers.forEach { (name, value) ->
-                    headersMap.getOrPut(name) { mutableListOf() }.add(value)
-                }
-
-                Response(
-                    responseCode,
-                    response.message,
-                    headersMap,
-                    responseBodyString,
-                    latestUrl
-                )
-            }
+            client.newCall(builtRequest).execute().use { response -> handleResponse(response, url) }
         } catch (e: ReCaptchaException) {
             Log.e(TAG, "🚫 ReCaptcha Exception", e)
             throw e
@@ -180,6 +95,93 @@ class SimpleDownloader private constructor() : Downloader() {
         } catch (e: Exception) {
             Log.e(TAG, "❌ Exception inesperada", e)
             throw IOException("Error en petición HTTP", e)
+        }
+    }
+
+    /** Construye la petición de OkHttp con método, cookies y cabeceras. */
+    private fun buildRequest(request: Request): okhttp3.Request {
+        val requestBody = request.dataToSend()?.toRequestBody(null)
+        val builder = okhttp3.Request.Builder()
+            .method(request.httpMethod(), requestBody)
+            .url(request.url())
+            .addHeader("User-Agent", USER_AGENT)
+
+        addCookies(builder, request.url())
+        addCustomHeaders(builder, request.headers())
+
+        // Log de headers (los valores sensibles se ocultan: B32)
+        val builtRequest = builder.build()
+        Log.d(TAG, "📋 Headers enviados:")
+        Log.d(TAG, describeHeaders(builtRequest.headers.toMultimap()))
+        return builtRequest
+    }
+
+    /** Añade la cabecera `Cookie` si hay cookies relevantes para [url]. */
+    private fun addCookies(builder: okhttp3.Request.Builder, url: String) {
+        val cookiesString = getCookies(url)
+        if (cookiesString.isNotEmpty()) {
+            builder.addHeader("Cookie", cookiesString)
+            Log.d(TAG, "🍪 Cookies enviadas: ${describeCookieNames(cookiesString)}")
+        }
+    }
+
+    /** Sustituye las cabeceras homónimas y añade las personalizadas. */
+    private fun addCustomHeaders(
+        builder: okhttp3.Request.Builder,
+        headers: Map<String, List<String>>?
+    ) {
+        headers?.forEach { (headerName, headerValueList) ->
+            builder.removeHeader(headerName)
+            headerValueList.forEach { headerValue ->
+                builder.addHeader(headerName, headerValue)
+            }
+        }
+    }
+
+    /** Registra la respuesta y la convierte al formato de NewPipe. */
+    private fun handleResponse(response: okhttp3.Response, originalUrl: String): Response {
+        val responseCode = response.code
+        Log.d(TAG, "📥 Código de respuesta: $responseCode")
+
+        // Detectar reCaptcha challenge
+        if (responseCode == 429) {
+            Log.e(TAG, "⚠️ reCaptcha Challenge detectado (429)")
+            throw ReCaptchaException("reCaptcha Challenge requested", originalUrl)
+        }
+
+        // Leer body (OkHttp 5: body no nullable)
+        val responseBodyString: String = response.body.use { it.string() }
+        logBodySummary(responseCode, responseBodyString, originalUrl)
+
+        // Obtener URL final (después de redirecciones)
+        val latestUrl = response.request.url.toString()
+        if (latestUrl != originalUrl) {
+            Log.d(TAG, "🔄 Redirección: $latestUrl")
+        }
+
+        // Convertir headers de OkHttp a formato de NewPipe
+        val headersMap = mutableMapOf<String, MutableList<String>>()
+        response.headers.forEach { (name, value) ->
+            headersMap.getOrPut(name) { mutableListOf() }.add(value)
+        }
+
+        return Response(responseCode, response.message, headersMap, responseBodyString, latestUrl)
+    }
+
+    /**
+     * Resumen del body: éxito/error y, para el player de YouTube, solo el estado
+     * (nunca el volcado entero, que puede llevar `visitorData` y tokens).
+     */
+    private fun logBodySummary(responseCode: Int, body: String, url: String) {
+        if (responseCode < 400) {
+            Log.d(TAG, "✅ Respuesta exitosa: ${body.length} caracteres")
+            if (url.contains("/youtubei/v1/player")) {
+                playabilityStatusOf(body)?.let { status ->
+                    Log.d(TAG, "🎬 PlayabilityStatus: $status")
+                }
+            }
+        } else {
+            Log.e(TAG, "❌ Error ($responseCode): ${body.length} caracteres")
         }
     }
 }

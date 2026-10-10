@@ -62,91 +62,104 @@ object DataImporter {
 
                 val repository = PlaylistLocalRepository(context)
                 val existingPlaylists = repository.getAllPlaylists()
-
-                // Los tombs son la unión de lo que esta app borró y lo que el
-                // archivo recuerda como borrado. Fusionarlos es lo que propaga
-                // el borrado en los dos sentidos: lo que se borró en otro
-                // dispositivo se borra aquí, y lo borrado aquí viaja al exportar.
-                val deletedIds = Config.getDeletedPlaylistIds(context).toMutableSet()
-                deletedIds.addAll(manifest.deletedPlaylistIds)
-                Config.setDeletedPlaylistIds(context, deletedIds)
-
-                // Mismo criterio para los favoritos (B51): la unión de lo que esta
-                // app borró y lo que el archivo recuerda, para que el borrado viaje
-                // en los dos sentidos.
-                val removedLiked = Config.getRemovedLikedTrackKeys(context).toMutableSet()
-                removedLiked.addAll(manifest.removedLikedTrackKeys)
-                Config.setRemovedLikedTrackKeys(context, removedLiked)
+                val tombstones = mergeTombstones(context, manifest)
 
                 val actions = ImportManifest.plan(
                     playlists = manifest.playlists,
                     existingIds = existingPlaylists.mapTo(mutableSetOf()) { it.remoteId },
-                    deletedPlaylistIds = deletedIds
+                    deletedPlaylistIds = tombstones.deletedPlaylistIds
                 )
 
-                var importedPlaylists = 0
-                var importedTracks = 0
-                var restoredCovers = 0
-                var mergedLikedTracks = 0
-                var skippedPlaylists = 0
-                var deletedPlaylists = 0
-
-                actions.forEach { action ->
-                    when (action) {
-                        is PlaylistAction.Skip -> {
-                            skippedPlaylists++
-                            Log.d(TAG, "Importación: ${action.id} omitida (${action.reason})")
-                        }
-
-                        PlaylistAction.MergeLikedSongs -> {
-                            val liked = manifest.playlists.firstOrNull {
-                                it.id == PlaylistLocalRepository.LIKED_SONGS_ID
-                            }
-                            if (liked != null) {
-                                mergedLikedTracks += mergeLikedSongs(repository, liked, removedLiked)
-                            }
-                        }
-
-                        is PlaylistAction.Create -> {
-                            val result = createPlaylist(context, repository, action.playlist, entries)
-                            if (result != null) {
-                                importedPlaylists++
-                                importedTracks += result.tracks
-                                restoredCovers += if (result.coverRestored) 1 else 0
-                            } else {
-                                skippedPlaylists++
-                            }
-                        }
-                    }
-                }
-
-                // Las listas que quedaron tomadas (borradas aquí o en el
-                // archivo) no deben vivir en el dispositivo, salvo liked_songs.
-                existingPlaylists.forEach { existing ->
-                    if (existing.remoteId in deletedIds &&
-                        existing.remoteId != PlaylistLocalRepository.LIKED_SONGS_ID
-                    ) {
-                        repository.deletePlaylist(existing.remoteId)
-                        deletedPlaylists++
-                        Log.d(TAG, "Importación: aplicado borrado de ${existing.remoteId}")
-                    }
-                }
+                val session = ImportSession(context, repository, entries, manifest)
+                val counters = applyActions(session, actions, tombstones.removedLikedTrackKeys)
+                applyPendingDeletions(repository, existingPlaylists, tombstones.deletedPlaylistIds, counters)
 
                 Log.d(
                     TAG,
-                    "Importadas $importedPlaylists listas ($importedTracks pistas), " +
-                        "$mergedLikedTracks favoritos, $deletedPlaylists borradas, $skippedPlaylists omitidas"
+                    "Importadas ${counters.importedPlaylists} listas (${counters.importedTracks} pistas), " +
+                        "${counters.mergedLikedTracks} favoritos, ${counters.deletedPlaylists} borradas, " +
+                        "${counters.skippedPlaylists} omitidas"
                 )
-                ImportSummary(
-                    importedPlaylists = importedPlaylists,
-                    importedTracks = importedTracks,
-                    restoredCovers = restoredCovers,
-                    mergedLikedTracks = mergedLikedTracks,
-                    skippedPlaylists = skippedPlaylists,
-                    deletedPlaylists = deletedPlaylists
-                )
+                counters.toSummary()
             }
         }
+
+    // === TOMBSTONES ===
+
+    /**
+     * Fusiona los ids borrados de esta app y del archivo (y lo mismo con los
+     * favoritos quitados): es lo que propaga el borrado en los dos sentidos, ya
+     * que un tomb creado al importar viaja al exportar.
+     */
+    private fun mergeTombstones(context: Context, manifest: ParsedManifest): Tombstones {
+        val deletedIds = Config.getDeletedPlaylistIds(context).toMutableSet()
+        deletedIds.addAll(manifest.deletedPlaylistIds)
+        Config.setDeletedPlaylistIds(context, deletedIds)
+
+        val removedLiked = Config.getRemovedLikedTrackKeys(context).toMutableSet()
+        removedLiked.addAll(manifest.removedLikedTrackKeys)
+        Config.setRemovedLikedTrackKeys(context, removedLiked)
+
+        return Tombstones(deletedIds, removedLiked)
+    }
+
+    /** Ejecuta el plan de importación y acumula los contadores. */
+    private suspend fun applyActions(
+        session: ImportSession,
+        actions: List<PlaylistAction>,
+        removedLiked: Set<String>
+    ): ImportCounters {
+        val counters = ImportCounters()
+        actions.forEach { action ->
+            when (action) {
+                is PlaylistAction.Skip -> {
+                    counters.skippedPlaylists++
+                    Log.d(TAG, "Importación: ${action.id} omitida (${action.reason})")
+                }
+
+                PlaylistAction.MergeLikedSongs -> {
+                    val liked = session.manifest.playlists.firstOrNull {
+                        it.id == PlaylistLocalRepository.LIKED_SONGS_ID
+                    }
+                    if (liked != null) {
+                        counters.mergedLikedTracks += mergeLikedSongs(session.repository, liked, removedLiked)
+                    }
+                }
+
+                is PlaylistAction.Create -> {
+                    val result = createPlaylist(session.context, session.repository, action.playlist, session.entries)
+                    if (result != null) {
+                        counters.importedPlaylists++
+                        counters.importedTracks += result.tracks
+                        counters.restoredCovers += if (result.coverRestored) 1 else 0
+                    } else {
+                        counters.skippedPlaylists++
+                    }
+                }
+            }
+        }
+        return counters
+    }
+
+    /** Aplica los borrados tomados que aún vivan en el dispositivo. */
+    private suspend fun applyPendingDeletions(
+        repository: PlaylistLocalRepository,
+        existingPlaylists: List<PlaylistEntity>,
+        deletedIds: Set<String>,
+        counters: ImportCounters
+    ) {
+        // Las listas que quedaron tomadas (borradas aquí o en el archivo) no
+        // deben vivir en el dispositivo, salvo liked_songs.
+        existingPlaylists.forEach { existing ->
+            if (existing.remoteId in deletedIds &&
+                existing.remoteId != PlaylistLocalRepository.LIKED_SONGS_ID
+            ) {
+                repository.deletePlaylist(existing.remoteId)
+                counters.deletedPlaylists++
+                Log.d(TAG, "Importación: aplicado borrado de ${existing.remoteId}")
+            }
+        }
+    }
 
     // === ESCRITURA ===
 
@@ -226,4 +239,37 @@ object DataImporter {
     }
 
     private class CreateResult(val tracks: Int, val coverRestored: Boolean)
+
+    /** Datos compartidos de una importación en curso. */
+    private class ImportSession(
+        val context: Context,
+        val repository: PlaylistLocalRepository,
+        val entries: Map<String, ByteArray>,
+        val manifest: ParsedManifest
+    )
+
+    /** Ids de listas y claves de favoritos recordados como borrados. */
+    private class Tombstones(
+        val deletedPlaylistIds: MutableSet<String>,
+        val removedLikedTrackKeys: MutableSet<String>
+    )
+
+    /** Contadores mutables de una importación. */
+    private class ImportCounters {
+        var importedPlaylists = 0
+        var importedTracks = 0
+        var restoredCovers = 0
+        var mergedLikedTracks = 0
+        var skippedPlaylists = 0
+        var deletedPlaylists = 0
+
+        fun toSummary() = ImportSummary(
+            importedPlaylists = importedPlaylists,
+            importedTracks = importedTracks,
+            restoredCovers = restoredCovers,
+            mergedLikedTracks = mergedLikedTracks,
+            skippedPlaylists = skippedPlaylists,
+            deletedPlaylists = deletedPlaylists
+        )
+    }
 }

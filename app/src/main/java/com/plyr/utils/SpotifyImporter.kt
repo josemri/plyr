@@ -78,96 +78,22 @@ object SpotifyImporter {
         val dbPlaylistId = "youtube_$playlistId"
         val database = PlaylistDatabase.getDatabase(context)
 
-        val existingById = database.playlistDao().getPlaylistById(dbPlaylistId)
-        if (existingById != null) {
-            val existingTracks = database.trackDao().getTracksByPlaylistSync(dbPlaylistId)
-            if (existingTracks.size == playlist.tracks.size) {
-                val nameMatches = existingTracks.take(5).mapIndexed { i, t ->
-                    t.name.equals(playlist.tracks.getOrNull(i)?.name, ignoreCase = true)
-                }.all { it }
-                if (nameMatches) {
-                    return@withContext Result.success(
-                        ImportResult(
-                            success = true,
-                            message = "'${playlist.name}' already imported",
-                            skipped = true
-                        )
-                    )
-                }
-            }
+        if (isAlreadyImported(database, dbPlaylistId, playlist)) {
+            return@withContext Result.success(
+                ImportResult(
+                    success = true,
+                    message = "'${playlist.name}' already imported",
+                    skipped = true
+                )
+            )
         }
 
-        val allPlaylists = database.playlistDao().getAllPlaylistsSync()
-        val sameName = allPlaylists.find {
-            it.name.equals(playlist.name, ignoreCase = true) && it.remoteId != dbPlaylistId
-        }
-        if (sameName != null) {
-            val sameNameTracks = database.trackDao().getTracksByPlaylistSync(sameName.remoteId)
-            if (sameNameTracks.size == playlist.tracks.size) {
-                val contentMatches = sameNameTracks.take(5).mapIndexed { i, t ->
-                    t.name.equals(playlist.tracks.getOrNull(i)?.name, ignoreCase = true)
-                }.all { it }
-                if (contentMatches) {
-                    return@withContext Result.success(
-                        ImportResult(
-                            success = true,
-                            message = "'${playlist.name}' already imported",
-                            skipped = true
-                        )
-                    )
-                }
-            }
-        }
-
-        val totalTracks = playlist.tracks.size
         val searchManager = YouTubeSearchManager(context)
-        val localRepository = PlaylistLocalRepository(context)
-        val trackEntities = mutableListOf<TrackEntity>()
-        var foundCount = 0
+        val (trackEntities, foundCount) = matchTracks(searchManager, playlist, dbPlaylistId, onProgress)
 
-        for ((index, track) in playlist.tracks.withIndex()) {
-            val query = "${track.name} - ${track.artists.joinToString(", ")}"
-            onProgress(index + 1, totalTracks, track.name)
+        onProgress(playlist.tracks.size, playlist.tracks.size, "Saving...")
 
-            try {
-                val videoId = searchManager.searchSingleVideoId(query)
-                if (videoId != null) foundCount++
-                trackEntities.add(
-                    TrackEntity(
-                        id = "${dbPlaylistId}_$index",
-                        playlistId = dbPlaylistId,
-                        remoteTrackId = "spotify_${track.name.hashCode()}_${track.artists.hashCode()}_$index",
-                        name = track.name,
-                        artists = track.artists.joinToString(", "),
-                        youtubeVideoId = videoId,
-                        audioUrl = null,
-                        position = index
-                    )
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Error searching YouTube for: ${track.name}", e)
-                trackEntities.add(
-                    TrackEntity(
-                        id = "${dbPlaylistId}_$index",
-                        playlistId = dbPlaylistId,
-                        remoteTrackId = "spotify_${track.name.hashCode()}_${track.artists.hashCode()}_$index",
-                        name = track.name,
-                        artists = track.artists.joinToString(", "),
-                        youtubeVideoId = null,
-                        audioUrl = null,
-                        position = index
-                    )
-                )
-            }
-
-            if (index < playlist.tracks.lastIndex) {
-                delay(YOUTUBE_SEARCH_DELAY_MS)
-            }
-        }
-
-        onProgress(totalTracks, totalTracks, "Saving...")
-
-        localRepository.saveCreatedYouTubePlaylist(
+        PlaylistLocalRepository(context).saveCreatedYouTubePlaylist(
             created = CreatedPlaylist(
                 playlistId = playlistId,
                 title = playlist.name,
@@ -178,10 +104,85 @@ object SpotifyImporter {
             source = PlaylistSource.SPOTIFY
         )
 
-        val message = "Imported '${playlist.name}' ($foundCount/$totalTracks matched)"
+        val message = "Imported '${playlist.name}' ($foundCount/${playlist.tracks.size} matched)"
         Log.d(TAG, message)
         Result.success(ImportResult(success = true, message = message))
     }
+
+    /** ¿El dispositivo ya tiene esta playlist (por id o por mismo nombre y contenido)? */
+    private suspend fun isAlreadyImported(
+        database: PlaylistDatabase,
+        dbPlaylistId: String,
+        playlist: SpotifyPlaylist
+    ): Boolean {
+        if (database.playlistDao().getPlaylistById(dbPlaylistId) != null &&
+            contentMatches(database, dbPlaylistId, playlist.tracks)
+        ) {
+            return true
+        }
+        val sameName = database.playlistDao().getAllPlaylistsSync().find {
+            it.name.equals(playlist.name, ignoreCase = true) && it.remoteId != dbPlaylistId
+        } ?: return false
+        return contentMatches(database, sameName.remoteId, playlist.tracks)
+    }
+
+    private suspend fun contentMatches(
+        database: PlaylistDatabase,
+        playlistId: String,
+        tracks: List<SpotifyTrack>
+    ): Boolean {
+        val existing = database.trackDao().getTracksByPlaylistSync(playlistId)
+        if (existing.size != tracks.size) return false
+        return existing.take(5).mapIndexed { i, t ->
+            t.name.equals(tracks.getOrNull(i)?.name, ignoreCase = true)
+        }.all { it }
+    }
+
+    /** Busca cada pista en YouTube y construye las entidades de Room. */
+    private suspend fun matchTracks(
+        searchManager: YouTubeSearchManager,
+        playlist: SpotifyPlaylist,
+        dbPlaylistId: String,
+        onProgress: (current: Int, total: Int, message: String) -> Unit
+    ): Pair<List<TrackEntity>, Int> {
+        val tracks = mutableListOf<TrackEntity>()
+        var foundCount = 0
+        val total = playlist.tracks.size
+
+        for ((index, track) in playlist.tracks.withIndex()) {
+            onProgress(index + 1, total, track.name)
+            val videoId = searchTrack(searchManager, track)
+            if (videoId != null) foundCount++
+            tracks.add(trackEntity(dbPlaylistId, index, track, videoId))
+            if (index < playlist.tracks.lastIndex) delay(YOUTUBE_SEARCH_DELAY_MS)
+        }
+
+        return tracks to foundCount
+    }
+
+    private suspend fun searchTrack(searchManager: YouTubeSearchManager, track: SpotifyTrack): String? =
+        try {
+            searchManager.searchSingleVideoId("${track.name} - ${track.artists.joinToString(", ")}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error searching YouTube for: ${track.name}", e)
+            null
+        }
+
+    private fun trackEntity(
+        dbPlaylistId: String,
+        index: Int,
+        track: SpotifyTrack,
+        videoId: String?
+    ): TrackEntity = TrackEntity(
+        id = "${dbPlaylistId}_$index",
+        playlistId = dbPlaylistId,
+        remoteTrackId = "spotify_${track.name.hashCode()}_${track.artists.hashCode()}_$index",
+        name = track.name,
+        artists = track.artists.joinToString(", "),
+        youtubeVideoId = videoId,
+        audioUrl = null,
+        position = index
+    )
 
     internal suspend fun fetchPlaylistFromEmbed(playlistId: String): Result<SpotifyPlaylist> =
         withContext(Dispatchers.IO) {
@@ -200,38 +201,51 @@ object SpotifyImporter {
                     return@withContext Result.failure(Exception("Failed to fetch playlist"))
                 }
 
-                val scriptPattern = Regex("""<script\s+id="__NEXT_DATA__"\s+type="application/json"[^>]*>(.*?)</script>""", RegexOption.DOT_MATCHES_ALL)
-                val scriptMatch = scriptPattern.find(html)
-                    ?: return@withContext Result.failure(Exception("Could not parse Spotify page"))
-
-                val root = JSONObject(scriptMatch.groupValues[1].trim())
-                val pageProps = root.getJSONObject("props").getJSONObject("pageProps")
-                val state = pageProps.optJSONObject("state") ?: pageProps
-                val data = state.optJSONObject("data") ?: state
-                val entity = data.optJSONObject("entity")
-                    ?: return@withContext Result.failure(Exception("Playlist data not found"))
-
-                val name = entity.optString("name", "Spotify Playlist")
-                val imageUrl = entity.optJSONObject("coverArt")
-                    ?.optJSONArray("sources")
-                    ?.let { if (it.length() > 0) it.getJSONObject(0).optString("url") else null }
-
-                val trackList = entity.optJSONArray("trackList") ?: JSONArray()
-                val tracks = mutableListOf<SpotifyTrack>()
-                for (i in 0 until trackList.length()) {
-                    val t = trackList.getJSONObject(i)
-                    val title = t.optString("title", null) ?: continue
-                    val subtitle = t.optString("subtitle", "")
-                    val artists = if (subtitle.isNotBlank()) {
-                        subtitle.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                    } else listOf("Unknown Artist")
-                    tracks.add(SpotifyTrack(title, artists, t.optLong("duration", 0)))
-                }
-
-                Result.success(SpotifyPlaylist(playlistId, name, imageUrl, tracks))
+                parseEmbedHtml(playlistId, html)
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching embed playlist: ${e.message}", e)
                 Result.failure(e)
             }
         }
+
+    /** Extrae la playlist del JSON embebido en la página de Spotify. */
+    private fun parseEmbedHtml(playlistId: String, html: String): Result<SpotifyPlaylist> {
+        val scriptPattern = Regex(
+            """<script\s+id="__NEXT_DATA__"\s+type="application/json"[^>]*>(.*?)</script>""",
+            RegexOption.DOT_MATCHES_ALL
+        )
+        val scriptMatch = scriptPattern.find(html)
+            ?: return Result.failure(Exception("Could not parse Spotify page"))
+
+        val root = JSONObject(scriptMatch.groupValues[1].trim())
+        val pageProps = root.getJSONObject("props").getJSONObject("pageProps")
+        val state = pageProps.optJSONObject("state") ?: pageProps
+        val data = state.optJSONObject("data") ?: state
+        val entity = data.optJSONObject("entity")
+            ?: return Result.failure(Exception("Playlist data not found"))
+
+        val name = entity.optString("name", "Spotify Playlist")
+        val imageUrl = entity.optJSONObject("coverArt")
+            ?.optJSONArray("sources")
+            ?.let { if (it.length() > 0) it.getJSONObject(0).optString("url") else null }
+
+        val tracks = parseTracks(entity.optJSONArray("trackList") ?: JSONArray())
+        return Result.success(SpotifyPlaylist(playlistId, name, imageUrl, tracks))
+    }
+
+    private fun parseTracks(trackList: JSONArray): List<SpotifyTrack> {
+        val tracks = mutableListOf<SpotifyTrack>()
+        for (i in 0 until trackList.length()) {
+            val t = trackList.getJSONObject(i)
+            val title = t.optString("title", null) ?: continue
+            val subtitle = t.optString("subtitle", "")
+            val artists = if (subtitle.isNotBlank()) {
+                subtitle.split(",").map { it.trim() }.filter { it.isNotBlank() }
+            } else {
+                listOf("Unknown Artist")
+            }
+            tracks.add(SpotifyTrack(title, artists, t.optLong("duration", 0)))
+        }
+        return tracks
+    }
 }

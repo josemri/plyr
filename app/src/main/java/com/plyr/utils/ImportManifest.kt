@@ -124,7 +124,7 @@ object ImportManifest {
             ?: throw ManifestFormatException("El manifiesto no tiene la lista \"playlists\"")
 
         val playlists = (0 until playlistsJson.length()).mapNotNull { playlistIndex ->
-            playlistsJson.optJSONObject(playlistIndex)?.let { parsePlaylist(it) }
+            playlistsJson.optJSONObject(playlistIndex)?.let { ManifestJson.playlist(it) }
         }
 
         return ParsedManifest(
@@ -241,20 +241,25 @@ object ImportManifest {
      */
     fun likedTrackKey(youtubeVideoId: String?, name: String, artists: String): String =
         youtubeVideoId?.trim()?.takeIf { it.isNotEmpty() } ?: "$name|$artists"
+}
 
-    // === HELPERS DE PARSEO ===
+/**
+ * Helpers de parseo de `playlists.json`. Viven aparte para no engordar
+ * [ImportManifest] con funciones internas.
+ */
+private object ManifestJson {
 
-    private fun parsePlaylist(json: JSONObject) = ImportedPlaylist(
+    fun playlist(json: JSONObject) = ImportedPlaylist(
         id = json.optString("id"),
         name = json.optString("name"),
         description = json.optString("description").takeIf { it.isNotEmpty() },
         coverEntry = json.optString("cover").takeIf { it.isNotEmpty() },
-        tracks = parseTracks(json.optJSONArray("tracks")),
+        tracks = tracks(json.optJSONArray("tracks")),
         source = PlaylistSource.fromStorage(json.optString("source")),
         sourceId = json.optString("sourceId").takeIf { it.isNotEmpty() }
     )
 
-    private fun parseTracks(json: JSONArray?): List<ImportedTrack> {
+    private fun tracks(json: JSONArray?): List<ImportedTrack> {
         if (json == null) return emptyList()
         return (0 until json.length()).mapNotNull { index ->
             json.optJSONObject(index)?.let { trackJson ->
@@ -268,7 +273,7 @@ object ImportManifest {
                 ImportedTrack(
                     position = trackJson.optInt("position", index),
                     name = name,
-                    artists = parseArtists(trackJson.optJSONArray("artists")),
+                    artists = artists(trackJson.optJSONArray("artists")),
                     remoteTrackId = remoteTrackId,
                     youtubeVideoId = trackJson.optString("youtubeVideoId").takeIf { it.isNotEmpty() }
                 )
@@ -277,7 +282,7 @@ object ImportManifest {
     }
 
     /** Vuelve a unir el array de artistas con el `", "` que espera Room. */
-    private fun parseArtists(json: JSONArray?): String {
+    private fun artists(json: JSONArray?): String {
         if (json == null) return ""
         return (0 until json.length())
             .map { json.optString(it).trim() }

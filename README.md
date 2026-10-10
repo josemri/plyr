@@ -70,7 +70,7 @@ POST_NOTIFICATIONS        # Playback controls
 CAMERA                    # QR code scanning (optional hardware)
 ```
 
-`chmod 600 local.properties` and keep your keystore out of the repo — no secrets are tracked.
+`chmod 600 local.properties` and keep your keystore out of the repo — no secrets are tracked. See [`local.properties.example`](local.properties.example) for the optional overrides.
 
 ## roadmap
 
@@ -85,12 +85,13 @@ CAMERA                    # QR code scanning (optional hardware)
   - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer`
 - [ ] **Security**
   - [ ] Review the Supabase RLS policies (`groups`, `group_members`, `recommendations`, `automatic`) — not verifiable from the repo
-  - [ ] Document a `local.properties.example` (`SUPABASE_URL` / `SUPABASE_ANON_KEY`)
+  - [x] Document a `local.properties.example` (`SUPABASE_URL` / `SUPABASE_ANON_KEY`)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
 - [ ] **Detekt / lint debt**
-  - [ ] Refactor the ~66 `complexity` findings frozen in `detekt-baseline.xml` and regenerate the baseline
-  - [ ] Triage the 58 `UnusedResources` warnings (dynamic `drawable-nodpi/ascii_*.png`)
+  - [x] Refactor the ~66 `complexity` findings frozen in `detekt-baseline.xml` and regenerate the baseline (down to 4: see below)
+  - [ ] Shrink the remaining 4 structural findings frozen in `detekt-baseline.xml`: split the god-objects `Config` (31 functions), `PlaylistLocalRepository` (22) and `PlayerViewModel` (41 + `LargeClass`)
+  - [x] Triage the 58 `UnusedResources` warnings (dynamic `drawable-nodpi/ascii_*.png`)
 
 ## license
 

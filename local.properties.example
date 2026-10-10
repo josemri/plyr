@@ -1,0 +1,14 @@
+# Copy this file to `local.properties` and adjust the values.
+# `local.properties` is gitignored — never commit the real one.
+#
+# Every key is OPTIONAL: without them the build falls back to functional
+# defaults (see `app/build.gradle.kts`, `configValue(...)`). Overriding here
+# lets you point to another backend or rotate values without touching code.
+
+# Supabase project. Both values are "publishable" on purpose (they ship inside
+# the client); they are not secrets. The real defence is the RLS policies.
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=sb_publishable_your_key
+
+# YouTube restricted-mode cookie (optional override of the default).
+YOUTUBE_RESTRICTED_MODE_COOKIE=PREF=f2=8000000

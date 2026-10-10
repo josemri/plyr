@@ -65,56 +65,76 @@ fun calculateResponsiveDimensionsFallback(): ResponsiveDimensions {
     val isHeightCompact = screenHeightDp < 480
 
     return ResponsiveDimensions(
-        screenPadding = when {
-            isCompact -> 12.dp
-            isMedium -> 16.dp
-            else -> 24.dp
-        },
-        contentPadding = when {
-            isCompact -> 8.dp
-            isMedium -> 12.dp
-            else -> 16.dp
-        },
-        itemSpacing = when {
-            isCompact -> 8.dp
-            isMedium -> 12.dp
-            else -> 16.dp
-        },
-        sectionSpacing = when {
-            isHeightCompact -> 12.dp
-            isCompact -> 16.dp
-            else -> 24.dp
-        },
-        bodySize = when {
-            isCompact -> 14.sp
-            isMedium -> 15.sp
-            else -> 16.sp
-        },
-        captionSize = when {
-            isCompact -> 11.sp
-            isMedium -> 12.sp
-            else -> 13.sp
-        },
-        floatingControlsBottomPadding = when {
-            isHeightCompact -> 4.dp
-            isLandscape -> 8.dp
-            else -> 48.dp
-        },
-        contentBottomPadding = when {
-            isHeightCompact -> 64.dp
-            isLandscape -> 80.dp
-            else -> 140.dp
-        },
-        imageMaxWidth = when {
-            isLandscape -> (screenWidthDp * 0.4f).dp
-            isCompact -> (screenWidthDp * 0.8f).dp
-            else -> (screenWidthDp * 0.7f).dp
-        },
-        imageMaxHeight = when {
-            isHeightCompact -> (screenHeightDp * 0.3f).dp
-            isLandscape -> (screenHeightDp * 0.5f).dp
-            else -> (screenHeightDp * 0.4f).dp
-        },
+        screenPadding = screenPadding(isCompact, isMedium),
+        contentPadding = contentPadding(isCompact, isMedium),
+        itemSpacing = itemSpacing(isCompact, isMedium),
+        sectionSpacing = sectionSpacing(isCompact, isHeightCompact),
+        bodySize = bodySize(isCompact, isMedium),
+        captionSize = captionSize(isCompact, isMedium),
+        floatingControlsBottomPadding = floatingControlsBottomPadding(isLandscape, isHeightCompact),
+        contentBottomPadding = contentBottomPadding(isLandscape, isHeightCompact),
+        imageMaxWidth = imageMaxWidth(screenWidthDp, isCompact, isLandscape),
+        imageMaxHeight = imageMaxHeight(screenHeightDp, isHeightCompact, isLandscape),
         showSideBySideLayout = isLandscape && !isCompact
     )
+}
+
+private fun screenPadding(isCompact: Boolean, isMedium: Boolean): Dp = when {
+    isCompact -> 12.dp
+    isMedium -> 16.dp
+    else -> 24.dp
+}
+
+private fun contentPadding(isCompact: Boolean, isMedium: Boolean): Dp = when {
+    isCompact -> 8.dp
+    isMedium -> 12.dp
+    else -> 16.dp
+}
+
+private fun itemSpacing(isCompact: Boolean, isMedium: Boolean): Dp = when {
+    isCompact -> 8.dp
+    isMedium -> 12.dp
+    else -> 16.dp
+}
+
+private fun sectionSpacing(isCompact: Boolean, isHeightCompact: Boolean): Dp = when {
+    isHeightCompact -> 12.dp
+    isCompact -> 16.dp
+    else -> 24.dp
+}
+
+private fun bodySize(isCompact: Boolean, isMedium: Boolean): TextUnit = when {
+    isCompact -> 14.sp
+    isMedium -> 15.sp
+    else -> 16.sp
+}
+
+private fun captionSize(isCompact: Boolean, isMedium: Boolean): TextUnit = when {
+    isCompact -> 11.sp
+    isMedium -> 12.sp
+    else -> 13.sp
+}
+
+private fun floatingControlsBottomPadding(isLandscape: Boolean, isHeightCompact: Boolean): Dp = when {
+    isHeightCompact -> 4.dp
+    isLandscape -> 8.dp
+    else -> 48.dp
+}
+
+private fun contentBottomPadding(isLandscape: Boolean, isHeightCompact: Boolean): Dp = when {
+    isHeightCompact -> 64.dp
+    isLandscape -> 80.dp
+    else -> 140.dp
+}
+
+private fun imageMaxWidth(screenWidthDp: Int, isCompact: Boolean, isLandscape: Boolean): Dp = when {
+    isLandscape -> (screenWidthDp * 0.4f).dp
+    isCompact -> (screenWidthDp * 0.8f).dp
+    else -> (screenWidthDp * 0.7f).dp
+}
+
+private fun imageMaxHeight(screenHeightDp: Int, isHeightCompact: Boolean, isLandscape: Boolean): Dp = when {
+    isHeightCompact -> (screenHeightDp * 0.3f).dp
+    isLandscape -> (screenHeightDp * 0.5f).dp
+    else -> (screenHeightDp * 0.4f).dp
 }

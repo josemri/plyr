@@ -24,6 +24,7 @@ import com.plyr.model.Recommendation
 import com.plyr.model.ScanResult
 import com.plyr.network.SupabaseClient
 import com.plyr.ui.components.Titulo
+import com.plyr.ui.utils.ResponsiveDimensions
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import com.plyr.utils.MediaMetadata
 import com.plyr.utils.MediaMetadataExtractor
@@ -60,32 +61,43 @@ fun FeedScreen(
     // Load general group recommendations on start
     LaunchedEffect(Unit) {
         isLoading = true
-        val groups = SupabaseClient.getGroups()
-        val generalGroup = groups.find { it.groupType == "general" }
-        recommendations = if (generalGroup != null) {
-            SupabaseClient.getRecommendations(generalGroup.id)
-        } else {
-            emptyList()
-        }
+        recommendations = fetchFeedRecommendations()
         isLoading = false
 
         // Extracción de metadatos acotada: como máximo METADATA_CONCURRENCY a la vez,
         // y todas hijas de este efecto (se cancelan al salir de composición).
-        val semaphore = Semaphore(METADATA_CONCURRENCY)
-        coroutineScope {
-            recommendations.forEach { recommendation ->
-                launch {
-                    semaphore.withPermit {
-                        metadataCache[recommendation.id] =
-                            MediaMetadataExtractor.extractMetadata(recommendation.url)
-                    }
-                }
-            }
-        }
+        extractRecommendationMetadata(recommendations, metadataCache)
     }
 
     BackHandler { onBack() }
 
+    FeedList(
+        context = context,
+        recommendations = recommendations,
+        isLoading = isLoading,
+        metadataCache = metadataCache,
+        dimensions = dimensions,
+        onRecommendationClick = { recommendation ->
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            handleRecommendationClick(
+                recommendation = recommendation,
+                metadata = metadataCache[recommendation.id],
+                playerViewModel = playerViewModel,
+                onNavigateToSearch = onNavigateToSearch
+            )
+        }
+    )
+}
+
+@Composable
+private fun FeedList(
+    context: Context,
+    recommendations: List<Recommendation>,
+    isLoading: Boolean,
+    metadataCache: Map<String, MediaMetadata>,
+    dimensions: ResponsiveDimensions,
+    onRecommendationClick: (Recommendation) -> Unit
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -98,47 +110,59 @@ fun FeedScreen(
 
         when {
             isLoading -> {
-                item {
-                    Text(
-                        text = Translations.get(context, "loading"),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = dimensions.captionSize,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                        ),
-                        modifier = Modifier.padding(vertical = 16.dp)
-                    )
-                }
+                item { FeedMessage(Translations.get(context, "loading"), dimensions) }
             }
             recommendations.isEmpty() -> {
-                item {
-                    Text(
-                        text = Translations.get(context, "no_recommendations"),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = dimensions.captionSize,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                        ),
-                        modifier = Modifier.padding(vertical = 16.dp)
-                    )
-                }
+                item { FeedMessage(Translations.get(context, "no_recommendations"), dimensions) }
             }
             else -> {
                 items(recommendations, key = { it.id }) { recommendation ->
                     RecommendationItem(
                         recommendation = recommendation,
                         metadata = metadataCache[recommendation.id],
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            handleRecommendationClick(
-                                recommendation = recommendation,
-                                metadata = metadataCache[recommendation.id],
-                                playerViewModel = playerViewModel,
-                                onNavigateToSearch = onNavigateToSearch
-                            )
-                        }
+                        onClick = { onRecommendationClick(recommendation) }
                     )
                     Spacer(modifier = Modifier.height(dimensions.itemSpacing))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedMessage(text: String, dimensions: ResponsiveDimensions) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            fontSize = dimensions.captionSize,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        ),
+        modifier = Modifier.padding(vertical = 16.dp)
+    )
+}
+
+private suspend fun fetchFeedRecommendations(): List<Recommendation> {
+    val groups = SupabaseClient.getGroups()
+    val generalGroup = groups.find { it.groupType == "general" }
+    return if (generalGroup != null) {
+        SupabaseClient.getRecommendations(generalGroup.id)
+    } else {
+        emptyList()
+    }
+}
+
+private suspend fun extractRecommendationMetadata(
+    recommendations: List<Recommendation>,
+    metadataCache: MutableMap<String, MediaMetadata>
+) {
+    val semaphore = Semaphore(METADATA_CONCURRENCY)
+    coroutineScope {
+        recommendations.forEach { recommendation ->
+            launch {
+                semaphore.withPermit {
+                    metadataCache[recommendation.id] =
+                        MediaMetadataExtractor.extractMetadata(recommendation.url)
                 }
             }
         }
@@ -218,16 +242,7 @@ private fun RecommendationItem(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
-            if (metadata?.thumbnailUrl != null) {
-                AsyncImage(
-                    model = metadata.thumbnailUrl,
-                    contentDescription = "Thumbnail",
-                    modifier = Modifier
-                        .size(60.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-            }
+            RecommendationThumbnail(metadata)
 
             Column(
                 modifier = Modifier
@@ -235,58 +250,84 @@ private fun RecommendationItem(
                     .height(60.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = metadata?.title ?: recommendation.url,
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        ),
-                        maxLines = if (metadata?.author != null) 1 else 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    if (metadata?.author != null) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = metadata.author,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${formatTimestamp(recommendation.createdAt)} - ${recommendation.nickname}",
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                RecommendationTexts(recommendation, metadata)
+                RecommendationFooter(recommendation)
             }
         }
 
         HorizontalDivider(
             modifier = Modifier.padding(top = 8.dp),
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
+        )
+    }
+}
+
+@Composable
+private fun RecommendationThumbnail(metadata: MediaMetadata?) {
+    if (metadata?.thumbnailUrl != null) {
+        AsyncImage(
+            model = metadata.thumbnailUrl,
+            contentDescription = "Thumbnail",
+            modifier = Modifier
+                .size(60.dp)
+                .clip(RoundedCornerShape(8.dp))
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+    }
+}
+
+@Composable
+private fun ColumnScope.RecommendationTexts(
+    recommendation: Recommendation,
+    metadata: MediaMetadata?
+) {
+    Column(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = metadata?.title ?: recommendation.url,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.primary
+            ),
+            maxLines = if (metadata?.author != null) 1 else 2,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        if (metadata?.author != null) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = metadata.author,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecommendationFooter(recommendation: Recommendation) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "${formatTimestamp(recommendation.createdAt)} - ${recommendation.nickname}",
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
