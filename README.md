@@ -74,10 +74,8 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md) — **63 bugs resolved, 0 open**, 478 unit tests.
+Everything already fixed is documented in [`report.md`](report.md) — **63 bugs resolved, 0 open**, 504 unit tests.
 
-- [ ] **Download lists** — download playlists for offline use
-  - [ ] Per-track progress/status and storage management
 - [ ] **Android Auto** — support for the Android Auto interface
   - [ ] Declare `automotive_app_desc.xml` and the automotive permissions
   - [ ] Expose the library (playlists, queue) through the Media3 `MediaSession`

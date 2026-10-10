@@ -3,9 +3,7 @@ package com.plyr.utils
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.util.Log
-import androidx.core.net.toUri
 import java.io.File
 import java.io.OutputStream
 
@@ -29,8 +27,8 @@ import java.io.OutputStream
  *
  * "Ya descargado" = existe el fichero. No hay tabla Room nueva ni migración.
  *
- * El índice de lo descargado se listan **una vez por sesión** y se cachea
- * ([downloadedMap]): comprobar cada pista al reproducir no debe costar una
+ * El índice de lo descargado se lista **una vez por sesión** y se cachea
+ * ([downloaded]): comprobar cada pista al reproducir no debe costar una
  * consulta al proveedor (que para una carpeta de nube es una ida y vuelta).
  */
 object DownloadedAudioStore {
@@ -41,18 +39,39 @@ object DownloadedAudioStore {
     private const val SUFFIX = ".$EXTENSION"
     private const val MIME_AUDIO = "audio/mp4"
     private const val MIME_OCTET = "application/octet-stream"
-    private const val MIME_DIR = "vnd.android.document/directory"
     private const val LOCAL_KEY = "local"
+
+    /** Resumen del audio offline: cuántas pistas y cuántos bytes ocupan. */
+    data class Summary(val count: Int, val bytes: Long)
+
+    private data class Entry(val uri: Uri, val size: Long)
+
+    /** Cuenta los bytes escritos, para conocer el tamaño sin volver a consultar. */
+    private class CountingOutputStream(private val delegate: OutputStream) : OutputStream() {
+        var count = 0L
+            private set
+
+        override fun write(b: Int) {
+            delegate.write(b)
+            count++
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            delegate.write(b, off, len)
+            count += len
+        }
+
+        override fun flush() = delegate.flush()
+
+        override fun close() = delegate.close()
+    }
 
     /**
      * Índice cacheado: [cacheKey] identifica el origen (la carpeta SAF, o
-     * `"local"`), y [cache] mapea `videoId` → URI reproducible del fichero.
+     * `"local"`), y [cache] mapea `videoId` → fichero (URI + tamaño).
      */
     @Volatile private var cacheKey: String? = null
-    @Volatile private var cache: Map<String, Uri> = emptyMap()
-
-    /** Nombre del fichero de audio de un vídeo. */
-    fun fileName(videoId: String): String = "$videoId.$EXTENSION"
+    @Volatile private var cache: Map<String, Entry> = emptyMap()
 
     /**
      * URI reproducible del audio de [videoId] si está descargado, o `null`.
@@ -61,7 +80,7 @@ object DownloadedAudioStore {
      */
     fun localUri(context: Context, videoId: String): Uri? {
         if (videoId.isBlank()) return null
-        return downloadedMap(context)[videoId]
+        return downloaded(context)[videoId]?.uri
     }
 
     /**
@@ -74,17 +93,49 @@ object DownloadedAudioStore {
      * Bloqueante: llamar bajo `Dispatchers.IO`.
      */
     fun write(context: Context, videoId: String, produce: (OutputStream) -> Unit): Boolean {
-        val name = fileName(videoId)
-        val tree = backupTree(context)
-        val uri = if (tree != null) {
+        val name = "$videoId.$EXTENSION"
+        val tree = SafFiles.tree(context)
+        val entry = if (tree != null) {
             writeSaf(context, tree, name, produce)
         } else {
             writeFile(context, name, produce)
         }
-        if (uri != null && cacheKey == (tree?.toString() ?: LOCAL_KEY)) {
-            cache = cache + (videoId to uri)
+        if (entry != null && cacheKey == (tree?.toString() ?: LOCAL_KEY)) {
+            cache = cache + (videoId to entry)
         }
-        return uri != null
+        return entry != null
+    }
+
+    /** Cuántas pistas hay descargadas y cuánto ocupan (para el diálogo de gestión). */
+    fun summary(context: Context): Summary =
+        downloaded(context).values.let { entries ->
+            Summary(entries.size, entries.sumOf { it.size })
+        }
+
+    /** Borra el audio de [videoId] si existe. Devuelve si había algo que borrar. */
+    fun delete(context: Context, videoId: String): Boolean {
+        val entry = downloaded(context)[videoId] ?: return false
+        val deleted = if (entry.uri.scheme == ContentResolver.SCHEME_CONTENT) {
+            SafFiles.delete(context, entry.uri)
+        } else {
+            entry.uri.path?.let { File(it).delete() } ?: false
+        }
+        if (deleted) cache = cache - videoId
+        return deleted
+    }
+
+    /** Borra **todo** el audio offline. Devuelve si se pudo borrar todo. */
+    fun deleteAll(context: Context): Boolean {
+        val allDeleted = downloaded(context).values.map { entry ->
+            if (entry.uri.scheme == ContentResolver.SCHEME_CONTENT) {
+                SafFiles.delete(context, entry.uri)
+            } else {
+                entry.uri.path?.let { File(it).delete() } ?: false
+            }
+        }.all { it }
+        cache = emptyMap()
+        cacheKey = null
+        return allDeleted
     }
 
     // === SAF ===
@@ -94,85 +145,40 @@ object DownloadedAudioStore {
         tree: Uri,
         name: String,
         produce: (OutputStream) -> Unit
-    ): Uri? {
-        val resolver = context.contentResolver
-        val rootId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull() ?: return null
-        val dirId = ensureAudioDir(context, tree, rootId) ?: return null
-        val tempUri = createDocument(resolver, tree, dirId, name + ".part") ?: return null
+    ): Entry? {
+        val rootId = SafFiles.treeId(tree) ?: return null
+        val dirId = SafFiles.ensureDir(context, tree, rootId, DIR_NAME) ?: return null
+        var temp: Uri? = null
         return try {
-            resolver.openOutputStream(tempUri, "w")?.use { out -> produce(out) }
+            temp = createTempDocument(context, tree, dirId, "$name.part") ?: return null
+            val stream = context.contentResolver.openOutputStream(temp, "w")
                 ?: run {
-                    runCatching { DocumentsContract.deleteDocument(resolver, tempUri) }
+                    SafFiles.delete(context, temp)
                     return null
                 }
-            val renamed = runCatching { DocumentsContract.renameDocument(resolver, tempUri, name) }.getOrNull()
+            val counter = CountingOutputStream(stream)
+            counter.use { out -> produce(out) }
+            val renamed = SafFiles.rename(context, temp, name)
             if (renamed == null) {
                 Log.e(TAG, "El proveedor no dejo renombrar $name")
-                runCatching { DocumentsContract.deleteDocument(resolver, tempUri) }
+                SafFiles.delete(context, temp)
                 null
             } else {
-                renamed
+                Entry(renamed, counter.count)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error escribiendo audio en la carpeta de sync: ${e.message}")
-            runCatching { DocumentsContract.deleteDocument(resolver, tempUri) }
+            temp?.let { SafFiles.delete(context, it) }
             null
         }
     }
 
-    private fun ensureAudioDir(context: Context, tree: Uri, rootId: String): String? {
-        listChildren(context, tree, rootId)[DIR_NAME]?.let { return it }
-        val parent = runCatching { DocumentsContract.buildDocumentUriUsingTree(tree, rootId) }.getOrNull() ?: return null
-        val created = runCatching {
-            DocumentsContract.createDocument(context.contentResolver, parent, MIME_DIR, DIR_NAME)
-        }.getOrNull() ?: return null
-        return runCatching { DocumentsContract.getDocumentId(created) }.getOrNull()
-    }
-
-    private fun createDocument(resolver: ContentResolver, tree: Uri, parentId: String, name: String): Uri? {
-        val parent = runCatching { DocumentsContract.buildDocumentUriUsingTree(tree, parentId) }.getOrNull() ?: return null
+    /** Crea el documento temporal probando los MIME de audio habituales. */
+    private fun createTempDocument(context: Context, tree: Uri, dirId: String, name: String): Uri? {
         for (mime in listOf(MIME_AUDIO, MIME_OCTET)) {
-            runCatching { DocumentsContract.createDocument(resolver, parent, mime, name) }
-                .getOrNull()
-                ?.let { return it }
+            SafFiles.createDocument(context, tree, dirId, name, mime)?.let { return it }
         }
         return null
-    }
-
-    /** Hijos directos de [parentId] como `nombre → documentId`. */
-    private fun listChildren(context: Context, tree: Uri, parentId: String): Map<String, String> {
-        val childrenUri = runCatching {
-            DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
-        }.getOrNull() ?: return emptyMap()
-        return try {
-            context.contentResolver.query(
-                childrenUri,
-                arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_DISPLAY_NAME),
-                null,
-                null,
-                null
-            )?.use { cursor ->
-                val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                if (idColumn < 0 || nameColumn < 0) return emptyMap()
-                val children = HashMap<String, String>()
-                while (cursor.moveToNext()) {
-                    val name = cursor.getString(nameColumn) ?: continue
-                    children[name] = cursor.getString(idColumn)
-                }
-                children
-            } ?: emptyMap()
-        } catch (e: Exception) {
-            Log.w(TAG, "No se pudo listar la carpeta de audio: ${e.message}")
-            emptyMap()
-        }
-    }
-
-    /** Carpeta de sync utilizable, o null para caer al respaldo local. */
-    private fun backupTree(context: Context): Uri? {
-        val stored = Config.getBackupTreeUri(context) ?: return null
-        val tree = stored.toUri()
-        return if (BackupFolder.hasPersistedAccess(context, tree)) tree else null
     }
 
     // === Respaldo local (sin carpeta de sync) ===
@@ -180,17 +186,18 @@ object DownloadedAudioStore {
     private fun localDir(context: Context): File =
         File(context.filesDir, DIR_NAME).apply { if (!exists()) mkdirs() }
 
-    private fun writeFile(context: Context, name: String, produce: (OutputStream) -> Unit): Uri? {
+    private fun writeFile(context: Context, name: String, produce: (OutputStream) -> Unit): Entry? {
         val dir = localDir(context)
         val temp = File(dir, "$name.part")
         return try {
-            temp.outputStream().use { out -> produce(out) }
-            if (temp.length() == 0L) {
+            val counter = CountingOutputStream(temp.outputStream())
+            counter.use { out -> produce(out) }
+            if (counter.count == 0L) {
                 temp.delete()
                 null
             } else {
                 val target = File(dir, name)
-                if (temp.renameTo(target)) Uri.fromFile(target) else null
+                if (temp.renameTo(target)) Entry(Uri.fromFile(target), target.length()) else null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error escribiendo audio local: ${e.message}")
@@ -200,26 +207,25 @@ object DownloadedAudioStore {
     }
 
     /**
-     * Índice `videoId → URI` de todo lo descargado, cacheado por origen. Se
+     * Índice `videoId → fichero` de todo lo descargado, cacheado por origen. Se
      * reconstruye solo si cambia la carpeta (o su permiso) entre llamadas.
      */
-    private fun downloadedMap(context: Context): Map<String, Uri> {
-        val tree = backupTree(context)
+    private fun downloaded(context: Context): Map<String, Entry> {
+        val tree = SafFiles.tree(context)
         val key = tree?.toString() ?: LOCAL_KEY
         if (cacheKey == key) return cache
 
-        val map: Map<String, Uri> = if (tree == null) {
+        val map: Map<String, Entry> = if (tree == null) {
             localDir(context).listFiles().orEmpty()
                 .filter { it.name.endsWith(SUFFIX) }
-                .associate { it.name.removeSuffix(SUFFIX) to Uri.fromFile(it) }
+                .associate { it.name.removeSuffix(SUFFIX) to Entry(Uri.fromFile(it), it.length()) }
         } else {
-            val rootId = runCatching { DocumentsContract.getTreeDocumentId(tree) }.getOrNull()
-            val dirId = rootId?.let { listChildren(context, tree, it)[DIR_NAME] }
-            val children = if (dirId == null) emptyMap() else listChildren(context, tree, dirId)
-            children.mapNotNull { (name, docId) ->
+            val rootId = SafFiles.treeId(tree)
+            val dirId = rootId?.let { SafFiles.children(context, tree, it)[DIR_NAME]?.id }
+            val children = if (dirId == null) emptyMap() else SafFiles.children(context, tree, dirId)
+            children.mapNotNull { (name, child) ->
                 if (!name.endsWith(SUFFIX)) return@mapNotNull null
-                runCatching { DocumentsContract.buildDocumentUriUsingTree(tree, docId) }.getOrNull()
-                    ?.let { name.removeSuffix(SUFFIX) to it }
+                SafFiles.docUri(tree, child.id)?.let { name.removeSuffix(SUFFIX) to Entry(it, child.size) }
             }.toMap()
         }
 

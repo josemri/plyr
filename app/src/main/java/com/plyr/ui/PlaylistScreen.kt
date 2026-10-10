@@ -60,6 +60,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.DelicateCoroutinesApi
 import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
+import com.plyr.utils.DownloadedAudioStore
+import com.plyr.utils.StorageSize
 import java.util.Locale
 import com.plyr.ui.components.*
 import com.plyr.ui.components.ActionButton
@@ -107,6 +109,14 @@ fun PlaylistsScreen(
         ?: remember { mutableStateOf("") }
     val downloadResult by downloadViewModel?.downloadViewModel?.resultMessage?.collectAsStateWithLifecycle()
         ?: remember { mutableStateOf<String?>(null) }
+    val downloadCurrentVideoId by downloadViewModel?.downloadViewModel?.currentVideoId?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf<String?>(null) }
+    val downloadCurrentFraction by downloadViewModel?.downloadViewModel?.currentFraction?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf(0f) }
+    val downloadRevision by downloadViewModel?.downloadViewModel?.revision?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf(0) }
+
+    var showStorageDialog by remember { mutableStateOf(false) }
 
     // Autoborrar el resultado de la descarga a los 3 s, igual que el import
     LaunchedEffect(downloadResult) {
@@ -179,6 +189,17 @@ fun PlaylistsScreen(
         } else {
             trackEntities = emptyList()
             playlistTracks = emptyList()
+        }
+    }
+
+    // Qué pistas de la lista actual están ya en el almacén offline. Se recalcula
+    // al cambiar de lista o tras cada descarga/borrado (downloadRevision).
+    var downloadedVideoIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(trackEntities, downloadRevision) {
+        downloadedVideoIds = withContext(Dispatchers.IO) {
+            trackEntities.mapNotNull { it.youtubeVideoId }
+                .filter { DownloadedAudioStore.localUri(context, it) != null }
+                .toSet()
         }
     }
 
@@ -448,6 +469,18 @@ fun PlaylistsScreen(
                                         }
                                     ))
                                 }
+
+                                // Botón de gestión del audio offline (tamaño y borrado)
+                                if (selectedPlaylistEntity != null) {
+                                    add(ActionButtonData(
+                                        text = "<clean>",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        onClick = {
+                                            showStorageDialog = true
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                    ))
+                                }
                             }
 
                             // Botón edit/save
@@ -544,6 +577,15 @@ fun PlaylistsScreen(
                                     )
                                 }
                             }
+                        }
+
+                        // Diálogo de gestión del audio offline (tamaño y borrado)
+                        if (showStorageDialog) {
+                            OfflineStorageDialog(
+                                context = context,
+                                onDeleteAll = { downloadViewModel?.downloadViewModel?.clearDownloads() },
+                                onDismiss = { showStorageDialog = false }
+                            )
                         }
 
                         // Diálogo de confirmación para eliminar playlist
@@ -939,6 +981,11 @@ Locale.ROOT,
                                          shareUrl = null
                                      )
                                     val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
+                                    val videoId = track.youtubeVideoId
+                                    val isDownloaded = videoId != null && videoId in downloadedVideoIds
+                                    val trackProgress = if (isDownloading && videoId != null && videoId == downloadCurrentVideoId) {
+                                        downloadCurrentFraction
+                                    } else null
                                     Box(
                                         modifier = reorderState.itemModifier(
                                             id = track.id,
@@ -969,7 +1016,12 @@ Locale.ROOT,
                                             coroutineScope = coroutineScope,
                                             modifier = Modifier.fillMaxWidth(),
                                             isCurrentlyPlaying = isPlaying,
-                                            onLikedStatusChanged = { tracksRevision++ }
+                                            onLikedStatusChanged = { tracksRevision++ },
+                                            isDownloaded = isDownloaded,
+                                            downloadProgress = trackProgress,
+                                            onDeleteDownload = if (isDownloaded && videoId != null) {
+                                                { downloadViewModel?.downloadViewModel?.removeDownload(videoId) }
+                                            } else null
                                         )
                                     }
                                 }
@@ -1216,6 +1268,67 @@ Locale.ROOT,
             }
         }
     }
+}
+
+/**
+ * Diálogo de gestión del audio offline: muestra cuántas pistas y cuánto ocupan
+ * y permite borrarlo todo. Reconsulta el almacén al abrirse y tras borrar.
+ */
+@Composable
+private fun OfflineStorageDialog(
+    context: Context,
+    onDeleteAll: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var refresh by remember { mutableIntStateOf(0) }
+    var summary by remember { mutableStateOf<DownloadedAudioStore.Summary?>(null) }
+    LaunchedEffect(refresh) {
+        summary = withContext(Dispatchers.IO) { DownloadedAudioStore.summary(context) }
+    }
+    val mono = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = Translations.get(context, "storage_title"),
+                style = mono.copy(color = MaterialTheme.colorScheme.primary)
+            )
+        },
+        text = { Text(text = offlineStorageMessage(context, summary), style = mono) },
+        confirmButton = {
+            val current = summary
+            if (current != null && current.count > 0) {
+                TextButton(onClick = {
+                    onDeleteAll()
+                    refresh++
+                }) {
+                    Text(
+                        text = Translations.get(context, "delete"),
+                        style = mono.copy(color = MaterialTheme.colorScheme.error)
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = Translations.get(context, "close"),
+                    style = mono.copy(color = MaterialTheme.colorScheme.primary)
+                )
+            }
+        }
+    )
+}
+
+private fun offlineStorageMessage(context: Context, summary: DownloadedAudioStore.Summary?): String = when {
+    summary == null -> Translations.get(context, "loading")
+    summary.count == 0 -> Translations.get(context, "storage_empty")
+    else -> String.format(
+        Locale.ROOT,
+        Translations.get(context, "storage_message"),
+        summary.count,
+        StorageSize.format(summary.bytes)
+    )
 }
 
 @Composable

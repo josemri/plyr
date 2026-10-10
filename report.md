@@ -9,7 +9,7 @@
 ## 1. Estado
 
 - **0 bugs abiertos.** Los 63 (B1–B63) están cerrados (§4).
-- **`./run.sh test` ✓** — **499 tests unitarios, 0 fallos** en 41 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest`, `PlaylistMappingsTest`, `PlaylistSourceTest`, `ReorderTest` y `DownloadPlanTest`).
+- **`./run.sh test` ✓** — **504 tests unitarios, 0 fallos** en 42 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest`, `PlaylistMappingsTest`, `PlaylistSourceTest`, `ReorderTest`, `DownloadPlanTest` y `StorageSizeTest`).
 - **`./run.sh check` ✓** — detekt **0 findings** (6 nuevos corregidos en esta tanda), lint **0 errores** (2 `NonObservableLocale` corregidos con `Locale.ROOT`), cobertura ~15 % líneas.
 - **`./run.sh build` ✓** — APK debug compilado (`app/build/outputs/apk/debug/plyr-debug.apk`).
 - **9 tests instrumentados** nuevos (NFC, QR, importación) en 3 archivos, **pendientes de ejecutar en dispositivo** (`./run.sh test device`).
@@ -27,7 +27,7 @@
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v8, migraciones `5→6`, `6→7`, `7→8` |
-| Tests unitarios | **499** en 41 archivos |
+| Tests unitarios | **504** en 42 archivos |
 | Tests instrumentados | **9** en 3 archivos (pendientes de ejecutar en device) |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso / inexistentes | **0** / **0** |
@@ -136,10 +136,20 @@ Hubo un `DownloadManager` completo (tablas `downloaded_tracks`/`local_playlists`
 ### Download lists: reproducir desde local (roadmap)
 Siguiente subpunto del roadmap: si la pista está descargada, el reproductor usa el fichero en vez del streaming.
 - **`DownloadedAudioStore.localUri(context, videoId): Uri?`**: URI reproducible del `.m4a` si existe (`content://` del documento para SAF, `file://` para el respaldo local; Media3 reproduce ambos). Sustituye al antiguo `contains`.
-- **Índice cacheado por sesión** (`downloadedMap`): el listado de `audio/` se hace **una vez** por origen (carpeta SAF o `"local"`) y se reutiliza. Sin esto, cada pista al arrancar haría una consulta al proveedor (ida y vuelta de red si la carpeta es de nube). El índice se **añade en caliente** al terminar una descarga (`write`), y se rehace si cambia la carpeta de sync o su permiso.
+- **Índice cacheado por sesión** (`downloaded`): el listado de `audio/` se hace **una vez** por origen (carpeta SAF o `"local"`) y se reutiliza. Sin esto, cada pista al arrancar haría una consulta al proveedor (ida y vuelta de red si la carpeta es de nube). El índice se **añade en caliente** al terminar una descarga (`write`), y se rehace si cambia la carpeta de sync o su permiso.
 - **`PlayerViewModel`**: en el arranque (`startAt`) y en la construcción de la ventana (`resolveItems`) se prefiere `localUri` sobre `YouTubeManager.getAudioUrl` (nueva ayuda `resolveSourceUri`). El local no depende de la red ni de la caducidad de la URL de `googlevideo`, así que también sirve con `forceRefresh` (reintento tras 403/410).
-- Alcance de esta tanda: reproducir desde local. **Pendiente del roadmap**: progreso/estado por pista y gestión de almacenamiento (borrado).
-- Tests tras la tanda: **499/499** (41 archivos, sin tests nuevos: la resolución es Android-dependiente). Detekt: `DoubleMutabilityForCollection` en el índice del almacén → `Map` inmutable (`cache = cache + (id to uri)`) y renombrado `findChildId`→`listChildren` para no superar `TooManyFunctions`.
+- Tests tras la tanda: **499/499** (41 archivos, sin tests nuevos: la resolución es Android-dependiente). Detekt: `DoubleMutabilityForCollection` en el índice del almacén → `Map` inmutable (`cache = cache + (id to uri)`).
+
+### Download lists: estado por pista y gestión de almacenamiento (roadmap)
+Último subpunto: indicar qué hay bajado, el progreso de la pista en curso, y poder ver/liberar el espacio.
+- **Estado por pista** (`SongListItem`): nueva marca `↓` (tertiary) en las filas ya descargadas, y `↓ NN%` (primary) en la que se está bajando ahora. En `PlaylistScreen` el conjunto de pistas offline se recalcula en un `LaunchedEffect(trackEntities, downloadRevision)`; el progreso por pista sale de `DownloadViewModel.currentVideoId` + `currentFraction`.
+- **`DownloadViewModel`**: añade `currentVideoId`, `currentFraction` y `revision` (sube con cada pista bajada/borrada para que la UI revise el almacén), más `clearDownloads()` y `removeDownload(videoId)`.
+- **Gestión de almacenamiento**: botón `<clean>` en la cabecera de la lista → diálogo `OfflineStorageDialog` con nº de pistas y tamaño (`DownloadedAudioStore.summary`) y borrado total. Borrado por pista desde el menú `*` de la fila (`delete_download`).
+- **`StorageSize`** (pura): formatea bytes a `B/KB/MB/GB` con `Locale.ROOT`; `StorageSizeTest` (5).
+- **Split SAF** (`SafFiles`): las primitivas de `DocumentsContract` (listar/crear/renombrar/borrar, `ensureDir`, `treeId`) salen del almacén a un objeto propio. Al añadir `summary`/`delete`/`deleteAll` el almacén habría superado el límite de `TooManyFunctions` de detekt.
+- **Escritura con tamaño**: `write` envuelve el stream en un `CountingOutputStream` (SAF no da el tamaño sin volver a consultar); así `summary` conoce el tamaño real sin una query extra.
+- Traducciones nuevas en los 4 idiomas: `storage_title`, `storage_empty`, `storage_message`, `delete_download`.
+- Tests tras la tanda: **504/504** (42 archivos). `check` sin incidencias (detekt: se acortó `OfflineStorageDialog` extrayendo `offlineStorageMessage` por `LongMethod`).
 
 ---
 

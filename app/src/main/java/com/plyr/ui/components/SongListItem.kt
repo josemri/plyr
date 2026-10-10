@@ -76,7 +76,10 @@ fun SongListItem(
     isCurrentlyPlaying: Boolean = false, // Indica si esta canción está sonando actualmente
     onLikedStatusChanged: (() -> Unit)? = null,
     customButtonIcon: String? = null, // Nueva: Icono personalizado para el botón (ej: "+")
-    customButtonAction: (() -> Unit)? = null // Nueva: Acción personalizada para el botón
+    customButtonAction: (() -> Unit)? = null, // Nueva: Acción personalizada para el botón
+    isDownloaded: Boolean = false, // El audio de esta pista está en el almacén offline
+    downloadProgress: Float? = null, // 0..1 si esta pista se está bajando ahora (null si no)
+    onDeleteDownload: (() -> Unit)? = null // Borrar el audio offline de esta pista
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -267,6 +270,21 @@ fun SongListItem(
                     modifier = Modifier.padding(top = 0.dp)
                 )
             }
+            // Estado offline: progreso de la descarga en curso, o marca de que
+            // ya está bajada (la flecha cabe en el estilo terminal/monoespaciado)
+            if (downloadProgress != null) {
+                Text(
+                    text = "↓ ${(downloadProgress * 100).toInt()}%",
+                    style = PlyrTextStyles.trackArtist().copy(color = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            } else if (isDownloaded) {
+                Text(
+                    text = "↓",
+                    style = PlyrTextStyles.trackArtist().copy(color = MaterialTheme.colorScheme.tertiary),
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
             // Botón personalizable
             IconButton(onClick = {
                 if (customButtonAction != null) {
@@ -407,6 +425,23 @@ fun SongListItem(
                                 }
                                 .padding(vertical = 4.dp)
                         )
+
+                        // Delete download (solo si la pista está en el almacén offline)
+                        if (isDownloaded && onDeleteDownload != null) {
+                            Text(
+                                text = Translations.get(context, "delete_download"),
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showPopup = false
+                                        onDeleteDownload()
+                                    }
+                                    .padding(vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }

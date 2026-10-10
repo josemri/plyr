@@ -73,6 +73,12 @@ object Translations {
             "btn_share" to "<share>",
             "btn_nfc" to "<nfc>",
 
+            // Offline storage
+            "storage_title" to "audio offline",
+            "storage_empty" to "no hay audio descargado",
+            "storage_message" to "audio: %1\$d pistas · %2\$s",
+            "delete_download" to "eliminar descarga",
+
             // SongListItem
             "add_to_playlist" to "añadir a playlist",
             "add_to_queue" to "añadir a cola",
@@ -205,6 +211,12 @@ object Translations {
             "btn_share" to "<share>",
             "btn_nfc" to "<nfc>",
 
+            // Offline storage
+            "storage_title" to "offline audio",
+            "storage_empty" to "no downloaded audio",
+            "storage_message" to "audio: %1\$d tracks · %2\$s",
+            "delete_download" to "delete download",
+
             // SongListItem
             "add_to_playlist" to "add to playlist",
             "add_to_queue" to "add to queue",
@@ -327,6 +339,12 @@ object Translations {
             "btn_share" to "<compartir>",
             "btn_nfc" to "<nfc>",
 
+            // Offline storage
+            "storage_title" to "àudio offline",
+            "storage_empty" to "no hi ha àudio descarregat",
+            "storage_message" to "àudio: %1\$d pistes · %2\$s",
+            "delete_download" to "elimina la descàrrega",
+
             // SongListItem
             "add_to_playlist" to "afegir a playlist",
             "add_to_queue" to "afegir a cua",
@@ -448,6 +466,12 @@ object Translations {
             // Playlist actions and dialogs
             "btn_share" to "<共有>",
             "btn_nfc" to "<nfc>",
+
+            // Offline storage
+            "storage_title" to "オフライン音声",
+            "storage_empty" to "ダウンロード済みの音声はありません",
+            "storage_message" to "音声: %1\$d 曲 · %2\$s",
+            "delete_download" to "ダウンロードを削除",
 
             // SongListItem
             "add_to_playlist" to "プレイリストに追加",
