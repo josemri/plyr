@@ -144,6 +144,8 @@ fun PlaylistsScreen(
     var trackEntities by remember { mutableStateOf<List<TrackEntity>>(emptyList()) }
     // Contador para recargar los tracks tras añadir/eliminar en modo edición (B3)
     var tracksRevision by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // Reordenado por arrastre (pulsación larga) de la lista principal
+    val reorderState = remember { ReorderState() }
     LaunchedEffect(selectedPlaylistEntity?.remoteId, tracksRevision) {
         val id = selectedPlaylistEntity?.remoteId
         if (id != null) {
@@ -868,16 +870,39 @@ Locale.ROOT,
                                          shareUrl = null
                                      )
                                     val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
-                                    SongListItem(
-                                        song = song,
-                                        trackEntities = trackEntitiesList,
-                                        index = index,
-                                        playerViewModel = playerViewModel,
-                                        coroutineScope = coroutineScope,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        isCurrentlyPlaying = isPlaying,
-                                        onLikedStatusChanged = { tracksRevision++ }
-                                    )
+                                    Box(
+                                        modifier = reorderState.itemModifier(
+                                            id = track.id,
+                                            index = index,
+                                            itemCount = playlistTracks.size
+                                        ) { from, to ->
+                                            if (from != to) {
+                                                val reordered = Reorder.move(playlistTracks, from, to)
+                                                playlistTracks = reordered
+                                                val playlistId = selectedPlaylistEntity?.remoteId
+                                                if (playlistId != null) {
+                                                    coroutineScope.launch {
+                                                        localRepository.reorderTracks(
+                                                            localPlaylistId = playlistId,
+                                                            orderedTrackIds = reordered.map { it.id }
+                                                        )
+                                                        tracksRevision++
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        SongListItem(
+                                            song = song,
+                                            trackEntities = trackEntitiesList,
+                                            index = index,
+                                            playerViewModel = playerViewModel,
+                                            coroutineScope = coroutineScope,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            isCurrentlyPlaying = isPlaying,
+                                            onLikedStatusChanged = { tracksRevision++ }
+                                        )
+                                    }
                                 }
                             }
                         }

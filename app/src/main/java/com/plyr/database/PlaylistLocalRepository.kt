@@ -506,4 +506,33 @@ class PlaylistLocalRepository(context: Context) {
             false
         }
     }
+
+    /**
+     * Persiste el nuevo orden de una lista local. [orderedTrackIds] son los
+     * `remoteTrackId` en el orden deseado; las pistas que no aparezcan conservan
+     * su posición relativa (no se tocan). Se reescriben las `position` de 0 a n-1
+     * en una transacción, de modo que un fallo a mitad no deja índices repetidos.
+     */
+    suspend fun reorderTracks(
+        localPlaylistId: String,
+        orderedTrackIds: List<String>
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val byRemoteId = trackDao.getTracksByPlaylistSync(localPlaylistId).associateBy { it.remoteTrackId }
+            database.withTransaction {
+                orderedTrackIds.forEachIndexed { index, remoteId ->
+                    val track = byRemoteId[remoteId] ?: return@forEachIndexed
+                    if (track.position != index) {
+                        trackDao.updateTrack(track.copy(position = index))
+                    }
+                }
+            }
+            Log.d(TAG, "Orden de lista actualizado: $localPlaylistId")
+            markDirty()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reordenando lista: ${e.message}", e)
+            false
+        }
+    }
 }

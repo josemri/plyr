@@ -9,7 +9,7 @@
 ## 1. Estado
 
 - **0 bugs abiertos.** Los 63 (B1–B63) están cerrados (§4).
-- **`./run.sh test` ✓** — **484 tests unitarios, 0 fallos** en 40 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest`, `PlaylistMappingsTest` y `PlaylistSourceTest`).
+- **`./run.sh test` ✓** — **492 tests unitarios, 0 fallos** en 40 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest`, `PlaylistMappingsTest`, `PlaylistSourceTest` y `ReorderTest`).
 - **`./run.sh check` ✓** — detekt **0 findings** (6 nuevos corregidos en esta tanda), lint **0 errores** (2 `NonObservableLocale` corregidos con `Locale.ROOT`), cobertura ~15 % líneas.
 - **`./run.sh build` ✓** — APK debug compilado (`app/build/outputs/apk/debug/plyr-debug.apk`).
 - **9 tests instrumentados** nuevos (NFC, QR, importación) en 3 archivos, **pendientes de ejecutar en dispositivo** (`./run.sh test device`).
@@ -23,11 +23,11 @@
 |---|---|
 | Archivos Kotlin (main) | 86 (~16.500 líneas) |
 | Archivos de test | 40 (~5.700 líneas) |
-| Archivos más grandes | `PlaylistScreen.kt` (~1434), `PlayerViewModel.kt` (~1085), `ConfigScreen.kt` (665), `SongListItem.kt` (~580), `FloatingMusicControls.kt` (538) |
+| Archivos más grandes | `PlaylistScreen.kt` (~1438), `PlayerViewModel.kt` (~1085), `ConfigScreen.kt` (665), `SongListItem.kt` (~580), `FloatingMusicControls.kt` (538) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v8, migraciones `5→6`, `6→7`, `7→8` |
-| Tests unitarios | **484** en 40 archivos |
+| Tests unitarios | **492** en 40 archivos |
 | Tests instrumentados | **9** en 3 archivos (pendientes de ejecutar en device) |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso / inexistentes | **0** / **0** |
@@ -114,6 +114,14 @@ El commit `e58056d` ya había persistido `source`/`sourceId` en `playlists` (v8 
 - `ImportManifest` los parsea vía `PlaylistSource.fromStorage` (case-insensitive; ausente/desconocido → `null` → heurística) y `DataImporter` los restaura en `PlaylistEntity`.
 - `saveCreatedYouTubePlaylist` recibe el origen explícito (`CreatedPlaylist` + `source`), en vez de deducir Spotify de la `description`; `SpotifyImporter` pasa `SPOTIFY`. Ya no queda ningún punto donde el origen dependa del texto editable de la descripción.
 - Tests: `PlaylistSourceTest` (3), +2 en `ExportManifestTest` (serialización y null), +1 en `ImportManifestTest` (parseo) y el round-trip ampliado. **484/484**.
+
+### Drag & Drop: reordenar lista por pulsación larga (roadmap)
+`TrackEntity` ya tenía `position` y `PlaylistLocalRepository` ya reindexaba al añadir/eliminar; faltaba el gesto y una escritura atómica del nuevo orden.
+- Lógica pura en `ui/components/Reorder.kt`: `Reorder.move(items, from, to)` (índices fuera de rango o sin cambio devuelven **la misma instancia**, sin recomposición de más) y `Reorder.targetIndex(from, offsetY, itemHeightPx, count)` (redondea al hueco y recorta a los límites). Testeadas en `ReorderTest` (8).
+- `ReorderState` hoistea el arrastre fuera del `LazyColumn`. `detectDragGesturesAfterLongPress` (pulsación larga) convive con el swipe horizontal de `SongListItem`; `index` entra en la clave del `pointerInput` para que el bloque se reacree si la fila cambia de sitio entre gestos. El reordenado visual es **diferido** (solo se desplaza la fila arrastrada) para no reordenar la lista a mitad del gesto —relayout + claves cambiantes es la fuente clásica de saltos y gestos perdidos—.
+- Persistencia: `PlaylistLocalRepository.reorderTracks(localPlaylistId, orderedTrackIds)` reescribe las `position` de 0 a n-1 en una transacción (`byRemoteId` + `updateTrack`), de modo que un fallo a mitad no deja índices repetidos. Solo reordena listas con fila en BD (`selectedPlaylistEntity != null`); en fuentes sin BD el arrastre se ignora.
+- Limitación conocida: sin auto-scroll ni previsualización en vivo de las filas vecinas; el arrastre útil es dentro del viewport. Candidato a mejorar si se pide.
+- Tests totales tras la tanda: **492/492** (40 archivos).
 
 ---
 
