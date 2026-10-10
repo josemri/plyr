@@ -84,9 +84,6 @@ Everything already fixed is documented in [`report.md`](report.md) — **63 bugs
   - [ ] Declare `automotive_app_desc.xml` and the automotive permissions
   - [ ] Expose the library (playlists, queue) through the Media3 `MediaSession`
   - [ ] Playback screen and controls in the head unit
-- [ ] **Drag & Drop** — reorder songs in playlists with long press and drag
-  - [ ] Long-press + drag gestures in the track list
-  - [ ] Persist the new order (`TrackEntity`/`TrackDao`)
 
 ## license
 
