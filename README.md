@@ -76,7 +76,6 @@ CAMERA                    # QR code scanning (optional hardware)
 
 Everything already fixed is documented in [`report.md`](report.md) — **63 bugs resolved, 0 open**, 478 unit tests.
 
-- [ ] **Share** — the playlist origin is **inferred** from the `remoteId` + description; persist `source`/`sourceId` so it doesn't depend on the editable description
 - [ ] **Download lists** — download playlists for offline use
   - [ ] Download the audio of each track and store it locally
   - [ ] Play from local when available
