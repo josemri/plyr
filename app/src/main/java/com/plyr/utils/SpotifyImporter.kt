@@ -2,8 +2,10 @@ package com.plyr.utils
 
 import android.content.Context
 import android.util.Log
+import com.plyr.database.CreatedPlaylist
 import com.plyr.database.PlaylistDatabase
 import com.plyr.database.PlaylistLocalRepository
+import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackEntity
 import com.plyr.service.YouTubeSearchManager
 import kotlinx.coroutines.Dispatchers
@@ -166,11 +168,14 @@ object SpotifyImporter {
         onProgress(totalTracks, totalTracks, "Saving...")
 
         localRepository.saveCreatedYouTubePlaylist(
-            playlistId = playlistId,
-            title = playlist.name,
-            description = "Imported from Spotify",
-            imageUrl = playlist.imageUrl,
-            tracks = trackEntities
+            created = CreatedPlaylist(
+                playlistId = playlistId,
+                title = playlist.name,
+                description = "Imported from Spotify",
+                imageUrl = playlist.imageUrl
+            ),
+            tracks = trackEntities,
+            source = PlaylistSource.SPOTIFY
         )
 
         val message = "Imported '${playlist.name}' ($foundCount/$totalTracks matched)"

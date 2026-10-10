@@ -9,7 +9,7 @@
 ## 1. Estado
 
 - **0 bugs abiertos.** Los 63 (B1–B63) están cerrados (§4).
-- **`./run.sh test` ✓** — **478 tests unitarios, 0 fallos** en 39 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest` y `PlaylistMappingsTest`).
+- **`./run.sh test` ✓** — **484 tests unitarios, 0 fallos** en 40 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest`, `PlaylistMappingsTest` y `PlaylistSourceTest`).
 - **`./run.sh check` ✓** — detekt **0 findings** (6 nuevos corregidos en esta tanda), lint **0 errores** (2 `NonObservableLocale` corregidos con `Locale.ROOT`), cobertura ~15 % líneas.
 - **`./run.sh build` ✓** — APK debug compilado (`app/build/outputs/apk/debug/plyr-debug.apk`).
 - **9 tests instrumentados** nuevos (NFC, QR, importación) en 3 archivos, **pendientes de ejecutar en dispositivo** (`./run.sh test device`).
@@ -22,12 +22,12 @@
 | Métrica | Valor |
 |---|---|
 | Archivos Kotlin (main) | 86 (~16.500 líneas) |
-| Archivos de test | 39 (~5.600 líneas) |
+| Archivos de test | 40 (~5.700 líneas) |
 | Archivos más grandes | `PlaylistScreen.kt` (~1434), `PlayerViewModel.kt` (~1085), `ConfigScreen.kt` (665), `SongListItem.kt` (~580), `FloatingMusicControls.kt` (538) |
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v8, migraciones `5→6`, `6→7`, `7→8` |
-| Tests unitarios | **478** en 39 archivos |
+| Tests unitarios | **484** en 40 archivos |
 | Tests instrumentados | **9** en 3 archivos (pendientes de ejecutar en device) |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso / inexistentes | **0** / **0** |
@@ -107,6 +107,13 @@ Nada de esto es un fallo de datos ni bloquea el uso: son mejoras de arquitectura
   - `YouTubeSearchResults.kt`: nuevos `YouTubeSearchSectionDeps` + `YouTubeSearchResultsState` (un parámetro agrupado elimina el `LongParameterList` de 13), la sección se descompone en `youtubeVideosItems`/`youtubePlaylistItems`, y `PlaylistCoverRow` extrae `rememberPlaylistCoverUrl` y `PlaylistCoverPlaceholder` (adios `LongMethod` ×2).
   - `SearchScreen.kt`: `LegacyResultsSectionState` agrupa los 10 parámetros de `collapsibleYouTubeSearchResultsSection`.
 - Corregidos los **2 errores de lint `NonObservableLocale`** que dichos `String.format` reintrodujeron (leer `Locale.getDefault()` en composable no es observable): se usa `Locale.ROOT`, como ya hacía el resto del repo.
+
+### Share: origen persistido (roadmap)
+El commit `e58056d` ya había persistido `source`/`sourceId` en `playlists` (v8 + backfill) y `PlaylistShare.classify` ya los prefiere sobre la heurística de `remoteId`/`description`. Esta tanda cierra la única brecha que quedaba: el origen **no sobrevivía al backup**.
+- `ExportManifest` serializa `source`/`sourceId` (aditivo: un archivo antiguo no los lleva); `ExportDigest` los incluye en la huella para que un cambio de origen reescriba la copia.
+- `ImportManifest` los parsea vía `PlaylistSource.fromStorage` (case-insensitive; ausente/desconocido → `null` → heurística) y `DataImporter` los restaura en `PlaylistEntity`.
+- `saveCreatedYouTubePlaylist` recibe el origen explícito (`CreatedPlaylist` + `source`), en vez de deducir Spotify de la `description`; `SpotifyImporter` pasa `SPOTIFY`. Ya no queda ningún punto donde el origen dependa del texto editable de la descripción.
+- Tests: `PlaylistSourceTest` (3), +2 en `ExportManifestTest` (serialización y null), +1 en `ImportManifestTest` (parseo) y el round-trip ampliado. **484/484**.
 
 ---
 

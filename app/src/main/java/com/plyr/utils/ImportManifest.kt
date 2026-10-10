@@ -1,6 +1,7 @@
 package com.plyr.utils
 
 import com.plyr.database.PlaylistLocalRepository
+import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackEntity
 import org.json.JSONArray
 import org.json.JSONObject
@@ -20,13 +21,19 @@ data class ImportedTrack(
     val youtubeVideoId: String?
 )
 
-/** Una lista tal y como se lee de `playlists.json`. */
+/**
+ * Una lista tal y como se lee de `playlists.json`. [source] y [sourceId] son
+ * opcionales: un archivo anterior a que se persistiera el origen no los trae y
+ * se cae a la clasificación por `remoteId`/`description`.
+ */
 data class ImportedPlaylist(
     val id: String,
     val name: String,
     val description: String?,
     val coverEntry: String?,
-    val tracks: List<ImportedTrack>
+    val tracks: List<ImportedTrack>,
+    val source: PlaylistSource? = null,
+    val sourceId: String? = null
 ) {
     val trackCount: Int get() = tracks.size
 }
@@ -242,7 +249,9 @@ object ImportManifest {
         name = json.optString("name"),
         description = json.optString("description").takeIf { it.isNotEmpty() },
         coverEntry = json.optString("cover").takeIf { it.isNotEmpty() },
-        tracks = parseTracks(json.optJSONArray("tracks"))
+        tracks = parseTracks(json.optJSONArray("tracks")),
+        source = PlaylistSource.fromStorage(json.optString("source")),
+        sourceId = json.optString("sourceId").takeIf { it.isNotEmpty() }
     )
 
     private fun parseTracks(json: JSONArray?): List<ImportedTrack> {

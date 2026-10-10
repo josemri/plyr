@@ -109,7 +109,9 @@ object DataExporter {
                 name = entity.name,
                 description = entity.description,
                 coverEntry = coverEntry,
-                tracks = repository.getTracksByPlaylistSync(entity.remoteId).map { it.toExportTrack() }
+                tracks = repository.getTracksByPlaylistSync(entity.remoteId).map { it.toExportTrack() },
+                source = entity.source.name,
+                sourceId = entity.sourceId
             )
             manifests += playlist
             accumulator.addPlaylist(playlist, coverBytes)

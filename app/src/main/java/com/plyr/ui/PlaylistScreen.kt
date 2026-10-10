@@ -1345,10 +1345,12 @@ fun CreatePlaylistScreen(
                         )
                         val saved = withContext(Dispatchers.IO) {
                             localRepository.saveCreatedYouTubePlaylist(
-                                playlistId = rawId,
-                                title = created.title,
-                                description = created.description,
-                                imageUrl = null,
+                                created = CreatedPlaylist(
+                                    playlistId = rawId,
+                                    title = created.title,
+                                    description = created.description,
+                                    imageUrl = null
+                                ),
                                 tracks = created.tracks
                             )
                         }

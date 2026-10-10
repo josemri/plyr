@@ -41,6 +41,11 @@ object ExportDigest {
             updateField(playlist.id)
             updateField(playlist.name)
             updateField(playlist.description)
+            // El origen forma parte del contenido: si cambia (p. ej. tras el
+            // backfill del origen persistido) hay que reescribir la copia aunque
+            // el resto sea idéntico, o el archivo restaurado perdería el origen.
+            updateField(playlist.source)
+            updateField(playlist.sourceId)
             updateField(playlist.coverEntry)
             updateField(playlist.tracks.size.toString())
             playlist.tracks.forEach { track ->

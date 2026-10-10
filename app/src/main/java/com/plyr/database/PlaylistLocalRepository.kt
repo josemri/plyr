@@ -12,6 +12,19 @@ import com.plyr.utils.DataSync
 import com.plyr.utils.ImportManifest
 import com.plyr.utils.LikedSongsMerge
 
+/**
+ * Datos de presentación de una lista que se guarda como creada en la app o
+ * importada: sin pistas ni origen, que son los otros dos argumentos del
+ * guardado. Agruparlos mantiene la firma por debajo del límite de parámetros
+ * de detekt y deja un punto único donde se arma el `PlaylistEntity`.
+ */
+data class CreatedPlaylist(
+    val playlistId: String,
+    val title: String,
+    val description: String?,
+    val imageUrl: String?,
+)
+
 class PlaylistLocalRepository(context: Context) {
 
     private val database = PlaylistDatabase.getDatabase(context)
@@ -229,27 +242,21 @@ class PlaylistLocalRepository(context: Context) {
     }
 
     suspend fun saveCreatedYouTubePlaylist(
-        playlistId: String,
-        title: String,
-        description: String?,
-        imageUrl: String?,
-        tracks: List<TrackEntity>
+        created: CreatedPlaylist,
+        tracks: List<TrackEntity>,
+        source: PlaylistSource = PlaylistSource.LOCAL
     ): Boolean {
-        val localPlaylistId = "youtube_$playlistId"
+        val localPlaylistId = "youtube_${created.playlistId}"
         return saveYouTubePlaylistWithTracks(
             PlaylistEntity(
                 remoteId = localPlaylistId,
-                name = title,
-                description = description,
+                name = created.title,
+                description = created.description,
                 trackCount = tracks.size,
-                imageUrl = imageUrl,
+                imageUrl = created.imageUrl,
                 lastSyncTime = System.currentTimeMillis(),
-                source = if (description?.trim()?.equals("Imported from Spotify", ignoreCase = true) == true) {
-                    com.plyr.database.PlaylistSource.SPOTIFY
-                } else {
-                    com.plyr.database.PlaylistSource.LOCAL
-                },
-                sourceId = playlistId
+                source = source,
+                sourceId = created.playlistId
             ),
             tracks
         )

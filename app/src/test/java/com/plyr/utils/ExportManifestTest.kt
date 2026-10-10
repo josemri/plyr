@@ -74,6 +74,29 @@ class ExportManifestTest {
     }
 
     @Test
+    fun build_serializesPersistedPlaylistOrigin() {
+        val json = JSONObject(
+            ExportManifest.build(
+                "1.1.0", 0L,
+                listOf(samplePlaylist().copy(source = "SPOTIFY", sourceId = "37i9dQZF1DXcBWIGoYBM5M"))
+            )
+        )
+        val playlist = json.getJSONArray("playlists").getJSONObject(0)
+
+        assertEquals("SPOTIFY", playlist.getString("source"))
+        assertEquals("37i9dQZF1DXcBWIGoYBM5M", playlist.getString("sourceId"))
+    }
+
+    @Test
+    fun build_playlistWithoutOrigin_writesJsonNull() {
+        val json = JSONObject(ExportManifest.build("1.0.0", 0L, listOf(samplePlaylist())))
+        val playlist = json.getJSONArray("playlists").getJSONObject(0)
+
+        assertTrue(playlist.isNull("source"))
+        assertTrue(playlist.isNull("sourceId"))
+    }
+
+    @Test
     fun build_keepsTrackOrderPositionAndArtists() {
         val json = JSONObject(ExportManifest.build("1.0.0", 0L, listOf(samplePlaylist())))
         val tracks = json.getJSONArray("playlists").getJSONObject(0).getJSONArray("tracks")
@@ -240,6 +263,8 @@ class ExportManifestTest {
                   "id": "liked_songs",
                   "name": "liked",
                   "description": null,
+                  "source": null,
+                  "sourceId": null,
                   "cover": null,
                   "trackCount": 2,
                   "tracks": [
@@ -263,6 +288,8 @@ class ExportManifestTest {
                   "id": "youtube_PL1",
                   "name": "Rock",
                   "description": "YouTube Playlist by uploader",
+                  "source": null,
+                  "sourceId": null,
                   "cover": "covers/youtube_PL1.jpg",
                   "trackCount": 0,
                   "tracks": []

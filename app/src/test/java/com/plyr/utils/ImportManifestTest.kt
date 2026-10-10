@@ -1,6 +1,7 @@
 package com.plyr.utils
 
 import com.plyr.database.PlaylistLocalRepository
+import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,6 +60,32 @@ class ImportManifestTest {
         assertNull(empty.description)
         assertNull(empty.coverEntry)
         assertTrue(empty.tracks.isEmpty())
+    }
+
+    @Test
+    fun parse_readsPersistedPlaylistOrigin() {
+        val json = """
+            {
+              "app": "_plyr",
+              "formatVersion": 1,
+              "playlists": [
+                {"id": "youtube_PL1", "name": "Y", "source": "YOUTUBE", "tracks": []},
+                {"id": "youtube_abc", "name": "S", "source": "spotify", "sourceId": "37i9dQZF1DXcBWIGoYBM5M", "tracks": []},
+                {"id": "p3", "name": "U", "source": "NO_EXISTE", "tracks": []},
+                {"id": "p4", "name": "N", "tracks": []}
+              ]
+            }
+        """.trimIndent()
+        val playlists = ImportManifest.parse(json).playlists
+
+        assertEquals(PlaylistSource.YOUTUBE, playlists[0].source)
+        assertNull(playlists[0].sourceId)
+        // Mayúsculas/minúsculas indistintas, como el resto del formato.
+        assertEquals(PlaylistSource.SPOTIFY, playlists[1].source)
+        assertEquals("37i9dQZF1DXcBWIGoYBM5M", playlists[1].sourceId)
+        // Un nombre desconocido y un campo ausente caen a la heurística (null).
+        assertNull(playlists[2].source)
+        assertNull(playlists[3].source)
     }
 
     @Test
@@ -375,7 +402,9 @@ class ImportManifestTest {
                 tracks = listOf(
                     ExportTrack(0, "Song \"One\"", listOf("A", "B"), "r1", "yt1"),
                     ExportTrack(1, "Cañón", emptyList(), "r2", null)
-                )
+                ),
+                source = "SPOTIFY",
+                sourceId = "37i9dQZF1DXcBWIGoYBM5M"
             ),
             ExportPlaylist("liked_songs", "liked", null, null, emptyList())
         )
@@ -402,6 +431,11 @@ class ImportManifestTest {
         assertNull(parsed.playlists[0].tracks[1].youtubeVideoId)
         assertEquals("liked_songs", parsed.playlists[1].id)
         assertNull(parsed.playlists[1].description)
+        // El origen persistido sobrevive al ciclo exportar → importar, que es
+        // justo lo que evita depender de la `description` al restaurar.
+        assertEquals(PlaylistSource.SPOTIFY, parsed.playlists[0].source)
+        assertEquals("37i9dQZF1DXcBWIGoYBM5M", parsed.playlists[0].sourceId)
+        assertNull(parsed.playlists[1].source)
     }
 
     // === HELPERS ===

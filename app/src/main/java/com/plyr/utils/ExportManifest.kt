@@ -19,13 +19,19 @@ data class ExportTrack(
  * Una lista tal y como se serializa en `playlists.json`. [coverEntry] es la ruta
  * interna de la portada dentro del ZIP (`covers/<id>.jpg`) o null si la lista no
  * tiene portada o no se pudo incrustar.
+ *
+ * [source] y [sourceId] viajan para que al restaurar no haya que deducir el
+ * origen desde la `description` (texto editable por el usuario): son aditivos,
+ * un archivo antiguo simplemente no los lleva.
  */
 data class ExportPlaylist(
     val id: String,
     val name: String,
     val description: String?,
     val coverEntry: String?,
-    val tracks: List<ExportTrack>
+    val tracks: List<ExportTrack>,
+    val source: String? = null,
+    val sourceId: String? = null
 ) {
     val trackCount: Int get() = tracks.size
 }
@@ -214,6 +220,8 @@ object ExportManifest {
         sb.appendLine("      \"id\": ${jsonString(playlist.id)},")
         sb.appendLine("      \"name\": ${jsonString(playlist.name)},")
         sb.appendLine("      \"description\": ${jsonString(playlist.description)},")
+        sb.appendLine("      \"source\": ${jsonString(playlist.source)},")
+        sb.appendLine("      \"sourceId\": ${jsonString(playlist.sourceId)},")
         sb.appendLine("      \"cover\": ${jsonString(playlist.coverEntry)},")
         sb.appendLine("      \"trackCount\": ${playlist.tracks.size},")
         sb.append("      \"tracks\": [")

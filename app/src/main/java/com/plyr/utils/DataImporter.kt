@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import com.plyr.database.PlaylistEntity
 import com.plyr.database.PlaylistLocalRepository
+import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackEntity
 import com.plyr.service.CoverImageManager
 import kotlinx.coroutines.Dispatchers
@@ -168,7 +169,9 @@ object DataImporter {
                 description = playlist.description,
                 trackCount = tracks.size,
                 imageUrl = cover,
-                lastSyncTime = now
+                lastSyncTime = now,
+                source = playlist.source ?: PlaylistSource.UNKNOWN,
+                sourceId = playlist.sourceId
             ),
             tracks = tracks
         )
