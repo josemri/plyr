@@ -74,12 +74,23 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md) — **63 bugs resolved, 0 open**, 504 unit tests.
-
 - [ ] **Android Auto** — support for the Android Auto interface
   - [ ] Declare `automotive_app_desc.xml` and the automotive permissions
   - [ ] Expose the library (playlists, queue) through the Media3 `MediaSession`
   - [ ] Playback screen and controls in the head unit
+- [ ] **Architecture** — untangle UI, network, DB and business logic
+  - [ ] Cover `PlayerViewModel` orchestration (Robolectric, or extract a pure orchestrator with injected dependencies)
+  - [ ] Split `PlaylistScreen.kt` into a `PlaylistViewModel` + Compose state
+  - [ ] Do the same for `ConfigScreen.kt` and `SearchScreen.kt`
+  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer`
+- [ ] **Security**
+  - [ ] Review the Supabase RLS policies (`groups`, `group_members`, `recommendations`, `automatic`) — not verifiable from the repo
+  - [ ] Document a `local.properties.example` (`SUPABASE_URL` / `SUPABASE_ANON_KEY`)
+- [ ] **Tests**
+  - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
+- [ ] **Detekt / lint debt**
+  - [ ] Refactor the ~66 `complexity` findings frozen in `detekt-baseline.xml` and regenerate the baseline
+  - [ ] Triage the 58 `UnusedResources` warnings (dynamic `drawable-nodpi/ascii_*.png`)
 
 ## license
 
