@@ -70,7 +70,7 @@ object Translations {
             "error_prefix" to "Error: ",
 
             // Playlist actions and dialogs
-            "btn_share" to "<share>",
+            "btn_share" to "<shr>",
             "btn_nfc" to "<nfc>",
 
             // Offline storage
@@ -208,7 +208,7 @@ object Translations {
             "error_prefix" to "Error: ",
 
             // Playlist actions and dialogs
-            "btn_share" to "<share>",
+            "btn_share" to "<shr>",
             "btn_nfc" to "<nfc>",
 
             // Offline storage
@@ -336,7 +336,7 @@ object Translations {
             "error_prefix" to "Error: ",
 
             // Playlist actions and dialogs
-            "btn_share" to "<compartir>",
+            "btn_share" to "<shr>",
             "btn_nfc" to "<nfc>",
 
             // Offline storage
@@ -464,7 +464,7 @@ object Translations {
             "error_prefix" to "エラー: ",
 
             // Playlist actions and dialogs
-            "btn_share" to "<共有>",
+            "btn_share" to "<shr>",
             "btn_nfc" to "<nfc>",
 
             // Offline storage

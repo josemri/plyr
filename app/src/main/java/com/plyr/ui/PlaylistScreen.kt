@@ -200,7 +200,6 @@ private class PlaylistsScreenState(
     var pendingInitialPlaylist by mutableStateOf(initialPlaylistId)
     var likedSongsCount by mutableIntStateOf(0)
     var isRandomizing by mutableStateOf(false)
-    var isStarting by mutableStateOf(false)
     var showShareDialog by mutableStateOf(false)
     var showDeleteDialog by mutableStateOf(false)
     val openedFromHome = initialPlaylistId != null
@@ -263,7 +262,6 @@ private class PlaylistsScreenState(
 
     fun stopAllPlayback() {
         isRandomizing = false
-        isStarting = false
         playerViewModel?.playback?.cancel()
         playerViewModel?.pausePlayer()
     }
@@ -283,21 +281,6 @@ private class PlaylistsScreenState(
             }
         } else {
             isRandomizing = false
-        }
-    }
-
-    fun startOrderedPlayback() {
-        stopAllPlayback()
-        isStarting = true
-        val pvm = playerViewModel
-        if (playlistTracks.isNotEmpty() && pvm != null && trackEntities.isNotEmpty()) {
-            pvm.clearPlayerState()
-            pvm.setCurrentPlaylist(trackEntities, 0)
-            pvm.playback.play(trackEntities[0]) {
-                isStarting = false
-            }
-        } else {
-            isStarting = false
         }
     }
 
@@ -360,7 +343,6 @@ private class PlaylistsScreenState(
 
     fun resetTransientUi() {
         isRandomizing = false
-        isStarting = false
         showShareDialog = false
         showDeleteDialog = false
     }
@@ -782,11 +764,15 @@ private fun PlaylistActionButtons(
     haptic: HapticFeedback,
     onBack: () -> Unit,
 ) {
+    val downloadableIds = state.trackEntities
+        .mapNotNull { it.youtubeVideoId }
+        .filter { it.isNotBlank() }
+        .toSet()
+    val allDownloaded = downloadableIds.isNotEmpty() &&
+        downloadableIds.all { it in state.downloadedVideoIds }
+
     val buttons = buildList {
         if (!state.isEditing) {
-            // Botón start
-            add(playbackStartButton(state, haptic))
-
             // Botón rand
             add(playbackRandomButton(state, haptic))
 
@@ -798,15 +784,11 @@ private fun PlaylistActionButtons(
                 add(sharePlaylistButton(state, haptic))
             }
 
-            // Botón download: baja el audio de la lista que
-            // falte (solo si hay filas con videoId en BD)
-            if (state.selectedPlaylistEntity != null) {
-                add(downloadPlaylistButton(state, download, haptic))
-            }
-
-            // Botón de gestión del audio offline (tamaño y borrado)
-            if (state.selectedPlaylistEntity != null) {
-                add(cleanAudioButton(state, haptic))
+            // Botón único de descarga/almacén: descarga mientras
+            // falte audio; gestión y borrado cuando ya está todo.
+            // No aparece si no hay nada que descargar ni borrar.
+            if (state.selectedPlaylistEntity != null && downloadableIds.isNotEmpty()) {
+                add(downloadOrCleanButton(state, download, allDownloaded, haptic))
             }
         }
 
@@ -830,23 +812,6 @@ private fun PlaylistActionButtons(
 }
 
 @Composable
-private fun playbackStartButton(
-    state: PlaylistsScreenState,
-    haptic: HapticFeedback,
-): ActionButtonData = ActionButtonData(
-    text = if (state.isStarting) "//" else ">",
-    color = if (state.isStarting) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-    onClick = {
-        if (state.isStarting) {
-            state.stopAllPlayback()
-        } else {
-            state.startOrderedPlayback()
-        }
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-    }
-)
-
-@Composable
 private fun playbackRandomButton(
     state: PlaylistsScreenState,
     haptic: HapticFeedback,
@@ -868,7 +833,7 @@ private fun sharePlaylistButton(
     state: PlaylistsScreenState,
     haptic: HapticFeedback,
 ): ActionButtonData = ActionButtonData(
-    text = "<share>",
+    text = "<shr>",
     color = MaterialTheme.colorScheme.error,
     onClick = {
         state.showShareDialog = true
@@ -877,20 +842,29 @@ private fun sharePlaylistButton(
 )
 
 @Composable
-private fun downloadPlaylistButton(
+private fun downloadOrCleanButton(
     state: PlaylistsScreenState,
     download: PlaylistDownloadValues,
+    allDownloaded: Boolean,
     haptic: HapticFeedback,
 ): ActionButtonData {
     val downloadingThis = download.isDownloading && download.playlistId == state.selectedPlaylist?.id
     return ActionButtonData(
-        text = if (downloadingThis) "<stop>" else "<dwn>",
-        color = if (downloadingThis) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.tertiary,
+        text = when {
+            downloadingThis -> "<stop>"
+            allDownloaded -> "<clr>"
+            else -> "<dwn>"
+        },
+        color = when {
+            downloadingThis -> MaterialTheme.colorScheme.error
+            allDownloaded -> MaterialTheme.colorScheme.onSurfaceVariant
+            else -> MaterialTheme.colorScheme.tertiary
+        },
         onClick = {
-            if (downloadingThis) {
-                download.viewModel?.cancel()
-            } else {
-                download.viewModel?.startDownload(
+            when {
+                downloadingThis -> download.viewModel?.cancel()
+                allDownloaded -> state.showStorageDialog = true
+                else -> download.viewModel?.startDownload(
                     playlistId = state.selectedPlaylist?.id.orEmpty(),
                     playlistTitle = state.selectedPlaylist?.name.orEmpty(),
                     tracks = state.trackEntities
@@ -902,25 +876,12 @@ private fun downloadPlaylistButton(
 }
 
 @Composable
-private fun cleanAudioButton(
-    state: PlaylistsScreenState,
-    haptic: HapticFeedback,
-): ActionButtonData = ActionButtonData(
-    text = "<clean>",
-    color = MaterialTheme.colorScheme.onSurfaceVariant,
-    onClick = {
-        state.showStorageDialog = true
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-    }
-)
-
-@Composable
 private fun editPlaylistButton(
     state: PlaylistsScreenState,
     haptic: HapticFeedback,
     onBack: () -> Unit,
 ): ActionButtonData = ActionButtonData(
-    text = if (state.isEditing) "<save>" else "<edit>",
+    text = if (state.isEditing) "<save>" else "<edt>",
     color = if (state.isEditing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
     onClick = {
         if (state.isEditing) {

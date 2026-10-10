@@ -65,7 +65,6 @@ fun YouTubePlaylistDetailView(
             isSaved = state.isSaved,
             isSaving = state.isSaving,
             hasVideos = state.videos.isNotEmpty(),
-            onPlay = { state.playFromStart(playerViewModel) },
             onShuffle = { state.shuffleAndPlay(playerViewModel) },
             onToggleSave = { state.toggleSave(coroutineScope, playlist) },
             onShare = { state.showShareDialog = true }
@@ -126,13 +125,6 @@ private class YouTubePlaylistDetailState(private val context: Context) {
         } catch (e: Exception) {
             errorMessage = "Error loading playlist: ${e.message}"
             isLoading = false
-        }
-    }
-
-    fun playFromStart(playerViewModel: PlayerViewModel?) {
-        if (trackEntities.isNotEmpty() && playerViewModel != null) {
-            playerViewModel.setCurrentPlaylist(trackEntities, 0)
-            playerViewModel.playback.play(trackEntities.first())
         }
     }
 
@@ -212,7 +204,6 @@ private fun PlaylistActionBar(
     isSaved: Boolean,
     isSaving: Boolean,
     hasVideos: Boolean,
-    onPlay: () -> Unit,
     onShuffle: () -> Unit,
     onToggleSave: () -> Unit,
     onShare: () -> Unit
@@ -221,14 +212,6 @@ private fun PlaylistActionBar(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.large)
     ) {
-        Text(
-            text = ">",
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontFamily = FontFamily.Monospace,
-                color = Color(0xFF4ECDC4)
-            ),
-            modifier = Modifier.clickable(enabled = hasVideos, onClick = onPlay)
-        )
         Text(
             text = "<rnd>",
             style = MaterialTheme.typography.bodyLarge.copy(
@@ -246,7 +229,7 @@ private fun PlaylistActionBar(
             modifier = Modifier.clickable(enabled = !isSaving && hasVideos, onClick = onToggleSave)
         )
         Text(
-            text = "<share>",
+            text = "<shr>",
             style = MaterialTheme.typography.bodyLarge.copy(
                 fontFamily = FontFamily.Monospace,
                 color = Color(0xFFFF6B9D)
