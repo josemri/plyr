@@ -4,10 +4,10 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
@@ -30,17 +30,20 @@ import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
 import com.plyr.ui.components.search.YouTubePlaylistDetailView
-import com.plyr.ui.components.search.YouTubeSearchResults
+import com.plyr.ui.components.search.PLAYLIST_COVER_CONCURRENCY
+import com.plyr.ui.components.search.youtubeSearchResultsSection
+import com.plyr.ui.components.search.YouTubeSearchResultsState
+import com.plyr.ui.components.search.YouTubeSearchSectionDeps
 import com.plyr.ui.components.QrScannerDialog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.sync.Semaphore
 import com.plyr.ui.components.Titulo
 
 @Composable
 fun SearchScreen(
     context: Context,
     initialQuery: String? = null,
-    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onBack: () -> Unit,
     playerViewModel: PlayerViewModel? = null,
     isActive: Boolean = true
@@ -194,7 +197,6 @@ fun SearchScreen(
                     results = results,
                     isLoading = isLoading,
                     error = error,
-                    onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                     onSearchTriggered = performSearch,
                     playerViewModel = playerViewModel,
                     coroutineScope = coroutineScope,
@@ -258,7 +260,6 @@ private fun SearchMainView(
     results: List<AudioItem>,
     isLoading: Boolean,
     error: String?,
-    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onSearchTriggered: (String, Boolean) -> Unit,
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope,
@@ -277,205 +278,264 @@ private fun SearchMainView(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-    ) {
-        Titulo(Translations.get(context, "search_title"))
+    val currentTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
+    val youtubeManager = remember { YouTubeSearchManager(context) }
+    val coverCache = remember { mutableStateMapOf<String, String>() }
+    val coverSemaphore = remember { Semaphore(PLAYLIST_COVER_CONCURRENCY) }
 
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            label = {
-                Text(
-                    Translations.get(context, "search_placeholder"),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontFamily = FontFamily.Monospace
+    // Expansión de las secciones (hoisteada: los items viven en un LazyListScope).
+    var videosExpanded by remember { mutableStateOf(true) }
+    var playlistsExpanded by remember { mutableStateOf(false) }
+    var legacyVideosExpanded by remember { mutableStateOf(true) }
+
+    val allVideos = youtubeAllResults?.videos ?: emptyList()
+    val videoPlaylistId = remember(allVideos) { "youtube_search_${System.currentTimeMillis()}" }
+    val videoTrackEntities = remember(allVideos, videoPlaylistId) {
+        allVideos.mapIndexed { index, video ->
+            TrackEntity(
+                id = "yt_${video.videoId}",
+                playlistId = videoPlaylistId,
+                remoteTrackId = "yt_${video.videoId}", // placeholder obligatorio
+                name = video.title,
+                artists = video.uploader,
+                youtubeVideoId = video.videoId,
+                audioUrl = null,
+                position = index,
+                lastSyncTime = System.currentTimeMillis()
+            )
+        }
+    }
+    val legacyTrackEntities = remember(results) {
+        results.mapIndexed { trackIndex, item ->
+            TrackEntity(
+                id = "youtube_${item.videoId}",
+                playlistId = "youtube_search",
+                remoteTrackId = item.videoId,
+                name = item.title,
+                artists = item.channel,
+                youtubeVideoId = item.videoId,
+                audioUrl = null,
+                position = trackIndex,
+                lastSyncTime = System.currentTimeMillis()
+            )
+        }
+    }
+
+    val youtubeLabel = Translations.get(context, "search_youtube_results")
+    val loadMoreLabel = Translations.get(context, "search_load_more")
+
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item(key = "search_title") {
+            Titulo(Translations.get(context, "search_title"))
+        }
+
+        item(key = "search_field") {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = onSearchQueryChange,
+                label = {
+                    Text(
+                        Translations.get(context, "search_placeholder"),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace
+                        )
                     )
-                )
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-            trailingIcon = {
-                Row {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = {
-                            onSearchQueryChange("")
-                        }) {
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                trailingIcon = {
+                    Row {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = {
+                                onSearchQueryChange("")
+                            }) {
+                                Text(
+                                    text = "x",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                )
+                            }
+                        }
+                        IconButton(onClick = { onShowQrScannerChange(true) }) {
                             Text(
-                                text = "x",
+                                text = Translations.get(context, "search_scan_qr"),
                                 style = MaterialTheme.typography.titleMedium.copy(
                                     fontFamily = FontFamily.Monospace
                                 )
                             )
                         }
                     }
-                    IconButton(onClick = { onShowQrScannerChange(true) }) {
-                        Text(
-                            text = Translations.get(context, "search_scan_qr"),
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontFamily = FontFamily.Monospace
-                            )
-                        )
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        if (searchQuery.isNotBlank() && !isLoading) {
+                            onSearchTriggered(searchQuery, false)
+                        }
                     }
-                }
-            },
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(
-                onSearch = {
-                    if (searchQuery.isNotBlank() && !isLoading) {
-                        onSearchTriggered(searchQuery, false)
-                    }
-                }
-            ),
-            enabled = !isLoading,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
-                focusedLabelColor = MaterialTheme.colorScheme.primary,
-                unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
-                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-            ),
-            textStyle = MaterialTheme.typography.titleMedium.copy(
-                fontFamily = FontFamily.Monospace
-            )
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        if (isLoading) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "\$ ${Translations.get(context, "search_loading")}",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                )
-            }
-        }
-
-        error?.let {
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "${Translations.get(context, "search_error")}: $it",
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall.copy(
+                ),
+                enabled = !isLoading,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
+                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                    unfocusedLabelColor = MaterialTheme.colorScheme.secondary,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                textStyle = MaterialTheme.typography.titleMedium.copy(
                     fontFamily = FontFamily.Monospace
                 )
             )
         }
 
+        item(key = "search_spacer") { Spacer(Modifier.height(12.dp)) }
+
+        if (isLoading) {
+            item(key = "search_loading") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "\$ ${Translations.get(context, "search_loading")}",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    )
+                }
+            }
+        }
+
+        error?.let { err ->
+            item(key = "search_error") {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "${Translations.get(context, "search_error")}: $err",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace
+                    )
+                )
+            }
+        }
+
         if (showYouTubeAllResults && youtubeAllResults != null) {
-            YouTubeSearchResults(
-                results = null,
-                youtubeAllResults = youtubeAllResults,
-                onVideoSelectedFromSearch = onVideoSelectedFromSearch,
-                onPlaylistSelected = onYouTubePlaylistSelected,
-                playerViewModel = playerViewModel,
-                coroutineScope = coroutineScope
+            youtubeSearchResultsSection(
+                YouTubeSearchResultsState(
+                    deps = YouTubeSearchSectionDeps(
+                        youtubeManager = youtubeManager,
+                        coverCache = coverCache,
+                        coverSemaphore = coverSemaphore,
+                        playerViewModel = playerViewModel,
+                        coroutineScope = coroutineScope,
+                    ),
+                    allResults = youtubeAllResults,
+                    videosExpanded = videosExpanded,
+                    onToggleVideos = { videosExpanded = !videosExpanded },
+                    playlistsExpanded = playlistsExpanded,
+                    onTogglePlaylists = { playlistsExpanded = !playlistsExpanded },
+                    currentTrack = currentTrack,
+                    videoTrackEntities = videoTrackEntities,
+                    onPlaylistSelected = onYouTubePlaylistSelected
+                )
             )
         }
 
         if (results.isNotEmpty() && !showYouTubeAllResults) {
-            CollapsibleYouTubeSearchResultsView(
-                context = context,
-                results = results,
-                onLoadMore = { onSearchTriggered(searchQuery, true) },
-                playerViewModel = playerViewModel,
-                coroutineScope = coroutineScope
+            collapsibleYouTubeSearchResultsSection(
+                LegacyResultsSectionState(
+                    results = results,
+                    videosExpanded = legacyVideosExpanded,
+                    onToggle = { legacyVideosExpanded = !legacyVideosExpanded },
+                    currentTrack = currentTrack,
+                    trackEntities = legacyTrackEntities,
+                    playerViewModel = playerViewModel,
+                    coroutineScope = coroutineScope,
+                    youtubeLabel = youtubeLabel,
+                    loadMoreLabel = loadMoreLabel,
+                    onLoadMore = { onSearchTriggered(searchQuery, true) }
+                )
             )
         }
     }
 }
 
-@Composable
-fun CollapsibleYouTubeSearchResultsView(
-    context: Context,
-    results: List<AudioItem>,
-    onLoadMore: () -> Unit,
-    playerViewModel: PlayerViewModel?,
-    coroutineScope: CoroutineScope
-) {
-    var videosExpanded by remember { mutableStateOf(true) }
+/**
+ * Resultados "legacy" (basados en [AudioItem]) como items de un [LazyListScope].
+ * Antes era un `Column` con `forEachIndexed`, que componía toda la lista de golpe.
+ * Los estados y dependencias se agrupan en un solo parámetro para mantener la
+ * firma corta (detekt LongParameterList).
+ */
+private data class LegacyResultsSectionState(
+    val results: List<AudioItem>,
+    val videosExpanded: Boolean,
+    val onToggle: () -> Unit,
+    val currentTrack: TrackEntity?,
+    val trackEntities: List<TrackEntity>,
+    val playerViewModel: PlayerViewModel?,
+    val coroutineScope: CoroutineScope,
+    val youtubeLabel: String,
+    val loadMoreLabel: String,
+    val onLoadMore: () -> Unit,
+)
 
-    val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
-
-    val youtubeLabel = Translations.get(context, "search_youtube_results")
-    val loadMoreLabel = Translations.get(context, "search_load_more")
-
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+private fun LazyListScope.collapsibleYouTubeSearchResultsSection(state: LegacyResultsSectionState) {
+    val results = state.results
+    item(key = "legacy_header") {
         Text(
-            text = if (videosExpanded) "v $youtubeLabel [${results.size}]" else "> $youtubeLabel [${results.size}]",
+            text = if (state.videosExpanded) "v ${state.youtubeLabel} [${results.size}]" else "> ${state.youtubeLabel} [${results.size}]",
             style = MaterialTheme.typography.titleMedium.copy(
                 fontFamily = FontFamily.Monospace,
                 color = MaterialTheme.colorScheme.secondary
             ),
             modifier = Modifier
-                .clickable { videosExpanded = !videosExpanded }
+                .clickable { state.onToggle() }
                 .padding(4.dp)
         )
+    }
 
-        if (videosExpanded) {
-            val trackEntities = results.mapIndexed { trackIndex, item ->
-                TrackEntity(
-                    id = "youtube_${item.videoId}",
-                    playlistId = "youtube_search",
-                    remoteTrackId = item.videoId,
-                    name = item.title,
-                    artists = item.channel,
-                    youtubeVideoId = item.videoId,
-                    audioUrl = null,
-                    position = trackIndex,
-                    lastSyncTime = System.currentTimeMillis()
-                )
-            }
-            Column(
+    if (state.videosExpanded) {
+        items(
+            count = results.size,
+            key = { index -> results[index].videoId }
+        ) { index ->
+            val item = results[index]
+            val song = Song(
+                number = index + 1,
+                title = item.title,
+                artist = item.channel,
+                youtubeId = item.videoId,
+                shareUrl = "https://www.youtube.com/watch?v=${item.videoId}"
+            )
+            val isPlaying = state.currentTrack?.youtubeVideoId == item.videoId
+            SongListItem(
+                song = song,
+                trackEntities = state.trackEntities,
+                index = index,
+                playerViewModel = state.playerViewModel,
+                coroutineScope = state.coroutineScope,
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                results.forEachIndexed { index, item ->
-                    val song = Song(
-                        number = index + 1,
-                        title = item.title,
-                        artist = item.channel,
-                        youtubeId = item.videoId,
-                        shareUrl = "https://www.youtube.com/watch?v=${item.videoId}"
-                    )
-                    val isPlaying = currentPlayingTrack?.youtubeVideoId == item.videoId
-                    SongListItem(
-                        song = song,
-                        trackEntities = trackEntities,
-                        index = index,
-                        playerViewModel = playerViewModel,
-                        coroutineScope = coroutineScope,
-                        modifier = Modifier.fillMaxWidth(),
-                        isCurrentlyPlaying = isPlaying
-                    )
-                }
+                isCurrentlyPlaying = isPlaying
+            )
+        }
 
-                if (results.size >= 10) {
-                    Text(
-                        text = "> $loadMoreLabel",
-                        style = MaterialTheme.typography.bodyMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.secondary
-                        ),
-                        modifier = Modifier
-                            .clickable { onLoadMore() }
-                            .padding(8.dp)
-                    )
-                }
+        if (results.size >= 10) {
+            item(key = "legacy_load_more") {
+                Text(
+                    text = "> ${state.loadMoreLabel}",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.secondary
+                    ),
+                    modifier = Modifier
+                        .clickable { state.onLoadMore() }
+                        .padding(8.dp)
+                )
             }
         }
     }

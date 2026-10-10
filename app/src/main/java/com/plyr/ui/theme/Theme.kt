@@ -5,6 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -113,7 +114,8 @@ fun unifiedTypography(isDark: Boolean): Typography {
     val normalTextColor = if (isDark) DarkTerminalWhite else LightTerminalBlack
     val secondaryTextColor = if (isDark) DarkTerminalGray else LightTerminalDarkGray.copy(alpha = 0.7f)
 
-    return Typography(
+    return remember(isDark) {
+        Typography(
         // TÍTULOS DE COMANDO - Como "$ plyr_search"
         headlineMedium = TextStyle(
             fontFamily = FontFamily.Monospace,
@@ -183,6 +185,7 @@ fun unifiedTypography(isDark: Boolean): Typography {
         labelLarge = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 14.sp, color = normalTextColor, lineHeight = 20.sp),
         labelSmall = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 10.sp, color = secondaryTextColor, lineHeight = 16.sp),
     )
+    }
 }
 
 // === ESTILOS DE TEXTO PERSONALIZADOS ===

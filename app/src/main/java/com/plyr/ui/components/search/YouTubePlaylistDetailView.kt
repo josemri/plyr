@@ -28,6 +28,7 @@ import com.plyr.ui.components.ShareableItem
 import com.plyr.ui.components.ShareType
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.ui.components.Song
+import com.plyr.ui.utils.stableKeys
 import com.plyr.ui.components.SongListItem
 import com.plyr.ui.theme.*
 import kotlinx.coroutines.CoroutineScope
@@ -223,7 +224,8 @@ fun YouTubePlaylistDetailView(
                     contentPadding = PaddingValues(bottom = PlyrSpacing.large),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(videos.size) { idx ->
+                    val itemKeys = stableKeys(videos.map { it.videoId })
+                    items(videos.size, key = { idx -> itemKeys[idx] }) { idx ->
                         val v = videos[idx]
                         val song = Song(
                             number = idx + 1,

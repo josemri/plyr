@@ -1,6 +1,7 @@
 package com.plyr.network
 
 import android.util.Log
+import com.plyr.BuildConfig
 import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
@@ -16,7 +17,7 @@ class SimpleDownloader private constructor() : Downloader() {
     companion object {
         private const val TAG = "SimpleDownloader"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
-        private const val YOUTUBE_RESTRICTED_MODE_COOKIE = "PREF=f2=8000000"
+        private val YOUTUBE_RESTRICTED_MODE_COOKIE = BuildConfig.YOUTUBE_RESTRICTED_MODE_COOKIE
         private const val YOUTUBE_DOMAIN = "youtube.com"
         private const val RESTRICTED_MODE_COOKIE_KEY = "youtube_restricted_mode_key"
         private const val RECAPTCHA_COOKIE_KEY = "recaptcha_cookies_key"

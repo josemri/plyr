@@ -60,17 +60,17 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.DelicateCoroutinesApi
 import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
+import java.util.Locale
 import com.plyr.ui.components.*
 import com.plyr.ui.components.ActionButton
 import com.plyr.ui.components.ActionButtonData
 import com.plyr.ui.components.ActionButtonsGroup
-
-private fun getYouTubeChannelName(playlistEntity: PlaylistEntity?): String? {
-    val description = playlistEntity?.description ?: return null
-    return if (description.startsWith("YouTube Playlist by ")) {
-        description.removePrefix("YouTube Playlist by ").takeIf { it.isNotBlank() }
-    } else null
-}
+import com.plyr.ui.utils.stableKeys
+import com.plyr.ui.utils.youtubeAuthorFromDescription
+import com.plyr.ui.utils.isYouTubePlaylistId
+import com.plyr.ui.utils.stripYouTubePlaylistId
+import com.plyr.ui.utils.isYouTubeVideoId
+import com.plyr.ui.utils.buildSearchTrackEntities
 
 private fun youtubeThumbTo16to9(url: String?): String? = UrlParser.normalizeYoutubeThumb(url)
 
@@ -235,7 +235,7 @@ fun PlaylistsScreen(
             // Para playlists de YouTube el autor se guarda como "YouTube Playlist by USER"
             // y aquí se muestra solo "USER".
             val rawDescription = selectedPlaylistEntity?.description ?: selectedPlaylist?.description
-            val channelName = getYouTubeChannelName(selectedPlaylistEntity)
+            val channelName = youtubeAuthorFromDescription(selectedPlaylistEntity?.description)
             val playlistDescription = (channelName ?: rawDescription)?.takeIf { it.isNotBlank() }
             if (playlistDescription != null) {
                 Text(
@@ -274,7 +274,7 @@ fun PlaylistsScreen(
 
                     // Determinar si la playlist seleccionada es editable (es 'mía')
                     // Las playlists de YouTube (prefijo youtube_) también son editables: son locales
-                    val isYouTubePlaylistView = selectedPlaylist?.id?.startsWith("youtube_") == true
+                    val isYouTubePlaylistView = isYouTubePlaylistId(selectedPlaylist?.id)
                     val canEdit = selectedPlaylistEntity != null && selectedPlaylist?.id != "liked_songs"
 
                     // Origen de la lista para compartir (B53). Sin una columna que
@@ -481,7 +481,7 @@ fun PlaylistsScreen(
                                 onDismissRequest = { showDeleteDialog = false },
                                 title = {
                                     Text(
-                                        "Delete playlist",
+                                        Translations.get(context, "delete_playlist_title"),
                                         style = MaterialTheme.typography.titleMedium.copy(
                                             fontFamily = FontFamily.Monospace,
                                             color = MaterialTheme.colorScheme.primary
@@ -490,7 +490,11 @@ fun PlaylistsScreen(
                                 },
                                 text = {
                                     Text(
-                                        "Are you sure you want to delete '${selectedPlaylist?.name}'? This action cannot be undone.",
+                                        String.format(
+Locale.ROOT,
+                                            Translations.get(context, "delete_playlist_message"),
+                                            selectedPlaylist?.name ?: ""
+                                        ),
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = FontFamily.Monospace
                                         )
@@ -518,7 +522,7 @@ fun PlaylistsScreen(
                                         }
                                     ) {
                                         Text(
-                                            "Delete",
+                                            Translations.get(context, "delete"),
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
                                                 color = MaterialTheme.colorScheme.error
@@ -531,7 +535,7 @@ fun PlaylistsScreen(
                                         onClick = { showDeleteDialog = false }
                                     ) {
                                         Text(
-                                            "Cancel",
+                                            Translations.get(context, "cancel"),
                                             style = MaterialTheme.typography.bodyMedium.copy(
                                                 fontFamily = FontFamily.Monospace,
                                                 color = MaterialTheme.colorScheme.primary
@@ -665,7 +669,7 @@ fun PlaylistsScreen(
                                                                 )
                                                             }
                                                         } else {
-                                                            editError = "YouTube search failed"
+                                                            editError = Translations.get(context, "youtube_search_failed")
                                                         }
                                                     }
                                                 }
@@ -703,21 +707,14 @@ fun PlaylistsScreen(
                                     }
 
                                     // Crear trackEntities para los resultados de búsqueda
-                                    val searchTrackEntities = searchResults.take(10).mapIndexed { trackIndex, track ->
-                                        TrackEntity(
-                                            id = "edit_search_${track.id}_$trackIndex",
-                                            playlistId = "edit_search_${System.currentTimeMillis()}",
-                                            remoteTrackId = track.id,
-                                            name = track.name,
-                                            artists = track.getArtistNames(),
-                                            youtubeVideoId = null,
-                                            audioUrl = null,
-                                            position = trackIndex,
-                                            lastSyncTime = System.currentTimeMillis()
-                                        )
-                                    }
+                                    val searchTrackEntities = buildSearchTrackEntities(
+                                        tracks = searchResults,
+                                        idPrefix = "edit_search",
+                                        timestamp = System.currentTimeMillis(),
+                                    )
 
-                                    items(searchResults.take(10).size) { index ->
+                                    val searchItemKeys = stableKeys(searchResults.take(10).map { it.id })
+                                    items(searchResults.take(10).size, key = { index -> searchItemKeys[index] }) { index ->
                                         val track = searchResults[index]
                                         val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                                          SongListItem(
@@ -726,7 +723,7 @@ fun PlaylistsScreen(
                                                  title = track.name,
                                                  artist = track.getArtistNames(),
                                                  remoteId = track.id,
-                                                 youtubeId = track.id.takeIf { it.length == 11 },
+                                                 youtubeId = track.id.takeIf { isYouTubeVideoId(it) },
                                                  shareUrl = "https://www.youtube.com/watch?v=${track.id}"
                                              ),
                                              trackEntities = searchTrackEntities,
@@ -748,7 +745,7 @@ fun PlaylistsScreen(
                                                                  remoteTrackId = track.id,
                                                                  name = track.name,
                                                                  artists = track.getArtistNames(),
-                                                                 youtubeVideoId = track.id.takeIf { it.length == 11 },
+                                                                 youtubeVideoId = track.id.takeIf { isYouTubeVideoId(it) },
                                                                  audioUrl = null,
                                                                  position = 0,
                                                                  lastSyncTime = System.currentTimeMillis()
@@ -757,7 +754,7 @@ fun PlaylistsScreen(
                                                          if (success) {
                                                              tracksRevision++
                                                          } else {
-                                                             editError = "Error adding track"
+                                                             editError = Translations.get(context, "error_adding_track")
                                                          }
                                                      }
                                                  }
@@ -792,7 +789,8 @@ fun PlaylistsScreen(
                                         Spacer(Modifier.height(8.dp))
                                     }
 
-                                    items(playlistTracks.size) { index ->
+                                    val playlistItemKeys = stableKeys(playlistTracks.map { it.id })
+                                    items(playlistTracks.size, key = { index -> playlistItemKeys[index] }) { index ->
                                         val track = playlistTracks[index]
                                         val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
                                          SongListItem(
@@ -822,7 +820,7 @@ fun PlaylistsScreen(
                                                          if (success) {
                                                              tracksRevision++
                                                          } else {
-                                                             editError = "Error removing track"
+                                                             editError = Translations.get(context, "error_removing_track")
                                                          }
                                                      }
                                                  }
@@ -858,7 +856,8 @@ fun PlaylistsScreen(
                                     }
                                 }
 
-                                items(playlistTracks.size) { index ->
+                                val playlistItemKeys = stableKeys(playlistTracks.map { it.id })
+                                items(playlistTracks.size, key = { index -> playlistItemKeys[index] }) { index ->
                                     val track = playlistTracks[index]
                                      val song = Song(
                                          number = index + 1,
@@ -893,7 +892,7 @@ fun PlaylistsScreen(
                             },
                             title = {
                                 Text(
-                                    "Unsaved changes",
+                                    Translations.get(context, "unsaved_changes_title"),
                                     style = MaterialTheme.typography.titleMedium.copy(
                                         fontFamily = FontFamily.Monospace,
                                         color = MaterialTheme.colorScheme.primary
@@ -902,7 +901,7 @@ fun PlaylistsScreen(
                             },
                             text = {
                                 Text(
-                                    "You have unsaved changes. Are you sure you want to exit?",
+                                    Translations.get(context, "unsaved_changes_message"),
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontFamily = FontFamily.Monospace
                                     )
@@ -929,7 +928,7 @@ fun PlaylistsScreen(
                                     }
                                 ) {
                                     Text(
-                                        "Exit",
+                                        Translations.get(context, "exit"),
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = FontFamily.Monospace,
                                             color = MaterialTheme.colorScheme.error
@@ -945,7 +944,7 @@ fun PlaylistsScreen(
                                     }
                                 ) {
                                     Text(
-                                        "Cancel",
+                                        Translations.get(context, "cancel"),
                                         style = MaterialTheme.typography.bodyMedium.copy(
                                             fontFamily = FontFamily.Monospace,
                                             color = MaterialTheme.colorScheme.primary
@@ -967,8 +966,8 @@ fun PlaylistsScreen(
                                     youtubeId = run {
                                         val ent = selectedPlaylistEntity
                                         when (ent?.source) {
-                                            com.plyr.database.PlaylistSource.SPOTIFY -> ent.sourceId ?: toShare.id.removePrefix("youtube_")
-                                            else -> toShare.id.removePrefix("youtube_")
+                                            com.plyr.database.PlaylistSource.SPOTIFY -> ent.sourceId ?: stripYouTubePlaylistId(toShare.id)
+                                            else -> stripYouTubePlaylistId(toShare.id)
                                         }
                                     },
                                     title = toShare.name,
@@ -1026,11 +1025,12 @@ fun PlaylistsScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(playlists.size) { index ->
+                    val playlistIdsKeys = stableKeys(playlists.map { it.id })
+                    items(playlists.size, key = { index -> playlistIdsKeys[index] }) { index ->
                         val playlist = playlists[index]
                         val isLiked = playlist.id == "liked_songs"
                         val playlistEntity = playlistsFromDB.find { it.remoteId == playlist.id }
-                        val channelName = getYouTubeChannelName(playlistEntity)
+                        val channelName = youtubeAuthorFromDescription(playlistEntity?.description)
 
                         Column(
                             modifier = Modifier
@@ -1099,7 +1099,7 @@ fun PlaylistsScreen(
         }
         coverPickUri?.let { uri ->
             val entity = selectedPlaylistEntity
-            if (entity != null && isEditing && entity.remoteId.startsWith("youtube_")) {
+            if (entity != null && isEditing && isYouTubePlaylistId(entity.remoteId)) {
                 CoverCropDialog(
                     uri = uri,
                     onDismiss = { coverPickUri = null },
@@ -1108,7 +1108,7 @@ fun PlaylistsScreen(
                         coroutineScope.launch {
                             val path = CoverImageManager.save(
                                 context,
-                                entity.remoteId.removePrefix("youtube_"),
+                                stripYouTubePlaylistId(entity.remoteId),
                                 cropped
                             )
                             if (path != null) {
@@ -1218,7 +1218,7 @@ fun CreatePlaylistScreen(
                                     )
                                 }
                             } else {
-                                error = "YouTube search failed"
+                                error = Translations.get(context, "youtube_search_failed")
                             }
                         }
                     }
@@ -1241,19 +1241,11 @@ fun CreatePlaylistScreen(
 
         // Resultados de búsqueda
         if (searchResults.isNotEmpty()) {
-            val trackEntities = searchResults.take(10).mapIndexed { trackIndex, track ->
-                TrackEntity(
-                    id = "yt_search_${track.id}_$trackIndex",
-                    playlistId = "yt_search_${System.currentTimeMillis()}",
-                    remoteTrackId = track.id,
-                    name = track.name,
-                    artists = track.getArtistNames(),
-                    youtubeVideoId = null,
-                    audioUrl = null,
-                    position = trackIndex,
-                    lastSyncTime = System.currentTimeMillis()
-                )
-            }
+            val trackEntities = buildSearchTrackEntities(
+                tracks = searchResults,
+                idPrefix = "yt_search",
+                timestamp = System.currentTimeMillis(),
+            )
 
             searchResults.take(10).forEachIndexed { index, track ->
                 val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
@@ -1292,19 +1284,11 @@ fun CreatePlaylistScreen(
                     color = MaterialTheme.colorScheme.primary
                 )
             )
-            val tracksEntities = selectedTracks.mapIndexed { trackIndex, track ->
-                TrackEntity(
-                    id = "yt_search_${track.id}_$trackIndex",
-                    playlistId = "yt_search_${System.currentTimeMillis()}",
-                    remoteTrackId = track.id,
-                    name = track.name,
-                    artists = track.getArtistNames(),
-                    youtubeVideoId = null,
-                    audioUrl = null,
-                    position = trackIndex,
-                    lastSyncTime = System.currentTimeMillis()
-                )
-            }
+            val tracksEntities = buildSearchTrackEntities(
+                tracks = selectedTracks,
+                idPrefix = "yt_search",
+                timestamp = System.currentTimeMillis(),
+            )
 
             selectedTracks.forEachIndexed { index, track ->
                 val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
@@ -1350,7 +1334,7 @@ fun CreatePlaylistScreen(
                         val rawId = "yt_${System.currentTimeMillis()}"
                         // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
                         val resolvedVideoIds = selectedTracks
-                            .filter { it.id.length == 11 }
+                            .filter { isYouTubeVideoId(it.id) }
                             .associate { it.id to it.id }
                         val created = creator.build(
                             title = playlistName,
@@ -1392,7 +1376,13 @@ fun CreatePlaylistScreen(
             Spacer(Modifier.height(8.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    "${selectedTracks.size - discarded} de ${selectedTracks.size} canciones se añadieron ($discarded sin vídeo)",
+                    String.format(
+                        Locale.ROOT,
+                        Translations.get(context, "create_playlist_discarded"),
+                        selectedTracks.size - discarded,
+                        selectedTracks.size,
+                        discarded
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.tertiary
                 )
@@ -1400,7 +1390,7 @@ fun CreatePlaylistScreen(
                     discardWarning = null
                     onPlaylistCreated()
                 }) {
-                    Text("Continuar")
+                    Text(Translations.get(context, "continue"))
                 }
             }
         }
@@ -1412,7 +1402,7 @@ fun CreatePlaylistScreen(
                     isLoading = false
                 }
             ) {
-                Text("Cancelar")
+                Text(Translations.get(context, "cancel"))
             }
         }
     }

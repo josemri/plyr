@@ -9,7 +9,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import com.plyr.model.AudioItem
 import com.plyr.viewmodel.ImportViewModel
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.NfcScanEvent
@@ -31,7 +30,6 @@ data class MenuOption(val screen: Screen, val title: String)
 @Composable
 fun AudioListScreen(
     context: Context,
-    onVideoSelectedFromSearch: (String, String, List<AudioItem>, Int) -> Unit = { _, _, _, _ -> },
     onThemeChanged: (String) -> Unit = {},
     playerViewModel: PlayerViewModel? = null,
     importViewModel: ImportViewModel? = null,
@@ -80,7 +78,6 @@ fun AudioListScreen(
                 when (verticalPage) {
                     0 -> SearchScreen(
                         context = context,
-                        onVideoSelectedFromSearch = onVideoSelectedFromSearch,
                         onBack = {
                             verticalPagerScope.launch {
                                 verticalPagerState.animateScrollToPage(1)
@@ -139,7 +136,6 @@ fun AudioListScreen(
         }
         Screen.SEARCH -> SearchScreen(
             context = context,
-            onVideoSelectedFromSearch = onVideoSelectedFromSearch,
             onBack = { currentScreen = Screen.HOME.name },
             playerViewModel = playerViewModel,
             isActive = true

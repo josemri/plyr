@@ -1,6 +1,7 @@
 package com.plyr.network
 
 import android.util.Log
+import com.plyr.BuildConfig
 import com.plyr.model.Group
 import com.plyr.model.GroupMember
 import com.plyr.model.Recommendation
@@ -17,8 +18,8 @@ import java.util.UUID
 object SupabaseClient {
     private const val TAG = "SupabaseClient"
 
-    private const val SUPABASE_URL = "https://mpfioblwpghlkulsryzu.supabase.co"
-    private const val SUPABASE_ANON_KEY = "sb_publishable_CBiixr2FXsfTXwMhRFB5Qg_c5T7ePQ8"
+    private val SUPABASE_URL = BuildConfig.SUPABASE_URL
+    private val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
     private const val GROUPS_TABLE = "groups"
     private const val GROUP_MEMBERS_TABLE = "group_members"
@@ -41,12 +42,12 @@ object SupabaseClient {
             if (responseCode != 200) {
                 val errorStream = connection.errorStream
                 val errorResponse = errorStream?.bufferedReader()?.use { it.readText() } ?: "No error details"
-                Log.e(TAG, "❌ HTTP $responseCode Error response: $errorResponse")
+                Log.e(TAG, "❌ HTTP $responseCode Error response: ${redact(errorResponse)}")
                 return@withContext emptyList()
             }
 
             val response = connection.inputStream.bufferedReader().use { it.readText() }
-            Log.d(TAG, "📦 Raw response: $response")
+            Log.d(TAG, "📦 Raw response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
             Log.d(TAG, "📊 Number of groups found: ${jsonArray.length()}")
@@ -61,7 +62,7 @@ object SupabaseClient {
                     groupType = json.getString("group_type"),
                     createdAt = parseTimestamp(json.optString("created_at", ""))
                 )
-                Log.d(TAG, "  ✅ Group: ${group.name} (${group.groupType}) - ID: ${group.id}")
+                Log.d(TAG, "  ✅ Group: ${redact(group.name)} (${group.groupType}) - ID: ${redact(group.id)}")
                 groups.add(group)
             }
             Log.d(TAG, "✨ Total groups loaded: ${groups.size}")
@@ -74,7 +75,7 @@ object SupabaseClient {
 
     suspend fun createGroup(name: String, groupType: String, inviteCode: String? = null): Group? = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🆕 Creating group: $name (type: $groupType, code: $inviteCode)")
+            Log.d(TAG, "🆕 Creating group: ${redact(name)} (type: $groupType, code: ${redact(inviteCode)})")
             val url = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
@@ -90,7 +91,7 @@ object SupabaseClient {
                 if (inviteCode != null) put("invite_code", inviteCode)
             }
 
-            Log.d(TAG, "📤 Request body: ${json.toString()}")
+            Log.d(TAG, "📤 Request body: ${describeBody(json.toString())}")
 
             connection.outputStream.write(json.toString().toByteArray())
 
@@ -100,12 +101,12 @@ object SupabaseClient {
             // B33: los 4xx no lanzan FileNotFoundException; se lee el cuerpo y se
             // devuelve null (antes: "error: null" sin más diagnóstico).
             if (responseCode !in 200..299) {
-                Log.e(TAG, "❌ HTTP $responseCode al crear grupo: ${readBody(connection)}")
+                Log.e(TAG, "❌ HTTP $responseCode al crear grupo: ${redact(readBody(connection))}")
                 return@withContext null
             }
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Response: $response")
+            Log.d(TAG, "📦 Response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
 
@@ -118,7 +119,7 @@ object SupabaseClient {
                     groupType = result.getString("group_type"),
                     createdAt = parseTimestamp(result.optString("created_at", ""))
                 )
-                Log.d(TAG, "✅ Group created successfully: ${group.name}")
+                Log.d(TAG, "✅ Group created successfully: ${redact(group.name)}")
                 group
             } else {
                 Log.w(TAG, "⚠️ No group returned from creation")
@@ -132,7 +133,7 @@ object SupabaseClient {
 
     suspend fun joinGroup(inviteCode: String, nickname: String): GroupMember? = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔗 Joining group with code: $inviteCode as $nickname")
+            Log.d(TAG, "🔗 Joining group with code: ${redact(inviteCode)} as ${redact(nickname)}")
 
             // First, find the group by invite code (B33: el código se URL-encodea
             // para no romper la semántica del filtro si lleva &, # o ,)
@@ -144,17 +145,17 @@ object SupabaseClient {
             groupConnection.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
 
             val groupResponse = readBody(groupConnection)
-            Log.d(TAG, "📦 Group search response: $groupResponse")
+            Log.d(TAG, "📦 Group search response: ${describeBody(groupResponse)}")
 
             val groupArray = JSONArray(groupResponse)
 
             if (groupArray.length() == 0) {
-                Log.w(TAG, "⚠️ No group found with invite code: $inviteCode")
+                Log.w(TAG, "⚠️ No group found with invite code: ${redact(inviteCode)}")
                 return@withContext null
             }
 
             val groupId = groupArray.getJSONObject(0).getString("id")
-            Log.d(TAG, "✅ Found group ID: $groupId")
+            Log.d(TAG, "✅ Found group ID: ${redact(groupId)}")
 
             // Then add the member
             val url = URL("$SUPABASE_URL/rest/v1/$GROUP_MEMBERS_TABLE")
@@ -171,7 +172,7 @@ object SupabaseClient {
                 put("nickname", nickname)
             }
 
-            Log.d(TAG, "📤 Adding member request: ${json.toString()}")
+            Log.d(TAG, "📤 Adding member request: ${describeBody(json.toString())}")
 
             connection.outputStream.write(json.toString().toByteArray())
 
@@ -180,12 +181,12 @@ object SupabaseClient {
 
             // B33: no lanzar y leer el cuerpo en fallos
             if (responseCode !in 200..299) {
-                Log.e(TAG, "❌ HTTP $responseCode al añadir miembro: ${readBody(connection)}")
+                Log.e(TAG, "❌ HTTP $responseCode al añadir miembro: ${redact(readBody(connection))}")
                 return@withContext null
             }
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Member add response: $response")
+            Log.d(TAG, "📦 Member add response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
 
@@ -197,7 +198,7 @@ object SupabaseClient {
                     nickname = result.getString("nickname"),
                     joinedAt = parseTimestamp(result.optString("joined_at", ""))
                 )
-                Log.d(TAG, "✅ Member added successfully: ${member.nickname}")
+                Log.d(TAG, "✅ Member added successfully: ${redact(member.nickname)}")
                 member
             } else {
                 Log.w(TAG, "⚠️ No member returned from join")
@@ -231,7 +232,7 @@ object SupabaseClient {
             Log.d(TAG, "📡 Response code: $responseCode")
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Raw response: $response")
+            Log.d(TAG, "📦 Raw response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
             Log.d(TAG, "📊 Number of recommendations found: ${jsonArray.length()}")
@@ -250,7 +251,7 @@ object SupabaseClient {
                     reportCount = json.optInt("report_count", 0),
                     createdAt = parseTimestamp(json.optString("created_at", ""))
                 )
-                Log.d(TAG, "  ✅ Recommendation by ${recommendation.nickname}: ${recommendation.url}")
+                Log.d(TAG, "  ✅ Recommendation by ${redact(recommendation.nickname)}: ${redact(recommendation.url)}")
                 recommendations.add(recommendation)
             }
             Log.d(TAG, "✨ Total recommendations loaded: ${recommendations.size}")
@@ -268,9 +269,9 @@ object SupabaseClient {
         comment: String? = null
     ): Recommendation? = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🆕 Creating recommendation by $nickname in group $groupId")
-            Log.d(TAG, "   URL: $url")
-            Log.d(TAG, "   Comment: $comment")
+            Log.d(TAG, "🆕 Creating recommendation by ${redact(nickname)} in group ${redact(groupId)}")
+            Log.d(TAG, "   URL: ${redact(url)}")
+            Log.d(TAG, "   Comment: ${redact(comment)}")
 
             val urlObj = URL("$SUPABASE_URL/rest/v1/$RECOMMENDATIONS_TABLE")
             val connection = urlObj.openConnection() as HttpURLConnection
@@ -288,7 +289,7 @@ object SupabaseClient {
                 if (comment != null) put("comment", comment)
             }
 
-            Log.d(TAG, "📤 Request body: ${json.toString()}")
+            Log.d(TAG, "📤 Request body: ${describeBody(json.toString())}")
 
             connection.outputStream.write(json.toString().toByteArray())
 
@@ -297,12 +298,12 @@ object SupabaseClient {
 
             // B33: no lanzar y leer el cuerpo en fallos
             if (responseCode !in 200..299) {
-                Log.e(TAG, "❌ HTTP $responseCode al recomendar: ${readBody(connection)}")
+                Log.e(TAG, "❌ HTTP $responseCode al recomendar: ${redact(readBody(connection))}")
                 return@withContext null
             }
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Response: $response")
+            Log.d(TAG, "📦 Response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
 
@@ -330,6 +331,19 @@ object SupabaseClient {
             null
         }
     }
+
+    /**
+     * Redacta un valor potencialmente identificativo (B... S7): nicknames,
+     * códigos de invitación, nombres de grupo, IDs, URLs de recomendación y
+     * comentarios no deben acabar en logcat. Se conserva solo la longitud para
+     * que el log siga sirviendo de diagnóstico sin filtrar el contenido.
+     */
+    private fun redact(value: String?): String =
+        if (value.isNullOrBlank()) "<vacío>" else "<redactado:${value.length}>"
+
+    /** Describe un cuerpo JSON sin volcar su contenido (S7). */
+    private fun describeBody(body: String): String =
+        if (body.isBlank()) "<vacío>" else "<cuerpo de ${body.length} caracteres>"
 
     /**
      * Lee el cuerpo de una respuesta HTTP sin lanzar `FileNotFoundException` en

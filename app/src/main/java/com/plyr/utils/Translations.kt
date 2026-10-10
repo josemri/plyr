@@ -109,6 +109,24 @@ object Translations {
             "no_share_url" to "no hay nada que compartir con esta cancion",
             "plyr_lists" to "plyr_listas",
 
+            // Shared labels
+            "unknown_artist" to "Artista desconocido",
+            "liked" to "♥ me gusta",
+            "like" to "♡ me gusta",
+            "continue" to "Continuar",
+            "cancel" to "Cancelar",
+            "share_via" to "Compartir vía",
+            "delete_playlist_title" to "Eliminar lista",
+            "delete_playlist_message" to "¿Seguro que quieres eliminar '%1\$s'? Esta acción no se puede deshacer.",
+            "delete" to "Eliminar",
+            "unsaved_changes_title" to "Cambios sin guardar",
+            "unsaved_changes_message" to "Tienes cambios sin guardar. ¿Seguro que quieres salir?",
+            "exit" to "Salir",
+            "create_playlist_discarded" to "%1\$d de %2\$d canciones se añadieron (%3\$d sin vídeo)",
+            "youtube_search_failed" to "La búsqueda en YouTube falló",
+            "error_adding_track" to "Error al añadir la canción",
+            "error_removing_track" to "Error al quitar la canción",
+
         ),
 
         // ENGLISH
@@ -209,6 +227,24 @@ object Translations {
             "no_share_url" to "nothing to share with this track",
             "plyr_lists" to "plyr_lists",
             "player_not_available" to "player not available",
+
+            // Shared labels
+            "unknown_artist" to "Unknown Artist",
+            "liked" to "♥ liked",
+            "like" to "♡ like",
+            "continue" to "Continue",
+            "cancel" to "Cancel",
+            "share_via" to "Share via",
+            "delete_playlist_title" to "Delete playlist",
+            "delete_playlist_message" to "Are you sure you want to delete '%1\$s'? This action cannot be undone.",
+            "delete" to "Delete",
+            "unsaved_changes_title" to "Unsaved changes",
+            "unsaved_changes_message" to "You have unsaved changes. Are you sure you want to exit?",
+            "exit" to "Exit",
+            "create_playlist_discarded" to "%1\$d of %2\$d tracks were added (%3\$d without a video)",
+            "youtube_search_failed" to "YouTube search failed",
+            "error_adding_track" to "Error adding track",
+            "error_removing_track" to "Error removing track",
 
         ),
 
@@ -314,6 +350,24 @@ object Translations {
             "no_share_url" to "no hi ha res a compartir amb aquesta canco",
             "plyr_lists" to "plyr_llistes",
 
+            // Shared labels
+            "unknown_artist" to "Artista desconegut",
+            "liked" to "♥ m'agrada",
+            "like" to "♡ m'agrada",
+            "continue" to "Continua",
+            "cancel" to "Cancel·la",
+            "share_via" to "Compartir via",
+            "delete_playlist_title" to "Elimina la llista",
+            "delete_playlist_message" to "Segur que vols eliminar '%1\$s'? Aquesta acció no es pot desfer.",
+            "delete" to "Elimina",
+            "unsaved_changes_title" to "Canvis sense desar",
+            "unsaved_changes_message" to "Tens canvis sense desar. Segur que vols sortir?",
+            "exit" to "Surt",
+            "create_playlist_discarded" to "%1\$d de %2\$d cançons es van afegir (%3\$d sense vídeo)",
+            "youtube_search_failed" to "La cerca a YouTube ha fallat",
+            "error_adding_track" to "Error en afegir la cançó",
+            "error_removing_track" to "Error en treure la cançó",
+
         ),
 
         // 日本語 (JAPONÉS)
@@ -416,6 +470,24 @@ object Translations {
             "no_playlists" to "プレイリストがありません",
             "no_share_url" to "この曲には共有できるものがありません",
             "plyr_lists" to "plyr_リスト",
+
+            // Shared labels
+            "unknown_artist" to "不明なアーティスト",
+            "liked" to "♥ いいね済み",
+            "like" to "♡ いいね",
+            "continue" to "続ける",
+            "cancel" to "キャンセル",
+            "share_via" to "共有方法",
+            "delete_playlist_title" to "プレイリストを削除",
+            "delete_playlist_message" to "'%1\$s' を削除してもよろしいですか？この操作は元に戻せません。",
+            "delete" to "削除",
+            "unsaved_changes_title" to "保存されていない変更",
+            "unsaved_changes_message" to "保存されていない変更があります。終了してもよろしいですか？",
+            "exit" to "終了",
+            "create_playlist_discarded" to "%2\$d 曲中 %1\$d 曲を追加しました（%3\$d 曲は動画なし）",
+            "youtube_search_failed" to "YouTube 検索に失敗しました",
+            "error_adding_track" to "曲の追加中にエラー",
+            "error_removing_track" to "曲の削除中にエラー",
         ),
     )
     /**

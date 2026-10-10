@@ -74,7 +74,9 @@ class MediaButtonReceiver : BroadcastReceiver() {
             // Respetan los incrementos de 10 s configurados al crear el reproductor.
             MediaCommand.FAST_FORWARD -> viewModel.exoPlayer?.seekForward() ?: return false
             MediaCommand.REWIND -> viewModel.exoPlayer?.seekBack() ?: return false
-            MediaCommand.NONE -> return false
+            // `onReceive` ya descarta NONE antes de llegar aquí (y hace log):
+            // la rama nunca se alcanza, pero sin ella el `when` no es exhaustivo.
+            else -> return false
         }
         return true
     }

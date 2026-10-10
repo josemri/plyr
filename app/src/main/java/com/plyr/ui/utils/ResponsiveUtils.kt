@@ -28,31 +28,18 @@ data class ResponsiveDimensions(
     val sectionSpacing: Dp,
 
     // Tamaños de texto
-    val titleSize: TextUnit,
     val bodySize: TextUnit,
     val captionSize: TextUnit,
 
-    // Iconos
-    val iconSizeSmall: Dp,
-    val iconSizeMedium: Dp,
-    val iconSizeLarge: Dp,
-
     // Controles de música flotantes
     val floatingControlsBottomPadding: Dp,
-    val floatingControlsHeight: Dp,
     val contentBottomPadding: Dp,
 
     // Imágenes/ASCII art
     val imageMaxWidth: Dp,
     val imageMaxHeight: Dp,
 
-    // Botones
-    val buttonHeight: Dp,
-    val buttonMinWidth: Dp,
-
     // Layout flags
-    val isCompact: Boolean,
-    val isLandscape: Boolean,
     val showSideBySideLayout: Boolean
 )
 
@@ -98,11 +85,6 @@ fun calculateResponsiveDimensionsFallback(): ResponsiveDimensions {
             isCompact -> 16.dp
             else -> 24.dp
         },
-        titleSize = when {
-            isCompact -> 18.sp
-            isMedium -> 20.sp
-            else -> 24.sp
-        },
         bodySize = when {
             isCompact -> 14.sp
             isMedium -> 15.sp
@@ -113,30 +95,10 @@ fun calculateResponsiveDimensionsFallback(): ResponsiveDimensions {
             isMedium -> 12.sp
             else -> 13.sp
         },
-        iconSizeSmall = when {
-            isCompact -> 18.dp
-            isMedium -> 20.dp
-            else -> 24.dp
-        },
-        iconSizeMedium = when {
-            isCompact -> 22.dp
-            isMedium -> 24.dp
-            else -> 28.dp
-        },
-        iconSizeLarge = when {
-            isCompact -> 28.dp
-            isMedium -> 32.dp
-            else -> 40.dp
-        },
         floatingControlsBottomPadding = when {
             isHeightCompact -> 4.dp
             isLandscape -> 8.dp
             else -> 48.dp
-        },
-        floatingControlsHeight = when {
-            isHeightCompact -> 56.dp
-            isLandscape -> 64.dp
-            else -> 80.dp
         },
         contentBottomPadding = when {
             isHeightCompact -> 64.dp
@@ -153,18 +115,6 @@ fun calculateResponsiveDimensionsFallback(): ResponsiveDimensions {
             isLandscape -> (screenHeightDp * 0.5f).dp
             else -> (screenHeightDp * 0.4f).dp
         },
-        buttonHeight = when {
-            isHeightCompact -> 40.dp
-            isCompact -> 44.dp
-            else -> 48.dp
-        },
-        buttonMinWidth = when {
-            isCompact -> 100.dp
-            isMedium -> 120.dp
-            else -> 150.dp
-        },
-        isCompact = isCompact,
-        isLandscape = isLandscape,
         showSideBySideLayout = isLandscape && !isCompact
     )
 }

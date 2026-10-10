@@ -300,7 +300,7 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                                         putExtra(Intent.EXTRA_TEXT, shareUrl)
                                         type = "text/plain"
                                     }
-                                    val chooserIntent = Intent.createChooser(sendIntent, "Compartir via")
+                                    val chooserIntent = Intent.createChooser(sendIntent, Translations.get(context, "share_via"))
                                     chooserIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                                     context.startActivity(chooserIntent)
                                 }

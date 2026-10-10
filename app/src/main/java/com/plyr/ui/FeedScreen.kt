@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -33,7 +33,13 @@ import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
 import com.plyr.utils.formatTimestamp
 import com.plyr.viewmodel.PlayerViewModel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+
+/** Extracciones de metadatos simultáneas: acota la concurrencia de red. */
+private const val METADATA_CONCURRENCY = 4
 
 @Composable
 fun FeedScreen(
@@ -44,80 +50,92 @@ fun FeedScreen(
 ) {
     var recommendations by remember { mutableStateOf<List<Recommendation>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
-    var metadataCache by remember { mutableStateOf<Map<String, MediaMetadata>>(emptyMap()) }
+    // `mutableStateMapOf` en vez de reasignar un `Map` inmutable: el insert pasa a
+    // ser O(1) y atómico, y no reconstruye el mapa entero en cada extracción.
+    val metadataCache = remember { mutableStateMapOf<String, MediaMetadata>() }
 
     val haptic = LocalHapticFeedback.current
     val dimensions = calculateResponsiveDimensionsFallback()
-    val scope = rememberCoroutineScope()
 
     // Load general group recommendations on start
     LaunchedEffect(Unit) {
         isLoading = true
         val groups = SupabaseClient.getGroups()
         val generalGroup = groups.find { it.groupType == "general" }
-        if (generalGroup != null) {
-            recommendations = SupabaseClient.getRecommendations(generalGroup.id)
+        recommendations = if (generalGroup != null) {
+            SupabaseClient.getRecommendations(generalGroup.id)
+        } else {
+            emptyList()
+        }
+        isLoading = false
 
-            // Extract metadata for all recommendations
+        // Extracción de metadatos acotada: como máximo METADATA_CONCURRENCY a la vez,
+        // y todas hijas de este efecto (se cancelan al salir de composición).
+        val semaphore = Semaphore(METADATA_CONCURRENCY)
+        coroutineScope {
             recommendations.forEach { recommendation ->
-                scope.launch {
-                    val metadata = MediaMetadataExtractor.extractMetadata(recommendation.url)
-                    metadataCache = metadataCache + (recommendation.id to metadata)
+                launch {
+                    semaphore.withPermit {
+                        metadataCache[recommendation.id] =
+                            MediaMetadataExtractor.extractMetadata(recommendation.url)
+                    }
                 }
             }
         }
-        isLoading = false
     }
 
     BackHandler { onBack() }
 
-    Column(
-        Modifier
+    LazyColumn(
+        modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
             .padding(dimensions.screenPadding)
     ) {
-        Titulo(Translations.get(context, "feed_title"))
-        Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+        item {
+            Titulo(Translations.get(context, "feed_title"))
+            Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
+        }
 
         when {
             isLoading -> {
-                Text(
-                    text = Translations.get(context, "loading"),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = dimensions.captionSize,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    ),
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
+                item {
+                    Text(
+                        text = Translations.get(context, "loading"),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = dimensions.captionSize,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                }
             }
             recommendations.isEmpty() -> {
-                Text(
-                    text = Translations.get(context, "no_recommendations"),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = dimensions.captionSize,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    ),
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
+                item {
+                    Text(
+                        text = Translations.get(context, "no_recommendations"),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = dimensions.captionSize,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                }
             }
             else -> {
-                recommendations.forEach { recommendation ->
+                items(recommendations, key = { it.id }) { recommendation ->
                     RecommendationItem(
                         recommendation = recommendation,
                         metadata = metadataCache[recommendation.id],
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            scope.launch {
-                                handleRecommendationClick(
-                                    recommendation = recommendation,
-                                    metadata = metadataCache[recommendation.id],
-                                    playerViewModel = playerViewModel,
-                                    onNavigateToSearch = onNavigateToSearch
-                                )
-                            }
+                            handleRecommendationClick(
+                                recommendation = recommendation,
+                                metadata = metadataCache[recommendation.id],
+                                playerViewModel = playerViewModel,
+                                onNavigateToSearch = onNavigateToSearch
+                            )
                         }
                     )
                     Spacer(modifier = Modifier.height(dimensions.itemSpacing))

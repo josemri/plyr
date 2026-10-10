@@ -114,7 +114,7 @@ fun SongListItem(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .heightIn(min = 40.dp)
     ) {
         // Background actions - Right swipe (like/favorite)
         if (dragOffset > 0) {
@@ -162,8 +162,8 @@ fun SongListItem(
                         onDragStart = { settleJob?.cancel() },
                         onDragEnd = {
                             coroutineScope.launch {
-                                when {
-                                    dragOffset > swipeThreshold -> {
+                                when (swipeActionFor(dragOffset, swipeThreshold)) {
+                                    SwipeAction.RIGHT -> {
                                         val action = Config.getSwipeRightAction(context)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         executeSwipeAction(
@@ -180,7 +180,7 @@ fun SongListItem(
                                         )
                                         resetSwipe()
                                     }
-                                    dragOffset < -swipeThreshold -> {
+                                    SwipeAction.LEFT -> {
                                         val action = Config.getSwipeLeftAction(context)
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         executeSwipeAction(
@@ -197,7 +197,7 @@ fun SongListItem(
                                         )
                                         resetSwipe()
                                     }
-                                    else -> {
+                                    SwipeAction.NONE -> {
                                         // Return to center
                                         resetSwipe()
                                     }
@@ -226,7 +226,7 @@ fun SongListItem(
                     }
                 }
                 .fillMaxWidth()
-                .height(32.dp)
+                .heightIn(min = 40.dp)
                 .background(Color.Transparent),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -330,7 +330,11 @@ fun SongListItem(
                     ) {
                         // Like toggle
                         Text(
-                            text = if (isLiked) "♥ liked" else "♡ like",
+                            text = if (isLiked) {
+                                Translations.get(context, "liked")
+                            } else {
+                                Translations.get(context, "like")
+                            },
                             color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Normal,
                             textAlign = TextAlign.Center,

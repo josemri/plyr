@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Alignment
@@ -34,8 +35,6 @@ import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.PlyrTheme
 import com.plyr.utils.Config
 import com.plyr.utils.DataSync
-import com.plyr.database.TrackEntity
-import androidx.compose.foundation.isSystemInDarkTheme
 import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.NfcReader
 import com.plyr.utils.LightSensorDetector
@@ -133,26 +132,6 @@ class MainActivity : ComponentActivity() {
                                 context = this@MainActivity,
                                 navigateToScreenRequest = navigateToScreenRequest,
                                 onNavigateHandled = { navigateToScreenRequest = null },
-                                onVideoSelectedFromSearch = { _, _, results, index ->
-                                    playerViewModel.initializePlayer()
-
-                                    val playlist = results.mapIndexed { i, item ->
-                                        TrackEntity(
-                                            id = "search_${item.videoId}_$i",
-                                            playlistId = "search_${System.currentTimeMillis()}",
-                                            remoteTrackId = "",
-                                            name = item.title,
-                                            artists = item.channel,
-                                            youtubeVideoId = item.videoId,
-                                            audioUrl = null,
-                                            position = i,
-                                            lastSyncTime = System.currentTimeMillis()
-                                        )
-                                    }
-
-                                    playerViewModel.setCurrentPlaylist(playlist, index)
-                                    playerViewModel.playTrack(playlist[index])
-                                },
                                 onThemeChanged = { newTheme ->
                                     theme.value = newTheme
                                     // Activar/desactivar sensor de luz según el tema

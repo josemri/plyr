@@ -17,6 +17,19 @@ val keystoreProperties = Properties().apply {
     }
 }
 
+// S9/S10: valores de red que se pueden sobreescribir por entorno
+// (local.properties o variables de entorno) sin tocar el código. La anon key de
+// Supabase es "publishable" por diseño y la cookie de modo restringido de YouTube
+// lleva un valor funcional por defecto; el override sirve para apuntar a otro
+// proyecto o rotar la cookie sin recompilar el fuente.
+val networkProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+fun configValue(name: String, default: String): String =
+    networkProperties.getProperty(name) ?: System.getenv(name) ?: default
+
 android {
     namespace = "com.plyr"
     compileSdk = 36
@@ -29,6 +42,22 @@ android {
         versionName = "1.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "SUPABASE_URL",
+            "\"${configValue("SUPABASE_URL", "https://mpfioblwpghlkulsryzu.supabase.co")}\""
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_ANON_KEY",
+            "\"${configValue("SUPABASE_ANON_KEY", "sb_publishable_CBiixr2FXsfTXwMhRFB5Qg_c5T7ePQ8")}\""
+        )
+        buildConfigField(
+            "String",
+            "YOUTUBE_RESTRICTED_MODE_COOKIE",
+            "\"${configValue("YOUTUBE_RESTRICTED_MODE_COOKIE", "PREF=f2=8000000")}\""
+        )
     }
 
     signingConfigs {
@@ -64,6 +93,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -121,6 +151,8 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    // zxing explícito: los tests instrumentados decodifican el QR generado.
+    androidTestImplementation(libs.core)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
     implementation(libs.androidx.media3.exoplayer)

@@ -16,6 +16,7 @@ import com.plyr.ui.components.Titulo
 import androidx.compose.ui.platform.LocalContext
 import com.plyr.ui.components.SongListItem
 import com.plyr.ui.components.Song
+import com.plyr.ui.utils.stableKeys
 
 @Composable
 fun QueueScreen(
@@ -45,6 +46,10 @@ fun QueueScreen(
 
             val playlist = currentPlaylist
             if (playlist != null && playlist.isNotEmpty()) {
+                // Claves estables: el `id` de la pista desambiguado con el número de
+                // aparición. Antes la clave incluía la posición, así que cualquier
+                // inserción/borrado la cambiaba y Compose perdía el estado de cada fila.
+                val itemKeys = remember(playlist) { stableKeys(playlist.map { it.id }) }
                 // Lista de canciones con SongListItem
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
@@ -52,7 +57,7 @@ fun QueueScreen(
                 ) {
                     items(
                         count = playlist.size,
-                        key = { index -> "${playlist[index].id}_$index" }
+                        key = { index -> itemKeys[index] }
                     ) { index ->
                         val track = playlist[index]
                         val isCurrentTrack = currentTrackIndex == index
@@ -61,7 +66,7 @@ fun QueueScreen(
                         val song = Song(
                             number = index + 1,
                             title = track.name,
-                            artist = track.artists.ifEmpty { "Unknown Artist" },
+                            artist = track.artists.ifEmpty { Translations.get(context, "unknown_artist") },
                             remoteId = track.remoteTrackId,
                             youtubeId = track.youtubeVideoId,
                             shareUrl = null // TrackEntity no tiene shareUrl

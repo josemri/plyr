@@ -32,6 +32,7 @@ import com.plyr.service.CoverCropState
 import com.plyr.service.CoverImageManager
 import com.plyr.utils.Translations
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -49,6 +50,7 @@ fun CoverCropDialog(
     onConfirm: (Bitmap) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     var loadError by remember { mutableStateOf<String?>(null) }
 
@@ -233,8 +235,16 @@ fun CoverCropDialog(
                                     imageH = currentBitmap.height.toFloat(),
                                     state = CoverCropState(zoom, offsetX, offsetY)
                                 )
-                                val cropped = CoverImageManager.crop(currentBitmap, rect)
-                                onConfirm(CoverImageManager.resizeToSquare(cropped))
+                                // Decodificar/escalar/recortar un bitmap a tamaño completo
+                                // fuera del hilo principal: antes bloqueaba cada frame del clic.
+                                scope.launch {
+                                    val cropped = withContext(Dispatchers.Default) {
+                                        CoverImageManager.resizeToSquare(
+                                            CoverImageManager.crop(currentBitmap, rect)
+                                        )
+                                    }
+                                    onConfirm(cropped)
+                                }
                             }
                         )
                     ),

@@ -5,6 +5,7 @@ import android.util.Log
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.utils.NewPipeHolder
+import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
 import com.plyr.utils.formatDurationSeconds
 import java.util.Locale
@@ -29,6 +30,7 @@ class YouTubeSearchManager(context: Context) {
     
     // === DEPENDENCIES ===
     private val localRepository = PlaylistLocalRepository(context)
+    private val unknownArtist = Translations.get(context, "unknown_artist")
     
     // === CONSTANTS ===
     companion object {
@@ -232,7 +234,7 @@ class YouTubeSearchManager(context: Context) {
                                 videos.add(YouTubeVideoInfo(
                                     videoId = videoId,
                                     title = item.name,
-                                    uploader = item.uploaderName ?: "Desconocido",
+                                    uploader = item.uploaderName ?: unknownArtist,
                                     duration = item.duration,
                                     viewCount = item.viewCount,
                                     thumbnailUrl = getThumbnailUrl(videoId)
@@ -247,7 +249,7 @@ class YouTubeSearchManager(context: Context) {
                                 playlists.add(YouTubePlaylistInfo(
                                     playlistId = playlistId,
                                     title = item.name,
-                                    uploader = item.uploaderName ?: "Desconocido",
+                                    uploader = item.uploaderName ?: unknownArtist,
                                     videoCount = item.streamCount.toInt(),
                                     thumbnailUrl = getPlaylistThumbnailUrl(item.thumbnails),
                                     description = null
@@ -288,7 +290,7 @@ class YouTubeSearchManager(context: Context) {
                 YouTubePlaylistInfo(
                     playlistId = playlistId,
                     title = extractor.name,
-                    uploader = extractor.uploaderName ?: "Desconocido",
+                    uploader = extractor.uploaderName ?: unknownArtist,
                     videoCount = extractor.streamCount.toInt(),
                     thumbnailUrl = null,
                     description = null
@@ -328,7 +330,7 @@ class YouTubeSearchManager(context: Context) {
                         videos.add(YouTubeVideoInfo(
                             videoId = videoId,
                             title = item.name,
-                            uploader = item.uploaderName ?: "Desconocido",
+                            uploader = item.uploaderName ?: unknownArtist,
                             duration = item.duration,
                             viewCount = item.viewCount,
                             thumbnailUrl = getThumbnailUrl(videoId)

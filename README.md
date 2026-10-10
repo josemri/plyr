@@ -74,15 +74,9 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-Everything already fixed is documented in [`report.md`](report.md) — **56 bugs resolved, 0 open**, 413 unit tests. This section only lists what is left (details in report §4).
+Everything already fixed is documented in [`report.md`](report.md) — **63 bugs resolved, 0 open**, 478 unit tests.
 
 - [ ] **Share** — the playlist origin is **inferred** from the `remoteId` + description; persist `source`/`sourceId` so it doesn't depend on the editable description
-- [ ] **Apply report.md** — remaining refactors and polish from the audit
-  - [ ] Move the UI literals that don't go through `Translations` to real keys
-  - [ ] Reduce the request/response body logs in `SupabaseClient` (S7: PII in logcat)
-  - [ ] Performance: `key` in the PlaylistScreen lazy lists, `LazyColumn` in Feed
-  - [ ] `metadataCache` in Feed (O(n²) read-modify-write)
-  - [ ] Instrumented tests (import, QR/camera, NFC)
 - [ ] **Download lists** — download playlists for offline use
   - [ ] Download the audio of each track and store it locally
   - [ ] Play from local when available
