@@ -15,8 +15,9 @@ Built this music player because I wanted something simple with a terminal aesthe
 - **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
 - **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own .
 - **Swipe actions** — configurable left/right swipe on a song: queue, like, playlist or share. 
-- **Auto theme** by ambient light via the device light sensor.
-- **Recommendations feed** — community playlist recommendations synchronized via Supabase. **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
+- **Auto theme** by ambient light via the device light sensor. 
+- **Recommendations feed** — community playlist recommendations synchronized via Supabase. 
+- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
 - **Media buttons** — play/pause, next, previous and 10 s skip from wireless headsets, Bluetooth and the notification.
 
 ## screenshots
@@ -53,7 +54,7 @@ plyr/
 │   ├── service/       # MusicService, YouTubeSearchManager, YouTubePlaylistCreator
 │   ├── ui/            # Compose screens & components
 │   ├── utils/         # Config, UrlParser, Translations, NfcReader, SpotifyImporter, DataSync, BackupFolder, CoverCache
-│   └── viewmodel/     # PlayerViewModel, ImportViewModel
+│   └── viewmodel/     # PlayerViewModel, SearchViewModel, ConfigViewModel, PlaylistViewModel
 ├── gradle/            # Dependencies (libs.versions.toml)
 └── run.sh             # Build/install/test script
 ```
@@ -78,19 +79,13 @@ CAMERA                    # QR code scanning (optional hardware)
   - [ ] Expose the library (playlists, queue) through the Media3 `MediaSession`
   - [ ] Playback screen and controls in the head unit
 - [ ] **Architecture** — untangle UI, network, DB and business logic
-  - [ ] Cover `PlayerViewModel` orchestration (Robolectric, or extract a pure orchestrator with injected dependencies)
-  - [ ] Split `PlaylistScreen.kt` into a `PlaylistViewModel` + Compose state
-  - [ ] Do the same for `ConfigScreen.kt` and `SearchScreen.kt`
-  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer`
-- [ ] **Security**
-  - [ ] Review the Supabase RLS policies (`groups`, `group_members`, `recommendations`, `automatic`) — not verifiable from the repo
-  - [x] Document a `local.properties.example` (`SUPABASE_URL` / `SUPABASE_ANON_KEY`)
+  - [ ] Cover `PlayerViewModel` orchestration (deferred: Robolectric, or extract a pure orchestrator with injected dependencies)
+  - [x] Split `PlaylistScreen.kt` into a `PlaylistViewModel` + Compose state
+  - [x] Split `SearchScreen.kt` into a `SearchViewModel` + Compose state
+  - [x] Split `ConfigScreen.kt` into a `ConfigViewModel` + Compose state
+  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; `MusicService` is rewritten for desktop anyway per `port.md`)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
-- [x] **Detekt / lint debt**
-  - [x] Refactor the `complexity` findings that were frozen in `detekt-baseline.xml` (all of them) and drop the baseline entirely — detekt now reports 0 findings
-  - [x] Split the god-objects: `Config`, `PlaylistLocalRepository` and `PlayerViewModel` (`LargeClass`)
-  - [x] Triage the 58 `UnusedResources` warnings (dynamic `drawable-nodpi/ascii_*.png`)
 
 ## license
 

@@ -38,7 +38,6 @@ import androidx.compose.runtime.livedata.observeAsState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import android.net.Uri
 import coil.compose.AsyncImage
 import com.plyr.database.*
 import com.plyr.network.AppPlaylist
@@ -46,8 +45,10 @@ import com.plyr.network.AppTrack
 import com.plyr.network.AppArtist
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.viewmodel.DownloadViewModel
+import com.plyr.viewmodel.PlaylistViewModel
+import com.plyr.viewmodel.CreatePlaylistViewModel
+import com.plyr.viewmodel.PlaylistsDependencies
 import com.plyr.service.YouTubeSearchManager
-import com.plyr.service.YouTubePlaylistCreator
 import com.plyr.service.CoverImageManager
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
@@ -60,7 +61,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.DelicateCoroutinesApi
 import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
@@ -95,7 +95,7 @@ fun PlaylistsScreen(
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val coroutineScope = rememberCoroutineScope()
     val downloadViewModel = remember { (context.applicationContext as? com.plyr.PlyrApp)?.downloadViewModel }
-    val state = rememberPlaylistsScreenState(
+    val state = rememberPlaylistViewModel(
         context = context,
         initialPlaylistId = initialPlaylistId,
         localRepository = localRepository,
@@ -136,7 +136,7 @@ fun PlaylistsScreen(
 }
 
 @Composable
-private fun rememberPlaylistsScreenState(
+private fun rememberPlaylistViewModel(
     context: Context,
     initialPlaylistId: String?,
     localRepository: PlaylistLocalRepository,
@@ -144,8 +144,8 @@ private fun rememberPlaylistsScreenState(
     coroutineScope: CoroutineScope,
     playerViewModel: PlayerViewModel?,
     downloadViewModel: DownloadViewModel?,
-): PlaylistsScreenState = remember {
-    PlaylistsScreenState(
+): PlaylistViewModel = remember {
+    PlaylistViewModel(
         initialPlaylistId = initialPlaylistId,
         deps = PlaylistsDependencies(
             context = context,
@@ -156,211 +156,6 @@ private fun rememberPlaylistsScreenState(
             downloadViewModel = downloadViewModel,
         ),
     )
-}
-
-private data class PlaylistsDependencies(
-    val context: Context,
-    val localRepository: PlaylistLocalRepository,
-    val youtubeSearchManager: YouTubeSearchManager,
-    val coroutineScope: CoroutineScope,
-    val playerViewModel: PlayerViewModel?,
-    val downloadViewModel: DownloadViewModel?,
-)
-
-@Stable
-private class PlaylistsScreenState(
-    initialPlaylistId: String?,
-    val deps: PlaylistsDependencies,
-) {
-    val context: Context get() = deps.context
-    val localRepository: PlaylistLocalRepository get() = deps.localRepository
-    val youtubeSearchManager: YouTubeSearchManager get() = deps.youtubeSearchManager
-    val coroutineScope: CoroutineScope get() = deps.coroutineScope
-    val playerViewModel: PlayerViewModel? get() = deps.playerViewModel
-    val downloadViewModel: DownloadViewModel? get() = deps.downloadViewModel
-
-    var isEditing by mutableStateOf(false)
-    var showExitEditDialog by mutableStateOf(false)
-    var hasUnsavedChanges by mutableStateOf(false)
-    var originalTitle by mutableStateOf("")
-    var originalDesc by mutableStateOf("")
-    var newTitle by mutableStateOf("")
-    var newDesc by mutableStateOf("")
-    var selectedPlaylist by mutableStateOf<AppPlaylist?>(null)
-    var selectedPlaylistEntity by mutableStateOf<PlaylistEntity?>(null)
-    var playlistTracks by mutableStateOf<List<AppTrack>>(emptyList())
-    var isLoadingTracks by mutableStateOf(false)
-    var showCreatePlaylistScreen by mutableStateOf(false)
-    var coverPickUri by mutableStateOf<Uri?>(null)
-    var pendingPlaylist by mutableStateOf<AppPlaylist?>(null)
-    var trackEntities by mutableStateOf<List<TrackEntity>>(emptyList())
-    var tracksRevision by mutableIntStateOf(0)
-    var downloadedVideoIds by mutableStateOf<Set<String>>(emptySet())
-    var showStorageDialog by mutableStateOf(false)
-    var pendingInitialPlaylist by mutableStateOf(initialPlaylistId)
-    var likedSongsCount by mutableIntStateOf(0)
-    var isRandomizing by mutableStateOf(false)
-    var showShareDialog by mutableStateOf(false)
-    var showDeleteDialog by mutableStateOf(false)
-    val openedFromHome = initialPlaylistId != null
-    val reorderState = ReorderState()
-
-    fun enterEditMode() {
-        originalTitle = selectedPlaylist?.name ?: ""
-        originalDesc = selectedPlaylist?.description ?: ""
-        newTitle = originalTitle
-        newDesc = originalDesc
-        hasUnsavedChanges = false
-        isEditing = true
-    }
-
-    fun saveEdits(onBack: () -> Unit) {
-        if (hasUnsavedChanges) {
-            val toEdit = selectedPlaylist
-            if (toEdit != null) {
-                isLoadingTracks = true
-                coroutineScope.launch {
-                    val success = localRepository.playlists.updatePlaylistDetails(
-                        localPlaylistId = toEdit.id,
-                        newTitle = if (newTitle != originalTitle) newTitle else null,
-                        newDesc = if (newDesc != originalDesc) newDesc else null
-                    )
-                    isLoadingTracks = false
-                    if (success) {
-                        isEditing = false
-                        hasUnsavedChanges = false
-                        selectedPlaylist = null
-                        playlistTracks = emptyList()
-                        onBack()
-                    } else {
-                        Log.e("PlaylistScreen", "Error actualizando playlist")
-                    }
-                }
-            } else {
-                hasUnsavedChanges = false
-                isEditing = false
-            }
-        } else {
-            hasUnsavedChanges = false
-            isEditing = false
-        }
-    }
-
-    fun deletePlaylist(onBack: () -> Unit) {
-        val toDelete = selectedPlaylist
-        if (toDelete != null) {
-            coroutineScope.launch {
-                localRepository.playlists.deletePlaylist(toDelete.id)
-                isEditing = false
-                hasUnsavedChanges = false
-                selectedPlaylist = null
-                playlistTracks = emptyList()
-                onBack()
-            }
-        }
-    }
-
-    fun stopAllPlayback() {
-        isRandomizing = false
-        playerViewModel?.playback?.cancel()
-        playerViewModel?.pausePlayer()
-    }
-
-    fun startRandomizing() {
-        stopAllPlayback()
-        isRandomizing = true
-        val pvm = playerViewModel
-        if (playlistTracks.isNotEmpty() && pvm != null) {
-            pvm.clearPlayerState()
-            val shuffledTracks = trackEntities.shuffled()
-            val firstTrack = shuffledTracks.first()
-            pvm.initializePlayer()
-            pvm.setCurrentPlaylist(shuffledTracks, 0)
-            pvm.playback.play(firstTrack) {
-                isRandomizing = false
-            }
-        } else {
-            isRandomizing = false
-        }
-    }
-
-    fun reorderTracks(from: Int, to: Int) {
-        if (from != to) {
-            val reordered = Reorder.move(playlistTracks, from, to)
-            playlistTracks = reordered
-            val playlistId = selectedPlaylistEntity?.remoteId
-            if (playlistId != null) {
-                coroutineScope.launch {
-                    localRepository.tracks.reorderTracks(
-                        localPlaylistId = playlistId,
-                        orderedTrackIds = reordered.map { it.id }
-                    )
-                    tracksRevision++
-                }
-            }
-        }
-    }
-
-    fun addTrackToPlaylist(track: AppTrack, onError: (String) -> Unit) {
-        val toAdd = selectedPlaylist ?: return
-        coroutineScope.launch {
-            val success = localRepository.tracks.addTrackToYouTubePlaylist(
-                localPlaylistId = toAdd.id,
-                track = TrackEntity(
-                    id = "",
-                    playlistId = toAdd.id,
-                    remoteTrackId = track.id,
-                    name = track.name,
-                    artists = track.getArtistNames(),
-                    youtubeVideoId = track.id.takeIf { isYouTubeVideoId(it) },
-                    audioUrl = null,
-                    position = 0,
-                    lastSyncTime = System.currentTimeMillis()
-                )
-            )
-            if (success) {
-                tracksRevision++
-            } else {
-                onError(Translations.get(context, "error_adding_track"))
-            }
-        }
-    }
-
-    fun removeTrackFromPlaylist(track: AppTrack, onError: (String) -> Unit) {
-        val toRemove = selectedPlaylist ?: return
-        coroutineScope.launch {
-            val success = localRepository.tracks.removeTrackFromYouTubePlaylist(
-                localPlaylistId = toRemove.id,
-                remoteTrackId = track.id
-            )
-            if (success) {
-                tracksRevision++
-            } else {
-                onError(Translations.get(context, "error_removing_track"))
-            }
-        }
-    }
-
-    fun resetTransientUi() {
-        isRandomizing = false
-        showShareDialog = false
-        showDeleteDialog = false
-    }
-
-    fun confirmExitEdit(loadPlaylistTracks: (AppPlaylist) -> Unit) {
-        showExitEditDialog = false
-        isEditing = false
-        hasUnsavedChanges = false
-        val pending = pendingPlaylist
-        if (pending != null) {
-            selectedPlaylist = pending
-            loadPlaylistTracks(pending)
-            pendingPlaylist = null
-        } else {
-            selectedPlaylist = null
-            playlistTracks = emptyList()
-        }
-    }
 }
 
 private data class PlaylistDownloadValues(
@@ -401,7 +196,7 @@ private fun rememberPlaylistDownloadValues(viewModel: DownloadViewModel?): Playl
 @Composable
 private fun LikedSongsCountEffect(
     likedSongsPlaylist: List<TrackEntity>,
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
 ) {
     LaunchedEffect(likedSongsPlaylist) {
         state.likedSongsCount = likedSongsPlaylist.size
@@ -422,7 +217,7 @@ private fun PlaylistsDownloadResultEffect(
 }
 
 @Composable
-private fun PlaylistsTrackLoaderEffect(state: PlaylistsScreenState) {
+private fun PlaylistsTrackLoaderEffect(state: PlaylistViewModel) {
     LaunchedEffect(state.selectedPlaylistEntity?.remoteId, state.tracksRevision) {
         val id = state.selectedPlaylistEntity?.remoteId
         if (id != null) {
@@ -440,7 +235,7 @@ private fun PlaylistsTrackLoaderEffect(state: PlaylistsScreenState) {
 
 @Composable
 private fun PlaylistsDownloadedIdsEffect(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     downloadRevision: Int,
 ) {
     LaunchedEffect(state.trackEntities, downloadRevision) {
@@ -454,7 +249,7 @@ private fun PlaylistsDownloadedIdsEffect(
 
 @Composable
 private fun PlaylistsInitialPlaylistEffect(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     playlistsFromDB: List<PlaylistEntity>,
     onInitialConsumed: () -> Unit,
     onBack: () -> Unit,
@@ -479,7 +274,7 @@ private fun PlaylistsInitialPlaylistEffect(
 @Composable
 private fun PlaylistsOpenCreateEffect(
     openCreate: Boolean,
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     onInitialConsumed: () -> Unit,
 ) {
     LaunchedEffect(Unit) {
@@ -492,7 +287,7 @@ private fun PlaylistsOpenCreateEffect(
 
 @Composable
 private fun PlaylistsBackHandler(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     onBack: () -> Unit,
 ) {
     BackHandler {
@@ -518,7 +313,7 @@ private fun PlaylistsBackHandler(
 
 @Composable
 private fun PlaylistsScreenContent(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     playlists: List<AppPlaylist>,
     playlistsFromDB: List<PlaylistEntity>,
     currentPlayingTrack: TrackEntity?,
@@ -570,7 +365,7 @@ private fun PlaylistsScreenContent(
 
 @Composable
 private fun PlaylistDetailView(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     playlist: AppPlaylist,
     currentPlayingTrack: TrackEntity?,
     download: PlaylistDownloadValues,
@@ -604,7 +399,7 @@ private fun PlaylistDetailView(
 
 @Composable
 private fun PlaylistDescription(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     playlist: AppPlaylist,
 ) {
     val rawDescription = state.selectedPlaylistEntity?.description ?: playlist.description
@@ -644,7 +439,7 @@ private fun PlaylistLoading(context: Context) {
 
 @Composable
 private fun PlaylistDetailLoaded(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
     download: PlaylistDownloadValues,
     haptic: HapticFeedback,
@@ -692,7 +487,7 @@ private fun PlaylistDetailLoaded(
 
 @Composable
 private fun PlaylistDetailBody(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
     download: PlaylistDownloadValues,
     haptic: HapticFeedback,
@@ -740,7 +535,7 @@ private fun PlaylistDetailBody(
 
 @Composable
 private fun PlaylistDetailDialogs(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     playlistShareOrigin: PlaylistOrigin,
     loadPlaylistTracks: (AppPlaylist) -> Unit,
 ) {
@@ -757,7 +552,7 @@ private fun PlaylistDetailDialogs(
 
 @Composable
 private fun PlaylistActionButtons(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     download: PlaylistDownloadValues,
     isPlaylistShareable: Boolean,
     canEdit: Boolean,
@@ -813,7 +608,7 @@ private fun PlaylistActionButtons(
 
 @Composable
 private fun playbackRandomButton(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     haptic: HapticFeedback,
 ): ActionButtonData = ActionButtonData(
     text = if (state.isRandomizing) "<stop>" else "<rnd>",
@@ -830,7 +625,7 @@ private fun playbackRandomButton(
 
 @Composable
 private fun sharePlaylistButton(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     haptic: HapticFeedback,
 ): ActionButtonData = ActionButtonData(
     text = "<shr>",
@@ -843,7 +638,7 @@ private fun sharePlaylistButton(
 
 @Composable
 private fun downloadOrCleanButton(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     download: PlaylistDownloadValues,
     allDownloaded: Boolean,
     haptic: HapticFeedback,
@@ -877,7 +672,7 @@ private fun downloadOrCleanButton(
 
 @Composable
 private fun editPlaylistButton(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     haptic: HapticFeedback,
     onBack: () -> Unit,
 ): ActionButtonData = ActionButtonData(
@@ -895,7 +690,7 @@ private fun editPlaylistButton(
 
 @Composable
 private fun deletePlaylistButton(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     haptic: HapticFeedback,
 ): ActionButtonData = ActionButtonData(
     text = "<delete>",
@@ -908,7 +703,7 @@ private fun deletePlaylistButton(
 
 @Composable
 private fun PlaylistDownloadBar(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     download: PlaylistDownloadValues,
 ) {
     if (download.playlistId == state.selectedPlaylist?.id && (download.isDownloading || download.result != null)) {
@@ -936,7 +731,7 @@ private fun PlaylistDownloadBar(
 
 @Composable
 private fun PlaylistDeleteDialog(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     onBack: () -> Unit,
 ) {
     AlertDialog(
@@ -1004,7 +799,7 @@ private class PlaylistEditSearchState {
 
 @Composable
 private fun ColumnScope.PlaylistEditContent(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     isYouTubePlaylistView: Boolean,
     currentPlayingTrack: TrackEntity?,
 ) {
@@ -1066,7 +861,7 @@ private fun ColumnScope.PlaylistEditContent(
 // Nombre y descripción, con la portada a la izquierda
 // (la propia portada es el botón para cambiarla)
 private fun LazyListScope.playlistEditFields(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     isYouTubePlaylistView: Boolean,
     onPickCover: () -> Unit,
 ) {
@@ -1104,7 +899,7 @@ private fun LazyListScope.playlistEditSearchingIndicator(search: PlaylistEditSea
 
 @Composable
 private fun PlaylistEditCoverAndFields(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     onPickCover: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1141,7 +936,7 @@ private fun PlaylistEditCoverAndFields(
 }
 
 @Composable
-private fun PlaylistEditTitleField(state: PlaylistsScreenState) {
+private fun PlaylistEditTitleField(state: PlaylistViewModel) {
     OutlinedTextField(
         value = state.newTitle,
         onValueChange = { state.newTitle = it },
@@ -1152,7 +947,7 @@ private fun PlaylistEditTitleField(state: PlaylistsScreenState) {
 }
 
 @Composable
-private fun PlaylistEditDescField(state: PlaylistsScreenState) {
+private fun PlaylistEditDescField(state: PlaylistViewModel) {
     OutlinedTextField(
         value = state.newDesc,
         onValueChange = { state.newDesc = it },
@@ -1165,7 +960,7 @@ private fun PlaylistEditDescField(state: PlaylistsScreenState) {
 @Composable
 private fun PlaylistEditSearchField(
     context: Context,
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     search: PlaylistEditSearchState,
 ) {
     OutlinedTextField(
@@ -1219,7 +1014,7 @@ private fun PlaylistEditSearchField(
 }
 
 private fun LazyListScope.playlistEditSearchResults(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     search: PlaylistEditSearchState,
     currentPlayingTrack: TrackEntity?,
 ) {
@@ -1287,7 +1082,7 @@ private fun LazyListScope.playlistEditErrorMessage(
 }
 
 private fun LazyListScope.playlistEditCurrentTracks(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
     search: PlaylistEditSearchState,
 ) {
@@ -1334,7 +1129,7 @@ private fun LazyListScope.playlistEditCurrentTracks(
 // Lista de tracks (solo visible cuando NO está en modo edición)
 @Composable
 private fun PlaylistTracksList(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
     download: PlaylistDownloadValues,
 ) {
@@ -1376,7 +1171,7 @@ private fun PlaylistTracksList(
 
 @Composable
 private fun PlaylistTrackRow(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
     download: PlaylistDownloadValues,
     trackEntitiesList: List<TrackEntity>,
@@ -1425,7 +1220,7 @@ private fun PlaylistTrackRow(
 
 @Composable
 private fun ExitEditDialog(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     loadPlaylistTracks: (AppPlaylist) -> Unit,
 ) {
     AlertDialog(
@@ -1457,7 +1252,7 @@ private fun ExitEditDialog(
 
 @Composable
 private fun ExitEditConfirmButton(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     loadPlaylistTracks: (AppPlaylist) -> Unit,
 ) {
     TextButton(onClick = { state.confirmExitEdit(loadPlaylistTracks) }) {
@@ -1472,7 +1267,7 @@ private fun ExitEditConfirmButton(
 }
 
 @Composable
-private fun ExitEditDismissButton(state: PlaylistsScreenState) {
+private fun ExitEditDismissButton(state: PlaylistViewModel) {
     TextButton(
         onClick = {
             state.showExitEditDialog = false
@@ -1491,7 +1286,7 @@ private fun ExitEditDismissButton(state: PlaylistsScreenState) {
 
 @Composable
 private fun PlaylistShareDialog(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     playlistShareOrigin: PlaylistOrigin,
 ) {
     val toShare = state.selectedPlaylist ?: return
@@ -1516,7 +1311,7 @@ private fun PlaylistShareDialog(
 }
 
 @Composable
-private fun CoverPickDialog(state: PlaylistsScreenState) {
+private fun CoverPickDialog(state: PlaylistViewModel) {
     val uri = state.coverPickUri ?: return
     val entity = state.selectedPlaylistEntity
     if (entity != null && state.isEditing && isYouTubePlaylistId(entity.remoteId)) {
@@ -1544,7 +1339,7 @@ private fun CoverPickDialog(state: PlaylistsScreenState) {
 
 @Composable
 private fun PlaylistGridView(
-    state: PlaylistsScreenState,
+    state: PlaylistViewModel,
     playlists: List<AppPlaylist>,
     playlistsFromDB: List<PlaylistEntity>,
     loadPlaylistTracks: (AppPlaylist) -> Unit,
@@ -1758,114 +1553,6 @@ private fun offlineStorageMessage(context: Context, summary: DownloadedAudioStor
 }
 
 @Stable
-private class CreatePlaylistScreenState(
-    val context: Context,
-    val localRepository: PlaylistLocalRepository,
-    val youtubeSearchManager: YouTubeSearchManager,
-    val coroutineScope: CoroutineScope,
-    val playerViewModel: PlayerViewModel?,
-) {
-    var name by mutableStateOf("")
-    var description by mutableStateOf("")
-    var isLoading by mutableStateOf(false)
-    var error by mutableStateOf<String?>(null)
-    var discardWarning by mutableStateOf<Int?>(null)
-    var createJob by mutableStateOf<Job?>(null)
-    var searchQuery by mutableStateOf("")
-    var isSearching by mutableStateOf(false)
-    var searchResults by mutableStateOf<List<AppTrack>>(emptyList())
-    var selectedTracks by mutableStateOf<List<AppTrack>>(emptyList())
-
-    fun search() {
-        if (searchQuery.isNotBlank() && !isSearching) {
-            isSearching = true
-            error = null
-            // Búsqueda de vídeos de YouTube con la integración existente
-            coroutineScope.launch {
-                val result = try {
-                    youtubeSearchManager.searchYouTubeAll(searchQuery, maxVideos = 10, maxPlaylists = 0)
-                } catch (e: Exception) {
-                    null
-                }
-                isSearching = false
-                if (result != null) {
-                    searchResults = result.videos.map { video ->
-                        AppTrack(
-                            id = video.videoId,
-                            name = video.title,
-                            artists = listOf(AppArtist(video.uploader))
-                        )
-                    }
-                } else {
-                    error = Translations.get(context, "youtube_search_failed")
-                }
-            }
-        }
-    }
-
-    fun addTrack(track: AppTrack) {
-        if (!selectedTracks.contains(track)) {
-            selectedTracks = selectedTracks + track
-        }
-    }
-
-    fun removeTrack(index: Int) {
-        selectedTracks = selectedTracks.filterIndexed { i, _ -> i != index }
-    }
-
-    fun createPlaylist(onPlaylistCreated: () -> Unit) {
-        // Acción de crear playlist con las canciones seleccionadas
-        isLoading = true
-        error = null
-        discardWarning = null
-        // Crear playlist de YouTube usando la integración existente.
-        // build es suspend (B16): se puede cancelar, tiene timeout por
-        // resolución y reporta cuántas canciones se descartan (B15).
-        createJob = coroutineScope.launch {
-            val creator = YouTubePlaylistCreator()
-            val rawId = "yt_${System.currentTimeMillis()}"
-            // Los tracks añadidos vía búsqueda de YouTube (id = videoId) no se re-buscan
-            val resolvedVideoIds = selectedTracks
-                .filter { isYouTubeVideoId(it.id) }
-                .associate { it.id to it.id }
-            val created = creator.build(
-                title = name,
-                description = description.ifBlank { null },
-                sourceTracks = creator.buildSourceTracks(selectedTracks),
-                targetPlaylistId = "youtube_$rawId",
-                resolvedVideoIds = resolvedVideoIds
-            )
-            val saved = withContext(Dispatchers.IO) {
-                localRepository.playlists.saveCreatedYouTubePlaylist(
-                    created = CreatedPlaylist(
-                        playlistId = rawId,
-                        title = created.title,
-                        description = created.description,
-                        imageUrl = null
-                    ),
-                    tracks = created.tracks
-                )
-            }
-            isLoading = false
-            if (saved) {
-                if (created.discardedTracks > 0) {
-                    // No se navega sin avisar (B15): el usuario decide
-                    // si continuar sabiendo que faltan canciones.
-                    discardWarning = created.discardedTracks
-                } else {
-                    onPlaylistCreated()
-                }
-            } else {
-                error = "${created.tracks.size} tracks (${created.discardedTracks} sin vídeo)"
-            }
-        }
-    }
-
-    fun cancelCreate() {
-        createJob?.cancel()
-        isLoading = false
-    }
-}
 
 @Composable
 fun CreatePlaylistScreen(
@@ -1878,7 +1565,7 @@ fun CreatePlaylistScreen(
     val localRepository = remember { PlaylistLocalRepository(context) }
     val youtubeSearchManager = remember { YouTubeSearchManager(context) }
     val state = remember {
-        CreatePlaylistScreenState(
+        CreatePlaylistViewModel(
             context = context,
             localRepository = localRepository,
             youtubeSearchManager = youtubeSearchManager,
@@ -1910,7 +1597,7 @@ fun CreatePlaylistScreen(
 }
 
 @Composable
-private fun CreatePlaylistForm(state: CreatePlaylistScreenState) {
+private fun CreatePlaylistForm(state: CreatePlaylistViewModel) {
     val context = state.context
     OutlinedTextField(
         value = state.name,
@@ -1931,7 +1618,7 @@ private fun CreatePlaylistForm(state: CreatePlaylistScreenState) {
 }
 
 @Composable
-private fun CreatePlaylistSearchField(state: CreatePlaylistScreenState) {
+private fun CreatePlaylistSearchField(state: CreatePlaylistViewModel) {
     val context = state.context
     OutlinedTextField(
         value = state.searchQuery,
@@ -1958,7 +1645,7 @@ private fun CreatePlaylistSearchField(state: CreatePlaylistScreenState) {
 
 @Composable
 private fun CreatePlaylistSearchSection(
-    state: CreatePlaylistScreenState,
+    state: CreatePlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
 ) {
     // Mostrar indicador de búsqueda
@@ -1981,7 +1668,7 @@ private fun CreatePlaylistSearchSection(
 
 @Composable
 private fun CreatePlaylistSearchResults(
-    state: CreatePlaylistScreenState,
+    state: CreatePlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
 ) {
     val trackEntities = buildSearchTrackEntities(
@@ -2017,7 +1704,7 @@ private fun CreatePlaylistSearchResults(
 
 @Composable
 private fun CreatePlaylistSelectedSection(
-    state: CreatePlaylistScreenState,
+    state: CreatePlaylistViewModel,
     currentPlayingTrack: TrackEntity?,
 ) {
     // Lista de canciones seleccionadas
@@ -2063,7 +1750,7 @@ private fun CreatePlaylistSelectedSection(
 
 @Composable
 private fun CreatePlaylistActions(
-    state: CreatePlaylistScreenState,
+    state: CreatePlaylistViewModel,
     onPlaylistCreated: () -> Unit,
 ) {
     val context = state.context
@@ -2095,7 +1782,7 @@ private fun CreatePlaylistActions(
 
 @Composable
 private fun CreatePlaylistDiscardWarning(
-    state: CreatePlaylistScreenState,
+    state: CreatePlaylistViewModel,
     onPlaylistCreated: () -> Unit,
     discarded: Int,
 ) {

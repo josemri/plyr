@@ -24,10 +24,9 @@ import com.plyr.model.ScanResult
 import com.plyr.utils.Translations
 import com.plyr.utils.NfcScanEvent
 import com.plyr.database.TrackEntity
-import com.plyr.database.SearchHistoryEntity
-import com.plyr.database.SearchHistoryDao
 import com.plyr.database.PlaylistDatabase
 import com.plyr.viewmodel.PlayerViewModel
+import com.plyr.viewmodel.SearchViewModel
 import com.plyr.service.YouTubeSearchManager
 import com.plyr.ui.components.Song
 import com.plyr.ui.components.SongListItem
@@ -42,181 +41,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import com.plyr.ui.components.Titulo
 
-private data class SearchResultActions(
-    val onResults: (List<AudioItem>) -> Unit,
-    val onYouTubeAllResults: (YouTubeSearchManager.YouTubeSearchAllResult?) -> Unit,
-    val onShowYouTubeAllResults: (Boolean) -> Unit,
-    val onLoadingChange: (Boolean) -> Unit,
-    val onError: (String?) -> Unit,
-)
-
-private data class ScanResultActions(
-    val onPlaylistSelected: (YouTubeSearchManager.YouTubePlaylistInfo) -> Unit,
-    val onSearchVideo: (String) -> Unit,
-    val onError: (String) -> Unit,
-    val onLoadingChange: (Boolean) -> Unit,
-)
-
-private data class SearchDependencies(
-    val youtubeSearchManager: YouTubeSearchManager,
-    val searchHistoryDao: SearchHistoryDao,
-    val errorPrefix: String,
-)
-
-@Stable
-private class SearchScreenState(
-    initialQuery: String?,
-    val context: Context,
-    val youtubeSearchManager: YouTubeSearchManager,
-    val searchHistoryDao: SearchHistoryDao,
-    val coroutineScope: CoroutineScope,
-) {
-    var searchQuery by mutableStateOf(initialQuery ?: "")
-    var results by mutableStateOf<List<AudioItem>>(emptyList())
-    var isLoading by mutableStateOf(false)
-    var error by mutableStateOf<String?>(null)
-    var youtubeAllResults by mutableStateOf<YouTubeSearchManager.YouTubeSearchAllResult?>(null)
-    var showYouTubeAllResults by mutableStateOf(false)
-    var selectedYouTubePlaylist by mutableStateOf<YouTubeSearchManager.YouTubePlaylistInfo?>(null)
-    var showQrScanner by mutableStateOf(false)
-
-    private val resultActions = SearchResultActions(
-        onResults = { results = it },
-        onYouTubeAllResults = { youtubeAllResults = it },
-        onShowYouTubeAllResults = { showYouTubeAllResults = it },
-        onLoadingChange = { isLoading = it },
-        onError = { error = it },
-    )
-
-    val performSearch: (String, Boolean) -> Unit = { query, isLoadMore ->
-        if (query.isNotBlank() && (!isLoading || isLoadMore)) {
-            if (isLoadMore) {
-                isLoading = true
-            } else {
-                isLoading = true
-                results = emptyList()
-                youtubeAllResults = null
-                showYouTubeAllResults = false
-            }
-            error = null
-
-            coroutineScope.launch {
-                executeSearch(
-                    query = query,
-                    isLoadMore = isLoadMore,
-                    deps = SearchDependencies(
-                        youtubeSearchManager = youtubeSearchManager,
-                        searchHistoryDao = searchHistoryDao,
-                        errorPrefix = Translations.get(context, "search_error")
-                    ),
-                    actions = resultActions
-                )
-            }
-        }
-    }
-
-    private val scanActions = ScanResultActions(
-        onPlaylistSelected = { selectedYouTubePlaylist = it },
-        onSearchVideo = { url ->
-            searchQuery = url
-            performSearch(url, false)
-        },
-        onError = { error = it },
-        onLoadingChange = { isLoading = it },
-    )
-
-    suspend fun processScan(result: ScanResult) {
-        processScanResult(result, context, youtubeSearchManager, scanActions)
-    }
-}
-
-private suspend fun executeSearch(
-    query: String,
-    isLoadMore: Boolean,
-    deps: SearchDependencies,
-    actions: SearchResultActions,
-) {
-    try {
-        if (!isLoadMore) {
-            try {
-                deps.searchHistoryDao.deleteSearchByQuery(query, "youtube")
-                deps.searchHistoryDao.insertSearch(
-                    SearchHistoryEntity(
-                        query = query,
-                        searchEngine = "youtube"
-                    )
-                )
-            } catch (_: Exception) {
-            }
-        }
-
-        actions.onYouTubeAllResults(null)
-        actions.onShowYouTubeAllResults(false)
-
-        val searchResults = deps.youtubeSearchManager.searchYouTubeAll(query)
-        actions.onYouTubeAllResults(searchResults)
-        actions.onShowYouTubeAllResults(true)
-
-        val newResults = searchResults.videos.map { videoInfo ->
-            AudioItem(
-                title = videoInfo.title,
-                url = "",
-                videoId = videoInfo.videoId,
-                channel = videoInfo.uploader,
-                duration = videoInfo.getFormattedDuration()
-            )
-        }
-
-        actions.onResults(newResults)
-        actions.onLoadingChange(false)
-
-    } catch (e: Exception) {
-        actions.onLoadingChange(false)
-        actions.onError("${deps.errorPrefix}: ${e.message}")
-    }
-}
-
-private suspend fun processScanResult(
-    result: ScanResult,
-    context: Context,
-    youtubeSearchManager: YouTubeSearchManager,
-    actions: ScanResultActions,
-) {
-    val prefix = Translations.get(context, "search_error_processing_qr")
-    try {
-        when (result.source) {
-            "youtube" -> processYouTubeScanResult(result, youtubeSearchManager, prefix, actions)
-            else -> {
-                actions.onError("$prefix: unsupported source '${result.source}'")
-                actions.onLoadingChange(false)
-            }
-        }
-    } catch (e: Exception) {
-        actions.onError("$prefix: ${e.message}")
-        actions.onLoadingChange(false)
-    }
-}
-
-private suspend fun processYouTubeScanResult(
-    result: ScanResult,
-    youtubeSearchManager: YouTubeSearchManager,
-    prefix: String,
-    actions: ScanResultActions,
-) {
-    if (result.type == "playlist") {
-        val info = youtubeSearchManager.getYouTubePlaylistInfo(result.id)
-        if (info != null) {
-            actions.onPlaylistSelected(info)
-        } else {
-            actions.onError("$prefix: playlist not available")
-            actions.onLoadingChange(false)
-        }
-    } else {
-        val videoUrl = "https://www.youtube.com/watch?v=${result.id}"
-        actions.onSearchVideo(videoUrl)
-    }
-}
-
 @Composable
 fun SearchScreen(
     context: Context,
@@ -229,7 +53,7 @@ fun SearchScreen(
     val coroutineScope = rememberCoroutineScope()
     val database = remember { PlaylistDatabase.getDatabase(context) }
     val state = remember {
-        SearchScreenState(
+        SearchViewModel(
             initialQuery = initialQuery,
             context = context,
             youtubeSearchManager = youtubeSearchManager,
@@ -292,7 +116,7 @@ private fun SearchBackHandler(
 @Composable
 private fun SearchScreenContent(
     context: Context,
-    state: SearchScreenState,
+    state: SearchViewModel,
     playerViewModel: PlayerViewModel?,
     coroutineScope: CoroutineScope,
     onSearchTriggered: (String, Boolean) -> Unit,

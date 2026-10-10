@@ -1,9 +1,6 @@
 package com.plyr.ui
 
 import android.content.Context
-import android.net.Uri
-import androidx.core.net.toUri
-import android.provider.DocumentsContract
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,26 +24,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.PlyrApp
-import com.plyr.utils.BackupConfig
-import com.plyr.utils.BackupFolder
 import com.plyr.utils.Config
-import com.plyr.utils.DataSync
 import com.plyr.utils.SpotifyImporter
-import com.plyr.utils.SwipeConfig
-import com.plyr.utils.SyncResult
 import com.plyr.utils.Translations
+import com.plyr.viewmodel.ConfigViewModel
 import com.plyr.viewmodel.ImportViewModel
 import com.plyr.ui.components.MultiToggle
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.util.Locale
-
-/** Cuánto se deja visible el mensaje de resultado del sync. */
-private const val RESULT_TIMEOUT_MS = 4000L
 
 @Composable
 fun ConfigScreen(
@@ -55,19 +41,20 @@ fun ConfigScreen(
     onThemeChanged: (String) -> Unit = {},
     importViewModel: ImportViewModel? = null
 ) {
-    var selectedTheme by remember { mutableStateOf(Config.getTheme(context)) }
-    var selectedLanguage by remember { mutableStateOf(Config.getLanguage(context)) }
+    val appContext = context.applicationContext
+    val viewModel = remember {
+        ConfigViewModel(appContext, (appContext as PlyrApp).backgroundScope)
+    }
 
-    LaunchedEffect(selectedTheme) {
-        Config.setTheme(context, selectedTheme)
-        onThemeChanged(selectedTheme)
+    LaunchedEffect(viewModel.selectedTheme) {
+        onThemeChanged(viewModel.selectedTheme)
     }
 
     val dimensions = calculateResponsiveDimensionsFallback()
 
     BackHandler { onBack() }
 
-    key(selectedLanguage) {
+    key(viewModel.selectedLanguage) {
         Column(
             Modifier
                 .fillMaxSize()
@@ -81,8 +68,8 @@ fun ConfigScreen(
             // Theme
             ThemeSettingRow(
                 context = context,
-                selectedTheme = selectedTheme,
-                onThemeSelected = { selectedTheme = it }
+                selectedTheme = viewModel.selectedTheme,
+                onThemeSelected = { viewModel.selectTheme(it) }
             )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
@@ -90,17 +77,14 @@ fun ConfigScreen(
             // Language
             LanguageSettingRow(
                 context = context,
-                selectedLanguage = selectedLanguage,
-                onLanguageSelected = { newLang ->
-                    Config.setLanguage(context, newLang)
-                    selectedLanguage = newLang
-                }
+                selectedLanguage = viewModel.selectedLanguage,
+                onLanguageSelected = { viewModel.selectLanguage(it) }
             )
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Gestures
-            GesturesSection(context = context)
+            GesturesSection(context = context, viewModel = viewModel)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
@@ -110,11 +94,11 @@ fun ConfigScreen(
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
             // Sync
-            SyncSection(context = context)
+            SyncSection(context = context, viewModel = viewModel)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
 
-            ShareAppSection(context = context)
+            ShareAppSection(context = context, viewModel = viewModel)
 
             Spacer(modifier = Modifier.height(dimensions.sectionSpacing))
         }
@@ -230,20 +214,14 @@ private fun SettingRow(
 }
 
 @Composable
-private fun GesturesSection(context: Context) {
-    var selectedSwipeLeftAction by remember { mutableStateOf(SwipeConfig.getSwipeLeftAction(context)) }
-    var selectedSwipeRightAction by remember { mutableStateOf(SwipeConfig.getSwipeRightAction(context)) }
-
+private fun GesturesSection(context: Context, viewModel: ConfigViewModel) {
     SwipeActionSettingRow(
         context = context,
         titleKey = "swipe_left",
-        selectedAction = selectedSwipeLeftAction,
+        selectedAction = viewModel.swipeLeftAction,
         defaultIndex = 0,
         defaultAction = Config.SWIPE_ACTION_ADD_TO_QUEUE,
-        onActionSelected = { newAction ->
-            selectedSwipeLeftAction = newAction
-            SwipeConfig.setSwipeLeftAction(context, newAction)
-        }
+        onActionSelected = { viewModel.selectSwipeLeft(it) }
     )
 
     Spacer(modifier = Modifier.height(8.dp))
@@ -251,13 +229,10 @@ private fun GesturesSection(context: Context) {
     SwipeActionSettingRow(
         context = context,
         titleKey = "swipe_right",
-        selectedAction = selectedSwipeRightAction,
+        selectedAction = viewModel.swipeRightAction,
         defaultIndex = 1,
         defaultAction = Config.SWIPE_ACTION_ADD_TO_LIKED,
-        onActionSelected = { newAction ->
-            selectedSwipeRightAction = newAction
-            SwipeConfig.setSwipeRightAction(context, newAction)
-        }
+        onActionSelected = { viewModel.selectSwipeRight(it) }
     )
 }
 
@@ -437,114 +412,49 @@ private fun SpotifyUrlField(
  *   usuario que borró el ZIP a mano desde Drive.
  * - **El archivo está donde se esperaba**: sincroniza y listo.
  *
- * El botón también dice en qué estado está: `< sync >` mientras no haya un ZIP
- * escrito, y `synced w/ <carpeta>` cuando ya lo hay, con el nombre de la última
- * carpeta de la ruta, no la ruta entera.
- *
- * Al margen de este botón, la app ya sola: marca los cambios y los vuelca al
- * salir (`DataSync.flushOnStop`).
+ * El estado y la lógica viven en [ConfigViewModel] (B23); aquí solo se pinta.
  */
 @Composable
-private fun SyncSection(context: Context) {
+private fun SyncSection(context: Context, viewModel: ConfigViewModel) {
     val haptic = LocalHapticFeedback.current
-    // Locale observable de Compose (lint: NonObservableLocale); lo capturan
-    // syncNow y el cálculo de syncLabel para formatear los textos de sync.
+    // Locale observable de Compose (lint: NonObservableLocale); lo usa el
+    // etiquetado del botón y el formato de los textos de sync.
     val locale = LocalConfiguration.current.locales[0]
-    // Scope de aplicación (B23): si el usuario sale de Ajustes con un swipe
-    // mientras se sincroniza, la escritura del ZIP no debe cortarse a medias.
-    val coroutineScope = remember { (context.applicationContext as PlyrApp).backgroundScope }
-    var isSyncing by remember { mutableStateOf(false) }
-    var statusMessage by remember { mutableStateOf<String?>(null) }
-    var statusIsError by remember { mutableStateOf(false) }
-
-    // Cambia al elegir carpeta, para repintar el estado.
-    var treeUri by remember { mutableStateOf(BackupConfig.getBackupTreeUri(context)) }
 
     // Resolver el nombre de la carpeta y comprobar que el ZIP sigue ahí son
     // consultas al proveedor de documentos: con Drive es una llamada de red, así
-    // que va fuera de la composición o congelaría la pantalla al abrir los
-    // ajustes.
-    var folderName by remember { mutableStateOf<String?>(null) }
-    var hasBackupFile by remember { mutableStateOf(false) }
-    LaunchedEffect(treeUri) {
-        val info = resolveBackupFolder(context, treeUri)
-        folderName = info.folderName
-        hasBackupFile = info.hasBackupFile
-    }
-
-    // Un solo mensaje para la sección, en vez de uno por botón.
-    LaunchedEffect(statusMessage) {
-        if (statusMessage != null) {
-            delay(RESULT_TIMEOUT_MS)
-            statusMessage = null
-        }
-    }
-
-    suspend fun syncNow() {
-        isSyncing = true
-        // "force" solo salta la comparación de huellas, no la falta de
-        // listas: sin listas no hay nada que copiar. El estado del botón no
-        // se toca, porque no se ha escrito nada.
-        val outcome = buildSyncOutcome(context, locale, DataSync.flush(context, force = true))
-        statusIsError = outcome.isError
-        statusMessage = outcome.message
-        if (outcome.markBackupPresent) {
-            // El botón pasa a indicar que ya hay copia. El nombre se vuelve
-            // a resolver porque puede ser una carpeta nueva.
-            val tree = treeUri?.let { it.toUri() }
-            folderName = tree?.let { loadFolderName(context, it) }
-            hasBackupFile = true
-        }
-        isSyncing = false
+    // que va fuera de la composición o congelaría la pantalla al abrir los ajustes.
+    LaunchedEffect(viewModel.treeUri) {
+        viewModel.refreshBackupFolder()
     }
 
     val folderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { selected ->
         if (selected == null) return@rememberLauncherForActivityResult
-
-        coroutineScope.launch {
-            val selection = selectBackupFolder(context, selected, treeUri)
-            if (selection.accessDenied) {
-                statusIsError = true
-                statusMessage = Translations.get(context, "sync_folder_denied")
-                return@launch
-            }
-
-            treeUri = selection.treeUri
-
-            // Elegir carpeta y sincronizar es una sola acción: no tiene
-            // sentido pedirla y dejar el archivo sin crear.
-            syncNow()
-        }
+        viewModel.onFolderSelected(selected, locale)
     }
-
-    // El estado vive en la propia etiqueta del botón: sin ZIP escrito pone
-    // "< sync >", y con ZIP puesto el nombre de la carpeta donde vive. Si el
-    // proveedor no resuelve el nombre, se muestra el del archivo, que al menos
-    // dice dónde está la copia.
-    val syncLabel = syncButtonLabel(context, locale, hasBackupFile, folderName)
 
     DataActionRow(
         context = context,
-        label = syncLabel,
+        label = viewModel.syncButtonLabel(locale),
         workingKey = "sync_working",
-        isWorking = isSyncing,
+        isWorking = viewModel.isSyncing,
         onClick = {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-            if (isSyncing) return@DataActionRow
+            if (viewModel.isSyncing) return@DataActionRow
 
-            if (existingBackupTarget(context, treeUri) == null) {
+            if (viewModel.backupTargetExists()) {
+                viewModel.startSync(locale)
+            } else {
                 // O no hay carpeta, o el archivo ya no está donde se esperaba.
                 // En ambos casos solo el usuario puede decir dónde escribir.
                 folderLauncher.launch(null)
-            } else {
-                coroutineScope.launch { syncNow() }
             }
         }
     )
 
-    SyncStatusMessage(message = statusMessage, isError = statusIsError)
+    SyncStatusMessage(message = viewModel.statusMessage, isError = viewModel.statusIsError)
 }
 
 @Composable
@@ -570,140 +480,6 @@ private fun SyncStatusMessage(message: String?, isError: Boolean) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
     )
-}
-
-private data class BackupFolderInfo(val folderName: String?, val hasBackupFile: Boolean)
-
-private suspend fun resolveBackupFolder(context: Context, treeUri: String?): BackupFolderInfo {
-    val tree = treeUri?.let { it.toUri() }
-        ?: return BackupFolderInfo(folderName = null, hasBackupFile = false)
-    val folderName = loadFolderName(context, tree)
-    val hasBackupFile = runCatching {
-        BackupFolder.findExistingBackupFile(context, tree) != null
-    }.getOrDefault(false)
-    return BackupFolderInfo(folderName = folderName, hasBackupFile = hasBackupFile)
-}
-
-private data class FolderSelection(val treeUri: String?, val accessDenied: Boolean)
-
-private fun selectBackupFolder(
-    context: Context,
-    selected: Uri,
-    previousTreeUri: String?
-): FolderSelection {
-    // Sin este permiso el acceso se pierde al reiniciar y la copia
-    // automática solo funcionaría hasta que apagues el móvil.
-    if (!BackupFolder.persistAccess(context, selected)) {
-        return FolderSelection(treeUri = previousTreeUri, accessDenied = true)
-    }
-
-    // Se suelta la carpeta anterior: dejar permisos huérfanos en el
-    // sistema solo ocupa cuota y confunde al usuario.
-    previousTreeUri?.takeIf { it != selected.toString() }?.let { previous ->
-        runCatching { BackupFolder.releaseAccess(context, previous.toUri()) }
-    }
-
-    BackupConfig.setBackupTree(context, selected.toString(), documentId = null)
-    return FolderSelection(treeUri = selected.toString(), accessDenied = false)
-}
-
-private fun existingBackupTarget(context: Context, treeUri: String?): Uri? =
-    treeUri?.let {
-        runCatching { BackupFolder.findExistingBackupFile(context, it.toUri()) }.getOrNull()
-    }
-
-private data class SyncOutcome(
-    val message: String?,
-    val isError: Boolean,
-    val markBackupPresent: Boolean
-)
-
-private fun buildSyncOutcome(context: Context, locale: Locale, result: SyncResult): SyncOutcome = when (result) {
-    is SyncResult.Written -> {
-        val copiadas = Translations.get(context, "sync_done")
-            .format(locale, result.summary.playlistCount, result.summary.trackCount)
-        val recuperadas = result.merged
-            ?.let { merged ->
-                Translations.get(context, "sync_merged")
-                    .format(
-                        locale,
-                        merged.importedPlaylists, merged.mergedLikedTracks, merged.deletedPlaylists
-                    )
-            }
-        SyncOutcome(
-            message = listOfNotNull(recuperadas, copiadas).joinToString(" "),
-            isError = false,
-            markBackupPresent = true
-        )
-    }
-    SyncResult.UpToDate -> SyncOutcome(
-        message = Translations.get(context, "sync_empty"),
-        isError = false,
-        markBackupPresent = false
-    )
-    SyncResult.NotConfigured -> SyncOutcome(
-        message = Translations.get(context, "sync_need_folder"),
-        isError = true,
-        markBackupPresent = false
-    )
-    is SyncResult.ArchiveUnreadable -> SyncOutcome(
-        message = Translations.get(context, "sync_archive_unreadable"),
-        isError = true,
-        markBackupPresent = false
-    )
-    is SyncResult.Failed -> SyncOutcome(
-        message = Translations.get(context, "sync_error"),
-        isError = true,
-        markBackupPresent = false
-    )
-}
-
-private fun syncButtonLabel(
-    context: Context,
-    locale: Locale,
-    hasBackupFile: Boolean,
-    folderName: String?
-): String = if (hasBackupFile) {
-    Translations.get(context, "sync_synced")
-        .format(locale, folderName ?: BackupFolder.BACKUP_FILE_NAME)
-} else {
-    Translations.get(context, "sync")
-}
-
-/**
- * Nombre de la **última** carpeta de [treeUri] ("plyr" de "primary:Download/plyr"),
- * o null si no hay forma de averiguarlo.
- *
- * Hace una consulta al `DocumentsProvider`, que con Drive es una llamada de red:
- * nunca llamar a esto desde la composición. El respaldo es el último segmento
- * del `documentId`, nunca el Uri entero, porque en el botón solo cabe el nombre
- * de la carpeta: una ruta completa lo deja ilegible.
- */
-private suspend fun loadFolderName(context: Context, treeUri: Uri): String? = withContext(Dispatchers.IO) {
-    val treeDocumentId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }
-        .getOrNull()
-        ?.substringAfterLast(':')
-        ?.trim('/')
-        ?.takeIf { it.isNotBlank() }
-
-    val displayName = try {
-        context.contentResolver.query(
-            DocumentsContract.buildDocumentUriUsingTree(
-                treeUri,
-                DocumentsContract.getTreeDocumentId(treeUri)
-            ),
-            arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME),
-            null,
-            null,
-            null
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        }
-    } catch (e: Exception) {
-        null
-    }
-
-    displayName?.trim()?.takeIf { it.isNotBlank() } ?: treeDocumentId
 }
 
 /**
@@ -757,12 +533,11 @@ private fun DataActionRow(
 }
 
 @Composable
-fun ShareAppSection(context: Context) {
+fun ShareAppSection(context: Context, viewModel: ConfigViewModel) {
     val haptic = LocalHapticFeedback.current
     val dimensions = calculateResponsiveDimensionsFallback()
-    var showShareDialog by remember { mutableStateOf(false) }
 
-    if (showShareDialog) {
+    if (viewModel.showShareDialog) {
         com.plyr.ui.components.ShareDialog(
             item = com.plyr.ui.components.ShareableItem(
                 remoteId = null,
@@ -772,7 +547,7 @@ fun ShareAppSection(context: Context) {
                 artist = "",
                 type = com.plyr.ui.components.ShareType.APP
             ),
-            onDismiss = { showShareDialog = false }
+            onDismiss = { viewModel.setShareDialog(false) }
         )
     }
 
@@ -792,7 +567,7 @@ fun ShareAppSection(context: Context) {
             modifier = Modifier
                 .clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    showShareDialog = true
+                    viewModel.setShareDialog(true)
                 }
                 .padding(vertical = dimensions.itemSpacing, horizontal = dimensions.contentPadding)
         )
