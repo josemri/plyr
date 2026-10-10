@@ -35,6 +35,7 @@ import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.TrackEntity
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.Config
+import com.plyr.utils.SwipeConfig
 import com.plyr.utils.Translations
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -128,8 +129,8 @@ private fun rememberSongSwipeState(coroutineScope: CoroutineScope): SongSwipeSta
 @Composable
 private fun rememberSwipeVisuals(context: android.content.Context): SwipeVisuals {
     // Obtener las acciones configuradas y sus iconos/colores
-    val swipeRightAction = Config.getSwipeRightAction(context)
-    val swipeLeftAction = Config.getSwipeLeftAction(context)
+    val swipeRightAction = SwipeConfig.getSwipeRightAction(context)
+    val swipeLeftAction = SwipeConfig.getSwipeLeftAction(context)
     val (rightIcon, rightColor) = getSwipeIconAndColor(swipeRightAction)
     val (leftIcon, leftColor) = getSwipeIconAndColor(swipeLeftAction)
     return SwipeVisuals(rightIcon, rightColor, leftIcon, leftColor)
@@ -477,7 +478,7 @@ private fun handleSongClick(
 
                 viewModel.setCurrentPlaylist(tracks, index)
                 val selectedTrackEntity = tracks[index]
-                viewModel.playTrack(selectedTrackEntity)
+                viewModel.playback.play(selectedTrackEntity)
             }
         }
     } else {
@@ -495,7 +496,7 @@ private fun handleSwipeEnd(
         SwipeAction.RIGHT -> {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             executeSwipeAction(
-                action = Config.getSwipeRightAction(actionContext.context),
+                action = SwipeConfig.getSwipeRightAction(actionContext.context),
                 actionContext = actionContext
             )
             swipeState.reset()
@@ -503,7 +504,7 @@ private fun handleSwipeEnd(
         SwipeAction.LEFT -> {
             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             executeSwipeAction(
-                action = Config.getSwipeLeftAction(actionContext.context),
+                action = SwipeConfig.getSwipeLeftAction(actionContext.context),
                 actionContext = actionContext
             )
             swipeState.reset()
@@ -560,7 +561,7 @@ private fun SongActionsDialog(
         actionContext.coroutineScope.launch {
             val repo = PlaylistLocalRepository(context)
             val song = actionContext.song
-            isLiked = repo.isTrackLikedByKey(song.title, song.artist, song.remoteId ?: song.title, song.youtubeId)
+            isLiked = repo.liked.isTrackLikedByKey(song.title, song.artist, song.remoteId ?: song.title, song.youtubeId)
         }
     }
 
@@ -718,7 +719,7 @@ private fun SongLikeAction(
                 val repo = PlaylistLocalRepository(context)
                 val id = song.youtubeId ?: ""
                 onLikedChanged(
-                    repo.toggleLikeTrack(
+                    repo.liked.toggleLikeTrack(
                         youtubeVideoId = id,
                         name = song.title,
                         artists = song.artist,
@@ -895,7 +896,7 @@ private fun executeSwipeAction(
             actionContext.coroutineScope.launch {
                 val repo = PlaylistLocalRepository(actionContext.context)
                 val song = actionContext.song
-                val isNowLiked = repo.toggleLikeTrack(
+                val isNowLiked = repo.liked.toggleLikeTrack(
                     youtubeVideoId = song.youtubeId ?: "",
                     name = song.title,
                     artists = song.artist,
@@ -960,7 +961,7 @@ private fun addTrackToPlaylist(
     )
     actionContext.coroutineScope.launch {
         val repo = PlaylistLocalRepository(actionContext.context)
-        repo.addTrackToYouTubePlaylist(playlistId, track)
+        repo.tracks.addTrackToYouTubePlaylist(playlistId, track)
         onDone()
     }
 }

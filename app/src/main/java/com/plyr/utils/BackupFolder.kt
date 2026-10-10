@@ -113,7 +113,7 @@ object BackupFolder {
     fun findExistingBackupFile(context: Context, treeUri: Uri): Uri? {
         val resolver = context.contentResolver
 
-        Config.getBackupDocumentId(context)?.let { cachedId ->
+        BackupConfig.getBackupDocumentId(context)?.let { cachedId ->
             runCatching { DocumentsContract.buildDocumentUriUsingTree(treeUri, cachedId) }
                 .getOrNull()
                 ?.takeIf { exists(resolver, it) }
@@ -121,7 +121,7 @@ object BackupFolder {
         }
 
         val foundId = findChild(resolver, treeUri, BACKUP_FILE_NAME) ?: return null
-        Config.setBackupDocumentId(context, foundId)
+        BackupConfig.setBackupDocumentId(context, foundId)
         return runCatching { DocumentsContract.buildDocumentUriUsingTree(treeUri, foundId) }
             .getOrNull()
     }
@@ -138,7 +138,7 @@ object BackupFolder {
     fun resolveBackupFile(context: Context, treeUri: Uri): Uri? {
         val resolver = context.contentResolver
 
-        Config.getBackupDocumentId(context)?.let { cachedId ->
+        BackupConfig.getBackupDocumentId(context)?.let { cachedId ->
             runCatching { DocumentsContract.buildDocumentUriUsingTree(treeUri, cachedId) }
                 .getOrNull()
                 ?.takeIf { exists(resolver, it) }
@@ -147,7 +147,7 @@ object BackupFolder {
         }
 
         findChild(resolver, treeUri, BACKUP_FILE_NAME)?.let { childId ->
-            Config.setBackupDocumentId(context, childId)
+            BackupConfig.setBackupDocumentId(context, childId)
             return runCatching { DocumentsContract.buildDocumentUriUsingTree(treeUri, childId) }
                 .getOrNull()
         }
@@ -188,7 +188,7 @@ object BackupFolder {
                     runCatching { DocumentsContract.getDocumentId(created) }
                         .getOrNull()
                         ?.takeIf { it.isNotBlank() }
-                        ?.let { Config.setBackupDocumentId(context, it) }
+                        ?.let { BackupConfig.setBackupDocumentId(context, it) }
                 }
                 return created
             }
@@ -243,12 +243,12 @@ object BackupFolder {
 
     /** Lanza [IOException] con un mensaje entendible si el Uri no se puede usar. */
     fun requireTree(context: Context): Uri {
-        val stored = Config.getBackupTreeUri(context)
+        val stored = BackupConfig.getBackupTreeUri(context)
             ?: throw IOException("No hay carpeta de copia de seguridad configurada")
         val treeUri = stored.toUri()
         if (!hasPersistedAccess(context, treeUri)) {
             // El permiso se perdió: se olvida la carpeta para no reintentar solos.
-            Config.clearBackupTree(context)
+            BackupConfig.clearBackupTree(context)
             throw IOException("El acceso a la carpeta de copia ha caducado")
         }
         return treeUri

@@ -84,7 +84,7 @@ class YouTubeSearchManager(context: Context) {
             
             return@withContext if (videoId != null) {
                 // Guardar en cache para uso futuro
-                localRepository.updateTrackYoutubeId(track.id, videoId)
+                localRepository.tracks.updateTrackYoutubeId(track.id, videoId)
                 Log.d(TAG, "💾 ID encontrado y guardado: $videoId para ${track.name}")
                 videoId
             } else {

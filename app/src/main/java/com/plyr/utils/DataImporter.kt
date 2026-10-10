@@ -92,13 +92,13 @@ object DataImporter {
      * que un tomb creado al importar viaja al exportar.
      */
     private fun mergeTombstones(context: Context, manifest: ParsedManifest): Tombstones {
-        val deletedIds = Config.getDeletedPlaylistIds(context).toMutableSet()
+        val deletedIds = TombstoneConfig.getDeletedPlaylistIds(context).toMutableSet()
         deletedIds.addAll(manifest.deletedPlaylistIds)
-        Config.setDeletedPlaylistIds(context, deletedIds)
+        TombstoneConfig.setDeletedPlaylistIds(context, deletedIds)
 
-        val removedLiked = Config.getRemovedLikedTrackKeys(context).toMutableSet()
+        val removedLiked = TombstoneConfig.getRemovedLikedTrackKeys(context).toMutableSet()
         removedLiked.addAll(manifest.removedLikedTrackKeys)
-        Config.setRemovedLikedTrackKeys(context, removedLiked)
+        TombstoneConfig.setRemovedLikedTrackKeys(context, removedLiked)
 
         return Tombstones(deletedIds, removedLiked)
     }
@@ -154,7 +154,7 @@ object DataImporter {
             if (existing.remoteId in deletedIds &&
                 existing.remoteId != PlaylistLocalRepository.LIKED_SONGS_ID
             ) {
-                repository.deletePlaylist(existing.remoteId)
+                repository.playlists.deletePlaylist(existing.remoteId)
                 counters.deletedPlaylists++
                 Log.d(TAG, "Importación: aplicado borrado de ${existing.remoteId}")
             }
@@ -175,7 +175,7 @@ object DataImporter {
             ImportManifest.buildTracks(playlistId = playlist.id, tracks = playlist.tracks, now = now)
         val cover = restoreCover(context, playlist, entries)
 
-        val saved = repository.restorePlaylist(
+        val saved = repository.playlists.restorePlaylist(
             playlist = PlaylistEntity(
                 remoteId = playlist.id,
                 name = playlist.name.ifBlank { playlist.id },
@@ -204,7 +204,7 @@ object DataImporter {
         repository: PlaylistLocalRepository,
         playlist: ImportedPlaylist,
         removedKeys: Set<String>
-    ): Int = repository.mergeLikedSongsTracks(
+    ): Int = repository.liked.mergeLikedSongsTracks(
         tracks = ImportManifest.buildTracks(playlistId = playlist.id, tracks = playlist.tracks),
         removedKeys = removedKeys,
     )

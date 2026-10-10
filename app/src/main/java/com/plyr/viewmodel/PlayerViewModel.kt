@@ -1,7 +1,6 @@
 package com.plyr.viewmodel
 
 import android.app.Application
-import android.net.Uri
 import android.os.Looper
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -17,18 +16,14 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.plyr.database.TrackEntity
 import com.plyr.network.YouTubeManager
 import com.plyr.utils.Config
-import com.plyr.utils.DownloadedAudioStore
 import com.plyr.utils.Translations
+import com.plyr.viewmodel.TrackResolver.ResolvedItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
 import androidx.annotation.OptIn
 
 /**
@@ -52,9 +47,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private companion object {
         /** Canciones resueltas y preparadas por delante de la actual. */
         const val WINDOW_AHEAD = 2
-
-        /** Extracciones de URL simultáneas al rellenar la ventana. */
-        const val RESOLVE_CONCURRENCY = 2
 
         /** Fallos consecutivos tolerados antes de detener la cola. */
         const val MAX_CONSECUTIVE_FAILURES = 5
@@ -173,14 +165,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var queueRepeatMode: String = Config.REPEAT_MODE_OFF
 
     /**
-     * Video de YouTube realmente usado por cada pista, indexado por `track.id`.
-     *
-     * Para las pistas resueltas por búsqueda, `track.youtubeVideoId` es `null`,
-     * así que aquí es donde queda el id que sirvió la URL que se acaba de
-     * caducar: `invalidate()` no llegaba a llamarse y el reintento recibía de la
-     * caché la misma URL muerta (B4).
+     * Resolución de URLs de audio y construcción de `MediaItem`. Mantiene la
+     * caché de vídeos ya resueltos por pista (ver [TrackResolver]).
      */
-    private val resolvedVideoId = ConcurrentHashMap<String, String>()
+    private val resolver = TrackResolver(getApplication())
 
     /**
      * Relleno de ventana en curso, si lo hay.
@@ -199,11 +187,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private var prefetchJob: Job? = null
 
     /**
-     * Resolución de una canción pedida por la UI ([playTrack]). Vive en el
-     * scope del ViewModel, no en el de la pantalla que la pidió: navegar
-     * fuera no debe cancelarla (B60).
+     * Resoluciones de reproducción pedidas por la UI ([PlaybackRequester]).
+     * Viven en el scope del ViewModel, no en el de la pantalla que las pidió:
+     * navegar fuera no debe cancelarlas (B60).
      */
-    private var playbackJob: Job? = null
+    val playback = PlaybackRequester(viewModelScope) { loadAudioFromTrack(it) }
 
     // ------------------------------------------------------------------ //
     // Ciclo de vida del reproductor
@@ -337,7 +325,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 // Tras stopAtQueueEnd (B63) el player está en IDLE sin items y la
                 // UI apunta a una canción que "debería" sonarse: arrancamos desde
                 // el ancla (currentIndex si es válido, o 0) reconstruyendo la ventana.
-                playIndex((action as IdlePlayback.Action.RestartAt).index)
+                playIndex(action.index)
             }
             IdlePlayback.Action.Nothing -> Unit
         }
@@ -367,8 +355,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * escondía cada vez que la canción actual quedaba al final de la ventana,
      * aunque quedaran canciones por delante en la cola.
      */
-    fun hasNextInQueue(): Boolean =
-        QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) != null
+    val hasNextInQueue: Boolean
+        get() = QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) != null
 
     fun navigateToPrevious() {
         // Igual que en `navigateToNext`: mientras hay una transición en vuelo
@@ -462,15 +450,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob = null
         // Una resolución en vuelo apuntaría a un estado que ya no existe:
         // se cancela con ella (B60). El candado lo retira su propio `finally`.
-        playbackJob?.cancel()
-        playbackJob = null
+        playback.cancel()
         // `invalidateLoads()` también retira el candado de cualquier
         // transición en vuelo: esta operación se hace cargo de todo (B59).
         invalidateLoads()
 
         consecutiveFailures = 0
         currentVideoId = null
-        resolvedVideoId.clear()
+        resolver.clear()
             windowState = windowState.reset()
 
         _exoPlayer?.let { player ->
@@ -488,40 +475,6 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     // ------------------------------------------------------------------ //
     // Reproducción
     // ------------------------------------------------------------------ //
-
-    /**
-     * Resuelve la URL de audio de [track] y empieza a reproducirla, en el
-     * scope del propio ViewModel.
-     *
-     * Antes cada pantalla lanzaba [loadAudioFromTrack] en su
-     * `rememberCoroutineScope()`: si la pantalla salía de composición
-     * mientras la resolución esperaba red, la corrutina se cancelaba y el
-     * `catch (_: Exception)` de la llamada se tragaba la
-     * `CancellationException` — la canción pedida no sonaba y no había
-     * error (B60). Esta función es la única puerta de entrada ahora.
-     *
-     * @param onFinished se invoca cuando la carga termina, **también si se
-     *   cancela**, para que la pantalla apague su estado de "iniciando".
-     */
-    fun playTrack(track: TrackEntity, onFinished: (() -> Unit)? = null) {
-        playbackJob?.cancel()
-        playbackJob = viewModelScope.launch {
-            try {
-                loadAudioFromTrack(track)
-            } finally {
-                onFinished?.invoke()
-            }
-        }
-    }
-
-    /**
-     * Cancela una resolución en vuelo sin tocar la cola: es el "stop" de la
-     * UI (antes cancelaba los jobs que la pantalla tenía a mano).
-     */
-    fun cancelPendingPlayback() {
-        playbackJob?.cancel()
-        playbackJob = null
-    }
 
     /**
      * Resuelve la URL de audio de [track] y empieza a reproducirla.
@@ -571,11 +524,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             _error.publish(null)
 
             val track = queue[index]
-            val knownId = track.youtubeVideoId ?: resolvedVideoId[track.id]
+            val knownId = resolver.knownVideoId(track)
             val videoId = withContext(Dispatchers.IO) {
                 YouTubeManager.resolveVideoId(track.name, track.artists, knownId)
             }
-            val sourceUri = withContext(Dispatchers.IO) { resolveSourceUri(videoId) }
+            val sourceUri = withContext(Dispatchers.IO) { resolver.resolveSourceUri(videoId) }
 
             // La cola cambió mientras se resolvía: el resultado ya no vale.
             if (gen != generation) return false
@@ -586,11 +539,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             }
 
             windowState = windowState.anchorAt(index)
-            resolvedVideoId[track.id] = videoId
+            resolver.remember(track.id, videoId)
             setCurrentIndex(index)
             currentVideoId = videoId
 
-            player.setMediaItem(createMediaItem(track, sourceUri, index))
+            player.setMediaItem(resolver.createMediaItem(track, sourceUri, index))
             player.prepare()
             player.play()
 
@@ -879,13 +832,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Resuelve las URLs de `queue[from until toExclusive]`, en paralelo y con
-     * poca concurrencia. Solo devuelve items cuyo índice se conoce, y nunca si
-     * la cola cambió durante la resolución: un resultado obsoleto no debe
-     * aplicarse. Los índices ausentes se ignoran (huecos), no se comprimen.
-     *
-     * [forceRefresh] salta la caché de URLs: lo usa el reintento tras una URL
-     * caducada, que si no volvería a recibir la misma URL muerta (B4).
+     * Resuelve las URLs de `queue[from until toExclusive]` delegando en
+     * [TrackResolver]. El recorte a los límites de la cola y la comprobación de
+     * vigencia (la `generation` no cambió) se quedan aquí, que son estado del
+     * ViewModel.
      */
     private suspend fun resolveItems(
         from: Int,
@@ -897,41 +847,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val end = toExclusive.coerceAtMost(queue.size)
         if (start >= end) return emptyList()
 
-        val tracks = queue.subList(start, end).toList()
-
-        val resolved = coroutineScope {
-            tracks.chunked(RESOLVE_CONCURRENCY)
-                .map { chunk ->
-                    async(Dispatchers.IO) {
-                        chunk.map { track ->
-                            // Si la pista ya se resolvió antes (por búsqueda),
-                            // se reutiliza ese video en vez de volver a buscarlo.
-                            val knownId = track.youtubeVideoId ?: resolvedVideoId[track.id]
-                            val videoId = YouTubeManager.resolveVideoId(
-                                track.name,
-                                track.artists,
-                                knownId
-                            )
-                            if (videoId != null) resolvedVideoId[track.id] = videoId
-                            // Preferir el fichero descargado: sin red y sin que
-                            // le afecte la caducidad de la URL de googlevideo.
-                            val sourceUri = videoId?.let { id ->
-                                DownloadedAudioStore.localUri(getApplication(), id)
-                                    ?: YouTubeManager.getAudioUrl(id, forceRefresh = forceRefresh)?.let(Uri::parse)
-                            }
-                            videoId to sourceUri
-                        }
-                    }
-                }
-                .awaitAll()
-                .flatten()
-        }
-
-        if (gen != generation) return emptyList()
-
-        return resolved.mapIndexedNotNull { i, (_, uri) ->
-            if (uri == null) null else ResolvedItem(start + i, createMediaItem(tracks[i], uri, start + i))
-        }
+        return resolver.resolveItems(
+            tracks = queue.subList(start, end).toList(),
+            startIndex = start,
+            forceRefresh = forceRefresh,
+        ) { gen == generation }
     }
 
     // ------------------------------------------------------------------ //
@@ -1053,7 +973,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         currentIndex = absolute
         val track = queue[absolute]
-        currentVideoId = resolvedVideoId[track.id] ?: track.youtubeVideoId
+        currentVideoId = resolver.cachedVideoId(track.id) ?: track.youtubeVideoId
     }
 
     private fun trackAt(index: Int): TrackEntity? = queue.getOrNull(index)
@@ -1064,7 +984,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val track = trackAt(index)
         // El id que cuenta es el que sirvió la URL, no el de la pista: si la
         // canción se resolvió por búsqueda, el de la pista es null (B4).
-        currentVideoId = track?.let { resolvedVideoId[it.id] ?: it.youtubeVideoId }
+        currentVideoId = track?.let { resolver.cachedVideoId(it.id) ?: it.youtubeVideoId }
         consecutiveFailures = 0
         publishCurrentTrack()
     }
@@ -1120,38 +1040,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * URI reproducible de un vídeo: el fichero descargado si existe (offline,
-     * sin caducidad), o si no la URL de streaming de YouTube ([forceRefresh]
-     * salta la caché de URLs tras un 403/410).
-     */
-    private suspend fun resolveSourceUri(videoId: String?, forceRefresh: Boolean = false): Uri? {
-        if (videoId == null) return null
-        DownloadedAudioStore.localUri(getApplication(), videoId)?.let { return it }
-        return YouTubeManager.getAudioUrl(videoId, forceRefresh)?.let(Uri::parse)
-    }
-
-    private fun createMediaItem(track: TrackEntity, uri: Uri, queueIndex: Int): MediaItem =
-        MediaItem.Builder()
-            .setUri(uri)
-            .setMediaId("${track.id}#$queueIndex")
-            .setMediaMetadata(
-                androidx.media3.common.MediaMetadata.Builder()
-                    .setTitle(track.name)
-                    .setArtist(track.artists)
-                    .build()
-            )
-            .build()
-
-    /**
      * Asigna un valor desde el hilo principal cuando es posible, para que
      * quien lea `.value` a continuación vea el valor ya aplicado.
      */
     private fun <T> MutableLiveData<T>.publish(value: T) {
         if (Looper.myLooper() == Looper.getMainLooper()) setValue(value) else postValue(value)
     }
-
-    /** Item resuelto junto a su posición en la cola, para no perder la alineación. */
-    private data class ResolvedItem(val index: Int, val mediaItem: MediaItem)
 
     /** Tramo de la cola que falta por preparar en la ventana. */
     private data class FillTarget(val from: Int, val lastNew: Int)

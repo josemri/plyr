@@ -27,7 +27,7 @@ class PlyrApp : Application() {
         importViewModel = ImportViewModel(this)
         downloadViewModel = DownloadViewModel(this)
         appScope.launch {
-            PlaylistLocalRepository(this@PlyrApp).ensureLikedSongsPlaylist()
+            PlaylistLocalRepository(this@PlyrApp).liked.ensureLikedSongsPlaylist()
         }
     }
 }

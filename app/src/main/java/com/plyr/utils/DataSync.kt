@@ -128,7 +128,7 @@ object DataSync {
      * sin miedo desde el repositorio.
      */
     fun markDirty(context: Context) {
-        if (!Config.isAutoSyncEnabled(context)) return
+        if (!BackupConfig.isAutoSyncEnabled(context)) return
 
         isDirty.set(true)
         debounceJob?.cancel()
@@ -146,7 +146,7 @@ object DataSync {
      * interesa ir rápido sino llegar a escribir.
      */
     fun flushOnStop(context: Context) {
-        if (!Config.isAutoSyncEnabled(context)) return
+        if (!BackupConfig.isAutoSyncEnabled(context)) return
 
         val pending = debounceJob
         scope.launch {
@@ -162,7 +162,7 @@ object DataSync {
      */
     suspend fun flush(context: Context, force: Boolean): SyncResult = writeLock.withLock {
         val appContext = context.applicationContext
-        if (!Config.isAutoSyncEnabled(appContext)) return@withLock SyncResult.NotConfigured
+        if (!BackupConfig.isAutoSyncEnabled(appContext)) return@withLock SyncResult.NotConfigured
 
         try {
             val treeUri = BackupFolder.requireTree(appContext)
@@ -175,7 +175,7 @@ object DataSync {
                 null
             }
 
-            if (current != null && !force && Config.getBackupHash(appContext) == current.contentHash) {
+            if (current != null && !force && BackupConfig.getBackupHash(appContext) == current.contentHash) {
                 Log.d(TAG, "La copia ya estaba al dia")
                 isDirty.set(false)
                 return@withLock SyncResult.UpToDate
@@ -202,8 +202,8 @@ object DataSync {
                 ?: throw IOException("No se pudo abrir el archivo de copia en la carpeta")
 
             val newDocumentId = writeAtomically(appContext, documentUri, treeUri, bundle)
-            Config.setBackupDocumentId(appContext, newDocumentId)
-            Config.setBackupHash(appContext, bundle.contentHash)
+            BackupConfig.setBackupDocumentId(appContext, newDocumentId)
+            BackupConfig.setBackupHash(appContext, bundle.contentHash)
             isDirty.set(false)
 
             Log.d(TAG, "Copia actualizada: ${bundle.playlistCount} listas, ${bundle.trackCount} pistas")

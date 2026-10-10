@@ -89,9 +89,9 @@ object DataExporter {
         val takenCoverEntries = mutableSetOf<String>()
         val manifests = mutableListOf<ExportPlaylist>()
         val covers = mutableListOf<CoverPayload>()
-        val deletedPlaylistIds = Config.getDeletedPlaylistIds(context)
+        val deletedPlaylistIds = TombstoneConfig.getDeletedPlaylistIds(context)
         // Los borrados de favoritos viajan igual que los de listas (B51).
-        val removedLikedTrackKeys = Config.getRemovedLikedTrackKeys(context)
+        val removedLikedTrackKeys = TombstoneConfig.getRemovedLikedTrackKeys(context)
 
         entities.forEach { entity ->
             val coverBytes = loadCoverBytes(context, entity.imageUrl)

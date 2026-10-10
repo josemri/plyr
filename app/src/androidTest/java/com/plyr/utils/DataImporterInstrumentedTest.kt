@@ -75,7 +75,7 @@ class DataImporterInstrumentedTest {
             val stored = runBlocking { PlaylistLocalRepository(context).getAllPlaylists() }
             assertNotNull(stored.firstOrNull { it.remoteId == id })
         } finally {
-            runBlocking { PlaylistLocalRepository(context).deletePlaylist(id) }
+            runBlocking { PlaylistLocalRepository(context).playlists.deletePlaylist(id) }
             file.delete()
         }
     }

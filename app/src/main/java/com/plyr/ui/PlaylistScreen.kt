@@ -221,7 +221,7 @@ private class PlaylistsScreenState(
             if (toEdit != null) {
                 isLoadingTracks = true
                 coroutineScope.launch {
-                    val success = localRepository.updatePlaylistDetails(
+                    val success = localRepository.playlists.updatePlaylistDetails(
                         localPlaylistId = toEdit.id,
                         newTitle = if (newTitle != originalTitle) newTitle else null,
                         newDesc = if (newDesc != originalDesc) newDesc else null
@@ -251,7 +251,7 @@ private class PlaylistsScreenState(
         val toDelete = selectedPlaylist
         if (toDelete != null) {
             coroutineScope.launch {
-                localRepository.deletePlaylist(toDelete.id)
+                localRepository.playlists.deletePlaylist(toDelete.id)
                 isEditing = false
                 hasUnsavedChanges = false
                 selectedPlaylist = null
@@ -264,7 +264,7 @@ private class PlaylistsScreenState(
     fun stopAllPlayback() {
         isRandomizing = false
         isStarting = false
-        playerViewModel?.cancelPendingPlayback()
+        playerViewModel?.playback?.cancel()
         playerViewModel?.pausePlayer()
     }
 
@@ -278,7 +278,7 @@ private class PlaylistsScreenState(
             val firstTrack = shuffledTracks.first()
             pvm.initializePlayer()
             pvm.setCurrentPlaylist(shuffledTracks, 0)
-            pvm.playTrack(firstTrack) {
+            pvm.playback.play(firstTrack) {
                 isRandomizing = false
             }
         } else {
@@ -293,7 +293,7 @@ private class PlaylistsScreenState(
         if (playlistTracks.isNotEmpty() && pvm != null && trackEntities.isNotEmpty()) {
             pvm.clearPlayerState()
             pvm.setCurrentPlaylist(trackEntities, 0)
-            pvm.playTrack(trackEntities[0]) {
+            pvm.playback.play(trackEntities[0]) {
                 isStarting = false
             }
         } else {
@@ -308,7 +308,7 @@ private class PlaylistsScreenState(
             val playlistId = selectedPlaylistEntity?.remoteId
             if (playlistId != null) {
                 coroutineScope.launch {
-                    localRepository.reorderTracks(
+                    localRepository.tracks.reorderTracks(
                         localPlaylistId = playlistId,
                         orderedTrackIds = reordered.map { it.id }
                     )
@@ -321,7 +321,7 @@ private class PlaylistsScreenState(
     fun addTrackToPlaylist(track: AppTrack, onError: (String) -> Unit) {
         val toAdd = selectedPlaylist ?: return
         coroutineScope.launch {
-            val success = localRepository.addTrackToYouTubePlaylist(
+            val success = localRepository.tracks.addTrackToYouTubePlaylist(
                 localPlaylistId = toAdd.id,
                 track = TrackEntity(
                     id = "",
@@ -346,7 +346,7 @@ private class PlaylistsScreenState(
     fun removeTrackFromPlaylist(track: AppTrack, onError: (String) -> Unit) {
         val toRemove = selectedPlaylist ?: return
         coroutineScope.launch {
-            val success = localRepository.removeTrackFromYouTubePlaylist(
+            val success = localRepository.tracks.removeTrackFromYouTubePlaylist(
                 localPlaylistId = toRemove.id,
                 remoteTrackId = track.id
             )
@@ -1571,7 +1571,7 @@ private fun CoverPickDialog(state: PlaylistsScreenState) {
                         cropped
                     )
                     if (path != null) {
-                        state.localRepository.updatePlaylistImage(entity.remoteId, path)
+                        state.localRepository.playlists.updatePlaylistImage(entity.remoteId, path)
                         // Refrescar la entidad para que la preview en modo edición se actualice
                         state.selectedPlaylistEntity = entity.copy(imageUrl = path)
                     }
@@ -1875,7 +1875,7 @@ private class CreatePlaylistScreenState(
                 resolvedVideoIds = resolvedVideoIds
             )
             val saved = withContext(Dispatchers.IO) {
-                localRepository.saveCreatedYouTubePlaylist(
+                localRepository.playlists.saveCreatedYouTubePlaylist(
                     created = CreatedPlaylist(
                         playlistId = rawId,
                         title = created.title,

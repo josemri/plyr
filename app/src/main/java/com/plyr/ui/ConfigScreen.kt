@@ -27,10 +27,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.PlyrApp
+import com.plyr.utils.BackupConfig
 import com.plyr.utils.BackupFolder
 import com.plyr.utils.Config
 import com.plyr.utils.DataSync
 import com.plyr.utils.SpotifyImporter
+import com.plyr.utils.SwipeConfig
 import com.plyr.utils.SyncResult
 import com.plyr.utils.Translations
 import com.plyr.viewmodel.ImportViewModel
@@ -229,8 +231,8 @@ private fun SettingRow(
 
 @Composable
 private fun GesturesSection(context: Context) {
-    var selectedSwipeLeftAction by remember { mutableStateOf(Config.getSwipeLeftAction(context)) }
-    var selectedSwipeRightAction by remember { mutableStateOf(Config.getSwipeRightAction(context)) }
+    var selectedSwipeLeftAction by remember { mutableStateOf(SwipeConfig.getSwipeLeftAction(context)) }
+    var selectedSwipeRightAction by remember { mutableStateOf(SwipeConfig.getSwipeRightAction(context)) }
 
     SwipeActionSettingRow(
         context = context,
@@ -240,7 +242,7 @@ private fun GesturesSection(context: Context) {
         defaultAction = Config.SWIPE_ACTION_ADD_TO_QUEUE,
         onActionSelected = { newAction ->
             selectedSwipeLeftAction = newAction
-            Config.setSwipeLeftAction(context, newAction)
+            SwipeConfig.setSwipeLeftAction(context, newAction)
         }
     )
 
@@ -254,7 +256,7 @@ private fun GesturesSection(context: Context) {
         defaultAction = Config.SWIPE_ACTION_ADD_TO_LIKED,
         onActionSelected = { newAction ->
             selectedSwipeRightAction = newAction
-            Config.setSwipeRightAction(context, newAction)
+            SwipeConfig.setSwipeRightAction(context, newAction)
         }
     )
 }
@@ -456,7 +458,7 @@ private fun SyncSection(context: Context) {
     var statusIsError by remember { mutableStateOf(false) }
 
     // Cambia al elegir carpeta, para repintar el estado.
-    var treeUri by remember { mutableStateOf(Config.getBackupTreeUri(context)) }
+    var treeUri by remember { mutableStateOf(BackupConfig.getBackupTreeUri(context)) }
 
     // Resolver el nombre de la carpeta y comprobar que el ZIP sigue ahí son
     // consultas al proveedor de documentos: con Drive es una llamada de red, así
@@ -601,7 +603,7 @@ private fun selectBackupFolder(
         runCatching { BackupFolder.releaseAccess(context, previous.toUri()) }
     }
 
-    Config.setBackupTree(context, selected.toString(), documentId = null)
+    BackupConfig.setBackupTree(context, selected.toString(), documentId = null)
     return FolderSelection(treeUri = selected.toString(), accessDenied = false)
 }
 

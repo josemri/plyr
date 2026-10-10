@@ -111,7 +111,7 @@ private class YouTubePlaylistDetailState(private val context: Context) {
     var saveMessage by mutableStateOf<String?>(null)
 
     suspend fun refreshSaved(playlistId: String) {
-        isSaved = localRepository.isYouTubePlaylistSaved(playlistId)
+        isSaved = localRepository.playlists.isYouTubePlaylistSaved(playlistId)
     }
 
     suspend fun load(playlistId: String) {
@@ -132,7 +132,7 @@ private class YouTubePlaylistDetailState(private val context: Context) {
     fun playFromStart(playerViewModel: PlayerViewModel?) {
         if (trackEntities.isNotEmpty() && playerViewModel != null) {
             playerViewModel.setCurrentPlaylist(trackEntities, 0)
-            playerViewModel.playTrack(trackEntities.first())
+            playerViewModel.playback.play(trackEntities.first())
         }
     }
 
@@ -146,7 +146,7 @@ private class YouTubePlaylistDetailState(private val context: Context) {
                 videos.firstOrNull { it.videoId == shuffledTrack.remoteTrackId }
             }
             playerViewModel.setCurrentPlaylist(shuffled, 0)
-            playerViewModel.playTrack(shuffled.first())
+            playerViewModel.playback.play(shuffled.first())
         }
     }
 
@@ -157,7 +157,7 @@ private class YouTubePlaylistDetailState(private val context: Context) {
         if (isSaved) {
             // Eliminar playlist guardada
             coroutineScope.launch {
-                localRepository.deleteYouTubePlaylist(playlist.playlistId)
+                localRepository.playlists.deleteYouTubePlaylist(playlist.playlistId)
                 isSaved = false
                 saveMessage = null
             }
@@ -169,7 +169,7 @@ private class YouTubePlaylistDetailState(private val context: Context) {
                 val savedTracks = trackEntities.map { it.copy(playlistId = "youtube_${playlist.playlistId}") }
                 val coverUrl = videos.firstOrNull()?.thumbnailUrl
                     ?: trackEntities.firstOrNull()?.youtubeVideoId?.let { UrlParser.youtubeThumbnailUrl(it) }
-                val success = localRepository.saveYouTubePlaylist(
+                val success = localRepository.playlists.saveYouTubePlaylist(
                     playlistId = playlist.playlistId,
                     title = playlist.title,
                     uploader = playlist.uploader,

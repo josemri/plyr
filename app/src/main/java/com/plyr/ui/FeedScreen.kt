@@ -223,7 +223,7 @@ private fun playYoutubeVideo(
         lastSyncTime = System.currentTimeMillis()
     )
     playerViewModel.setCurrentPlaylist(listOf(track), 0)
-    playerViewModel.playTrack(track)
+    playerViewModel.playback.play(track)
 }
 
 @Composable

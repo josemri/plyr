@@ -106,9 +106,6 @@ kotlin {
 detekt {
     buildUponDefaultConfig = true
     config.setFrom("detekt.yml")
-    // Deuda de estructura (LongMethod, CyclomaticComplexMethod, ...) congelada;
-    // los findings nuevos (imports sin uso, !!, variables muertas, ...) siguen fallando.
-    baseline.set(layout.projectDirectory.file("detekt-baseline.xml"))
 }
 
 android.applicationVariants.all {

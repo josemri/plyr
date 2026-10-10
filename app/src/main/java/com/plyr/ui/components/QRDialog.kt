@@ -437,7 +437,7 @@ private fun requestRecommendation(
     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
     state.recommendationState.value = RecommendationState.ADDING
     scope.launch {
-        val nickname = com.plyr.utils.Config.getUserNickname(context)
+        val nickname = com.plyr.utils.FeedConfig.getUserNickname(context)
         val generalGroup = state.groups.value.find { it.groupType == "general" }
         if (!nickname.isNullOrBlank() && generalGroup != null) {
             val result = SupabaseClient.createRecommendation(

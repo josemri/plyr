@@ -93,7 +93,7 @@ object SpotifyImporter {
 
         onProgress(playlist.tracks.size, playlist.tracks.size, "Saving...")
 
-        PlaylistLocalRepository(context).saveCreatedYouTubePlaylist(
+        PlaylistLocalRepository(context).playlists.saveCreatedYouTubePlaylist(
             created = CreatedPlaylist(
                 playlistId = playlistId,
                 title = playlist.name,

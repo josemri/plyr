@@ -23,7 +23,7 @@ internal object SafFiles {
 
     /** Carpeta de sync utilizable (con permiso persistido), o null. */
     fun tree(context: Context): Uri? {
-        val stored = Config.getBackupTreeUri(context) ?: return null
+        val stored = BackupConfig.getBackupTreeUri(context) ?: return null
         val tree = stored.toUri()
         return if (BackupFolder.hasPersistedAccess(context, tree)) tree else null
     }

@@ -16,8 +16,7 @@ Built this music player because I wanted something simple with a terminal aesthe
 - **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own .
 - **Swipe actions** — configurable left/right swipe on a song: queue, like, playlist or share. 
 - **Auto theme** by ambient light via the device light sensor.
-- **Recommendations feed** — community playlist recommendations synchronized via Supabase.
-- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
+- **Recommendations feed** — community playlist recommendations synchronized via Supabase. **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
 - **Media buttons** — play/pause, next, previous and 10 s skip from wireless headsets, Bluetooth and the notification.
 
 ## screenshots
@@ -88,9 +87,9 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Document a `local.properties.example` (`SUPABASE_URL` / `SUPABASE_ANON_KEY`)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
-- [ ] **Detekt / lint debt**
-  - [x] Refactor the ~66 `complexity` findings frozen in `detekt-baseline.xml` and regenerate the baseline (down to 4: see below)
-  - [ ] Shrink the remaining 4 structural findings frozen in `detekt-baseline.xml`: split the god-objects `Config` (31 functions), `PlaylistLocalRepository` (22) and `PlayerViewModel` (41 + `LargeClass`)
+- [x] **Detekt / lint debt**
+  - [x] Refactor the `complexity` findings that were frozen in `detekt-baseline.xml` (all of them) and drop the baseline entirely — detekt now reports 0 findings
+  - [x] Split the god-objects: `Config`, `PlaylistLocalRepository` and `PlayerViewModel` (`LargeClass`)
   - [x] Triage the 58 `UnusedResources` warnings (dynamic `drawable-nodpi/ascii_*.png`)
 
 ## license
