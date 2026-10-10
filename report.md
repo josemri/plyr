@@ -9,7 +9,7 @@
 ## 1. Estado
 
 - **0 bugs abiertos.** Los 63 (B1–B63) están cerrados (§4).
-- **`./run.sh test` ✓** — **492 tests unitarios, 0 fallos** en 40 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest`, `PlaylistMappingsTest`, `PlaylistSourceTest` y `ReorderTest`).
+- **`./run.sh test` ✓** — **499 tests unitarios, 0 fallos** en 41 archivos (incluye `WindowStateTest`, `IdlePlaybackTest`, `StableKeysTest`, `SongSwipeTest`, `PlaylistMappingsTest`, `PlaylistSourceTest`, `ReorderTest` y `DownloadPlanTest`).
 - **`./run.sh check` ✓** — detekt **0 findings** (6 nuevos corregidos en esta tanda), lint **0 errores** (2 `NonObservableLocale` corregidos con `Locale.ROOT`), cobertura ~15 % líneas.
 - **`./run.sh build` ✓** — APK debug compilado (`app/build/outputs/apk/debug/plyr-debug.apk`).
 - **9 tests instrumentados** nuevos (NFC, QR, importación) en 3 archivos, **pendientes de ejecutar en dispositivo** (`./run.sh test device`).
@@ -27,7 +27,7 @@
 | versionCode / versionName | 6 / 1.1.0 |
 | minSdk / targetSdk / compileSdk | 24 / 36 / 36 |
 | DB Room | v8, migraciones `5→6`, `6→7`, `7→8` |
-| Tests unitarios | **492** en 40 archivos |
+| Tests unitarios | **499** en 41 archivos |
 | Tests instrumentados | **9** en 3 archivos (pendientes de ejecutar en device) |
 | `runBlocking` en source | 0 |
 | Claves de traducción sin uso / inexistentes | **0** / **0** |
@@ -122,6 +122,17 @@ El commit `e58056d` ya había persistido `source`/`sourceId` en `playlists` (v8 
 - Persistencia: `PlaylistLocalRepository.reorderTracks(localPlaylistId, orderedTrackIds)` reescribe las `position` de 0 a n-1 en una transacción (`byRemoteId` + `updateTrack`), de modo que un fallo a mitad no deja índices repetidos. Solo reordena listas con fila en BD (`selectedPlaylistEntity != null`); en fuentes sin BD el arrastre se ignora.
 - Limitación conocida: sin auto-scroll ni previsualización en vivo de las filas vecinas; el arrastre útil es dentro del viewport. Candidato a mejorar si se pide.
 - Tests totales tras la tanda: **492/492** (40 archivos).
+
+### Download lists: audio offline incremental (roadmap)
+Hubo un `DownloadManager` completo (tablas `downloaded_tracks`/`local_playlists`, pantalla "local") que se borró en `53b0181`; solo quedaron la migración `5→6` que dropea las tablas y la migración del swipe. Esta tanda reintroduce la descarga **sin tocar Room ni las migraciones**.
+- **Dónde se guarda**: ficheros sueltos `<videoId>.m4a` en una subcarpeta `audio/` de la **misma carpeta SAF** del sync (`DownloadedAudioStore`); la carpeta se crea sola. Si no hay sync configurado o el permiso caducó, respaldo a `filesDir/audio`. "Ya descargado" = existe el fichero → sin tabla nueva.
+- **Por qué no dentro de `plyr-sync.zip`**: el ZIP se reescribe entero en cada sync y su import limita a 8 MB/entrada y 64 MB total (`ImportArchive`); meter audio obligaría a reconstruir megabytes por cambio y a subir esos límites. Como ficheros sueltos en la misma carpeta, la descarga es **incremental** y **viaja con la carpeta** si es de nube → en otro dispositivo se detecta y no se re-descarga.
+- `AudioDownloader`: portado del antiguo (headers de navegador + `Range: bytes=0-`), 3 reintentos, URL fresca por intento (caducan). Escritura atómica: `.part` → `rename` (SAF o File), así un fallo/cancelación no deja un `.m4a` a medias.
+- `DownloadPlan` (pura): descarta pistas sin `youtubeVideoId`, de-duplica por vídeo y respeta el orden. Testeada en `DownloadPlanTest` (7).
+- `DownloadViewModel` en `PlyrApp` (scope de Application, igual que `ImportViewModel`): sobrevive a apagar la pantalla y a salir de la playlist sin Service/WorkManager.
+- UI en `PlaylistScreen`: botón `<dwn>` (↔ `<stop>` para cancelar) tras `<share>`, con el estilo de `<rnd>`; barra `LinearProgressIndicator` + mensaje justo bajo los botones de la lista (como la de import), con autoborrado del resultado a los 3 s.
+- Alcance de esta tanda: **solo descarga**. Reproducir desde local (usar el fichero en vez del streaming) queda para después.
+- Tests tras la tanda: **499/499** (41 archivos). Detekt: se extrajo `downloadOnce` (`CyclomaticComplexMethod` 16→OK) y se adelgazó el objeto del almacén (`TooManyFunctions` 12→10).
 
 ---
 

@@ -94,6 +94,28 @@ fun PlaylistsScreen(
     // Observar el track actual para actualización reactiva del indicador de reproducción
     val currentPlayingTrack by playerViewModel?.currentTrack?.observeAsState() ?: remember { mutableStateOf(null) }
 
+    // Descarga de audio de lista (Application-scoped, como el import): sobrevive
+    // a apagar la pantalla y a salir de la playlist.
+    val downloadViewModel = context.applicationContext as? com.plyr.PlyrApp
+    val downloadPlaylistId by downloadViewModel?.downloadViewModel?.playlistId?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf<String?>(null) }
+    val isDownloading by downloadViewModel?.downloadViewModel?.isDownloading?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf(false) }
+    val downloadProgress by downloadViewModel?.downloadViewModel?.progress?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf(0f) }
+    val downloadMessage by downloadViewModel?.downloadViewModel?.message?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf("") }
+    val downloadResult by downloadViewModel?.downloadViewModel?.resultMessage?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf<String?>(null) }
+
+    // Autoborrar el resultado de la descarga a los 3 s, igual que el import
+    LaunchedEffect(downloadResult) {
+        if (downloadResult != null) {
+            kotlinx.coroutines.delay(3000)
+            downloadViewModel?.downloadViewModel?.dismissResult()
+        }
+    }
+
     // Estado para las playlists y autenticación
     val playlistsFromDB by localRepository.getAllPlaylistsLiveData().asFlow().collectAsStateWithLifecycle(initialValue = emptyList())
     var isEditing by remember { mutableStateOf(false) }
@@ -403,6 +425,29 @@ fun PlaylistsScreen(
                                         }
                                     ))
                                 }
+
+                                // Botón download: baja el audio de la lista que
+                                // falte (solo si hay filas con videoId en BD)
+                                if (selectedPlaylistEntity != null) {
+                                    val downloadingThis = isDownloading && downloadPlaylistId == selectedPlaylist?.id
+                                    add(ActionButtonData(
+                                        text = if (downloadingThis) "<stop>" else "<dwn>",
+                                        color = if (downloadingThis) MaterialTheme.colorScheme.error
+                                            else MaterialTheme.colorScheme.tertiary,
+                                        onClick = {
+                                            if (downloadingThis) {
+                                                downloadViewModel?.downloadViewModel?.cancel()
+                                            } else {
+                                                downloadViewModel?.downloadViewModel?.startDownload(
+                                                    playlistId = selectedPlaylist?.id.orEmpty(),
+                                                    playlistTitle = selectedPlaylist?.name.orEmpty(),
+                                                    tracks = trackEntities
+                                                )
+                                            }
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        }
+                                    ))
+                                }
                             }
 
                             // Botón edit/save
@@ -476,6 +521,30 @@ fun PlaylistsScreen(
                                 .fillMaxWidth()
                                 .padding(bottom = 4.dp)
                         )
+
+                        // Barra de descarga de la lista (como la de import):
+                        // solo aparece para la lista que se está descargando.
+                        if (downloadPlaylistId == selectedPlaylist?.id && (isDownloading || downloadResult != null)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                Text(
+                                    text = if (isDownloading) downloadMessage else downloadResult.orEmpty(),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        color = if (isDownloading) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.outline
+                                    )
+                                )
+                                if (isDownloading) {
+                                    Spacer(Modifier.height(4.dp))
+                                    LinearProgressIndicator(
+                                        progress = { downloadProgress },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
 
                         // Diálogo de confirmación para eliminar playlist
                         if (showDeleteDialog) {
