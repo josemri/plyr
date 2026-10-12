@@ -1,0 +1,39 @@
+-- Esquema de listas, equivalente a `PlaylistEntity` de Room (Android, versión 8).
+-- SQLDelight sustituye a Room en escritorio; el escritorio parte de una base
+-- nueva, así que no arrastra las migraciones 5→8 (el esquema ya las incluye:
+-- `source`/`sourceId` y `remoteId`).
+
+CREATE TABLE playlists (
+    remoteId TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    trackCount INTEGER NOT NULL,
+    imageUrl TEXT,
+    lastSyncTime INTEGER NOT NULL,
+    source TEXT NOT NULL,
+    sourceId TEXT
+);
+
+selectAll:
+SELECT * FROM playlists ORDER BY name ASC;
+
+selectById:
+SELECT * FROM playlists WHERE remoteId = ?;
+
+selectLastSyncTime:
+SELECT lastSyncTime FROM playlists WHERE remoteId = ?;
+
+insert:
+INSERT OR REPLACE INTO playlists(remoteId, name, description, trackCount, imageUrl, lastSyncTime, source, sourceId)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE playlists
+SET name = ?, description = ?, trackCount = ?, imageUrl = ?, lastSyncTime = ?, source = ?, sourceId = ?
+WHERE remoteId = ?;
+
+deleteById:
+DELETE FROM playlists WHERE remoteId = ?;
+
+deleteAll:
+DELETE FROM playlists;

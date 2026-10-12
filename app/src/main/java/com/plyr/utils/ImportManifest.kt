@@ -221,26 +221,26 @@ object ImportManifest {
      * Clave para deduplicar una pista que no tiene `youtubeVideoId` (con ese
      * campo vacío no se puede comparar por vídeo, que es lo que usa
      * `toggleLikeTrack`).
+     *
+     * Delega en [TrackIdentity] (`:core`), la identidad compartida con el
+     * escritorio.
      */
-    fun fallbackDedupeKey(track: TrackEntity): String = "${track.name}|${track.artists}"
+    fun fallbackDedupeKey(track: TrackEntity): String = TrackIdentity.fallbackDedupeKey(track)
 
     /**
      * La clave con la que se identifica un favorito, y con la que se tombstonea un
-     * borrado de favorito (B51). Es **la misma** que usa [PlaylistLocalRepository]
-     * para no duplicar en la fusión: si fueran dos criterios distintos, un tomb
-     * no quadraría con la pista que pretende Tapar.
+     * borrado de favorito (B51). Delega en [TrackIdentity], que es **la misma**
+     * que usa la fusión: si fueran dos criterios distintos, un tomb no cuadraría
+     * con la pista que pretende tapar.
      */
-    fun likedTrackKey(track: TrackEntity): String = likedTrackKey(track.youtubeVideoId, track.name, track.artists)
+    fun likedTrackKey(track: TrackEntity): String = TrackIdentity.likedTrackKey(track)
 
     /**
      * La misma clave, calculada desde los datos crudos que recibe
-     * `toggleLikeTrack`. Existe para que marcar y desmarcar usen **literalmente**
-     * el mismo criterio que la fusión y que el tomb: si el marcado construyera la
-     * clave por su cuenta, un `youtubeVideoId` vacío daría una clave distinta a
-     * la que luego comprueba la fusión.
+     * `toggleLikeTrack`.
      */
     fun likedTrackKey(youtubeVideoId: String?, name: String, artists: String): String =
-        youtubeVideoId?.trim()?.takeIf { it.isNotEmpty() } ?: "$name|$artists"
+        TrackIdentity.likedTrackKey(youtubeVideoId, name, artists)
 }
 
 /**

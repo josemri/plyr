@@ -6,12 +6,12 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "playlists")
 data class PlaylistEntity(
     @PrimaryKey
-    val remoteId: String,
-    val name: String,
+    override val remoteId: String,
+    override val name: String,
     val description: String?,
-    val trackCount: Int,
+    override val trackCount: Int,
     val imageUrl: String?,
     val lastSyncTime: Long = System.currentTimeMillis(),
     val source: PlaylistSource = PlaylistSource.UNKNOWN,
     val sourceId: String? = null
-)
+) : PlaylistRow

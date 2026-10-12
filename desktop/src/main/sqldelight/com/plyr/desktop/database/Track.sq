@@ -1,0 +1,45 @@
+-- Esquema de pistas, equivalente a `TrackEntity` de Room (Android, versión 8).
+-- La clave foránea y el índice replican los de Room; los borrados de lista
+-- eliminan sus pistas explícitamente (igual que hacía `PlaylistTracksRepository`).
+
+CREATE TABLE tracks (
+    id TEXT NOT NULL PRIMARY KEY,
+    playlistId TEXT NOT NULL,
+    remoteTrackId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    artists TEXT NOT NULL,
+    youtubeVideoId TEXT,
+    audioUrl TEXT,
+    position INTEGER NOT NULL,
+    lastSyncTime INTEGER NOT NULL,
+    FOREIGN KEY (playlistId) REFERENCES playlists(remoteId) ON DELETE CASCADE
+);
+
+CREATE INDEX tracks_playlistId ON tracks(playlistId);
+
+selectByPlaylist:
+SELECT * FROM tracks WHERE playlistId = ? ORDER BY position ASC;
+
+selectById:
+SELECT * FROM tracks WHERE id = ?;
+
+insert:
+INSERT OR REPLACE INTO tracks(id, playlistId, remoteTrackId, name, artists, youtubeVideoId, audioUrl, position, lastSyncTime)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+update:
+UPDATE tracks
+SET playlistId = ?, remoteTrackId = ?, name = ?, artists = ?, youtubeVideoId = ?, audioUrl = ?, position = ?, lastSyncTime = ?
+WHERE id = ?;
+
+updateYoutubeVideoId:
+UPDATE tracks SET youtubeVideoId = ? WHERE id = ?;
+
+deleteById:
+DELETE FROM tracks WHERE id = ?;
+
+deleteByPlaylist:
+DELETE FROM tracks WHERE playlistId = ?;
+
+deleteAll:
+DELETE FROM tracks;

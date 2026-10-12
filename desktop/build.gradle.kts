@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.sqldelight)
 }
 
 kotlin {
@@ -17,9 +18,26 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     // Motor de audio de escritorio (M4). Requiere `libvlc` instalado en el sistema.
     implementation(libs.vlcj)
+    // Persistencia de escritorio (M6): SQLDelight sustituye a Room.
+    implementation(libs.sqldelight.runtime)
+    implementation(libs.sqldelight.sqlite.driver)
+    implementation(libs.sqldelight.coroutines)
     testImplementation(libs.junit)
     // Test de UI de Compose (runComposeUiTest) para la navegación de M5.
     testImplementation(compose.desktop.uiTestJUnit4)
+}
+
+/**
+ * Base de datos de escritorio (M6). SQLDelight genera `PlyrDatabase` a partir de
+ * los esquemas `.sq` de `src/main/sqldelight`, equivalentes a las entidades Room
+ * de Android (`playlists`, `tracks`, `search_history`, versión 8).
+ */
+sqldelight {
+    databases {
+        create("PlyrDatabase") {
+            packageName.set("com.plyr.desktop.database")
+        }
+    }
 }
 
 /**

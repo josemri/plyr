@@ -1,0 +1,24 @@
+-- Esquema del historial de búsquedas, equivalente a `SearchHistoryEntity` de
+-- Room (Android, versión 8).
+
+CREATE TABLE search_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query TEXT NOT NULL,
+    searchEngine TEXT NOT NULL,
+    timestamp INTEGER NOT NULL
+);
+
+insert:
+INSERT INTO search_history(query, searchEngine, timestamp) VALUES (?, ?, ?);
+
+selectRecent:
+SELECT * FROM search_history ORDER BY timestamp DESC LIMIT 50;
+
+clear:
+DELETE FROM search_history;
+
+deleteById:
+DELETE FROM search_history WHERE id = ?;
+
+deleteByQuery:
+DELETE FROM search_history WHERE query = ? AND searchEngine = ?;

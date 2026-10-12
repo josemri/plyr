@@ -3,7 +3,7 @@ package com.plyr.database
 import android.content.Context
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
-import com.plyr.utils.ImportManifest
+import com.plyr.utils.TrackIdentity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -42,14 +42,15 @@ class PlaylistLocalRepository(context: Context) {
     val tracks = PlaylistTracksRepository(store)
 
     companion object {
-        const val LIKED_SONGS_ID = "liked_songs"
+        const val LIKED_SONGS_ID = LikedSongs.ID
 
         /**
          * Fila de *liked* que corresponde a una canción, o `null` si no está.
          *
-         * La identidad es el `youtubeVideoId`; si la canción llega sin id, se
-         * recurre a nombre+artista con [ImportManifest.fallbackDedupeKey], que
-         * es la única clave disponible y la misma que usa `mergeLikedSongsTracks`.
+         * La identidad vive en [TrackIdentity] (`:core`), compartida con el
+         * escritorio: manda el `youtubeVideoId` y, si la canción llega sin id, se
+         * recurre a nombre+artista con [TrackIdentity.fallbackDedupeKey], que es
+         * la única clave disponible y la misma que usa `mergeLikedSongsTracks`.
          * Sin ese recurso, un `""` no encontraba nunca la fila guardada y cada
          * intento de quitar un favorito acababa **añadiendo** otra fila (B1).
          */
@@ -59,47 +60,19 @@ class PlaylistLocalRepository(context: Context) {
             artists: String,
             remoteTrackId: String,
             youtubeVideoId: String?
-        ): TrackEntity? {
-            if (!youtubeVideoId.isNullOrBlank()) {
-                tracks.firstOrNull { it.youtubeVideoId == youtubeVideoId }?.let { return it }
-            }
-            val key = ImportManifest.fallbackDedupeKey(
-                TrackEntity(
-                    id = "",
-                    playlistId = LIKED_SONGS_ID,
-                    remoteTrackId = remoteTrackId,
-                    name = name,
-                    artists = artists,
-                    youtubeVideoId = youtubeVideoId,
-                    audioUrl = null,
-                    position = 0
-                )
-            )
-            return tracks.firstOrNull { ImportManifest.fallbackDedupeKey(it) == key }
-        }
+        ): TrackEntity? =
+            TrackIdentity.likedTrackOf(tracks, name, artists, remoteTrackId, youtubeVideoId)
 
         /**
          * Listas que se muestran en el carrusel del Home y en la rejilla de
          * listas, ya filtradas y ordenadas.
          *
-         * Dos exclusiones:
-         * - `album_*`: los álbumes de Spotify no son listas del usuario.
-         * - *liked* vacía: la fila se crea siempre al arrancar
-         *   (`ensureLikedSongsPlaylist`), así que sin este filtro el primer
-         *   elemento del Home era un corazón rojo sin nada detrás (F1).
-         *
-         * **Es un filtro, no un borrado**: `toggleLikeTrack`,
-         * `mergeLikedSongsTracks` e `ImportManifest.plan` dan por hecho que la
-         * fila de *liked* existe, y borrarla "si está vacía" rompería las tres.
-         * `trackCount` lo mantienen las tres rutas que la modifican, así que
-         * basta con mirarlo — y como `getAllPlaylists()` es un `Flow` sobre la
-         * tabla, aparece y desaparece sola.
+         * El filtro y el orden viven en [PlaylistFilters] (`:core`), compartidos
+         * con el escritorio. Ver su documentación para el porqué de las dos
+         * exclusiones (`album_*` y *liked* vacía).
          */
         fun visiblePlaylists(playlists: List<PlaylistEntity>): List<PlaylistEntity> =
-            playlists
-                .filter { !it.remoteId.startsWith("album_") }
-                .filter { it.remoteId != LIKED_SONGS_ID || it.trackCount > 0 }
-                .sortedBy { if (it.remoteId == LIKED_SONGS_ID) "" else it.name }
+            PlaylistFilters.visiblePlaylists(playlists, LIKED_SONGS_ID)
     }
 
     // === OBSERVATION ===

@@ -22,10 +22,10 @@ data class TrackEntity(
     val id: String,
     val playlistId: String,
     val remoteTrackId: String,
-    val name: String,
-    val artists: String,
-    val youtubeVideoId: String? = null,
+    override val name: String,
+    override val artists: String,
+    override val youtubeVideoId: String? = null,
     val audioUrl: String? = null,
     val position: Int,
     val lastSyncTime: Long = System.currentTimeMillis()
-)
+) : TrackRow
