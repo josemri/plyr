@@ -1,7 +1,7 @@
 package com.plyr.network
 
-import android.util.Log
-import com.plyr.BuildConfig
+import com.plyr.core.NetworkConfig
+import com.plyr.core.util.Logger
 import com.plyr.model.Group
 import com.plyr.model.GroupMember
 import com.plyr.model.Recommendation
@@ -18,8 +18,8 @@ import java.util.UUID
 object SupabaseClient {
     private const val TAG = "SupabaseClient"
 
-    private val SUPABASE_URL = BuildConfig.SUPABASE_URL
-    private val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
+    private val SUPABASE_URL: String get() = NetworkConfig.supabaseUrl
+    private val SUPABASE_ANON_KEY: String get() = NetworkConfig.supabaseAnonKey
 
     private const val GROUPS_TABLE = "groups"
     private const val GROUP_MEMBERS_TABLE = "group_members"
@@ -28,7 +28,7 @@ object SupabaseClient {
     // Groups operations
     suspend fun getGroups(): List<Group> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔄 Fetching groups from Supabase...")
+            Logger.d(TAG, "🔄 Fetching groups from Supabase...")
             val url = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE?select=*")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
@@ -36,21 +36,21 @@ object SupabaseClient {
             connection.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
 
             val responseCode = connection.responseCode
-            Log.d(TAG, "📡 Response code: $responseCode")
+            Logger.d(TAG, "📡 Response code: $responseCode")
 
             // Handle error responses
             if (responseCode != 200) {
                 val errorStream = connection.errorStream
                 val errorResponse = errorStream?.bufferedReader()?.use { it.readText() } ?: "No error details"
-                Log.e(TAG, "❌ HTTP $responseCode Error response: ${redact(errorResponse)}")
+                Logger.e(TAG, "❌ HTTP $responseCode Error response: ${redact(errorResponse)}")
                 return@withContext emptyList()
             }
 
             val response = connection.inputStream.bufferedReader().use { it.readText() }
-            Log.d(TAG, "📦 Raw response: ${describeBody(response)}")
+            Logger.d(TAG, "📦 Raw response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
-            Log.d(TAG, "📊 Number of groups found: ${jsonArray.length()}")
+            Logger.d(TAG, "📊 Number of groups found: ${jsonArray.length()}")
 
             val groups = mutableListOf<Group>()
             for (i in 0 until jsonArray.length()) {
@@ -62,20 +62,20 @@ object SupabaseClient {
                     groupType = json.getString("group_type"),
                     createdAt = parseTimestamp(json.optString("created_at", ""))
                 )
-                Log.d(TAG, "  ✅ Group: ${redact(group.name)} (${group.groupType}) - ID: ${redact(group.id)}")
+                Logger.d(TAG, "  ✅ Group: ${redact(group.name)} (${group.groupType}) - ID: ${redact(group.id)}")
                 groups.add(group)
             }
-            Log.d(TAG, "✨ Total groups loaded: ${groups.size}")
+            Logger.d(TAG, "✨ Total groups loaded: ${groups.size}")
             groups
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error fetching groups: ${e.message}", e)
+            Logger.e(TAG, "❌ Error fetching groups: ${e.message}", e)
             emptyList()
         }
     }
 
     suspend fun createGroup(name: String, groupType: String, inviteCode: String? = null): Group? = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🆕 Creating group: ${redact(name)} (type: $groupType, code: ${redact(inviteCode)})")
+            Logger.d(TAG, "🆕 Creating group: ${redact(name)} (type: $groupType, code: ${redact(inviteCode)})")
             val url = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
@@ -91,22 +91,22 @@ object SupabaseClient {
                 if (inviteCode != null) put("invite_code", inviteCode)
             }
 
-            Log.d(TAG, "📤 Request body: ${describeBody(json.toString())}")
+            Logger.d(TAG, "📤 Request body: ${describeBody(json.toString())}")
 
             connection.outputStream.write(json.toString().toByteArray())
 
             val responseCode = connection.responseCode
-            Log.d(TAG, "📡 Response code: $responseCode")
+            Logger.d(TAG, "📡 Response code: $responseCode")
 
             // B33: los 4xx no lanzan FileNotFoundException; se lee el cuerpo y se
             // devuelve null (antes: "error: null" sin más diagnóstico).
             if (responseCode !in 200..299) {
-                Log.e(TAG, "❌ HTTP $responseCode al crear grupo: ${redact(readBody(connection))}")
+                Logger.e(TAG, "❌ HTTP $responseCode al crear grupo: ${redact(readBody(connection))}")
                 return@withContext null
             }
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Response: ${describeBody(response)}")
+            Logger.d(TAG, "📦 Response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
 
@@ -119,21 +119,21 @@ object SupabaseClient {
                     groupType = result.getString("group_type"),
                     createdAt = parseTimestamp(result.optString("created_at", ""))
                 )
-                Log.d(TAG, "✅ Group created successfully: ${redact(group.name)}")
+                Logger.d(TAG, "✅ Group created successfully: ${redact(group.name)}")
                 group
             } else {
-                Log.w(TAG, "⚠️ No group returned from creation")
+                Logger.w(TAG, "⚠️ No group returned from creation")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error creating group: ${e.message}", e)
+            Logger.e(TAG, "❌ Error creating group: ${e.message}", e)
             null
         }
     }
 
     suspend fun joinGroup(inviteCode: String, nickname: String): GroupMember? = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔗 Joining group with code: ${redact(inviteCode)} as ${redact(nickname)}")
+            Logger.d(TAG, "🔗 Joining group with code: ${redact(inviteCode)} as ${redact(nickname)}")
 
             // First, find the group by invite code (B33: el código se URL-encodea
             // para no romper la semántica del filtro si lleva &, # o ,)
@@ -145,17 +145,17 @@ object SupabaseClient {
             groupConnection.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
 
             val groupResponse = readBody(groupConnection)
-            Log.d(TAG, "📦 Group search response: ${describeBody(groupResponse)}")
+            Logger.d(TAG, "📦 Group search response: ${describeBody(groupResponse)}")
 
             val groupArray = JSONArray(groupResponse)
 
             if (groupArray.length() == 0) {
-                Log.w(TAG, "⚠️ No group found with invite code: ${redact(inviteCode)}")
+                Logger.w(TAG, "⚠️ No group found with invite code: ${redact(inviteCode)}")
                 return@withContext null
             }
 
             val groupId = groupArray.getJSONObject(0).getString("id")
-            Log.d(TAG, "✅ Found group ID: ${redact(groupId)}")
+            Logger.d(TAG, "✅ Found group ID: ${redact(groupId)}")
 
             // Then add the member
             val url = URL("$SUPABASE_URL/rest/v1/$GROUP_MEMBERS_TABLE")
@@ -172,21 +172,21 @@ object SupabaseClient {
                 put("nickname", nickname)
             }
 
-            Log.d(TAG, "📤 Adding member request: ${describeBody(json.toString())}")
+            Logger.d(TAG, "📤 Adding member request: ${describeBody(json.toString())}")
 
             connection.outputStream.write(json.toString().toByteArray())
 
             val responseCode = connection.responseCode
-            Log.d(TAG, "📡 Response code: $responseCode")
+            Logger.d(TAG, "📡 Response code: $responseCode")
 
             // B33: no lanzar y leer el cuerpo en fallos
             if (responseCode !in 200..299) {
-                Log.e(TAG, "❌ HTTP $responseCode al añadir miembro: ${redact(readBody(connection))}")
+                Logger.e(TAG, "❌ HTTP $responseCode al añadir miembro: ${redact(readBody(connection))}")
                 return@withContext null
             }
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Member add response: ${describeBody(response)}")
+            Logger.d(TAG, "📦 Member add response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
 
@@ -198,14 +198,14 @@ object SupabaseClient {
                     nickname = result.getString("nickname"),
                     joinedAt = parseTimestamp(result.optString("joined_at", ""))
                 )
-                Log.d(TAG, "✅ Member added successfully: ${redact(member.nickname)}")
+                Logger.d(TAG, "✅ Member added successfully: ${redact(member.nickname)}")
                 member
             } else {
-                Log.w(TAG, "⚠️ No member returned from join")
+                Logger.w(TAG, "⚠️ No member returned from join")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error joining group: ${e.message}", e)
+            Logger.e(TAG, "❌ Error joining group: ${e.message}", e)
             null
         }
     }
@@ -219,8 +219,8 @@ object SupabaseClient {
                 "$SUPABASE_URL/rest/v1/$RECOMMENDATIONS_TABLE?select=*&order=created_at.desc"
             }
 
-            Log.d(TAG, "🔄 Fetching recommendations for group: ${groupId ?: "ALL"}")
-            Log.d(TAG, "📡 URL: $urlString")
+            Logger.d(TAG, "🔄 Fetching recommendations for group: ${groupId ?: "ALL"}")
+            Logger.d(TAG, "📡 URL: $urlString")
 
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection
@@ -229,13 +229,13 @@ object SupabaseClient {
             connection.setRequestProperty("Authorization", "Bearer $SUPABASE_ANON_KEY")
 
             val responseCode = connection.responseCode
-            Log.d(TAG, "📡 Response code: $responseCode")
+            Logger.d(TAG, "📡 Response code: $responseCode")
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Raw response: ${describeBody(response)}")
+            Logger.d(TAG, "📦 Raw response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
-            Log.d(TAG, "📊 Number of recommendations found: ${jsonArray.length()}")
+            Logger.d(TAG, "📊 Number of recommendations found: ${jsonArray.length()}")
 
             val recommendations = mutableListOf<Recommendation>()
             for (i in 0 until jsonArray.length()) {
@@ -251,13 +251,13 @@ object SupabaseClient {
                     reportCount = json.optInt("report_count", 0),
                     createdAt = parseTimestamp(json.optString("created_at", ""))
                 )
-                Log.d(TAG, "  ✅ Recommendation by ${redact(recommendation.nickname)}: ${redact(recommendation.url)}")
+                Logger.d(TAG, "  ✅ Recommendation by ${redact(recommendation.nickname)}: ${redact(recommendation.url)}")
                 recommendations.add(recommendation)
             }
-            Log.d(TAG, "✨ Total recommendations loaded: ${recommendations.size}")
+            Logger.d(TAG, "✨ Total recommendations loaded: ${recommendations.size}")
             recommendations
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error fetching recommendations: ${e.message}", e)
+            Logger.e(TAG, "❌ Error fetching recommendations: ${e.message}", e)
             emptyList()
         }
     }
@@ -269,9 +269,9 @@ object SupabaseClient {
         comment: String? = null
     ): Recommendation? = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🆕 Creating recommendation by ${redact(nickname)} in group ${redact(groupId)}")
-            Log.d(TAG, "   URL: ${redact(url)}")
-            Log.d(TAG, "   Comment: ${redact(comment)}")
+            Logger.d(TAG, "🆕 Creating recommendation by ${redact(nickname)} in group ${redact(groupId)}")
+            Logger.d(TAG, "   URL: ${redact(url)}")
+            Logger.d(TAG, "   Comment: ${redact(comment)}")
 
             val urlObj = URL("$SUPABASE_URL/rest/v1/$RECOMMENDATIONS_TABLE")
             val connection = urlObj.openConnection() as HttpURLConnection
@@ -289,21 +289,21 @@ object SupabaseClient {
                 if (comment != null) put("comment", comment)
             }
 
-            Log.d(TAG, "📤 Request body: ${describeBody(json.toString())}")
+            Logger.d(TAG, "📤 Request body: ${describeBody(json.toString())}")
 
             connection.outputStream.write(json.toString().toByteArray())
 
             val responseCode = connection.responseCode
-            Log.d(TAG, "📡 Response code: $responseCode")
+            Logger.d(TAG, "📡 Response code: $responseCode")
 
             // B33: no lanzar y leer el cuerpo en fallos
             if (responseCode !in 200..299) {
-                Log.e(TAG, "❌ HTTP $responseCode al recomendar: ${redact(readBody(connection))}")
+                Logger.e(TAG, "❌ HTTP $responseCode al recomendar: ${redact(readBody(connection))}")
                 return@withContext null
             }
 
             val response = readBody(connection)
-            Log.d(TAG, "📦 Response: ${describeBody(response)}")
+            Logger.d(TAG, "📦 Response: ${describeBody(response)}")
 
             val jsonArray = JSONArray(response)
 
@@ -320,14 +320,14 @@ object SupabaseClient {
                     reportCount = result.optInt("report_count", 0),
                     createdAt = parseTimestamp(result.optString("created_at", ""))
                 )
-                Log.d(TAG, "✅ Recommendation created successfully!")
+                Logger.d(TAG, "✅ Recommendation created successfully!")
                 recommendation
             } else {
-                Log.w(TAG, "⚠️ No recommendation returned from creation")
+                Logger.w(TAG, "⚠️ No recommendation returned from creation")
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Error creating recommendation: ${e.message}", e)
+            Logger.e(TAG, "❌ Error creating recommendation: ${e.message}", e)
             null
         }
     }

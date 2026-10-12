@@ -264,9 +264,10 @@ private fun RecommendationItem(
 
 @Composable
 private fun RecommendationThumbnail(metadata: MediaMetadata?) {
-    if (metadata?.thumbnailUrl != null) {
+    val thumbnailUrl = metadata?.thumbnailUrl
+    if (thumbnailUrl != null) {
         AsyncImage(
-            model = metadata.thumbnailUrl,
+            model = thumbnailUrl,
             contentDescription = "Thumbnail",
             modifier = Modifier
                 .size(60.dp)
@@ -281,6 +282,7 @@ private fun ColumnScope.RecommendationTexts(
     recommendation: Recommendation,
     metadata: MediaMetadata?
 ) {
+    val author = metadata?.author
     Column(
         modifier = Modifier.weight(1f),
         verticalArrangement = Arrangement.Center
@@ -292,14 +294,14 @@ private fun ColumnScope.RecommendationTexts(
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.primary
             ),
-            maxLines = if (metadata?.author != null) 1 else 2,
+            maxLines = if (author != null) 1 else 2,
             overflow = TextOverflow.Ellipsis
         )
 
-        if (metadata?.author != null) {
+        if (author != null) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = metadata.author,
+                text = author,
                 style = MaterialTheme.typography.bodySmall.copy(
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,

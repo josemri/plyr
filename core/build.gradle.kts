@@ -19,6 +19,9 @@ kotlin {
 
     sourceSets {
         val commonMain = getByName("commonMain")
+        val commonTest = getByName("commonTest")
+        val jvmMain = getByName("jvmMain")
+        val jvmTest = getByName("jvmTest")
 
         // Código que usa APIs de la JVM (java.*) presentes tanto en el JVM de
         // escritorio como en Android/ART. No puede vivir en commonMain (que es
@@ -27,16 +30,28 @@ kotlin {
             dependsOn(commonMain)
         }
 
-        getByName("jvmMain").dependsOn(jvmSharedMain)
+        jvmMain.dependsOn(jvmSharedMain)
         getByName("androidMain").dependsOn(jvmSharedMain)
 
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
         }
-        getByName("commonTest").dependencies {
+        // NewPipe/OkHttp son librerías JVM: las usan tanto el escritorio como
+        // Android, así que viven en el source set compartido.
+        jvmSharedMain.dependencies {
+            implementation(libs.newpipe.extractor)
+            implementation(libs.okhttp)
+        }
+        commonTest.dependencies {
             implementation(libs.junit)
         }
-        getByName("jvmTest").dependencies {
+        // org.json: en Android lo aporta el propio SDK, pero el JVM de escritorio
+        // necesita el artefacto. Declararlo aquí deja el AAR de Android sin
+        // duplicar org.json (el compilador lo resuelve de android.jar).
+        jvmMain.dependencies {
+            implementation(libs.json)
+        }
+        jvmTest.dependencies {
             implementation(libs.json)
         }
     }

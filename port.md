@@ -467,7 +467,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 |---|---|---|---|
 | M0 | Andamiaje de módulos | 0.5 | ☑ |
 | M1 | Extraer `core` + tests ⭐ | 1–2 | ◐ |
-| M2 | Red a `core` | 0.5 | ☐ |
+| M2 | Red a `core` | 0.5 | ☑ |
 | M3 | `AudioPlayer` + `QueueEngine` ⭐ | 1 | ☐ |
 | M4 | VLCJ funcionando ⭐ | 1 | ☐ |
 | M5 | Esqueleto UI Compose Desktop | 1 | ☐ |
@@ -495,6 +495,16 @@ ENTREGABLE: <qué debe quedar en el repo>.
   - Logger propio `com.plyr.core.util.Logger` (`jvmSharedMain`, vía `java.util.logging`, equivalente en Android) sustituye a `android.util.Log` en `NfcScanEvent`.
   - **Diferidos respecto al plan (M1):** `QueueIndex` (depende de `Config`→M9/M3), `ImportManifest` (Room→M6), `YouTubePlaylistCreator` (Room+red→M2/M6), `MediaMetadataExtractor` (NewPipe→M2), `NfcTagEvent` (`android.nfc.Tag`, se queda en `:app`) y `ModelDefaultsTest` (depende de UI). Se documentan aquí para no perderlos.
   - Verificado: `./gradlew :core:jvmTest` (169 tests, 0 fallos), `./gradlew :app:assembleDebug` y `./gradlew :app:testDebugUnitTest` (335 tests, 0 fallos).
+- **M2 — Red a `:core` sin Android ✅.** Movidos **7 archivos** de `:app` a `:core`:
+  - `commonMain` (puro): `network/AppModels.kt` (data classes de Spotify) e `i18n/TranslationCatalog.kt` (catálogo de traducciones: mapas + `get(language, key)`).
+  - `jvmSharedMain` (JVM/Android): `network/{YouTubeManager,SimpleDownloader,SupabaseClient}.kt` y `utils/{NewPipeHolder,MediaMetadataExtractor}.kt` (este último era un diferido de M1).
+  - **Sin dependencia de Android:** `android.util.Log` → `com.plyr.core.util.Logger` en los tres ficheros de red; `BuildConfig` → nuevo `com.plyr.core.NetworkConfig`, que `:app` rellena en `PlyrApp.onCreate` desde `BuildConfig` (conserva los overrides de `local.properties`/entorno de S9/S10). `SupabaseClient` lee `NetworkConfig.supabaseUrl`/`supabaseAnonKey` mediante getters para no capturar valores en el init.
+  - **Traducciones (desviación respecto al plan):** el catálogo puro se mueve a `:core` (`com.plyr.i18n.TranslationCatalog`); `:app` conserva un envoltorio fino `com.plyr.utils.Translations.get(context, key)` que resuelve el idioma con `Config` y delega en el catálogo. Así las ~110 llamadas `Translations.get(context, …)` no cambian y la parte que necesita `Context` no contamina `:core`.
+  - **Dependencias** declaradas en `jvmSharedMain` (compartidas por `jvm` + `android`): `NewPipeExtractor` (`v0.26.3`) y `OkHttp`. `org.json` se declara solo para `jvm`: en Android lo aporta el SDK (android.jar), y declararlo empaquetaría una copia duplicada en el APK.
+  - **Tests movidos:** `AppModelsTest` y `TranslationCatalogTest` (ex `TranslationsTest`) a `commonTest`; `SimpleDownloaderLogRedactionTest`, `SupabaseClientTest`, `NewPipeHolderTest` y `AudioUrlExtractionTest` (usa el overload `internal` de `YouTubeManager`) a `jvmTest`. `TranslationKeysUsageTest` se queda en `:app` (escanea las fuentes de la app) pero refleja el catálogo de `:core`.
+  - **Smoke test de red** (`jvmTest/.../NetworkSmokeTest.kt`): verifica desde un JVM de escritorio que `YouTubeManager.searchVideoId(...)` devuelve un id y que `getAudioUrl(...)` extrae una URL reproducible; se omite con `assumeTrue` cuando no hay conexión (en esta máquina **se ejecutó y pasó**).
+  - **Ajuste de test:** `NewPipeHolderTest.init_notInitializedBeforeFirstCall` asumía un JVM limpio; al inicializar el smoke test NewPipe en el mismo proceso dejaba de ser válido. Se sustituye por `init_secondCallIsIdempotentAndKeepsFirstDownloader`, que comprueba el contrato real (idempotencia: el segundo init no reemplaza el `Downloader`) y no depende del orden de ejecución.
+  - Verificado: `./gradlew :core:jvmTest` (**225 tests**, 0 fallos), `./run.sh test` (**280 tests** de `:app`, 0 fallos) y `./run.sh build` (APK de Android, sin clases duplicadas). **Total: 505 tests.**
 
 
 ---

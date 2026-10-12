@@ -1,6 +1,7 @@
 package com.plyr
 
 import android.app.Application
+import com.plyr.core.NetworkConfig
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.viewmodel.DownloadViewModel
 import com.plyr.viewmodel.ImportViewModel
@@ -23,6 +24,13 @@ class PlyrApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // S9/S10: los valores de red (con overrides de build) viven en `:core`,
+        // que no puede leer `BuildConfig` (Android). Se inyectan aquí al arrancar.
+        NetworkConfig.supabaseUrl = BuildConfig.SUPABASE_URL
+        NetworkConfig.supabaseAnonKey = BuildConfig.SUPABASE_ANON_KEY
+        NetworkConfig.youtubeRestrictedModeCookie = BuildConfig.YOUTUBE_RESTRICTED_MODE_COOKIE
+
         playerViewModel = PlayerViewModel(this)
         importViewModel = ImportViewModel(this)
         downloadViewModel = DownloadViewModel(this)

@@ -1,5 +1,6 @@
 package com.plyr.network
 
+import com.plyr.core.util.Logger
 import com.plyr.utils.NewPipeHolder
 import com.plyr.utils.UrlParser
 import kotlinx.coroutines.CompletableDeferred
@@ -203,7 +204,7 @@ object YouTubeManager {
 
             val audioStreams = extractor.audioStreams
             if (audioStreams.isEmpty()) {
-                android.util.Log.e("YouTubeManager", "❌ Sin audio streams para $videoId")
+                Logger.e("YouTubeManager", "❌ Sin audio streams para $videoId")
                 return null
             }
 
@@ -214,17 +215,17 @@ object YouTubeManager {
                 @Suppress("DEPRECATION")
                 val deprecatedUrl = firstStream.url
                 if (deprecatedUrl != null) {
-                    android.util.Log.w("YouTubeManager", "⚠️ Usando URL deprecated para $videoId")
+                    Logger.w("YouTubeManager", "⚠️ Usando URL deprecated para $videoId")
                     return deprecatedUrl
                 }
                 return null
             }
 
-            android.util.Log.d("YouTubeManager", "✅ URL de audio resuelta para $videoId")
+            Logger.d("YouTubeManager", "✅ URL de audio resuelta para $videoId")
             audioUrl
 
         } catch (e: Exception) {
-            android.util.Log.e("YouTubeManager", "❌ Error extrayendo audio de $videoId: ${e.message}")
+            Logger.e("YouTubeManager", "❌ Error extrayendo audio de $videoId: ${e.message}")
             null
         }
     }

@@ -1,4 +1,4 @@
-package com.plyr.utils
+package com.plyr.i18n
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -6,21 +6,21 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Tests del sistema de traducciones.
+ * Tests del catálogo de traducciones.
  *
  * Verifica que todos los idiomas tengan el mismo conjunto de claves
  * (regresión típica al añadir/quitar traducciones) y que los valores
  * no estén vacíos.
  */
-class TranslationsTest {
+class TranslationCatalogTest {
 
     private val languages = listOf("español", "english", "català", "日本語")
 
     @Suppress("UNCHECKED_CAST")
     private fun getTranslationsMap(): Map<String, Map<String, String>> {
-        val field = Translations::class.java.getDeclaredField("translations")
+        val field = TranslationCatalog::class.java.getDeclaredField("translations")
         field.isAccessible = true
-        return field.get(Translations) as Map<String, Map<String, String>>
+        return field.get(TranslationCatalog) as Map<String, Map<String, String>>
     }
 
     /**
@@ -73,11 +73,11 @@ class TranslationsTest {
 
     @Test
     fun unknownKeyReturnsKeyItself() {
-        assertEquals("nonexistent_key_xyz", Translations.get("english", "nonexistent_key_xyz"))
+        assertEquals("nonexistent_key_xyz", TranslationCatalog.get("english", "nonexistent_key_xyz"))
     }
 
     @Test
     fun unknownLanguageReturnsKeyItself() {
-        assertEquals("config_title", Translations.get("klingon", "config_title"))
+        assertEquals("config_title", TranslationCatalog.get("klingon", "config_title"))
     }
 }

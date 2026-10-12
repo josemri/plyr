@@ -1,5 +1,6 @@
 package com.plyr.utils
 
+import com.plyr.i18n.TranslationCatalog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,9 +34,9 @@ class TranslationKeysUsageTest {
 
     @Suppress("UNCHECKED_CAST")
     private fun translations(): Map<String, Map<String, String>> {
-        val field = Translations::class.java.getDeclaredField("translations")
+        val field = TranslationCatalog::class.java.getDeclaredField("translations")
         field.isAccessible = true
-        return field.get(Translations) as Map<String, Map<String, String>>
+        return field.get(TranslationCatalog) as Map<String, Map<String, String>>
     }
 
     /** Fuentes de `main`, de donde se extraen las claves realmente usadas. */

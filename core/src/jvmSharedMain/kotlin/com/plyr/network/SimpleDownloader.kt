@@ -1,7 +1,7 @@
 package com.plyr.network
 
-import android.util.Log
-import com.plyr.BuildConfig
+import com.plyr.core.NetworkConfig
+import com.plyr.core.util.Logger
 import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
@@ -16,7 +16,7 @@ class SimpleDownloader private constructor() : Downloader() {
     companion object {
         private const val TAG = "SimpleDownloader"
         private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
-        private val YOUTUBE_RESTRICTED_MODE_COOKIE = BuildConfig.YOUTUBE_RESTRICTED_MODE_COOKIE
+        private val YOUTUBE_RESTRICTED_MODE_COOKIE = NetworkConfig.youtubeRestrictedModeCookie
         private const val YOUTUBE_DOMAIN = "youtube.com"
         private const val RESTRICTED_MODE_COOKIE_KEY = "youtube_restricted_mode_key"
         private const val RECAPTCHA_COOKIE_KEY = "recaptcha_cookies_key"
@@ -51,7 +51,7 @@ class SimpleDownloader private constructor() : Downloader() {
 
         // Agregar cookie de modo restringido de YouTube por defecto
         setCookie(RESTRICTED_MODE_COOKIE_KEY, YOUTUBE_RESTRICTED_MODE_COOKIE)
-        Log.d(TAG, "✅ SimpleDownloader inicializado con OkHttp")
+        Logger.d(TAG, "✅ SimpleDownloader inicializado con OkHttp")
     }
 
     fun setCookie(key: String, cookie: String) {
@@ -79,7 +79,7 @@ class SimpleDownloader private constructor() : Downloader() {
 
     @Throws(IOException::class, ReCaptchaException::class)
     override fun execute(request: Request): Response {
-        Log.d(TAG, "🌐 Ejecutando petición: ${request.httpMethod()} ${request.url()}")
+        Logger.d(TAG, "🌐 Ejecutando petición: ${request.httpMethod()} ${request.url()}")
 
         val url = request.url()
         val builtRequest = buildRequest(request)
@@ -87,13 +87,13 @@ class SimpleDownloader private constructor() : Downloader() {
         return try {
             client.newCall(builtRequest).execute().use { response -> handleResponse(response, url) }
         } catch (e: ReCaptchaException) {
-            Log.e(TAG, "🚫 ReCaptcha Exception", e)
+            Logger.e(TAG, "🚫 ReCaptcha Exception", e)
             throw e
         } catch (e: IOException) {
-            Log.e(TAG, "🌐 IOException", e)
+            Logger.e(TAG, "🌐 IOException", e)
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception inesperada", e)
+            Logger.e(TAG, "❌ Exception inesperada", e)
             throw IOException("Error en petición HTTP", e)
         }
     }
@@ -111,8 +111,8 @@ class SimpleDownloader private constructor() : Downloader() {
 
         // Log de headers (los valores sensibles se ocultan: B32)
         val builtRequest = builder.build()
-        Log.d(TAG, "📋 Headers enviados:")
-        Log.d(TAG, describeHeaders(builtRequest.headers.toMultimap()))
+        Logger.d(TAG, "📋 Headers enviados:")
+        Logger.d(TAG, describeHeaders(builtRequest.headers.toMultimap()))
         return builtRequest
     }
 
@@ -121,7 +121,7 @@ class SimpleDownloader private constructor() : Downloader() {
         val cookiesString = getCookies(url)
         if (cookiesString.isNotEmpty()) {
             builder.addHeader("Cookie", cookiesString)
-            Log.d(TAG, "🍪 Cookies enviadas: ${describeCookieNames(cookiesString)}")
+            Logger.d(TAG, "🍪 Cookies enviadas: ${describeCookieNames(cookiesString)}")
         }
     }
 
@@ -141,11 +141,11 @@ class SimpleDownloader private constructor() : Downloader() {
     /** Registra la respuesta y la convierte al formato de NewPipe. */
     private fun handleResponse(response: okhttp3.Response, originalUrl: String): Response {
         val responseCode = response.code
-        Log.d(TAG, "📥 Código de respuesta: $responseCode")
+        Logger.d(TAG, "📥 Código de respuesta: $responseCode")
 
         // Detectar reCaptcha challenge
         if (responseCode == 429) {
-            Log.e(TAG, "⚠️ reCaptcha Challenge detectado (429)")
+            Logger.e(TAG, "⚠️ reCaptcha Challenge detectado (429)")
             throw ReCaptchaException("reCaptcha Challenge requested", originalUrl)
         }
 
@@ -156,7 +156,7 @@ class SimpleDownloader private constructor() : Downloader() {
         // Obtener URL final (después de redirecciones)
         val latestUrl = response.request.url.toString()
         if (latestUrl != originalUrl) {
-            Log.d(TAG, "🔄 Redirección: $latestUrl")
+            Logger.d(TAG, "🔄 Redirección: $latestUrl")
         }
 
         // Convertir headers de OkHttp a formato de NewPipe
@@ -174,14 +174,14 @@ class SimpleDownloader private constructor() : Downloader() {
      */
     private fun logBodySummary(responseCode: Int, body: String, url: String) {
         if (responseCode < 400) {
-            Log.d(TAG, "✅ Respuesta exitosa: ${body.length} caracteres")
+            Logger.d(TAG, "✅ Respuesta exitosa: ${body.length} caracteres")
             if (url.contains("/youtubei/v1/player")) {
                 playabilityStatusOf(body)?.let { status ->
-                    Log.d(TAG, "🎬 PlayabilityStatus: $status")
+                    Logger.d(TAG, "🎬 PlayabilityStatus: $status")
                 }
             }
         } else {
-            Log.e(TAG, "❌ Error ($responseCode): ${body.length} caracteres")
+            Logger.e(TAG, "❌ Error ($responseCode): ${body.length} caracteres")
         }
     }
 }
