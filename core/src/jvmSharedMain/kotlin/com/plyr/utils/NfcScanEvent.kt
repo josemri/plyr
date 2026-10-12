@@ -1,5 +1,6 @@
 package com.plyr.utils
 
+import com.plyr.core.util.Logger
 import com.plyr.model.ScanResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,7 +15,7 @@ object NfcScanEvent {
     val scanResult: StateFlow<ScanResult?> = _scanResult.asStateFlow()
 
     fun onNfcScanned(result: ScanResult) {
-        android.util.Log.d("NfcScanEvent", "🏷️ NFC Scanned - source: ${result.source}, type: ${result.type}, id: ${result.id}")
+        Logger.d("NfcScanEvent", "🏷️ NFC Scanned - source: ${result.source}, type: ${result.type}, id: ${result.id}")
         _scanResult.value = result
     }
 

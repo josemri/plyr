@@ -31,4 +31,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "plyr"
 include(":app")
+include(":core")
+include(":desktop")
  

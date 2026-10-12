@@ -21,5 +21,8 @@ release.keystore
 app/release/
 
 # Generado por builds (limpia: ./run.sh clean)
+/build
 /app/build
+/*/build
 /.kotlin
+/*/.kotlin

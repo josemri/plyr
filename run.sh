@@ -565,6 +565,8 @@ cmd_clean() {
     rm -rf -- "$SCRIPT_DIR/.gradle" \
         "$SCRIPT_DIR/build" \
         "$SCRIPT_DIR/app/build" \
+        "$SCRIPT_DIR/core/build" \
+        "$SCRIPT_DIR/desktop/build" \
         "$SCRIPT_DIR/.kotlin" \
         "$SCRIPT_DIR/local.properties"
 

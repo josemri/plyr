@@ -465,8 +465,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 
 | Hito | Descripción | Semanas | Estado |
 |---|---|---|---|
-| M0 | Andamiaje de módulos | 0.5 | ☐ |
-| M1 | Extraer `core` + tests ⭐ | 1–2 | ☐ |
+| M0 | Andamiaje de módulos | 0.5 | ☑ |
+| M1 | Extraer `core` + tests ⭐ | 1–2 | ◐ |
 | M2 | Red a `core` | 0.5 | ☐ |
 | M3 | `AudioPlayer` + `QueueEngine` ⭐ | 1 | ☐ |
 | M4 | VLCJ funcionando ⭐ | 1 | ☐ |
@@ -483,6 +483,19 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M15 | Pulido y paridad final | 1–2 | ☐ |
 
 **Ruta crítica:** `M0 → M1 → M3 → M4 → M7` da un MVP funcional. `M2`, `M5` y `M6` pueden ir en paralelo si hay más de un dev.
+
+### 6.3 Registro de ejecución del port
+
+- **M0 — Andamiaje de módulos ✅.** Módulos `:core` (Kotlin Multiplatform, target Android vía el plugin `com.android.kotlin.multiplatform.library` + `jvm()`) y `:desktop` (Compose Multiplatform, toolchain JVM 21). `:app` y `:desktop` dependen de `:core`.
+  - Versiones fijadas en `gradle/libs.versions.toml`: Compose Multiplatform `1.12.1`, SQLDelight `2.4.1`, VLCJ `4.12.1`, multiplatform-settings `1.3.0`, Coil 3 `3.6.3`, kotlinx-coroutines `1.10.2` (usados en hitos posteriores).
+  - **Desviación respecto al plan (M0):** se usa `com.android.kotlin.multiplatform.library` (`kotlin { androidLibrary { … } }`) en lugar de `androidTarget()` + `com.android.library`. AGP 9 marca esa combinación como deprecada y recomienda el plugin nuevo; el resultado (target Android + JVM compartidos) es equivalente.
+  - Verificado: `./gradlew :core:build`, `./gradlew :desktop:build`, `./gradlew :desktop:run` (abre la ventana) y `./run.sh build` (APK de Android).
+- **M1 — Extraer lógica pura a `:core` ◐ (parcial).** Movidos **13 archivos** a `core/src/commonMain` (`model/AudioItem`, `model/ScanResult`, `viewmodel/{WindowState,LoadingState,PendingSkips,IdlePlayback}`, `service/{CoverCropMath,PlaybackNotificationState,NotificationRefreshPolicy}`, `utils/{UrlParser,LikedSongsMerge}`, `database/PlaylistSource`) y **5** al source set compartido `jvmSharedMain` (usa `java.*`, presente en JVM y Android/ART): `model/Recommendation`, `utils/{ExportManifest,ExportDigest,ImportArchive}`, `utils/NfcScanEvent`. Se movieron **169 tests** que pasan en `:core:jvmTest`; los **335** restantes siguen en `:app` (UI/Room/red) y migrarán en M2/M3/M5/M6/M9.
+  - Nuevo source set KMP `jvmSharedMain` compartido por los targets `jvm` y `android` (intermedio entre `commonMain` y ambos), para el código JVM (`java.*`) que no encaja en `commonMain` estricto.
+  - Logger propio `com.plyr.core.util.Logger` (`jvmSharedMain`, vía `java.util.logging`, equivalente en Android) sustituye a `android.util.Log` en `NfcScanEvent`.
+  - **Diferidos respecto al plan (M1):** `QueueIndex` (depende de `Config`→M9/M3), `ImportManifest` (Room→M6), `YouTubePlaylistCreator` (Room+red→M2/M6), `MediaMetadataExtractor` (NewPipe→M2), `NfcTagEvent` (`android.nfc.Tag`, se queda en `:app`) y `ModelDefaultsTest` (depende de UI). Se documentan aquí para no perderlos.
+  - Verificado: `./gradlew :core:jvmTest` (169 tests, 0 fallos), `./gradlew :app:assembleDebug` y `./gradlew :app:testDebugUnitTest` (335 tests, 0 fallos).
+
 
 ---
 
