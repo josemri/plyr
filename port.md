@@ -469,7 +469,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M1 | Extraer `core` + tests ⭐ | 1–2 | ◐ |
 | M2 | Red a `core` | 0.5 | ☑ |
 | M3 | `AudioPlayer` + `QueueEngine` ⭐ | 1 | ☑ |
-| M4 | VLCJ funcionando ⭐ | 1 | ☐ |
+| M4 | VLCJ funcionando ⭐ | 1 | ☑ |
 | M5 | Esqueleto UI Compose Desktop | 1 | ☐ |
 | M6 | SQLDelight + repositorios | 1–2 | ☐ |
 | M7 | Reproducción integrada (**MVP**) ⭐ | 1–2 | ☐ |
@@ -514,6 +514,24 @@ ENTREGABLE: <qué debe quedar en el repo>.
   - **Sin cambios de comportamiento:** `ExoAudioPlayer` reproduce la misma configuración de ExoPlayer y el mismo mapeo de eventos; `QueueEngine` conserva la aritmética exacta de `fillTarget`/`trimWindow` y la delegación en `QueueIndex`.
   - Verificado: `./gradlew :core:jvmTest` (**276 tests**, 0 fallos), `./run.sh test` (**248 tests** de `:app`, 0 fallos), `./run.sh build` (APK) y `./gradlew :desktop:build`. **Total: 524 tests** (505 + 19 de `QueueEngine`; el recuento de `:app` baja de 280 a 248 porque `QueueIndexTest` pasa a `:core`).
   - **Nota para M4:** `ExoAudioPlayer` es el molde de `VlcAudioPlayer`; la ventana de cola y las decisiones de salto ya viven en `QueueEngine` (puro), así que el adaptador de escritorio solo debe implementar `AudioPlayer`.
+- **M4 — Adaptador VLCJ + prueba de sonido ✅.** El motor de audio funciona en escritorio: `:desktop:soundCheck` reproduce una canción real de YouTube (verificado).
+  - **Dependencia:** `uk.co.caprica:vlcj:4.12.1` en `:desktop` (arrastra `vlcj-natives`, que son solo los bindings JNA). `libvlc` nativo **no** va incluido: hay que tener VLC instalado en el sistema.
+  - **`VlcAudioPlayer : AudioPlayer`** (`com.plyr.desktop.player`), sobre `EmbeddedMediaPlayer`. VLCJ no tiene un "media item list" como media3, así que la ventana de pistas se mantiene en la propia clase y cada salto recarga la URL en VLC (`media().play(url, ":no-video")`). Reproduce el comportamiento de `ExoAudioPlayer`: avance automático al siguiente item de la ventana al terminar (`finished`), "repetir uno" recargando la actual, y `PlaybackState.ENDED` solo al agotar la ventana.
+  - **Máquina de estados pura** `VlcPlaybackStateMachine`: traduce los eventos de VLCJ (`opening`/`buffering`/`playing`/`paused`/`stopped`/`finished`/`error`) a `PlaybackState` y avisa al `AudioPlayerListener`, notificando solo cuando el valor cambia. Es testeable **sin** `libvlc` (justo lo que pide la verificación).
+  - **Detección de `libvlc`** (`VlcEnvironment`): busca el runtime en `PLYR_VLC_DIR` y, si no, en rutas estándar por SO; construye `--plugin-path` y `jna.library.path` para VLC no estándar; y da un **mensaje claro** con cómo instalarlo si falta (la CLI sale con código 2 y la ventana lo muestra en pantalla).
+  - **Prueba de sonido:** `SoundCheck.kt` (CLI, tarea `:desktop:soundCheck`) busca en YouTube con `YouTubeManager`, extrae la URL con `getAudioUrl` y reproduce informando posición/duración/estado. `Main.kt` pasa a ser una ventana mínima (campo de búsqueda + Reproducir/Parar) para que `./gradlew :desktop:run` también reproduzca. Ambas vías admiten `-PvlcDir=/ruta/a/libvlc` (o `PLYR_VLC_DIR`), que se propaga a `run`/`soundCheck`/`test` como `PLYR_VLC_DIR` + `LD_LIBRARY_PATH`.
+  - **Tests (15, `desktop/src/test`):** `VlcPlaybackStateMachineTest` (9) cubre la máquina de estados; `VlcEnvironmentTest` (5) la detección y los argumentos; `VlcAudioPlayerSmokeTest` (1) construye el reproductor y gestiona la ventana, **se omite con `assumeTrue`** si no hay `libvlc`.
+  - **Verificado aquí:** esta máquina no tenía VLC ni permisos de `sudo`, así que se extrajo VLC 3.0.24 sin root (`apt-get install --download-only` + `dpkg-deb -x` en `/tmp/opencode/vlc`) y se ejecutó con `PLYR_VLC_DIR`+`LD_LIBRARY_PATH`: `:desktop:soundCheck` reprodujo **audio real** (posición avanzando 3.7s→18.2s de una pista de 450.7s, estado "sonando"); la ventana de `:desktop:run` arranca sin excepciones; y sin `libvlc` el mensaje de instalación y la salida con código 2 son correctos. En un sistema con VLC instalado no hace falta nada de esto. Procedimiento sin root (por si hace falta repetirlo):
+    ```bash
+    mkdir -p /tmp/opencode/vlcdebs/partial
+    apt-get install --download-only --no-install-recommends -y \
+      -o Dir::Cache::archives=/tmp/opencode/vlcdebs -o Debug::NoLocking=1 vlc
+    for d in /tmp/opencode/vlcdebs/*.deb; do dpkg-deb -x "$d" /tmp/opencode/vlc; done
+    D=/tmp/opencode/vlc/usr/lib/x86_64-linux-gnu          # libvlc.so.5 / libvlccore.so.9
+    ln -sf libvlc.so.5 "$D/libvlc.so"; ln -sf libvlccore.so.9 "$D/libvlccore.so"
+    ./gradlew :desktop:soundCheck -PvlcDir="$D" --args="artista canción"
+    ```
+  - Verificado: `:desktop:test` (**15 tests** con VLC, 14 + 1 omitido sin él, 0 fallos), `:desktop:build`, `./run.sh build` (APK), `./run.sh test` (248) y `:core:jvmTest` (276). **Total: 539 tests** (524 + 15 de `:desktop`).
 
 
 ---
