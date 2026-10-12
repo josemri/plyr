@@ -18,6 +18,8 @@ dependencies {
     // Motor de audio de escritorio (M4). Requiere `libvlc` instalado en el sistema.
     implementation(libs.vlcj)
     testImplementation(libs.junit)
+    // Test de UI de Compose (runComposeUiTest) para la navegación de M5.
+    testImplementation(compose.desktop.uiTestJUnit4)
 }
 
 /**

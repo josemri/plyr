@@ -470,7 +470,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M2 | Red a `core` | 0.5 | ☑ |
 | M3 | `AudioPlayer` + `QueueEngine` ⭐ | 1 | ☑ |
 | M4 | VLCJ funcionando ⭐ | 1 | ☑ |
-| M5 | Esqueleto UI Compose Desktop | 1 | ☐ |
+| M5 | Esqueleto UI Compose Desktop | 1 | ☑ |
 | M6 | SQLDelight + repositorios | 1–2 | ☐ |
 | M7 | Reproducción integrada (**MVP**) ⭐ | 1–2 | ☐ |
 | M8 | Playlists UI + drag & drop | 1–2 | ☐ |
@@ -532,6 +532,16 @@ ENTREGABLE: <qué debe quedar en el repo>.
     ./gradlew :desktop:soundCheck -PvlcDir="$D" --args="artista canción"
     ```
   - Verificado: `:desktop:test` (**15 tests** con VLC, 14 + 1 omitido sin él, 0 fallos), `:desktop:build`, `./run.sh build` (APK), `./run.sh test` (248) y `:core:jvmTest` (276). **Total: 539 tests** (524 + 15 de `:desktop`).
+- **M5 — Esqueleto de UI Compose Desktop ✅.** `:desktop` ya tiene navegación, tema terminal e i18n; la reproducción real llega en M7.
+  - **Tema** (`com.plyr.desktop.ui.theme.Theme`): portado tal cual de `com.plyr.ui.theme` (colores claro/oscuro, `PlyrSpacing`, `PlyrSymbols`, `Typography` monoespaciada y `PlyrTheme`, sin `@Preview`). El logo de Android (drawables `ascii_1..50`) se sustituye por un banner de texto fijo `AsciiArt.LOGO`.
+  - **Navegación** (`com.plyr.desktop.ui`): `enum Screen` (HOME/SEARCH/QUEUE/PLAYLISTS/FEED/CONFIG) y `AudioListScreen` como contenedor. En vez de los `Pager` de Android (que no encajan con ratón/teclado) la Home es un menú de consola explícito que cambia de pantalla; cada pantalla de datos es un `PlaceholderScreen` hasta M6/M7.
+  - **Componentes portados** (`ui/components`): `Titulo`/`Subtitulo` y `ActionButton`/`ActionButtonsGroup`.
+  - **Pantallas** (`ui/screens`): `HomeScreen` (banner ASCII + menú), `PlaceholderScreen` (Search/Queue/Playlists/Feed) y `ConfigScreen` (selectores de tema e idioma, con la opción activa marcada).
+  - **`FloatingMusicControls` portado sin reproducción real** (`ui/FloatingMusicControls.kt`): recibe un `PlayerUiState` neutral (título, tiempos, cola, repetición) + callbacks que cablea M7; conserva la estética terminal (`//`, `>`, `<<`, `>>`, `^`, ciclo `o`/`1`/`*`). En el esqueleto se muestra con el estado "player not available". La marquesina solo crea la animación infinita si el texto desborda: así la composición queda ociosa y los tests de Compose no se cuelgan.
+  - **Config + i18n:** `DesktopConfig` (backend **temporal en memoria** con estado de Compose; M9 lo hará persistente con `multiplatform-settings`) expone tema, idioma, modo de repetición y buscador; `ThemeMode`/`Language` usan los **mismos ids** que Android (`"dark"`, `"español"`, …). `com.plyr.desktop.i18n.Translations` envuelve `TranslationCatalog` de `:core` resolviendo el idioma actual.
+  - **`Main.kt`** aplica `PlyrTheme(DesktopConfig.isDark(isSystemInDarkTheme()))` y muestra `AudioListScreen` (la ventana de prueba de M4 desaparece; M4 sigue verificándose con `:desktop:soundCheck`). El tema por defecto es `SYSTEM`.
+  - **Tests (13 nuevos, `desktop/src/test`):** `AudioListScreenTest` (**6**, con `runComposeUiTest` v2 — `androidx.compose.ui.test.v2`, que evita el aviso de deprecación del v1 y usa `StandardTestDispatcher`) abre en Home, navega por el menú, vuelve, usa el botón de cola y cambia idioma/tema; `DesktopConfigTest` (**4**) y `TranslationsTest` (**3**). Se añade `testImplementation(compose.desktop.uiTestJUnit4)`.
+  - **Verificado aquí:** `:desktop:test` (**28 tests**, 1 omitido sin `libvlc`, 0 fallos); `:desktop:run` abre una ventana real —comprobado bajo Xvfb con `xdotool` (ventana "plyr", 800x600, `IsViewable`, sin excepciones)— y el OCR de una captura confirma el banner ASCII, los 5 ítems del menú (`> plyr_search`, `> plyr_queue`, `> plyr_lists`, `> plyr_feed`, `> plyr_config`) y los controles. **Total: 552 tests** (539 + 13 de `:desktop`; `:core` 276 + `:app` 248 + `:desktop` 28).
 
 
 ---
