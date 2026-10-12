@@ -1,6 +1,6 @@
 package com.plyr.viewmodel
 
-import com.plyr.utils.Config
+import com.plyr.domain.RepeatMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -14,9 +14,9 @@ import org.junit.Test
  */
 class QueueIndexTest {
 
-    private val off = Config.REPEAT_MODE_OFF
-    private val one = Config.REPEAT_MODE_ONE
-    private val all = Config.REPEAT_MODE_ALL
+    private val off = RepeatMode.OFF
+    private val one = RepeatMode.ONE
+    private val all = RepeatMode.ALL
 
     // --- nextIndex (botón "siguiente") ---
 

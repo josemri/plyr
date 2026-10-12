@@ -1,6 +1,6 @@
 package com.plyr.viewmodel
 
-import com.plyr.utils.Config
+import com.plyr.domain.RepeatMode
 
 /**
  * Lógica pura de navegación de la cola de reproducción.
@@ -29,7 +29,7 @@ object QueueIndex {
     fun nextIndex(current: Int, size: Int, repeatMode: String): Int? {
         if (size <= 0 || current !in 0 until size) return null
         return when (repeatMode) {
-            Config.REPEAT_MODE_ALL -> (current + 1) % size
+            RepeatMode.ALL -> (current + 1) % size
             else -> if (current + 1 < size) current + 1 else null
         }
     }
@@ -51,7 +51,7 @@ object QueueIndex {
         if (size <= 0 || current !in 0 until size) return null
         if (positionMs > PREV_RESTART_THRESHOLD_MS) return current
         return when (repeatMode) {
-            Config.REPEAT_MODE_ALL -> if (current == 0) size - 1 else current - 1
+            RepeatMode.ALL -> if (current == 0) size - 1 else current - 1
             else -> if (current > 0) current - 1 else null
         }
     }
@@ -78,7 +78,7 @@ object QueueIndex {
         if (size <= 0 || failed !in 0 until size) return null
         return if (backwards) {
             when (repeatMode) {
-                Config.REPEAT_MODE_ALL -> if (failed == 0) size - 1 else failed - 1
+                RepeatMode.ALL -> if (failed == 0) size - 1 else failed - 1
                 else -> if (failed > 0) failed - 1 else null
             }
         } else {
@@ -98,8 +98,8 @@ object QueueIndex {
     fun onTrackEnded(current: Int, size: Int, repeatMode: String): Int? {
         if (size <= 0 || current !in 0 until size) return null
         return when (repeatMode) {
-            Config.REPEAT_MODE_ONE -> current
-            Config.REPEAT_MODE_ALL -> (current + 1) % size
+            RepeatMode.ONE -> current
+            RepeatMode.ALL -> (current + 1) % size
             else -> if (current + 1 < size) current + 1 else null
         }
     }

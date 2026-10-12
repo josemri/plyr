@@ -66,14 +66,14 @@ class MediaButtonReceiver : BroadcastReceiver() {
             MediaCommand.PLAY -> viewModel.playPlayer()
             MediaCommand.PAUSE -> viewModel.pausePlayer()
             MediaCommand.PLAY_PAUSE -> {
-                val player = viewModel.exoPlayer ?: return false
+                val player = viewModel.audioPlayer ?: return false
                 if (player.isPlaying) viewModel.pausePlayer() else viewModel.playPlayer()
             }
             MediaCommand.NEXT -> viewModel.navigateToNext()
             MediaCommand.PREVIOUS -> viewModel.navigateToPrevious()
             // Respetan los incrementos de 10 s configurados al crear el reproductor.
-            MediaCommand.FAST_FORWARD -> viewModel.exoPlayer?.seekForward() ?: return false
-            MediaCommand.REWIND -> viewModel.exoPlayer?.seekBack() ?: return false
+            MediaCommand.FAST_FORWARD -> viewModel.audioPlayer?.seekForward() ?: return false
+            MediaCommand.REWIND -> viewModel.audioPlayer?.seekBack() ?: return false
             // `onReceive` ya descarta NONE antes de llegar aquí (y hace log):
             // la rama nunca se alcanza, pero sin ella el `when` no es exhaustivo.
             else -> return false

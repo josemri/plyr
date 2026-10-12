@@ -6,15 +6,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import androidx.media3.common.AudioAttributes
-import androidx.media3.common.C
-import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.ExoPlayer
 import com.plyr.database.TrackEntity
 import com.plyr.network.YouTubeManager
+import com.plyr.player.AudioPlayer
+import com.plyr.player.AudioPlayerListener
+import com.plyr.player.AudioTrack
+import com.plyr.player.ExoAudioPlayer
+import com.plyr.player.PlaybackState
 import com.plyr.utils.Config
 import com.plyr.utils.Translations
 import com.plyr.viewmodel.TrackResolver.ResolvedItem
@@ -24,16 +22,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import androidx.annotation.OptIn
 
 /**
  * Reproductor de audio.
  *
- * La cola (`queue` + `currentIndex`) es la única fuente de verdad. ExoPlayer
- * mantiene una **ventana deslizante** de la cola ya resuelta (la canción actual
- * y las siguientes), de forma que el salto a la siguiente canción no depende de
- * una carga en segundo plano indeterminada: el item destino ya está preparado
- * cuando el actual termina.
+ * La cola (`queue` + `currentIndex`) es la única fuente de verdad. El
+ * reproductor (`AudioPlayer`) mantiene una **ventana deslizante** de la cola ya
+ * resuelta (la canción actual y las siguientes), de forma que el salto a la
+ * siguiente canción no depende de una carga en segundo plano indeterminada: el
+ * item destino ya está preparado cuando el actual termina.
  *
  * Toda transición pasa por [QueueIndex], que decide el índice destino según el
  * modo de repetición y devuelve `null` cuando la cola ha terminado.
@@ -45,23 +42,11 @@ import androidx.annotation.OptIn
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
-        /** Canciones resueltas y preparadas por delante de la actual. */
-        const val WINDOW_AHEAD = 2
-
         /** Fallos consecutivos tolerados antes de detener la cola. */
         const val MAX_CONSECUTIVE_FAILURES = 5
 
         /** Canciones que se pueden saltar por no resolverse antes de parar. */
         const val MAX_RESOLUTION_SKIPS = 5
-
-        /**
-         * Items que se dejan preparados detrás de la canción actual.
-         *
-         * Con uno basta para que `<<` sea un salto inmediato, y el coste es un
-         * item resuelto de más: la ventana crece como mucho en uno respecto a
-         * antes.
-         */
-        const val KEEP_BEHIND = 1
 
         /**
          * Intentos seguidos para rellenar un tramo de la ventana.
@@ -79,8 +64,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         const val MAX_CAUSE_DEPTH = 5
     }
 
-    private var _exoPlayer: ExoPlayer? = null
-    val exoPlayer: ExoPlayer? get() = _exoPlayer
+    private var _player: AudioPlayer? = null
+
+    /** Reproductor en curso, o `null` si aún no se ha inicializado. */
+    val audioPlayer: AudioPlayer? get() = _player
 
     private val _isLoading = MutableLiveData(false)
     val isLoading: LiveData<Boolean> = _isLoading
@@ -100,23 +87,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentTrack = MutableLiveData<TrackEntity?>()
     val currentTrack: LiveData<TrackEntity?> = _currentTrack
 
-    var onMediaSessionUpdate: ((ExoPlayer) -> Unit)? = null
+    var onMediaSessionUpdate: ((AudioPlayer) -> Unit)? = null
 
     // --- Estado autoritativo (hilo principal) ---
 
-    private var queue: List<TrackEntity> = emptyList()
-    private var currentIndex: Int = -1
+    /**
+     * Lógica pura de la cola y su ventana. Ver [QueueEngine].
+     *
+     * Aquí viven la cola, el índice actual, el modo de repetición y el
+     * [WindowState]; el ViewModel solo aporta lo que depende del entorno
+     * (red, coroutines, reproductor) y aplica sus decisiones.
+     */
+    private val engine = QueueEngine<TrackEntity>()
 
-    /** Estado de la ventana deslizante. */
-    private var windowState: WindowState = WindowState.EMPTY
+    private val queue: List<TrackEntity> get() = engine.queue
 
-    /** Índice de cola del primer item de la ventana que tiene ExoPlayer. */
-    private val windowStart: Int
-        get() = windowState.startIndex
+    private var currentIndex: Int
+        get() = engine.currentIndex
+        set(value) = engine.moveTo(value)
+
+    /** Índice de cola del primer item de la ventana que tiene el reproductor. */
+    private val windowStart: Int get() = engine.windowStart
 
     /** Se incrementa en cada cambio de cola; invalida resoluciones en vuelo. */
-    private val generation: Int
-        get() = windowState.generation
+    private val generation: Int get() = engine.generation
 
     private var consecutiveFailures: Int = 0
 
@@ -162,10 +156,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      */
     private val loading = LoadingState()
     private var currentVideoId: String? = null
-    private var queueRepeatMode: String = Config.REPEAT_MODE_OFF
+
+    private var queueRepeatMode: String
+        get() = engine.repeatMode
+        set(value) = engine.setRepeatMode(value)
 
     /**
-     * Resolución de URLs de audio y construcción de `MediaItem`. Mantiene la
+     * Resolución de URLs de audio y construcción de `AudioTrack`. Mantiene la
      * caché de vídeos ya resueltos por pista (ver [TrackResolver]).
      */
     private val resolver = TrackResolver(getApplication())
@@ -198,78 +195,73 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     // ------------------------------------------------------------------ //
 
     fun initializePlayer() {
-        if (_exoPlayer == null) {
+        if (_player == null) {
             queueRepeatMode = Config.getRepeatMode(getApplication())
-            _exoPlayer = buildPlayer()
+            _player = buildPlayer()
         }
     }
 
-    @OptIn(UnstableApi::class)
-    private fun buildPlayer(): ExoPlayer =
-        ExoPlayer.Builder(getApplication())
-            .setSeekBackIncrementMs(10_000)
-            .setSeekForwardIncrementMs(10_000)
-            .setHandleAudioBecomingNoisy(true)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(C.USAGE_MEDIA)
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .build(),
-                true
-            )
-            .build().apply {
-                // El salto entre canciones lo decide [QueueIndex], no ExoPlayer.
-                // Solo el modo "repetir uno" se delega, porque así el repeat es
-                // continuo y sin cortes.
-                repeatMode = if (queueRepeatMode == Config.REPEAT_MODE_ONE) {
-                    Player.REPEAT_MODE_ONE
-                } else {
-                    Player.REPEAT_MODE_OFF
-                }
+    /**
+     * Reproductor de la plataforma envuelto tras [AudioPlayer].
+     *
+     * Es el único punto donde se instancia `ExoAudioPlayer`; a partir de aquí
+     * todo pasa por la interfaz neutral.
+     */
+    private fun buildPlayer(): AudioPlayer =
+        ExoAudioPlayer(
+            context = getApplication(),
+            repeatOne = queueRepeatMode == Config.REPEAT_MODE_ONE,
+        ).apply {
+            setListener(playerListener)
+        }
 
-                addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        updateLoadingState()
-                        if (playbackState == Player.STATE_ENDED) {
-                            onTrackEnded()
-                        }
-                    }
-
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        updateLoadingState()
-                    }
-
-                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                        if (mediaItem == null || this@apply.mediaItemCount == 0) return
-                        syncIndexFromWindow()
-                        publishCurrentTrack()
-                        // Un item arranca a reproducirse: el error anterior era
-                        // de la pista que ya no suena, así que se retira. Sin
-                        // esto el mensaje se quedaba pegado y los controles
-                        // quedaban deshabilitados para siempre (B6).
-                        _error.publish(null)
-                        onMediaSessionUpdate?.invoke(this@apply)
-
-                        // Transición automática: es el momento de reponer la
-                        // ventana para que la siguiente canción esté lista.
-                        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                            consecutiveFailures = 0
-                            growWindow()
-                        }
-                    }
-
-                    override fun onPlayerError(error: PlaybackException) {
-                        updateLoadingState()
-                        onItemUnplayable(error)
-                    }
-                })
+    /**
+     * Traduce los eventos del reproductor a las transiciones de la cola.
+     *
+     * Estaba dentro de `buildPlayer()` como listener anónimo del reproductor; al
+     * depender solo de [AudioPlayerListener] puede vivir aparte.
+     */
+    private val playerListener = object : AudioPlayerListener {
+        override fun onPlaybackStateChanged(state: PlaybackState) {
+            updateLoadingState()
+            if (state == PlaybackState.ENDED) {
+                onTrackEnded()
             }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            updateLoadingState()
+        }
+
+        override fun onMediaItemTransition(automatic: Boolean) {
+            if (_player?.mediaItemCount == 0) return
+            syncIndexFromWindow()
+            publishCurrentTrack()
+            // Un item arranca a reproducirse: el error anterior era de la pista
+            // que ya no suena, así que se retira. Sin esto el mensaje se quedaba
+            // pegado y los controles quedaban deshabilitados para siempre (B6).
+            _error.publish(null)
+            _player?.let { onMediaSessionUpdate?.invoke(it) }
+
+            // Transición automática: es el momento de reponer la ventana para
+            // que la siguiente canción esté lista.
+            if (automatic) {
+                consecutiveFailures = 0
+                growWindow()
+            }
+        }
+
+        override fun onPlayerError(error: Throwable) {
+            updateLoadingState()
+            onItemUnplayable(error)
+        }
+    }
 
     override fun onCleared() {
         prefetchJob?.cancel()
         prefetchJob = null
-        _exoPlayer?.release()
-        _exoPlayer = null
+        _player?.release()
+        _player = null
         super.onCleared()
     }
 
@@ -287,30 +279,25 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob?.cancel()
         prefetchJob = null
 
-        queue = playlist
+        engine.setQueue(playlist, startIndex)
         _currentPlaylist.publish(playlist)
 
         if (playlist.isEmpty()) {
-            currentIndex = -1
-            windowState = windowState.reset()
             _currentTrackIndex.publish(0)
             _currentTrack.publish(null)
             _currentTitle.publish(null)
             return
         }
 
-        currentIndex = startIndex.coerceIn(0, playlist.size - 1)
-        windowState = windowState.anchorAt(currentIndex)
         publishCurrentTrack()
     }
 
-    fun pausePlayer() = _exoPlayer?.pause()
+    fun pausePlayer() = _player?.pause()
 
-    @OptIn(UnstableApi::class)
     fun playPlayer() {
-        val player = _exoPlayer ?: return
+        val player = _player ?: return
         val action = IdlePlayback.decide(
-            isIdle = player.playbackState == Player.STATE_IDLE,
+            isIdle = player.playbackState == PlaybackState.IDLE,
             mediaItemCount = player.mediaItemCount,
             queueSize = queue.size,
             currentIndex = currentIndex,
@@ -341,7 +328,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             pendingSkips.request(PendingSkips.Direction.FORWARDS)
             return
         }
-        val target = QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) ?: return
+        val target = engine.nextTarget() ?: return
         playIndex(target, backwards = false)
     }
 
@@ -350,13 +337,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * también la tiene estando en la última, porque da la vuelta).
      *
      * Es la respuesta que decide si existe el `>>` de la notificación (B57). La
-     * ventana de ExoPlayer no puede darla: es una porción de la cola que se
+     * ventana del reproductor no puede darla: es una porción de la cola que se
      * recorta por delante y que a veces ni llega a rellenarse, y el `>>` se
      * escondía cada vez que la canción actual quedaba al final de la ventana,
      * aunque quedaran canciones por delante en la cola.
      */
     val hasNextInQueue: Boolean
-        get() = QueueIndex.nextIndex(currentIndex, queue.size, queueRepeatMode) != null
+        get() = engine.hasNext
 
     fun navigateToPrevious() {
         // Igual que en `navigateToNext`: mientras hay una transición en vuelo
@@ -366,18 +353,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             pendingSkips.request(PendingSkips.Direction.BACKWARDS)
             return
         }
-        val position = _exoPlayer?.currentPosition ?: 0L
-        val target = QueueIndex.previousIndex(currentIndex, queue.size, position, queueRepeatMode)
+        val position = _player?.currentPosition ?: 0L
+        val target = engine.previousTarget(position)
         if (target == null) {
             // No hay canción anterior: en la primera de la cola, y antes de los
             // 3 s, el botón se quedaba sin hacer nada. Reiniciar la canción
             // actual es lo que hacen el resto de reproductores, y deja el botón
             // con una respuesta en vez de aparentar que está roto (B49).
-            _exoPlayer?.seekTo(0L)
+            _player?.seekTo(0L)
             return
         }
         if (target == currentIndex) {
-            _exoPlayer?.seekTo(0L)
+            _player?.seekTo(0L)
             return
         }
         playIndex(target, backwards = target < currentIndex)
@@ -405,11 +392,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     fun updateRepeatMode() {
         val mode = Config.getRepeatMode(getApplication())
         queueRepeatMode = mode
-        _exoPlayer?.repeatMode = if (mode == Config.REPEAT_MODE_ONE) {
-            Player.REPEAT_MODE_ONE
-        } else {
-            Player.REPEAT_MODE_OFF
-        }
+        _player?.setRepeatOne(mode == Config.REPEAT_MODE_ONE)
         growWindow()
     }
 
@@ -425,7 +408,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val base = if (wasPlaying) queue else (_currentPlaylist.value ?: emptyList())
         val updated = base + track
 
-        queue = updated
+        engine.replaceQueue(updated)
         _currentPlaylist.publish(updated)
 
         if (wasPlaying) {
@@ -458,15 +441,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         consecutiveFailures = 0
         currentVideoId = null
         resolver.clear()
-            windowState = windowState.reset()
+        engine.resetWindow()
 
-        _exoPlayer?.let { player ->
+        _player?.let { player ->
             player.stop()
             player.clearMediaItems()
         }
 
-        queue = emptyList()
-        currentIndex = -1
+        engine.setQueue(emptyList())
 
         _isLoading.publish(false)
         _error.publish(null)
@@ -490,7 +472,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         if (index !in queue.indices) {
-            queue = queue + track
+            engine.appendTrack(track)
             _currentPlaylist.publish(queue)
             return@withContext startAt(queue.size - 1)
         }
@@ -507,7 +489,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (index !in queue.indices) return false
 
         initializePlayer()
-        val player = _exoPlayer ?: return false
+        val player = _player ?: return false
 
         invalidateLoads()
         val gen = generation
@@ -538,12 +520,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 return false
             }
 
-            windowState = windowState.anchorAt(index)
+            engine.anchorWindowAt(index)
             resolver.remember(track.id, videoId)
-            setCurrentIndex(index)
+            applyCurrentIndex(index)
             currentVideoId = videoId
 
-            player.setMediaItem(resolver.createMediaItem(track, sourceUri, index))
+            player.setMediaItems(listOf(resolver.createAudioTrack(track, sourceUri, index)), 0)
             player.prepare()
             player.play()
 
@@ -586,7 +568,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         backwards: Boolean = target < currentIndex,
     ) {
         if (transitionInFlight) return
-        val player = _exoPlayer ?: return
+        val player = _player ?: return
         if (target !in queue.indices) {
             stopAtQueueEnd()
             return
@@ -594,8 +576,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         val windowPosition = target - windowStart
         if (!reResolve && windowPosition in 0 until player.mediaItemCount) {
-            setCurrentIndex(target)
-            player.seekTo(windowPosition, C.TIME_UNSET)
+            applyCurrentIndex(target)
+            player.seekTo(windowPosition, AudioPlayer.TIME_UNSET)
             player.play()
             growWindow()
             return
@@ -619,7 +601,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
                 // El candado se retira en el `finally`, no aquí: mientras se
                 // aplica el resultado la cola sigue moviéndose.
-                if (gen != generation || _exoPlayer !== player) return@launch
+                if (gen != generation || _player !== player) return@launch
 
                 if (outcome.gaveUp) {
                     _error.publish(Translations.get(getApplication(), "error_obtaining_audio"))
@@ -670,14 +652,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         var resolved: List<ResolvedItem> = emptyList()
 
         while (resolved.isEmpty()) {
-            val endExclusive = minOf(candidate + WINDOW_AHEAD, queue.size - 1) + 1
+            val endExclusive = minOf(candidate + engine.windowAhead, queue.size - 1) + 1
             resolved = resolveItems(candidate, endExclusive, gen, forceRefresh = reResolve)
             if (resolved.isNotEmpty()) break
 
             // Ninguna se pudo resolver: se prueban las siguientes antes de
             // rendirse, y solo un número acotado de saltos.
             val following = if (skipped < MAX_RESOLUTION_SKIPS) {
-                QueueIndex.retryIndexFor(candidate, queue.size, queueRepeatMode, backwards)
+                engine.retryTarget(candidate, backwards)
             } else {
                 null
             }
@@ -698,12 +680,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * recorta en el primer hueco; lo recortado se vuelve a pedir en el
      * `growWindow` de justo debajo.
      */
-    private fun applyResolvedWindow(player: ExoPlayer, resolved: List<ResolvedItem>) {
+    private fun applyResolvedWindow(player: AudioPlayer, resolved: List<ResolvedItem>) {
         val prefix = QueueIndex.contiguousPrefixLength(resolved.map { it.index })
         val start = resolved.first().index
-        windowState = windowState.anchorAt(start)
-        setCurrentIndex(start)
-        player.setMediaItems(resolved.take(prefix).map { it.mediaItem }, 0, C.TIME_UNSET)
+        engine.anchorWindowAt(start)
+        applyCurrentIndex(start)
+        player.setMediaItems(resolved.take(prefix).map { it.track }, 0)
         player.prepare()
         player.play()
         onMediaSessionUpdate?.invoke(player)
@@ -721,7 +703,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * tanto se recogen al terminar, porque el bucle vuelve a mirar qué falta.
      */
     private fun growWindow() {
-        if (_exoPlayer == null) return
+        if (_player == null) return
         if (queue.isEmpty() || currentIndex !in queue.indices) return
 
         trimWindow()
@@ -739,23 +721,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     /**
      * Tramo de cola que falta por preparar, o `null` si la ventana ya cubre lo
-     * que se pide (la cola entera, o la actual más [WINDOW_AHEAD]).
+     * que se pide (la cola entera, o la actual más `QueueEngine.windowAhead`).
      *
-     * El tramo se acota a [WINDOW_AHEAD] items por llamada: cambiar a "repetir
-     * todo" estando en la última canción pediría resolver la cola entera de
-     * golpe.
+     * El cálculo vive en [QueueEngine]; aquí solo se resuelve el reproductor.
      */
-    private fun fillTarget(): FillTarget? {
-        val player = _exoPlayer ?: return null
-        if (queue.isEmpty() || currentIndex !in queue.indices) return null
-
-        val lastCovered = windowStart + player.mediaItemCount - 1
-        val wanted = minOf(currentIndex + WINDOW_AHEAD, queue.size - 1)
-        if (wanted - lastCovered <= 0) return null
-
-        val from = lastCovered + 1
-        val lastNew = minOf(wanted, from + WINDOW_AHEAD - 1)
-        return if (from > lastNew) null else FillTarget(from, lastNew)
+    private fun fillTarget(): QueueEngine.FillTarget? {
+        val player = _player ?: return null
+        return engine.fillTarget(player.mediaItemCount)
     }
 
     /**
@@ -777,13 +749,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             if (gen != generation) return
 
             // Solo se añaden los items desde `from` sin huecos: si uno falla, la
-            // ventana debe dejar de crecer ahí o la posición de ExoPlayer
+            // ventana debe dejar de crecer ahí o la posición del reproductor
             // dejaría de corresponder con el índice de la cola.
             var expected = target.from
-            val contiguous = ArrayList<MediaItem>(resolved.size)
+            val contiguous = ArrayList<AudioTrack>(resolved.size)
             for (item in resolved) {
                 if (item.index != expected) break
-                contiguous.add(item.mediaItem)
+                contiguous.add(item.track)
                 expected++
             }
 
@@ -796,9 +768,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
             // Entre que se calculó el tramo y aquí la ventana pudo cambiar de
             // otra forma (p. ej. vaciándose al llegar al final de la cola).
-            // Añadir en ese caso dejaría la posición de ExoPlayer desfasada
+            // Añadir en ese caso dejaría la posición del reproductor desfasada
             // respecto a la cola; se reevalúa en la siguiente vuelta.
-            val player = _exoPlayer ?: return
+            val player = _player ?: return
             if (windowStart + player.mediaItemCount != target.from) return
 
             attempt = 1
@@ -808,12 +780,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /**
-     * Descarta de la ventana los items ya superados para que no crezca sin
-     * límite. Nunca se elimina el item en reproducción.
-     */
-    /**
      * Recorta por delante lo que ya no puede volver a usarse, dejando
-     * [KEEP_BEHIND] items detrás del actual.
+     * `QueueEngine.keepBehind` items detrás del actual.
      *
      * Antes no dejaba ninguno, y eso rompía el `<<`: con la ventana empezando
      * justo en la canción actual, el anterior nunca estaba preparado, así que
@@ -823,12 +791,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * habitual es un `seekTo` inmediato y sin cortes (B49).
      */
     private fun trimWindow() {
-        val player = _exoPlayer ?: return
-        val removable = player.currentMediaItemIndex - KEEP_BEHIND
+        val player = _player ?: return
+        val removable = engine.trimCount(player.currentMediaItemIndex)
         if (removable <= 0 || removable >= player.mediaItemCount) return
 
         player.removeMediaItems(0, removable)
-        windowState = windowState.shiftForward(removable)
+        engine.shiftWindow(removable)
     }
 
     /**
@@ -867,7 +835,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun onTrackEnded() {
         if (transitionInFlight) return
 
-        val target = QueueIndex.onTrackEnded(currentIndex, queue.size, queueRepeatMode)
+        val target = engine.onTrackEndedTarget()
         if (target == null) {
             stopAtQueueEnd()
             return
@@ -881,7 +849,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * Un item no se pudo reproducir. Se salta a la siguiente en lugar de
      * detener la cola, salvo que los fallos se acumulen.
      */
-    private fun onItemUnplayable(error: PlaybackException) {
+    private fun onItemUnplayable(error: Throwable) {
         if (currentIndex !in queue.indices) {
             showError(error)
             return
@@ -902,7 +870,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         // Sin destino válido no hay nada que reintentar: se detiene la cola.
-        val target = QueueIndex.onTrackEnded(currentIndex, queue.size, queueRepeatMode)
+        val target = engine.onTrackEndedTarget()
         if (target == null) {
             showError(error)
             stopAtQueueEnd()
@@ -911,18 +879,18 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         playIndex(target, reResolve = expiredUrl, backwards = false)
     }
 
-    private fun showError(error: PlaybackException) {
+    private fun showError(error: Throwable) {
         val prefix = Translations.get(getApplication(), "error_prefix")
         _error.publish(prefix + (error.message ?: ""))
     }
 
     /** Fin de la cola: se detiene la reproducción y se cierra la ventana. */
     private fun stopAtQueueEnd() {
-        _exoPlayer?.let { player ->
+        _player?.let { player ->
             player.stop()
             player.clearMediaItems()
         }
-            windowState = windowState.reset()
+        engine.resetWindow()
         currentVideoId = null
         // B63: al vaciar la ventana, la UI puede seguir apuntando a la última
         // canción; al pulsar '>' (play) necesitamos que vuelva a arrancar con
@@ -940,7 +908,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         updateLoadingState()
     }
 
-    private fun isHttpStatusError(error: PlaybackException): Boolean {
+    private fun isHttpStatusError(error: Throwable): Boolean {
         var cause: Throwable? = error
         var depth = 0
         while (cause != null && depth < MAX_CAUSE_DEPTH) {
@@ -960,12 +928,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     // ------------------------------------------------------------------ //
 
     /**
-     * Traduce la posición de ExoPlayer a un índice de la cola. Como la ventana
+     * Traduce la posición del reproductor a un índice de la cola. Como la ventana
      * es contigua, es aritmética: no depende de comparar IDs, que se rompía
      * con pistas repetidas en la cola.
      */
     private fun syncIndexFromWindow() {
-        val player = _exoPlayer ?: return
+        val player = _player ?: return
         if (queue.isEmpty()) return
 
         val absolute = windowStart + player.currentMediaItemIndex
@@ -979,7 +947,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun trackAt(index: Int): TrackEntity? = queue.getOrNull(index)
 
     /** Fija la posición actual y refleja el cambio en la UI. */
-    private fun setCurrentIndex(index: Int) {
+    private fun applyCurrentIndex(index: Int) {
         currentIndex = index
         val track = trackAt(index)
         // El id que cuenta es el que sirvió la URL, no el de la pista: si la
@@ -1005,7 +973,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * puesto no lo cerraba porque su generación ya no era la vigente.
      */
     private fun invalidateLoads() {
-        windowState = windowState.invalidate()
+        engine.invalidateWindow()
         loading.supersede()
         // La operación que invalida se hace cargo: las transiciones anteriores
         // ya no van a aplicar nada, así que su candado también caduca (B59).
@@ -1035,7 +1003,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
      * `true` aunque la operación que lo abrió sea invalidada (B58).
      */
     private fun updateLoadingState() {
-        val buffering = _exoPlayer?.playbackState == Player.STATE_BUFFERING
+        val buffering = _player?.playbackState == PlaybackState.BUFFERING
         _isLoading.publish(loading.isLoading || buffering)
     }
 
@@ -1046,7 +1014,4 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private fun <T> MutableLiveData<T>.publish(value: T) {
         if (Looper.myLooper() == Looper.getMainLooper()) setValue(value) else postValue(value)
     }
-
-    /** Tramo de la cola que falta por preparar en la ventana. */
-    private data class FillTarget(val from: Int, val lastNew: Int)
 }

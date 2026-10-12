@@ -2,6 +2,7 @@ package com.plyr.utils
 
 import android.content.Context
 import androidx.core.content.edit
+import com.plyr.domain.RepeatMode
 
 /**
  * Config - Configuración general de la aplicación (tema, búsqueda, repetición e idioma).
@@ -14,10 +15,10 @@ object Config {
 
     // === CONSTANTES PÚBLICAS DE MODO DE REPETICIÓN ===
 
-    /** Modos de repetición disponibles */
-    const val REPEAT_MODE_OFF = "off"        // Sin repetición
-    const val REPEAT_MODE_ONE = "one"        // Repetir una sola vez
-    const val REPEAT_MODE_ALL = "all"        // Repetir indefinidamente
+    /** Modos de repetición disponibles (alias de [RepeatMode], en `:core`) */
+    const val REPEAT_MODE_OFF = RepeatMode.OFF        // Sin repetición
+    const val REPEAT_MODE_ONE = RepeatMode.ONE        // Repetir una sola vez
+    const val REPEAT_MODE_ALL = RepeatMode.ALL        // Repetir indefinidamente
 
     // === CONSTANTES PÚBLICAS DE IDIOMAS ===
 

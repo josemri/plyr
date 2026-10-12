@@ -2,9 +2,9 @@ package com.plyr.viewmodel
 
 import android.app.Application
 import android.net.Uri
-import androidx.media3.common.MediaItem
 import com.plyr.database.TrackEntity
 import com.plyr.network.YouTubeManager
+import com.plyr.player.AudioTrack
 import com.plyr.utils.DownloadedAudioStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -13,7 +13,7 @@ import kotlinx.coroutines.coroutineScope
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Resuelve las URLs de audio de las pistas y construye los `MediaItem`.
+ * Resuelve las URLs de audio de las pistas y construye los [AudioTrack].
  *
  * Extraído de [PlayerViewModel] porque no depende del estado de la ventana ni de
  * los controles: solo de la red, de la caché de ficheros descargados y del id de
@@ -112,22 +112,18 @@ class TrackResolver(private val application: Application) {
         if (!isCurrent()) return emptyList()
 
         return resolved.mapIndexedNotNull { i, (_, uri) ->
-            if (uri == null) null else ResolvedItem(startIndex + i, createMediaItem(tracks[i], uri, startIndex + i))
+            if (uri == null) null else ResolvedItem(startIndex + i, createAudioTrack(tracks[i], uri, startIndex + i))
         }
     }
 
-    fun createMediaItem(track: TrackEntity, uri: Uri, queueIndex: Int): MediaItem =
-        MediaItem.Builder()
-            .setUri(uri)
-            .setMediaId("${track.id}#$queueIndex")
-            .setMediaMetadata(
-                androidx.media3.common.MediaMetadata.Builder()
-                    .setTitle(track.name)
-                    .setArtist(track.artists)
-                    .build()
-            )
-            .build()
+    fun createAudioTrack(track: TrackEntity, uri: Uri, queueIndex: Int): AudioTrack =
+        AudioTrack(
+            mediaId = "${track.id}#$queueIndex",
+            title = track.name,
+            artist = track.artists,
+            uri = uri.toString(),
+        )
 
     /** Item resuelto junto a su posición en la cola, para no perder la alineación. */
-    data class ResolvedItem(val index: Int, val mediaItem: MediaItem)
+    data class ResolvedItem(val index: Int, val track: AudioTrack)
 }

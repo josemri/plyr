@@ -20,7 +20,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.core.*
-import androidx.media3.common.Player
+import com.plyr.player.AudioPlayer
+import com.plyr.player.PlaybackState
 import com.plyr.viewmodel.PlayerViewModel
 import com.plyr.utils.formatTime
 import com.plyr.utils.Config
@@ -172,7 +173,7 @@ fun FloatingMusicControls(
     }
 }
 
-private data class PlaybackState(
+private data class PlaybackUiState(
     val isPlaying: Boolean,
     val duration: Long,
     val position: Long,
@@ -195,7 +196,7 @@ private data class PlaybackSnapshot(
  * referencia fija al reproductor para no tocar uno ya liberado.
  */
 @Composable
-private fun rememberPlaybackState(playerViewModel: PlayerViewModel): PlaybackState {
+private fun rememberPlaybackState(playerViewModel: PlayerViewModel): PlaybackUiState {
     var isPlaying by remember { mutableStateOf(false) }
     var duration by remember { mutableLongStateOf(0L) }
     var position by remember { mutableLongStateOf(0L) }
@@ -204,11 +205,11 @@ private fun rememberPlaybackState(playerViewModel: PlayerViewModel): PlaybackSta
     LaunchedEffect(Unit) {
         var lastTotal = 0L
         while (true) {
-            // B35: `exoPlayer` es un `var` no observable; si se usara de clave,
+            // B35: `audioPlayer` es un `var` no observable; si se usara de clave,
             // una composición con el reproductor a null (y sin recomposiciones
             // posteriores) dejaba el poll sin arrancar nunca. Se relee en cada
             // vuelta y el lazo aguanta hasta que el reproductor exista.
-            val player = playerViewModel.exoPlayer
+            val player = playerViewModel.audioPlayer
             if (player == null) {
                 delay(500)
                 continue
@@ -227,12 +228,12 @@ private fun rememberPlaybackState(playerViewModel: PlayerViewModel): PlaybackSta
         }
     }
 
-    return PlaybackState(isPlaying, duration, position, progress)
+    return PlaybackUiState(isPlaying, duration, position, progress)
 }
 
-private fun readPlaybackSnapshot(player: Player): PlaybackSnapshot {
-    val active = player.playbackState == Player.STATE_READY ||
-        player.playbackState == Player.STATE_BUFFERING
+private fun readPlaybackSnapshot(player: AudioPlayer): PlaybackSnapshot {
+    val active = player.playbackState == PlaybackState.READY ||
+        player.playbackState == PlaybackState.BUFFERING
     val total = if (active && player.duration > 0) player.duration else 0L
     val pos = if (active) player.currentPosition else 0L
     val ratio = if (total > 0) pos.toFloat() / total.toFloat() else 0f
@@ -388,7 +389,7 @@ private fun ProgressBar(
                 },
                 onDragEnd = {
                     if (isDragging && duration > 0) {
-                        playerViewModel.exoPlayer?.seekTo((duration * dragProgress).toLong())
+                        playerViewModel.audioPlayer?.seekTo((duration * dragProgress).toLong())
                         isDragging = false
                     }
                 }

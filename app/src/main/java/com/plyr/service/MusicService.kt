@@ -18,6 +18,8 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaStyleNotificationHelper
 import com.plyr.MainActivity
 import com.plyr.R
+import com.plyr.player.AudioPlayer
+import com.plyr.player.ExoAudioPlayer
 
 class MusicService : Service() {
     private val CHANNEL_ID = "plyr_playback"
@@ -91,7 +93,10 @@ class MusicService : Service() {
     private fun appName(): String = getString(R.string.app_name)
 
     @OptIn(UnstableApi::class)
-    fun setupMediaSession(player: ExoPlayer, hasNextInQueue: () -> Boolean) {
+    fun setupMediaSession(audioPlayer: AudioPlayer, hasNextInQueue: () -> Boolean) {
+        // La MediaSession es intrínsecamente de media3: aquí es donde el
+        // reproductor neutral se materializa en su `ExoPlayer` de Android.
+        val player = (audioPlayer as? ExoAudioPlayer)?.player ?: return
         if (mediaSession != null) {
             refreshNotification(player, NotificationEvent.ITEM_TRANSITION)
             return
