@@ -26,6 +26,7 @@ import com.plyr.desktop.player.YouTubeTrackSourceResolver
 import com.plyr.desktop.search.SearchController
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.desktop.platform.AppPaths
 import com.plyr.desktop.ui.screens.ConfigScreen
 import com.plyr.desktop.ui.screens.HomeScreen
 import com.plyr.desktop.ui.screens.PlaceholderScreen
@@ -33,6 +34,7 @@ import com.plyr.desktop.ui.screens.QueueScreen
 import com.plyr.desktop.ui.screens.SearchScreen
 import com.plyr.network.YouTubeManager
 import kotlinx.coroutines.delay
+import java.nio.file.Path
 
 /** Altura reservada abajo para que los controles flotantes no tapen el contenido. */
 private val CONTROLS_RESERVED_HEIGHT = 96.dp
@@ -47,12 +49,14 @@ private const val PROGRESS_POLL_MS = 500L
  * (que no encajan con ratón/teclado) usa un `Screen` explícito que se cambia
  * desde el menú de inicio. Desde M7 también es el punto donde se conectan el
  * reproductor ([PlayerController] sobre `VlcAudioPlayer`), la búsqueda de YouTube
- * ([SearchController]) y los controles flotantes.
+ * ([SearchController]) y los controles flotantes. Desde M9 también posee la base
+ * de datos persistente (bajo la carpeta de datos del SO).
  */
 @Composable
 fun AudioListScreen(
     modifier: Modifier = Modifier,
     initialScreen: Screen = Screen.HOME,
+    openDatabase: () -> DesktopDatabase = { DesktopDatabase.open(Path.of(AppPaths.databaseFile)) },
 ) {
     var currentScreen by remember { mutableStateOf(initialScreen) }
     val goHome = { currentScreen = Screen.HOME }
@@ -81,7 +85,13 @@ fun AudioListScreen(
         onDispose { playerController.release() }
     }
 
-    val database = remember { DesktopDatabase.inMemory() }
+    // Base de datos persistente bajo la carpeta de datos del SO (`AppPaths`, M9).
+    // Se inyecta para que los tests usen una en memoria y no toquen el disco del
+    // usuario, y se cierra al salir de la pantalla.
+    val database = remember(openDatabase) { openDatabase() }
+    DisposableEffect(database) {
+        onDispose { database.close() }
+    }
     val playerState by playerController.state.collectAsState()
     val searchState by searchController.state.collectAsState()
 

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
+import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.russhwolf.settings.MapSettings
 import org.junit.After
@@ -43,7 +44,7 @@ class AudioListScreenTest {
 
     @Test
     fun arrancaEnHome() = runComposeUiTest {
-        setContent { PlyrTheme { AudioListScreen() } }
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("screen_HOME").assertIsDisplayed()
         // M7: la barra flotante solo aparece cuando hay algo (título, carga o
         // error). Sin reproducción, no se muestra.
@@ -52,14 +53,14 @@ class AudioListScreenTest {
 
     @Test
     fun elMenuNavegaABuscar() = runComposeUiTest {
-        setContent { PlyrTheme { AudioListScreen() } }
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("menu_SEARCH").performClick()
         onNodeWithTag("screen_SEARCH").assertIsDisplayed()
     }
 
     @Test
     fun elBotonVolverRegresaAHome() = runComposeUiTest {
-        setContent { PlyrTheme { AudioListScreen() } }
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("menu_CONFIG").performClick()
         onNodeWithTag("screen_CONFIG").assertIsDisplayed()
         onNodeWithTag("back_from_CONFIG").performClick()
@@ -68,14 +69,14 @@ class AudioListScreenTest {
 
     @Test
     fun elMenuDeColaNavegaAQueue() = runComposeUiTest {
-        setContent { PlyrTheme { AudioListScreen() } }
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("menu_QUEUE").performClick()
         onNodeWithTag("screen_QUEUE").assertIsDisplayed()
     }
 
     @Test
     fun cambiarIdiomaActualizaLasEtiquetas() = runComposeUiTest {
-        setContent { PlyrTheme { AudioListScreen() } }
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("menu_CONFIG").performClick()
         // En inglés el título es "plyr_config".
         onNodeWithText("$ plyr_config").assertIsDisplayed()
@@ -86,7 +87,7 @@ class AudioListScreenTest {
 
     @Test
     fun cambiarTemaNoRompeLaPantalla() = runComposeUiTest {
-        setContent { PlyrTheme { AudioListScreen() } }
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("menu_CONFIG").performClick()
         onNodeWithTag("theme_light").performClick()
         onNodeWithTag("screen_CONFIG").assertIsDisplayed()

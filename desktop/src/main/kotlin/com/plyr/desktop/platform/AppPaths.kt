@@ -38,8 +38,14 @@ object AppPaths {
 
     const val APP_NAME = "plyr"
 
+    /** Nombre del fichero SQLite con los datos del usuario. */
+    const val DATABASE_FILE_NAME = "plyr.db"
+
     /** Carpetas reales del sistema donde corre la app. */
     val directories: AppDirectories by lazy { resolve() }
+
+    /** Fichero de base de datos, dentro de [directories]`.dataDir`. */
+    val databaseFile: String by lazy { Path.of(directories.dataDir, DATABASE_FILE_NAME).toString() }
 
     /** Crea las tres carpetas si no existen y devuelve la de configuración. */
     fun ensureDirectories(dirs: AppDirectories = directories): AppDirectories {

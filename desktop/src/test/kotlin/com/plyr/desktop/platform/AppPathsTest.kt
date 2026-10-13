@@ -67,6 +67,12 @@ class AppPathsTest {
     }
 
     @Test
+    fun databaseFile_estaBajoLaCarpetaDeDatos() {
+        assertTrue(AppPaths.databaseFile.startsWith(AppPaths.directories.dataDir))
+        assertTrue(AppPaths.databaseFile.endsWith(AppPaths.DATABASE_FILE_NAME))
+    }
+
+    @Test
     fun ensureDirectories_lasCrea() {
         val base = Files.createTempDirectory("plyr-paths").toFile()
         val dirs = AppDirectories(
