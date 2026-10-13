@@ -219,8 +219,9 @@ object SupabaseClient {
                 "$SUPABASE_URL/rest/v1/$RECOMMENDATIONS_TABLE?select=*&order=created_at.desc"
             }
 
-            Logger.d(TAG, "🔄 Fetching recommendations for group: ${groupId ?: "ALL"}")
-            Logger.d(TAG, "📡 URL: $urlString")
+            // El `groupId` y la URL son PII (S7): no se registran en claro. La
+            // URL además contiene el `group_id` en el query string.
+            Logger.d(TAG, "🔄 Fetching recommendations for group: ${groupId?.let { redact(it) } ?: "ALL"}")
 
             val url = URL(urlString)
             val connection = url.openConnection() as HttpURLConnection

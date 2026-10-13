@@ -75,26 +75,4 @@ fun formatDurationSeconds(totalSeconds: Long): String {
     }
 }
 
-/**
- * Formatea un timestamp a tiempo relativo ("now", "5m", "3h", "2d").
- *
- * @param timestamp Timestamp en milisegundos
- * @return Tiempo relativo en formato corto
- */
-fun formatTimestamp(timestamp: Long): String {
-    // 0L = timestamp ilegible/desconocido (B25): no mostrar "now" falso
-    if (timestamp <= 0L) return "unknown"
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
-    val minutes = diff / (1000 * 60)
-    val hours = diff / (1000 * 60 * 60)
-    val days = diff / (1000 * 60 * 60 * 24)
-
-    return when {
-        minutes < 1 -> "now"
-        minutes < 60 -> "${minutes}m"
-        hours < 24 -> "${hours}h"
-        else -> "${days}d"
-    }
-}
 

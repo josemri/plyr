@@ -27,6 +27,8 @@ import com.plyr.desktop.search.SearchController
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.PlaylistRepository
 import com.plyr.desktop.database.SettingsTombstoneStore
+import com.plyr.desktop.feed.FeedController
+import com.plyr.desktop.feed.FeedScreen
 import com.plyr.desktop.platform.AppPaths
 import com.plyr.desktop.spotify.SpotifyImportController
 import com.plyr.desktop.spotify.SpotifyImportService
@@ -37,7 +39,6 @@ import com.plyr.desktop.sync.DataImporter
 import com.plyr.desktop.sync.DataSync
 import com.plyr.desktop.ui.screens.ConfigScreen
 import com.plyr.desktop.ui.screens.HomeScreen
-import com.plyr.desktop.ui.screens.PlaceholderScreen
 import com.plyr.desktop.ui.screens.QueueScreen
 import com.plyr.desktop.ui.screens.SearchScreen
 import com.plyr.desktop.utils.CoverCache
@@ -129,6 +130,8 @@ fun AudioListScreen(
     val spotifyController = remember(scope, repository) {
         SpotifyImportController(scope, SpotifyImportService(repository))
     }
+    // Feed de recomendaciones (M12): Supabase inyectado en el propio controlador.
+    val feedController = remember(scope) { FeedController(scope) }
     val playerState by playerController.state.collectAsState()
     val searchState by searchController.state.collectAsState()
 
@@ -197,7 +200,10 @@ fun AudioListScreen(
                             }
                         )
                     }
-                    Screen.FEED -> PlaceholderScreen(Screen.FEED, onBack = goHome)
+                    Screen.FEED -> FeedScreen(
+                        controller = feedController,
+                        onBack = goHome,
+                    )
                     Screen.CONFIG -> ConfigScreen(
                         onBack = goHome,
                         onRepeatModeSelected = playerController::setRepeatMode,

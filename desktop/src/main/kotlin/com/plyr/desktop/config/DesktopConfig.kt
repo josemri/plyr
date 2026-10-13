@@ -60,6 +60,9 @@ object DesktopConfig {
     private const val KEY_SEARCH_ENGINE = "search_engine"
     private const val KEY_SEARCH_ENGINE_MIGRATED = "search_engine_migrated"
 
+    // Apodo del feed, compartido con `com.plyr.utils.FeedConfig` de Android.
+    private const val KEY_USER_NICKNAME = "user_nickname"
+
     // Valores por defecto (idénticos a Android).
     private const val DEFAULT_THEME = "system"
     private const val DEFAULT_REPEAT_MODE = RepeatMode.OFF
@@ -74,6 +77,7 @@ object DesktopConfig {
         settings.getStringOrNull(KEY_REPEAT_MODE) ?: DEFAULT_REPEAT_MODE
     )
     private var searchEngineState by mutableStateOf(readSearchEngine(settings))
+    private var userNicknameState by mutableStateOf(settings.getStringOrNull(KEY_USER_NICKNAME) ?: "")
 
     /** Tema actual, persistido bajo la clave `theme`. */
     var theme: ThemeMode
@@ -107,6 +111,14 @@ object DesktopConfig {
             settings.putString(KEY_SEARCH_ENGINE, value)
         }
 
+    /** Apodo del feed, persistido bajo `user_nickname` (misma clave que Android). */
+    var userNickname: String
+        get() = userNicknameState
+        set(value) {
+            userNicknameState = value
+            settings.putString(KEY_USER_NICKNAME, value)
+        }
+
     // === TESTING ===
 
     /**
@@ -119,6 +131,7 @@ object DesktopConfig {
         languageState = readLanguage(settings)
         repeatModeState = settings.getStringOrNull(KEY_REPEAT_MODE) ?: DEFAULT_REPEAT_MODE
         searchEngineState = readSearchEngine(settings)
+        userNicknameState = settings.getStringOrNull(KEY_USER_NICKNAME) ?: ""
     }
 
     // === TEMAS ===

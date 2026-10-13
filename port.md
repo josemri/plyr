@@ -477,7 +477,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M9 | Config/Ajustes multiplataforma | 1 | ☑ |
 | M10 | Import/Export + backup | 1 | ☑ |
 | M11 | QR + Spotify import | 1 | ☑ |
-| M12 | Feed Supabase | 0.5 | ☐ |
+| M12 | Feed Supabase | 0.5 | ☑ |
 | M13 | Integración nativa (MPRIS/SMTC/Now Playing) | 1–2 | ☐ |
 | M14 | Empaquetado multiplataforma | 1 | ☐ |
 | M15 | Pulido y paridad final | 1–2 | ☐ |
@@ -593,6 +593,16 @@ ENTREGABLE: <qué debe quedar en el repo>.
   - **Tests:** `:core` nuevos `ShareUrlPolicyTest` y `PlaylistShareTest` (movidos de `:app`, más `sharedId`), `QrCodecTest` (**round-trip** generar→píxeles→decodificar) y `SpotifyImportTest` (URLs, HTML de muestra, `buildPlan` con búsqueda falsa); `:desktop` nuevos `QrImagesTest` (**6**: PNG guardado y re-decodificado, texto e imagen, `toImageBitmap`) y `SpotifyImportServiceTest` (**5**: alta con pistas, pista sin coincidencia, duplicado omitido, URL inválida y error de descarga). Se **borran** los tests puros de `:app` movidos a `:core`.
   - **Desviaciones respecto al plan (M11):** (1) no hay cámara en escritorio: el lector es pegar-URL/abrir-imagen (lo que pedía el hito); (2) el QR de escritorio se guarda como **PNG** (no JPEG) para preservar nitidez; (3) `SpotifyImport` se llama así (y no `SpotifyImporter`) para no chocar con el adaptador Android homónimo.
   - Verificado: `:core:jvmTest` (**380 tests**), `:desktop:test` (**149 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**164 tests**), 0 fallos. **Total: 693 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
+- **M12 — Feed de recomendaciones (Supabase) ✅.** El feed lista recomendaciones reales y permite publicar una, con el apodo persistido.
+  - **Feed de escritorio (`com.plyr.desktop.feed`):** `FeedController` (`StateFlow`) es el port de `FeedScreen`/`FeedConfig` de Android sobre el `SupabaseClient` de `:core`, con las tres llamadas de red (`getGroups`, `getRecommendations`, `createRecommendation`) **inyectadas** como funciones para poder testearlo sin red. Al abrir la pantalla carga los grupos y elige el **general** por defecto (como Android); un selector de grupo recarga sus recomendaciones.
+  - **Publicar una recomendación:** el formulario fija apodo, grupo, URL y comentario opcional; valida (URL, apodo y grupo) y, al aceptar, antepone la recomendación recién creada que devuelve Supabase. El apodo se persiste con **la misma clave** que Android (`user_nickname`) vía `DesktopConfig.userNickname`.
+  - **Pantalla (`FeedScreen`):** sustituye al `PlaceholderScreen` que ocupaba `Screen.FEED` (se **borra** el placeholder, ya sin uso). Pinta comentario/URL/antigüedad+apodo por recomendación (sin extraer metadatos del vídeo: `MediaMetadataExtractor` sigue en `:app`).
+  - **Tiempo relativo compartido:** `formatTimestamp` se mueve de `Utils.kt` (`:app`) a `core/src/commonMain` (`com.plyr.utils`), con sus tests trasladados de `:app` a `:core`; ambas plataformas resuelven la misma función.
+  - **PII en logs (S7):** `SupabaseClient.getRecommendations` ya no registra la **URL completa** (contenía el `group_id` en el query) ni el `groupId` en claro; solo longitud redactada.
+  - **i18n:** 12 claves nuevas en los 4 idiomas (`your_nickname`, `nickname_description`, `save_nickname`, `nickname_saved`, `recommend_to_group`, `recommendation_url`, `comment_optional`, `sending`, `recommendation_sent`, `recommendation_error`, `no_groups`, `feed_error`); se corrige el valor catalán de `nickname_description` (tenía texto en español) y se añade a ES/EN.
+  - **Tests:** `:core` nuevo `RelativeTimeTest` (**5**, movidos de `:app`); `:desktop` nuevos `FeedControllerTest` (**8**: grupo general, sin grupos, cambio de grupo, alta con recorte, alta sin URL, error de alta, apodo persistido, error de carga) y `FeedScreenTest` (**4** UI: listado, vacío, publicar, volver).
+  - **Desviaciones respecto al plan (M12):** (1) sin metadatos de vídeo en escritorio (requiere portar `MediaMetadataExtractor`); (2) el alta y el selector de grupo viven en la propia pantalla (Android los repartía entre `FeedScreen` y el `ShareDialog`); (3) el apodo se guarda en `DesktopConfig`, que hace de `FeedConfig` de escritorio.
+  - Verificado: `:core:jvmTest` (**385 tests**), `:desktop:test` (**167 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**160 tests**), 0 fallos. **Total: 712 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
 
 
 ---

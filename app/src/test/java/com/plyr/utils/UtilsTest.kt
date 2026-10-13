@@ -44,26 +44,6 @@ class UtilsTest {
     }
 
     @Test
-    fun formatTimestamp_nowUnderAMinute() {
-        assertEquals("now", formatTimestamp(System.currentTimeMillis() - 30_000))
-    }
-
-    @Test
-    fun formatTimestamp_minutes() {
-        assertEquals("5m", formatTimestamp(System.currentTimeMillis() - 5 * 60_000))
-    }
-
-    @Test
-    fun formatTimestamp_hours() {
-        assertEquals("3h", formatTimestamp(System.currentTimeMillis() - 3 * 60 * 60_000))
-    }
-
-    @Test
-    fun formatTimestamp_days() {
-        assertEquals("2d", formatTimestamp(System.currentTimeMillis() - 2 * 24 * 60 * 60_000))
-    }
-
-    @Test
     fun formatDurationMs_minutesNotPadded() {
         assertEquals("3:45", formatDurationMs(3 * 60_000 + 45_000))
     }
