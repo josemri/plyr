@@ -380,7 +380,7 @@ cmd_check() {
     # Unused* (código muerto). detekt falla si hay findings.
     echo ""
     echo "--- [1/3] detekt (código muerto + estructura) ---"
-    run_gradle :app:detektMain || detekt_rc=$?
+    run_gradle :app:detektMain :desktop:detektMain :core:detektMainJvm || detekt_rc=$?
 
     echo ""
     echo "--- [2/3] Android Lint ---"
@@ -395,17 +395,20 @@ cmd_check() {
     echo "  RESUMEN DEL ANÁLISIS"
     echo "=============================================================="
 
-    # 1) detekt: desglose de findings por regla desde el informe markdown
-    local detekt_report="$SCRIPT_DIR/app/build/reports/detekt/debug.md"
-    if [[ -f "$detekt_report" ]]; then
-        echo ""
-        echo "detekt -> $detekt_report"
-        grep -E '^### ' "$detekt_report" | sed -E 's/^### /  /; s/ \(/ (/' \
-            || echo "  (sin findings)"
-        echo "  Total: $(grep -cE '^\* Error' "$detekt_report") findings"
-    else
-        echo "  (no se encontró el informe de detekt en $detekt_report)"
-    fi
+    # 1) detekt: desglose de findings por regla desde los informes markdown
+    local report
+    for report in \
+        "$SCRIPT_DIR/app/build/reports/detekt/debug.md" \
+        "$SCRIPT_DIR/desktop/build/reports/detekt/main.md" \
+        "$SCRIPT_DIR/core/build/reports/detekt/mainJvm.md"; do
+        if [[ -f "$report" ]]; then
+            echo ""
+            echo "detekt -> ${report#"$SCRIPT_DIR"/}"
+            grep -E '^### ' "$report" | sed -E 's/^### /  /; s/ \(/ (/' \
+                || echo "  (sin findings)"
+            echo "  Total: $(grep -cE '^\* Error' "$report") findings"
+        fi
+    done
 
     # 2) lint: recuento de problemas desde el informe XML si existe
     local lint_xml

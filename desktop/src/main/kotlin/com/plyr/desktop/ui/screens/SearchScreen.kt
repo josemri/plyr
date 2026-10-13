@@ -131,7 +131,6 @@ fun SearchScreen(
 
     pendingAdd?.let { track ->
         AddToPlaylistDialog(
-            track = track,
             playlists = playlists,
             onPick = { playlistId ->
                 onAddToPlaylist?.invoke(track, playlistId)
@@ -145,7 +144,6 @@ fun SearchScreen(
 /** Picker de lista destino para "añadir a lista" desde los resultados (M8). */
 @Composable
 private fun AddToPlaylistDialog(
-    track: PlayerTrack,
     playlists: List<PlaylistRecord>,
     onPick: (String) -> Unit,
     onDismiss: () -> Unit,

@@ -3,6 +3,24 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
+    alias(libs.plugins.detekt)
+}
+
+// Análisis de código muerto/estructura (M15): misma config que `:app`.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.file("detekt.yml"))
+    // `:core` es código ya portado desde Android: el baseline fija el estado
+    // estructural actual y deja que el código nuevo se analice de verdad.
+    baseline.set(layout.projectDirectory.file("detekt-baseline.xml"))
+}
+
+tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
+    exclude { it.file.invariantSeparatorsPath.contains("/generated/") }
+}
+tasks.withType<dev.detekt.gradle.DetektCreateBaselineTask>().configureEach {
+    exclude { it.file.invariantSeparatorsPath.contains("/generated/") }
+    baseline.set(layout.projectDirectory.file("detekt-baseline.xml"))
 }
 
 kotlin {

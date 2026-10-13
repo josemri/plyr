@@ -85,6 +85,23 @@ Installers are built with `jpackage` through the Compose plugin:
 
 `./gradlew :desktop:packageDistributionForCurrentOS` builds every format compatible with the host (on Linux: the `.deb` plus a portable app image). A single-file AppImage or a Flatpak is not generated here: jpackage only produces the portable `app-image`, and a real AppImage/Flatpak would need `appimagetool`/`flatpak-builder`. The packaging assets (icon, AppStream metadata and the `.deb` patch that declares `libvlc`) live in [`desktop/packaging/`](desktop/packaging/).
 
+### keyboard shortcuts
+
+The desktop build reuses the same `MediaCommand` vocabulary as the Android media buttons, so the keyboard, the tray icon and MPRIS (Linux) drive the same player:
+
+| Keys                          | Action                |
+|-------------------------------|-----------------------|
+| `Space`                       | play / pause          |
+| `→` / `←`                     | seek ±10 s            |
+| `Ctrl`/`Cmd` + `→` / `←`      | next / previous track |
+| media play, pause, next, previous, fast-forward, rewind | their action |
+
+Text fields keep priority: the shortcuts bubble up only when nothing else consumes the key.
+
+### updates
+
+Once a day the desktop build asks the GitHub releases API (same repo as Android) whether a newer version exists and, if so, shows it on the home screen next to the current version. The click opens the installer for the current OS (`.deb`/`.rpm`/`.AppImage`, `.msi` or `.dmg`) or, failing that, the releases page; actually upgrading is left to your package manager.
+
 ## permissions
 
 ```xml

@@ -31,8 +31,6 @@ data class Song(
 fun SongListItem(
     song: Song,
     index: Int,
-    modifier: Modifier = Modifier,
-    isSelected: Boolean = false,
     isCurrentlyPlaying: Boolean = false,
     isDraggable: Boolean = false,
     reorderState: ReorderState? = null,
@@ -145,7 +143,7 @@ fun SongListItem(
     }
 }
 
-fun TrackRecord.toSong(index: Int = position): Song = Song(
+fun TrackRecord.toSong(): Song = Song(
     number = position + 1,
     title = name,
     artist = artists,

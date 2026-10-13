@@ -1,0 +1,31 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:AudioListScreen.kt:@Composable fun AudioListScreen</ID>
+    <ID>CyclomaticComplexMethod:MprisMediaIntegration.kt:MprisPlayer$private fun propertyValue: Variant&lt;*&gt;?</ID>
+    <ID>CyclomaticComplexMethod:PlaylistDetailView.kt:@Composable fun PlaylistDetailView</ID>
+    <ID>ImplicitDefaultLocale:BackupController.kt:BackupController$Translations.get("sync_done") .format(result.summary.playlistCount, result.summary.trackCount)</ID>
+    <ID>ImplicitDefaultLocale:BackupController.kt:BackupController$Translations.get("sync_merged") .format(merged.importedPlaylists, merged.mergedLikedTracks, merged.deletedPlaylists)</ID>
+    <ID>ImplicitDefaultLocale:BackupController.kt:BackupController$Translations.get("sync_synced").format(state.folderName ?: BackupFolder.BACKUP_FILE_NAME)</ID>
+    <ID>ImplicitDefaultLocale:PlaylistDetailView.kt:String.format(Translations.get("delete_playlist_message"), playlist?.name.orEmpty())</ID>
+    <ID>ImplicitDefaultLocale:PlaylistsScreen.kt:String.format(Translations.get("tracks_count"), playlist.trackCount)</ID>
+    <ID>ImplicitDefaultLocale:QrScanDialog.kt:Translations.get("scan_result").format("${it.source}/${it.type}/${it.id}")</ID>
+    <ID>ImplicitDefaultLocale:SoundCheck.kt:" %.1fs / %.1fs (%s)".format(position, duration, state)</ID>
+    <ID>LongMethod:AudioListScreen.kt:@Composable fun AudioListScreen</ID>
+    <ID>LongMethod:CoverCropDialog.kt:@Composable fun CoverCropDialog</ID>
+    <ID>LongMethod:FeedScreen.kt:@Composable private fun NewRecommendationForm</ID>
+    <ID>LongMethod:FloatingMusicControls.kt:@Composable private fun ProgressBar</ID>
+    <ID>LongMethod:PlaylistDetailView.kt:@Composable fun PlaylistDetailView</ID>
+    <ID>LongMethod:QrScanDialog.kt:@Composable fun QrScanDialog</ID>
+    <ID>LongMethod:QrShareDialog.kt:@Composable fun QrShareDialog</ID>
+    <ID>LongMethod:SearchScreen.kt:@Composable fun SearchScreen</ID>
+    <ID>LongMethod:SongListItem.kt:@Composable fun SongListItem</ID>
+    <ID>SpreadOperator:VlcAudioPlayer.kt:VlcAudioPlayer$(track.uri, *MEDIA_OPTIONS)</ID>
+    <ID>TooManyFunctions:MprisMediaIntegration.kt:MprisPlayer : MediaPlayer2MediaPlayer2PlayerProperties</ID>
+    <ID>TooManyFunctions:PlayerController.kt:PlayerController</ID>
+    <ID>TooManyFunctions:PlaylistRepository.kt:PlaylistRepository</ID>
+    <ID>TooManyFunctions:PlaylistsController.kt:PlaylistsController</ID>
+    <ID>TooManyFunctions:VlcAudioPlayer.kt:VlcAudioPlayer : AudioPlayer</ID>
+  </CurrentIssues>
+</SmellBaseline>

@@ -105,7 +105,7 @@ kotlin {
 
 detekt {
     buildUponDefaultConfig = true
-    config.setFrom("detekt.yml")
+    config.setFrom(rootProject.file("detekt.yml"))
 }
 
 android.applicationVariants.all {

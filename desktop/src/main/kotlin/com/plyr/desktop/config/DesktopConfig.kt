@@ -64,7 +64,6 @@ object DesktopConfig {
     private const val KEY_USER_NICKNAME = "user_nickname"
 
     // Valores por defecto (idénticos a Android).
-    private const val DEFAULT_THEME = "system"
     private const val DEFAULT_REPEAT_MODE = RepeatMode.OFF
     private const val DEFAULT_SEARCH_ENGINE = "youtube"
     private const val LEGACY_LANGUAGE_JAPANESE = "japanese"

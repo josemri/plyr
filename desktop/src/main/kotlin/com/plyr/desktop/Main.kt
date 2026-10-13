@@ -16,6 +16,7 @@ import com.plyr.desktop.platform.AppPaths
 import com.plyr.desktop.player.PlayerController
 import com.plyr.desktop.ui.AudioListScreen
 import com.plyr.desktop.ui.theme.PlyrTheme
+import com.plyr.desktop.utils.UpdateChecker
 
 /**
  * Punto de entrada de la app de escritorio.
@@ -63,6 +64,7 @@ fun main() = application {
         PlyrTheme(darkTheme = dark) {
             AudioListScreen(
                 mediaIntegration = mediaIntegration,
+                checkForUpdate = { UpdateChecker.checkForUpdate() },
                 onPlayerControllerReady = { playerController = it },
                 onQuit = ::exitApplication,
             )

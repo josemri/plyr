@@ -44,6 +44,20 @@ class TranslationCatalogTest {
         }
     }
 
+    /**
+     * Los 4 idiomas deben exponer exactamente el mismo conjunto de claves: una
+     * clave añadida solo en un idioma (o eliminada de uno) es la regresión de
+     * i18n más habitual al tocar la UI.
+     */
+    @Test
+    fun allLanguagesShareTheSameKeys() {
+        val translations = getTranslationsMap()
+        val reference = translations.getValue("english").keys
+        languages.forEach { language ->
+            assertEquals("Claves distintas en '$language'", reference, translations.getValue(language).keys)
+        }
+    }
+
     @Test
     fun noBlankValues() {
         val translations = getTranslationsMap()

@@ -1,5 +1,6 @@
 package com.plyr.desktop.ui
 
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.player.PlayerController
@@ -46,7 +50,9 @@ import com.plyr.desktop.ui.screens.HomeScreen
 import com.plyr.desktop.ui.screens.QueueScreen
 import com.plyr.desktop.ui.screens.SearchScreen
 import com.plyr.desktop.utils.CoverCache
+import com.plyr.desktop.utils.UpdateChecker
 import com.plyr.network.YouTubeManager
+import com.plyr.receivers.MediaCommand
 import kotlinx.coroutines.delay
 import java.nio.file.Path
 
@@ -72,6 +78,7 @@ fun AudioListScreen(
     initialScreen: Screen = Screen.HOME,
     openDatabase: () -> DesktopDatabase = { DesktopDatabase.open(Path.of(AppPaths.databaseFile)) },
     mediaIntegration: DesktopMediaIntegration = NoopMediaIntegration(),
+    checkForUpdate: (suspend () -> UpdateChecker.UpdateInfo?)? = null,
     onPlayerControllerReady: (PlayerController) -> Unit = {},
     onQuit: () -> Unit = {},
 ) {
@@ -164,6 +171,12 @@ fun AudioListScreen(
     val searchState by searchController.state.collectAsState()
     val playlistsState by playlistsController.state.collectAsState()
 
+    // Atajos de teclado (M15): el foco vive en la raíz para que las teclas
+    // multimedia y los cursores lleguen aunque no haya nada más enfocado; los
+    // campos de texto consumen lo suyo antes (fase de burbujeo).
+    val shortcutsFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { shortcutsFocus.requestFocus() } }
+
     // Refresca posición/duración solo mientras suena: con la reproducción parada
     // no hay bucle y la composición queda ociosa (los tests no se cuelgan).
     LaunchedEffect(playerState.isPlaying) {
@@ -174,14 +187,59 @@ fun AudioListScreen(
     }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .focusRequester(shortcutsFocus)
+                .focusable()
+                .onKeyEvent { event ->
+                    when (KeyboardShortcuts.commandFor(event)) {
+                        MediaCommand.PLAY_PAUSE -> {
+                            playerController.togglePlayPause()
+                            true
+                        }
+                        MediaCommand.PLAY -> {
+                            if (!playerState.isPlaying) playerController.togglePlayPause()
+                            true
+                        }
+                        MediaCommand.PAUSE -> {
+                            if (playerState.isPlaying) playerController.togglePlayPause()
+                            true
+                        }
+                        MediaCommand.NEXT -> {
+                            playerController.next()
+                            true
+                        }
+                        MediaCommand.PREVIOUS -> {
+                            playerController.previous()
+                            true
+                        }
+                        MediaCommand.FAST_FORWARD -> {
+                            playerController.seekTo(
+                                playerState.positionMs + KeyboardShortcuts.SEEK_STEP_MS,
+                            )
+                            true
+                        }
+                        MediaCommand.REWIND -> {
+                            playerController.seekTo(
+                                (playerState.positionMs - KeyboardShortcuts.SEEK_STEP_MS).coerceAtLeast(0L),
+                            )
+                            true
+                        }
+                        MediaCommand.NONE -> false
+                    }
+                },
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(bottom = CONTROLS_RESERVED_HEIGHT),
             ) {
                 when (currentScreen) {
-                    Screen.HOME -> HomeScreen(onNavigate = { currentScreen = it })
+                    Screen.HOME -> HomeScreen(
+                        onNavigate = { currentScreen = it },
+                        checkForUpdate = checkForUpdate,
+                    )
                     Screen.SEARCH -> SearchScreen(
                         state = searchState,
                         onQueryChange = searchController::onQueryChange,

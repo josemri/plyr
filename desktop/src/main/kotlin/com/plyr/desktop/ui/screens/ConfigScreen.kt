@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode

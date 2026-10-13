@@ -17,7 +17,7 @@ import com.plyr.desktop.ui.components.ActionButtonData
 import com.plyr.desktop.ui.components.Titulo
 
 @Composable
-fun CreatePlaylistView(controller: PlaylistsController, onBack: () -> Unit) {
+fun CreatePlaylistView(controller: PlaylistsController) {
     var name by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
     Titulo(Translations.get("create_playlist"))

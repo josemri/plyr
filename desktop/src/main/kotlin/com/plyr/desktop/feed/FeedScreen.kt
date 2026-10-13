@@ -122,7 +122,7 @@ private fun RecommendationRow(recommendation: Recommendation) {
     ) {
         if (!recommendation.comment.isNullOrBlank()) {
             Text(
-                text = recommendation.comment!!,
+                text = recommendation.comment.orEmpty(),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.onBackground,

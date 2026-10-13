@@ -5,10 +5,33 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.sqldelight)
+    alias(libs.plugins.detekt)
 }
 
 kotlin {
     jvmToolchain(21)
+}
+
+// Análisis de código muerto/estructura (M15): misma config que `:app`.
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(rootProject.file("detekt.yml"))
+    // `:desktop` hereda bastante composable/controlador ya portado: el baseline
+    // acepta como deuda el análisis estructural actual (LongMethod/
+    // CyclomaticComplexMethod/TooManyFunctions) y evita que vuelva a colarse.
+    // El código nuevo (M15 en adelante) no está en el baseline: se analiza.
+    baseline.set(layout.projectDirectory.file("detekt-baseline.xml"))
+}
+
+// SQLDelight escribe Kotlin generado en `build/generated`: se analiza el código
+// del proyecto, no el generado (el filtro es por ruta absoluta porque cada
+// carpeta generada es una raíz de fuentes).
+tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
+    exclude { it.file.invariantSeparatorsPath.contains("/generated/") }
+}
+tasks.withType<dev.detekt.gradle.DetektCreateBaselineTask>().configureEach {
+    exclude { it.file.invariantSeparatorsPath.contains("/generated/") }
+    baseline.set(layout.projectDirectory.file("detekt-baseline.xml"))
 }
 
 dependencies {
@@ -23,6 +46,9 @@ dependencies {
     implementation(libs.multiplatform.settings)
     // Descarga de portadas para la caché de disco (M9, usada por la copia M10).
     implementation(libs.okhttp)
+    // Lectura del JSON de GitHub releases en el comprobador de actualizaciones
+    // (M15). En Android lo aporta el SDK; aquí hay que declararlo.
+    implementation(libs.json)
     // Persistencia de escritorio (M6): SQLDelight sustituye a Room.
     implementation(libs.sqldelight.runtime)
     implementation(libs.sqldelight.sqlite.driver)

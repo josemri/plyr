@@ -38,7 +38,7 @@ fun PlaylistsScreen(
         Titulo(Translations.get("plyr_lists"))
         Spacer(modifier = Modifier.height(PlyrSpacing.small))
         when {
-            state.showCreate -> CreatePlaylistView(controller, onBack)
+            state.showCreate -> CreatePlaylistView(controller)
             state.selectedPlaylistId != null -> PlaylistDetailView(controller, state, onPlayTracks, onBack)
             else -> PlaylistGridView(controller, state, onBack)
         }
