@@ -1,26 +1,25 @@
 package com.plyr.desktop.config
 
 import com.plyr.domain.RepeatMode
-import org.junit.After
+import com.russhwolf.settings.MapSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-/** Lógica pura de [DesktopConfig]: ciclos de repetición/tema y resolución de oscuro. */
+/**
+ * Lógica de [DesktopConfig]: ciclos de repetición/tema, resolución de oscuro,
+ * persistencia y migraciones de claves heredadas de Android.
+ *
+ * Cada test instala su propio almacén en memoria para no tocar las preferencias
+ * reales del usuario.
+ */
 class DesktopConfigTest {
-
-    private var savedTheme = ThemeMode.SYSTEM
 
     @Before
     fun setUp() {
-        savedTheme = DesktopConfig.theme
-    }
-
-    @After
-    fun tearDown() {
-        DesktopConfig.theme = savedTheme
+        DesktopConfig.installSettings(MapSettings())
     }
 
     @Test
@@ -62,5 +61,73 @@ class DesktopConfigTest {
         assertEquals(ThemeMode.LIGHT, ThemeMode.fromId("light"))
         assertEquals(ThemeMode.SYSTEM, ThemeMode.fromId("desconocido"))
         assertEquals(ThemeMode.SYSTEM, ThemeMode.fromId(null))
+    }
+
+    @Test
+    fun valoresPorDefecto() {
+        assertEquals(ThemeMode.SYSTEM, DesktopConfig.theme)
+        assertEquals(Language.ENGLISH, DesktopConfig.language)
+        assertEquals(RepeatMode.OFF, DesktopConfig.repeatMode)
+        assertEquals("youtube", DesktopConfig.searchEngine)
+    }
+
+    @Test
+    fun persisteYRecargaComoTrasReiniciar() {
+        val store = MapSettings()
+        DesktopConfig.installSettings(store)
+
+        DesktopConfig.theme = ThemeMode.LIGHT
+        DesktopConfig.language = Language.JAPANESE
+        DesktopConfig.repeatMode = RepeatMode.ALL
+        DesktopConfig.searchEngine = "youtube"
+
+        // "Reiniciar": se relee el mismo almacén desde cero.
+        DesktopConfig.installSettings(store)
+
+        assertEquals(ThemeMode.LIGHT, DesktopConfig.theme)
+        assertEquals(Language.JAPANESE, DesktopConfig.language)
+        assertEquals(RepeatMode.ALL, DesktopConfig.repeatMode)
+        assertEquals("youtube", DesktopConfig.searchEngine)
+    }
+
+    @Test
+    fun migraElIdiomaLegacyJapanese() {
+        val store = MapSettings()
+        store.putString("language", "japanese")
+
+        DesktopConfig.installSettings(store)
+
+        assertEquals(Language.JAPANESE, DesktopConfig.language)
+        assertEquals(Language.JAPANESE.id, store.getStringOrNull("language"))
+    }
+
+    @Test
+    fun inicializaElBuscadorYMarcaLoComoMigrado() {
+        val store = MapSettings()
+
+        DesktopConfig.installSettings(store)
+
+        assertEquals("youtube", DesktopConfig.searchEngine)
+        assertTrue(store.getBoolean("search_engine_migrated", false))
+        assertEquals("youtube", store.getStringOrNull("search_engine"))
+    }
+
+    @Test
+    fun respetaElBuscadorYaMigrado() {
+        val store = MapSettings()
+        store.putString("search_engine", "youtube")
+        store.putBoolean("search_engine_migrated", true)
+
+        DesktopConfig.installSettings(store)
+
+        assertEquals("youtube", DesktopConfig.searchEngine)
+    }
+
+    @Test
+    fun language_fromIdConFallback() {
+        assertEquals(Language.SPANISH, Language.fromId("español"))
+        assertEquals(Language.CATALAN, Language.fromId("català"))
+        assertEquals(Language.ENGLISH, Language.fromId("desconocido"))
+        assertEquals(Language.ENGLISH, Language.fromId(null))
     }
 }

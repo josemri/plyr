@@ -139,7 +139,10 @@ fun AudioListScreen(
                         )
                     }
                     Screen.FEED -> PlaceholderScreen(Screen.FEED, onBack = goHome)
-                    Screen.CONFIG -> ConfigScreen(onBack = goHome)
+                    Screen.CONFIG -> ConfigScreen(
+                        onBack = goHome,
+                        onRepeatModeSelected = playerController::setRepeatMode,
+                    )
                 }
             }
 

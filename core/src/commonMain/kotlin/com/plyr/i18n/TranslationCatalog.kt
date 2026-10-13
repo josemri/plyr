@@ -26,6 +26,13 @@ object TranslationCatalog {
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
+            "repeat" to "repetición",
+            "repeat_off" to "off",
+            "repeat_one" to "una",
+            "repeat_all" to "todas",
+            "paths_title" to "almacenamiento",
+            "data_folder" to "datos",
+            "cache_folder" to "caché",
 
             // Home Screen
             "home_feed" to "feed",
@@ -151,6 +158,13 @@ object TranslationCatalog {
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
+            "repeat" to "repeat",
+            "repeat_off" to "off",
+            "repeat_one" to "one",
+            "repeat_all" to "all",
+            "paths_title" to "storage",
+            "data_folder" to "data",
+            "cache_folder" to "cache",
             "share_me" to "< share me! >",
 
 
@@ -276,6 +290,13 @@ object TranslationCatalog {
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
+            "repeat" to "repetició",
+            "repeat_off" to "off",
+            "repeat_one" to "una",
+            "repeat_all" to "totes",
+            "paths_title" to "emmagatzematge",
+            "data_folder" to "dades",
+            "cache_folder" to "memòria cau",
             "share_me" to "< Comparteix-me! >",
 
 
@@ -404,6 +425,13 @@ object TranslationCatalog {
             "lang_english" to "en",
             "lang_catalan" to "ca",
             "lang_japanese" to "ja",
+            "repeat" to "リピート",
+            "repeat_off" to "オフ",
+            "repeat_one" to "1曲",
+            "repeat_all" to "全曲",
+            "paths_title" to "ストレージ",
+            "data_folder" to "データ",
+            "cache_folder" to "キャッシュ",
             "share_me" to "< 私を共有！ >",
 
 

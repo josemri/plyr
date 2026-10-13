@@ -8,8 +8,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
-import java.security.MessageDigest
-import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -69,12 +67,10 @@ object CoverCache {
      * portada de YouTube son largas y contienen caracteres que no valen como
      * nombre de archivo.
      *
-     * Expuesto para tests: es la única lógica de este objeto sin Android.
+     * La clave vive en `:core` ([CoverCacheKey]) para que el escritorio use
+     * exactamente el mismo nombre de archivo.
      */
-    fun cacheKey(url: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(url.toByteArray(Charsets.UTF_8))
-        return digest.joinToString(separator = "") { byte -> "%02x".format(Locale.ROOT, byte) }
-    }
+    fun cacheKey(url: String): String = CoverCacheKey.cacheKey(url)
 
     // === INTERNOS ===
 

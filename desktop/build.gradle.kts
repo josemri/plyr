@@ -18,11 +18,18 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     // Motor de audio de escritorio (M4). Requiere `libvlc` instalado en el sistema.
     implementation(libs.vlcj)
+    // Persistencia de preferencias de escritorio (M9): misma familia de claves
+    // que Android, con `java.util.prefs` como backend.
+    implementation(libs.multiplatform.settings)
+    // Descarga de portadas para la caché de disco (M9, usada por la copia M10).
+    implementation(libs.okhttp)
     // Persistencia de escritorio (M6): SQLDelight sustituye a Room.
     implementation(libs.sqldelight.runtime)
     implementation(libs.sqldelight.sqlite.driver)
     implementation(libs.sqldelight.coroutines)
     testImplementation(libs.junit)
+    // `MapSettings` para aislar las preferencias en los tests (M9).
+    testImplementation(libs.multiplatform.settings.test)
     // Test de UI de Compose (runComposeUiTest) para la navegación de M5.
     testImplementation(compose.desktop.uiTestJUnit4)
     // Coil 3 para carga de portadas (M8)
@@ -71,6 +78,13 @@ fun JavaExec.applyVlcEnv() {
 tasks.withType<JavaExec>().configureEach { applyVlcEnv() }
 
 tasks.withType<Test>().configureEach {
+    // Aísla las preferencias reales del usuario (M9): el backend por defecto de
+    // `DesktopConfig` usa `java.util.prefs`, así que los tests escriben en una
+    // raíz temporal en lugar de `~/.java/.userPrefs`.
+    systemProperty(
+        "java.util.prefs.userRoot",
+        layout.buildDirectory.dir("test-prefs").get().asFile.absolutePath,
+    )
     if (vlcDir != null) {
         environment("PLYR_VLC_DIR", vlcDir)
         environment(

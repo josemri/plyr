@@ -2,6 +2,7 @@ package com.plyr.desktop.i18n
 
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
+import com.russhwolf.settings.MapSettings
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -14,6 +15,7 @@ class TranslationsTest {
 
     @Before
     fun setUp() {
+        DesktopConfig.installSettings(MapSettings())
         savedLanguage = DesktopConfig.language
     }
 

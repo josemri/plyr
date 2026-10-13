@@ -10,6 +10,7 @@ import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.ui.theme.PlyrTheme
+import com.russhwolf.settings.MapSettings
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -27,6 +28,7 @@ class AudioListScreenTest {
 
     @Before
     fun setUp() {
+        DesktopConfig.installSettings(MapSettings())
         savedTheme = DesktopConfig.theme
         savedLanguage = DesktopConfig.language
         DesktopConfig.theme = ThemeMode.DARK

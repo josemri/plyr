@@ -29,7 +29,8 @@ class TranslationKeysUsageTest {
             "swipe_right" // ConfigScreen.SwipeActionSettingRow(titleKey = "swipe_right")
         )
 
-        private val GET_CALL = Regex("""Translations\.get\(\s*[^,]+,\s*"([^"]+)"\s*\)""")
+        /** `Translations.get("clave")` o `Translations.get(context, "clave")`. */
+        private val GET_CALL = Regex("""Translations\.get\(\s*(?:[^,"()]+,\s*)?"([^"]+)"\s*\)""")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -39,15 +40,28 @@ class TranslationKeysUsageTest {
         return field.get(TranslationCatalog) as Map<String, Map<String, String>>
     }
 
-    /** Fuentes de `main`, de donde se extraen las claves realmente usadas. */
+    /**
+     * Fuentes de `main` que consumen el catálogo compartido: la app Android y el
+     * escritorio. Se excluye `Translations.kt` (es el envoltorio, no un uso).
+     */
     private fun sourceFiles(): List<File> {
+        val root = repoRoot()
+        return listOf(
+            File(root, "app/src/main/java"),
+            File(root, "desktop/src/main/kotlin"),
+        ).filter { it.isDirectory }
+            .flatMap { dir ->
+                dir.walkTopDown()
+                    .filter { it.isFile && it.extension == "kt" && it.name != "Translations.kt" }
+                    .toList()
+            }
+    }
+
+    private fun repoRoot(): File {
         val userDir = File("").absoluteFile
-        val ancestors = generateSequence(userDir) { it.parentFile ?: return@generateSequence null }
-        val dir = ancestors.firstOrNull { File(it, "src/main/java").isDirectory }
-            ?: error("No se encuentra src/main/java desde $userDir")
-        return File(dir, "src/main/java").walkTopDown()
-            .filter { it.isFile && it.extension == "kt" && it.name != "Translations.kt" }
-            .toList()
+        return generateSequence(userDir) { it.parentFile ?: return@generateSequence null }
+            .firstOrNull { File(it, "settings.gradle.kts").isFile }
+            ?: error("No se encuentra la raíz del repo desde $userDir")
     }
 
     private fun referencedKeys(): Set<String> = sourceFiles()
