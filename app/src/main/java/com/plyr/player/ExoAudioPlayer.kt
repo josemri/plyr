@@ -22,7 +22,11 @@ import androidx.media3.exoplayer.ExoPlayer
  *
  * Expone el `ExoPlayer` subyacente para lo que es intrínsecamente Android: la
  * `MediaSession` de la notificación y la sesión de audio del sistema.
+ *
+ * Implementa los 15 métodos de `AudioPlayer`: el número de funciones lo fija el
+ * contrato de la interfaz, no la clase, así que se silencia esa regla aquí.
  */
+@Suppress("TooManyFunctions")
 class ExoAudioPlayer(
     context: Context,
     repeatOne: Boolean,
