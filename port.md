@@ -479,7 +479,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M11 | QR + Spotify import | 1 | ☑ |
 | M12 | Feed Supabase | 0.5 | ☑ |
 | M13 | Integración nativa (MPRIS/SMTC/Now Playing) | 1–2 | ☑ |
-| M14 | Empaquetado multiplataforma | 1 | ☐ |
+| M14 | Empaquetado multiplataforma | 1 | ☑ |
 | M15 | Pulido y paridad final | 1–2 | ☐ |
 
 **Ruta crítica:** `M0 → M1 → M3 → M4 → M7` da un MVP funcional. `M2`, `M5` y `M6` pueden ir en paralelo si hay más de un dev.
@@ -614,6 +614,13 @@ ENTREGABLE: <qué debe quedar en el repo>.
   - **Tests:** `:desktop` nuevos `DesktopMediaIntegrationTest` (**10**: mapeo de metadatos, entradas de bandeja, imagen generada, no-op, selección por SO, anotaciones de introspección y bandeja con/sin soporte) y `MprisMediaIntegrationTest` (**1** contra el bus de sesión real: `GetAll`, `Get` conforme a variante y transporte).
   - **Desviaciones respecto al plan (M13):** (1) solo Linux/MPRIS; Windows (SMTC) y macOS (Now Playing) siguen pendientes, como ya decía el plan; (2) no hay notificaciones nativas del SO (quedan para un hito posterior); (3) `Set` de propiedades MPRIS (volumen, loop, shuffle) devuelve `PropertyReadOnly`, porque el reproductor aún no las controla por esta vía.
   - Verificado a mano en Linux: `playerctl -l` lista `plyr`; `playerctl -p plyr status` → `Stopped`, `position` → `0.0`, y `play-pause`/`next`/`previous`/`play`/`pause`/`stop` llegan sin error; `busctl introspect` anuncia `Metadata a{sv}` y `Position x`; `busctl get-property` y `dbus-send Properties.Get` devuelven `variant` (antes fallaban). `:core:jvmTest` (**385 tests**), `:desktop:test` (**178 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**160 tests**), 0 fallos. **Total: 723 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
+- **M14 — Empaquetado multiplataforma ✅.** Instalables con `jpackage` a través del plugin de Compose; en Linux se genera y verifica un `.deb` que arranca sin Java instalado.
+  - **Configuración (`desktop/build.gradle.kts`):** `nativeDistributions` con `targetFormats(Deb, Rpm, AppImage, Msi, Dmg)`, `packageName`/`packageVersion` (1.3.0, igual que Android), `description`, `vendor`, `copyright`, `includeAllModules = true` (VLCJ/JNA, dbus-java y SQLite-JDBC cargan clases por reflexión/JNI, así que jlink no puede deducirlas) y bloque `linux` (icono, `appCategory`/`menuGroup` «Audio», `debMaintainer`, `rpmLicenseType` `GPL-3.0-or-later`).
+  - **Metadatos Linux (`desktop/packaging/`):** `icon.png` (el icono de la app, 512×512) y `io.github.josemri.plyr.metainfo.xml` (ficha AppStream con `launchable` apuntando al `.desktop` que instala jpackage).
+  - **Dependencia `libvlc`:** jpackage no permite añadir dependencias de paquete, así que la tarea `patchDeb` (script `packaging/patch-deb.sh`, con `dpkg-deb -R`/`-b`) inyecta `Depends: …, libvlc5 | libvlc-bin, vlc-plugin-base` y la ficha AppStream en `/usr/share/metainfo/`; se engancha con `finalizedBy` a `packageDeb`.
+  - **`packageRpm` condicionada:** jpackage solo reconoce el tipo `rpm` si `rpmbuild` (paquete `rpm-build`) está en el PATH; sin él, `packageDistributionForCurrentOS` (que compila **todos** los formatos compatibles con el SO) fallaba con «Invalid or unsupported type: [rpm]». Ahora `packageRpm` se omite si falta `rpmbuild`.
+  - **Desviaciones respecto al plan (M14):** (1) el `TargetFormat.AppImage` de Compose pasa `--type app-image` a jpackage, es decir, produce el **directorio portable**, no un AppImage de un solo fichero; un AppImage real o un Flatpak necesitan `appimagetool`/`flatpak-builder` y quedan documentados, no automatizados; (2) no se genera `.rpm` en esta máquina (sin `rpm-build`) ni `.msi`/`.dmg` (solo desde su SO); (3) el `.deb` pesa ~90 MB por `includeAllModules` (se puede afinar con `suggestRuntimeModules()` en M15).
+  - **Verificado en Linux:** `./gradlew :desktop:packageDeb` produce `desktop/build/compose/binaries/main/deb/plyr_1.3.0_amd64.deb` (~90 MB) con `Maintainer` correcto, `Depends` incluyendo `libvlc5`/`vlc-plugin-base` y `/usr/share/metainfo/io.github.josemri.plyr.metainfo.xml`; `packageDistributionForCurrentOS` termina (Deb + app-image; Rpm omitida). El paquete se extrajo (`dpkg-deb -x`) y el lanzador `opt/plyr/bin/plyr` arranca **sin Java en el PATH** (`env -i … PATH=/nonexistent`) usando el runtime incluido, y la ventana permanece abierta. No se pudo hacer `dpkg -i` por falta de root en el entorno; se validó ejecutando el contenido extraído.
 
 
 ---

@@ -59,6 +59,32 @@ plyr/
 └── run.sh             # Build/install/test script
 ```
 
+## desktop
+
+There is a Compose Desktop port under [`desktop/`](desktop/), reusing the shared Kotlin logic from [`core/`](core/). The milestone plan and progress live in [`port.md`](port.md).
+
+```bash
+./gradlew :desktop:run          # run from source
+./gradlew :desktop:packageDeb   # Linux .deb (bundles its own Java runtime)
+```
+
+The packaged build ships its own Java runtime, so it starts **without Java installed**, but it still needs **VLC** at runtime (playback goes through [VLCJ](https://github.com/caprica/vlcj)):
+
+```bash
+sudo apt install libvlc5 vlc-plugin-base   # Debian/Ubuntu; the .deb declares it
+```
+
+Installers are built with `jpackage` through the Compose plugin:
+
+| OS      | Command                                            | Output                                        |
+|---------|----------------------------------------------------|-----------------------------------------------|
+| Linux   | `./gradlew :desktop:packageDeb`                    | `desktop/build/compose/binaries/main/deb/`    |
+| Linux   | `./gradlew :desktop:packageRpm`                    | needs the `rpm-build` package                 |
+| Windows | `./gradlew :desktop:packageMsi`                    | `.msi` (Windows only)                         |
+| macOS   | `./gradlew :desktop:packageDmg`                    | `.dmg` (macOS only)                           |
+
+`./gradlew :desktop:packageDistributionForCurrentOS` builds every format compatible with the host (on Linux: the `.deb` plus a portable app image). A single-file AppImage or a Flatpak is not generated here: jpackage only produces the portable `app-image`, and a real AppImage/Flatpak would need `appimagetool`/`flatpak-builder`. The packaging assets (icon, AppStream metadata and the `.deb` patch that declares `libvlc`) live in [`desktop/packaging/`](desktop/packaging/).
+
 ## permissions
 
 ```xml

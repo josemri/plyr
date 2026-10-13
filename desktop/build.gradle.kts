@@ -111,9 +111,71 @@ compose.desktop {
     application {
         mainClass = "com.plyr.desktop.MainKt"
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            // Instalables por SO (M14). jpackage solo puede generar los del SO
+            // anfitrión, por eso se declaran todos: Linux -> .deb/.rpm/AppImage,
+            // Windows -> .msi y macOS -> .dmg. Cada plataforma construye los suyos
+            // con `packageDistributionForCurrentOS`.
+            targetFormats(
+                TargetFormat.Deb,
+                TargetFormat.Rpm,
+                TargetFormat.AppImage,
+                TargetFormat.Msi,
+                TargetFormat.Dmg,
+            )
             packageName = "plyr"
-            packageVersion = "1.0.0"
+            packageVersion = "1.3.0"
+            description = "Reproductor de música minimalista (YouTube + listas locales)."
+            vendor = "josemri"
+            copyright = "© 2026 josemri — GPL-3.0-or-later"
+            // VLCJ (JNA), dbus-java (JNA + unixsocket) y SQLite-JDBC cargan clases
+            // por reflexión y JNI, así que jlink no puede deducirlas: se incluyen
+            // todos los módulos del JDK para que la app arranque sin Java instalado.
+            includeAllModules = true
+            linux {
+                iconFile.set(project.file("packaging/icon.png"))
+                appCategory = "Audio"
+                menuGroup = "Audio"
+                debMaintainer = "josemri@users.noreply.github.com"
+                rpmLicenseType = "GPL-3.0-or-later"
+            }
         }
     }
+}
+
+/**
+ * Añade al `.deb` lo que jpackage no genera (M14): la dependencia de `libvlc`
+ * (VLCJ la necesita en tiempo de ejecución) y la ficha AppStream. Se ejecuta
+ * después de `packageDeb`, de forma que `./gradlew :desktop:packageDeb` (o
+ * `packageDistributionForCurrentOS`) deja el instalable final.
+ */
+val patchDeb by tasks.registering(Exec::class) {
+    group = "distribution"
+    description = "Inyecta la ficha AppStream y la dependencia de libvlc en el .deb generado."
+    dependsOn("packageDeb")
+    onlyIf { System.getProperty("os.name").lowercase().contains("linux") }
+    val debDir = layout.buildDirectory.dir("compose/binaries/main/deb")
+    val script = project.file("packaging/patch-deb.sh")
+    val metainfo = project.file("packaging/io.github.josemri.plyr.metainfo.xml")
+    doFirst {
+        val deb = debDir.get().asFile.listFiles { file -> file.extension == "deb" }
+            ?.maxByOrNull { it.lastModified() }
+            ?: error("No se encontró ningún .deb en ${debDir.get().asFile}")
+        commandLine("bash", script.absolutePath, deb.absolutePath, metainfo.absolutePath)
+    }
+}
+
+// `packageDeb` lo registra el plugin de Compose de forma perezosa, así que se
+// engancha el parche con `matching` en vez de `named`.
+tasks.matching { it.name == "packageDeb" }.configureEach { finalizedBy(patchDeb) }
+
+/** ¿Está el ejecutable `name` en el PATH? */
+fun toolOnPath(name: String): Boolean =
+    System.getenv("PATH")?.split(File.pathSeparator)?.any { File(it, name).canExecute() } == true
+
+// `packageDistributionForCurrentOS` construye todos los formatos compatibles
+// con el SO anfitrión. En Linux incluye `.rpm`, que jpackage solo reconoce si
+// `rpmbuild` (paquete `rpm-build`) está en el PATH; sin él la tarea falla. Se
+// desactiva en ese caso para que el comando genérico funcione igualmente.
+tasks.matching { it.name == "packageRpm" }.configureEach {
+    onlyIf { toolOnPath("rpmbuild") }
 }
