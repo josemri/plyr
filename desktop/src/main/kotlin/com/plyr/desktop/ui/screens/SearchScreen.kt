@@ -1,0 +1,209 @@
+package com.plyr.desktop.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import com.plyr.desktop.i18n.Translations
+import com.plyr.desktop.player.PlayerTrack
+import com.plyr.desktop.search.SearchState
+import com.plyr.desktop.ui.Screen
+import com.plyr.desktop.ui.components.ActionButton
+import com.plyr.desktop.ui.components.ActionButtonData
+import com.plyr.desktop.ui.components.Subtitulo
+import com.plyr.desktop.ui.components.Titulo
+import com.plyr.desktop.ui.theme.PlyrSpacing
+import com.plyr.desktop.ui.theme.PlyrSymbols
+
+/**
+ * Pantalla de búsqueda de escritorio (M7).
+ *
+ * Puerto "de consola" de `com.plyr.ui.SearchScreen`: como en Android, la consulta
+ * se lanza contra YouTube y los resultados se pueden reproducir. Se dejan fuera
+ * las partes de móvil que no aplican (QR/NFC, hojas de playlist de YouTube) para
+ * mantener el MVP centrado en el trazado crítico `M0 → M1 → M3 → M4 → M7`.
+ *
+ * El estado y los callbacks llegan de fuera ([SearchState] + lambdas) para que el
+ * composable sea testeable sin red ni motor de audio.
+ */
+@Composable
+fun SearchScreen(
+    state: SearchState,
+    onQueryChange: (String) -> Unit,
+    onSearch: (String) -> Unit,
+    onPlayResult: (Int) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(PlyrSpacing.large)
+            .testTag("screen_${Screen.SEARCH.name}"),
+    ) {
+        Titulo(Translations.get("search_title"))
+
+        SearchBar(
+            query = state.query,
+            isLoading = state.isLoading,
+            onQueryChange = onQueryChange,
+            onSearch = { onSearch(state.query) },
+        )
+
+        Spacer(Modifier.height(PlyrSpacing.small))
+
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                state.isLoading -> StatusText(Translations.get("search_loading"), "search_loading")
+                state.error != null -> StatusText(state.error, "search_error", isError = true)
+                state.isEmptyResult -> StatusText(Translations.get("no_tracks_loaded"), "search_empty")
+                state.results.isNotEmpty() -> Column(modifier = Modifier.fillMaxSize()) {
+                    Subtitulo(Translations.get("search_youtube_results"))
+                    ResultsList(state.results, onPlayResult)
+                }
+            }
+        }
+
+        ActionButton(
+            data = ActionButtonData(
+                text = "\u2190 ${Translations.get("close")}",
+                onClick = onBack,
+            ),
+            modifier = Modifier.testTag("back_from_${Screen.SEARCH.name}"),
+        )
+    }
+}
+
+@Composable
+private fun SearchBar(
+    query: String,
+    isLoading: Boolean,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = PlyrSymbols.PROMPT,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
+            ),
+        )
+
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onBackground,
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = PlyrSpacing.small)
+                .testTag("search_input"),
+            decorationBox = { inner ->
+                if (query.isEmpty()) {
+                    Text(
+                        text = Translations.get("search_placeholder"),
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.outline,
+                        ),
+                    )
+                }
+                inner()
+            },
+        )
+
+        ActionButton(
+            data = ActionButtonData(
+                text = "[ ${Translations.get("search_title")} ]",
+                onClick = onSearch,
+                enabled = !isLoading,
+            ),
+            modifier = Modifier.testTag("search_button"),
+        )
+    }
+}
+
+@Composable
+private fun ResultsList(
+    results: List<PlayerTrack>,
+    onPlayResult: (Int) -> Unit,
+) {
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        itemsIndexed(results, key = { index, track -> "${track.id}#$index" }) { index, track ->
+            ResultRow(index, track, onPlayResult)
+        }
+    }
+}
+
+@Composable
+private fun ResultRow(
+    index: Int,
+    track: PlayerTrack,
+    onPlayResult: (Int) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("search_result_$index")
+            .clickable { onPlayResult(index) }
+            .padding(vertical = PlyrSpacing.xs),
+    ) {
+        Text(
+            text = "${index + 1}. ${track.title}",
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = listOf(track.artist, track.duration).filter { it.isNotBlank() }
+                .joinToString("  ·  "),
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun StatusText(text: String, tag: String, isError: Boolean = false) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary,
+            ),
+            modifier = Modifier.testTag(tag),
+        )
+    }
+}

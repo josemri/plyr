@@ -43,7 +43,9 @@ class AudioListScreenTest {
     fun arrancaEnHome() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen() } }
         onNodeWithTag("screen_HOME").assertIsDisplayed()
-        onNodeWithTag("floating_controls").assertIsDisplayed()
+        // M7: la barra flotante solo aparece cuando hay algo (título, carga o
+        // error). Sin reproducción, no se muestra.
+        onNodeWithTag("floating_controls").assertDoesNotExist()
     }
 
     @Test
@@ -63,9 +65,9 @@ class AudioListScreenTest {
     }
 
     @Test
-    fun elBotonDeColaNavegaAQueue() = runComposeUiTest {
+    fun elMenuDeColaNavegaAQueue() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen() } }
-        onNodeWithTag("control_queue").performClick()
+        onNodeWithTag("menu_QUEUE").performClick()
         onNodeWithTag("screen_QUEUE").assertIsDisplayed()
     }
 

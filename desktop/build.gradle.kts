@@ -25,6 +25,9 @@ dependencies {
     testImplementation(libs.junit)
     // Test de UI de Compose (runComposeUiTest) para la navegación de M5.
     testImplementation(compose.desktop.uiTestJUnit4)
+    // Coil 3 para carga de portadas (M8)
+    implementation(libs.coil3.compose)
+    implementation(libs.coil3.network.okhttp)
 }
 
 /**

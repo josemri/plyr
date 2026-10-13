@@ -67,6 +67,19 @@ class VlcPlaybackStateMachineTest {
     }
 
     @Test
+    fun bufferingDuranteLaReproduccion_noVuelveACargando() {
+        val m = machine()
+        m.onPlaying()
+
+        // VLCJ manda `buffering` con la caché llena justo después de `playing`;
+        // no debe devolver el estado a BUFFERING (bug detectado con VLC real).
+        m.onBuffering()
+
+        assertEquals(PlaybackState.READY, m.state)
+        assertTrue(m.isPlaying)
+    }
+
+    @Test
     fun paused_dejaDeSonarPeroSigueListo() {
         val m = machine()
         m.onPlaying()

@@ -1,6 +1,7 @@
 package com.plyr.network
 
 import com.plyr.core.util.Logger
+import com.plyr.model.AudioItem
 import com.plyr.utils.NewPipeHolder
 import com.plyr.utils.UrlParser
 import kotlinx.coroutines.CompletableDeferred
@@ -11,6 +12,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
+import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -88,6 +90,49 @@ object YouTubeManager {
             searchVideoId("$name $artists")
         }
     }
+
+    /**
+     * Busca vídeos en YouTube y devuelve sus metadatos.
+     *
+     * Es la variante "con resultados" de [searchVideoId]: en vez solo del primer
+     * id, devuelve la lista de [AudioItem] (título, id de vídeo, canal y
+     * duración) que la UI de escritorio pinta para elegir qué reproducir. La
+     * URL de audio no se extrae aquí: se resuelve al vuelo con [getAudioUrl]
+     * cuando la pista se reproduce.
+     *
+     * La parte pura (NewPipe + [UrlParser]) ya vivía en `:app`
+     * (`YouTubeSearchManager`); esta es la versión portable que comparten los
+     * targets JVM. Si algo falla devuelve una lista vacía, nunca lanza.
+     */
+    suspend fun searchVideos(query: String, maxResults: Int = 25): List<AudioItem> =
+        withContext(Dispatchers.IO) {
+            try {
+                NewPipeHolder.ensureInitialized()
+
+                val extractor = ServiceList.YouTube.getSearchExtractor(query)
+                extractor.fetchPage()
+
+                extractor.initialPage.items
+                    .asSequence()
+                    .filterIsInstance<StreamInfoItem>()
+                    .mapNotNull { item ->
+                        val videoId = UrlParser.extractYoutubeVideoId(item.url)
+                        if (videoId == null || videoId.length != 11) return@mapNotNull null
+                        AudioItem(
+                            title = item.name,
+                            url = "",
+                            videoId = videoId,
+                            channel = item.uploaderName.orEmpty(),
+                            duration = formatDurationSeconds(item.duration),
+                        )
+                    }
+                    .take(maxResults)
+                    .toList()
+            } catch (e: Exception) {
+                Logger.e("YouTubeManager", "❌ Error buscando '$query': ${e.message}")
+                emptyList()
+            }
+        }
 
     /**
      * Extrae la URL de audio de un video de YouTube.
@@ -227,6 +272,24 @@ object YouTubeManager {
         } catch (e: Exception) {
             Logger.e("YouTubeManager", "❌ Error extrayendo audio de $videoId: ${e.message}")
             null
+        }
+    }
+
+    /**
+     * Duración de la búsqueda en formato "M:SS" o "H:MM:SS" (vacío si se desconoce).
+     *
+     * Es privada para no chocar con el `com.plyr.utils.formatDurationSeconds` de
+     * `:app`, que además localiza "En vivo" y no se usa en `:core`.
+     */
+    private fun formatDurationSeconds(totalSeconds: Long): String {
+        if (totalSeconds <= 0) return ""
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        return if (hours > 0) {
+            "$hours:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+        } else {
+            "$minutes:${seconds.toString().padStart(2, '0')}"
         }
     }
 }

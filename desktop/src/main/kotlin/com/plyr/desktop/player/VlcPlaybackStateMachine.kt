@@ -20,15 +20,25 @@ class VlcPlaybackStateMachine(
     var listener: AudioPlayerListener? = null,
 ) {
 
+    @Volatile
     var state: PlaybackState = PlaybackState.IDLE
         private set
 
+    @Volatile
     var isPlaying: Boolean = false
         private set
 
     fun onOpening() = setState(PlaybackState.BUFFERING)
 
-    fun onBuffering() = setState(PlaybackState.BUFFERING)
+    /**
+     * VLCJ emite `buffering` también durante la reproducción normal (con la
+     * caché ya llena), justo después de `playing`. Si ya está sonando, un
+     * `buffering` no debe devolvernos a "cargando": solo cuenta antes de que
+     * el motor llegue a `playing`.
+     */
+    fun onBuffering() {
+        if (!isPlaying) setState(PlaybackState.BUFFERING)
+    }
 
     fun onPlaying() {
         setPlaying(true)

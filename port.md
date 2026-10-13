@@ -200,7 +200,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Cada hito (`M0`…`M15`) es **autocontenido y verificable**: se le puede pasar a opencode tal cual. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar**, tanto en Android como en desktop.
+Cada hito (`M0`…`M15`) es **autocontenido y verificable**: se le puede pasar a opencode tal cual. La regla de oro es que **al terminar cada hito, `./gradlew build` los tests deben pasar**, tanto en Android como en desktop y se debe pasar el checkeo de run.sh
 
 ### 6.0 Cómo usar el roadmap con opencode
 
@@ -472,7 +472,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M4 | VLCJ funcionando ⭐ | 1 | ☑ |
 | M5 | Esqueleto UI Compose Desktop | 1 | ☑ |
 | M6 | SQLDelight + repositorios | 1–2 | ☑ |
-| M7 | Reproducción integrada (**MVP**) ⭐ | 1–2 | ☐ |
+| M7 | Reproducción integrada (**MVP**) ⭐ | 1–2 | ☑ |
 | M8 | Playlists UI + drag & drop | 1–2 | ☐ |
 | M9 | Config/Ajustes multiplataforma | 1 | ☐ |
 | M10 | Import/Export + backup | 1 | ☐ |
@@ -551,6 +551,17 @@ ENTREGABLE: <qué debe quedar en el repo>.
   - **Tests (nuevos):** `:core` `PlaylistFiltersTest` (5), `TrackIdentityTest` (8) y `TombstonesTest` (6); `:desktop` `PlaylistRepositoryTest` (20), `SearchHistoryRepositoryTest` (7) y `DesktopDatabaseTest` (5, incluida la persistencia cerrando y reabriendo el fichero SQLite). Se añaden `app.cash.sqldelight:coroutines-extensions` y el plugin `app.cash.sqldelight` en `:desktop`.
   - Verificado: `:core:jvmTest` (**295 tests**, 0 fallos), `:desktop:test` (**62 tests**, 1 omitido sin `libvlc`, 0 fallos) y `./run.sh test` (**248 tests** de `:app`, 0 fallos). **Total: 605 tests** (`:core` 295 + `:app` 248 + `:desktop` 62). `:desktop:compileKotlin` y `./run.sh build` (APK) compilan.
   - **Nota:** `./run.sh check` reporta 1 hallazgo de detekt (`complexity, TooManyFunctions` en `app/src/main/java/com/plyr/player/ExoAudioPlayer.kt`), **ajeno a M6** y ya presente en el commit `m4`; se deja sin tocar.
+- **M7 — Reproducción integrada en la UI ✅ (MVP).** El escritorio ya busca en YouTube, reproduce, pausa/salta y muestra la cola, todo sobre `StateFlow`.
+  - **Controlador de escritorio** (`com.plyr.desktop.player.PlayerController`): orquesta `QueueEngine` (+ `QueueIndex`/`LoadingState`/`PendingSkips`/`IdlePlayback` de `:core`) sobre un `StateFlow<PlayerState>`. Reutiliza la lógica del `PlayerViewModel` de Android (ventana contigua, resolución perezosa, reintentos con re-resolución, saltos pendientes) pero sin `LiveData` ni Android. El motor y la resolución se **inyectan** —`openPlayer: () -> AudioPlayer` (perezoso) y `sourceResolver: TrackSourceResolver`—, de modo que los tests corren sin `libvlc` ni red. La pista de cola es un tipo neutral propio, `PlayerTrack` (+ `PlayerTrack.fromSearchResult`).
+  - **`SearchController`** (`com.plyr.desktop.search`): `StateFlow<SearchState>` (query/resultados/carga/error) con la búsqueda inyectada. La búsqueda real vive en `:core`: `YouTubeManager.searchVideos(query, maxResults)` (+ `formatDurationSeconds` privado) devuelve `List<AudioItem>`, reutilizable desde Android.
+  - **UI** (`com.plyr.desktop.ui`): `AudioListScreen` pasa a ser el contenedor que crea el controlador y el buscador, traduce `PlayerState` a `PlayerUiState` y enruta `SEARCH`/`QUEUE`. Nuevas `SearchScreen` (buscar + reproducir resultado) y `QueueScreen` (listar/saltar/reordenar). `FloatingMusicControls` recibe ahora estado real: **se oculta cuando no hay nada** (título/carga/error), así que la barra solo aparece al reproducir. El progreso se refresca por sondeo de la UI (`LaunchedEffect` solo mientras suena), no con un bucle interno.
+  - **Resolución real** (`YouTubeTrackSourceResolver`): usa `YouTubeManager.resolveVideoId`/`getAudioUrl` de `:core`.
+  - **Correcciones de concurrencia (descubiertas con VLC real):** (1) todas las mutaciones del `StateFlow` usan `MutableStateFlow.update` (atómico) en vez de `value = value.copy(...)`, que perdía actualizaciones cuando dos callbacks de VLC (que llegan por el hilo de VLC y se reencolan en el `scope`) coincidían; (2) `VlcPlaybackStateMachine.state`/`isPlaying` pasan a `@Volatile`. Sin (1) el estado se quedaba en "cargando" con audio sonando.
+  - **Bug latente de M4 corregido:** VLCJ emite `buffering` **justo después** de `playing` (con la caché llena), y `onBuffering()` devolvía el estado a `BUFFERING` para siempre: la UI mostraba "cargando" indefinidamente aunque el audio avanzaba. `onBuffering()` ahora solo pasa a `BUFFERING` si aún no se está reproduciendo (+ test de regresión).
+  - **Desviaciones respecto al plan (M7):** (1) reordenar en la cola **reanuda** la pista actual reconstruyendo la ventana (drag & drop suave es M8/M15); (2) el **historial de búsqueda** de M6 aún no se cablea a la búsqueda (diferido); (3) el `PlayerState` es un espejo neutral de escritorio, no el `PlayerViewModel` de Android.
+  - **Tests (nuevos):** `:desktop` `PlayerControllerTest` (15, con `FakeAudioPlayer` + resolver falso, `Dispatchers.Unconfined`), `SearchControllerTest` (6), `SearchScreenTest` (5), `QueueScreenTest` (3), `PlayerControllerVlcIntegrationTest` (1, reproduce un WAV local con **VLC real**; se omite sin `libvlc`) y +1 en `VlcPlaybackStateMachineTest` (10) por el bug del `buffering`. Se actualizó `AudioListScreenTest` al comportamiento de M7 (la barra flotante no aparece sin reproducción; la cola se abre desde el menú de Home).
+  - Verificado en vivo: `./gradlew :desktop:run` (bajo `Xvfb`, `PLYR_VLC_DIR=/tmp/opencode/vlc/...`); búsqueda "daft punk" con resultados reales de YouTube, reproducción de un resultado (posición avanzando `01:32→01:48→02:39…`), cola con **15** pistas y pista actual `4/15`, **pausa** (posición congelada en `02:32`) y reanudación (`02:34→02:39`).
+  - Verificado: `:core:jvmTest` (**295 tests**), `./run.sh test` (**248 tests** de `:app`), `:desktop:test` (**93 tests**; con `libvlc` corren los 93 —incluida la integración—, sin él se omiten 2: el de humo y la integración). **Total: 636 tests** (`:core` 295 + `:app` 248 + `:desktop` 93), 0 fallos. Compilan `:core:build`, `:app:compileDebugKotlin` y `./gradlew build -x :app:detekt`. **Nota:** `./gradlew build` (sin excluir nada) sigue fallando **solo** por el hallazgo de detekt preexistente de M4 (`TooManyFunctions` en `ExoAudioPlayer.kt:26:7`), ajeno a M7.
 
 
 ---
