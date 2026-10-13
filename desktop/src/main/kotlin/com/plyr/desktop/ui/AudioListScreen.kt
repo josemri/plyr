@@ -28,6 +28,8 @@ import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.PlaylistRepository
 import com.plyr.desktop.database.SettingsTombstoneStore
 import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.spotify.SpotifyImportController
+import com.plyr.desktop.spotify.SpotifyImportService
 import com.plyr.desktop.sync.BackupConfig
 import com.plyr.desktop.sync.BackupController
 import com.plyr.desktop.sync.DataExporter
@@ -122,6 +124,11 @@ fun AudioListScreen(
         }
     }
 
+    // Importación de Spotify (M11): desacoplada del repositorio y de Android, con
+    // la búsqueda real de YouTube y el guardado en la base de escritorio.
+    val spotifyController = remember(scope, repository) {
+        SpotifyImportController(scope, SpotifyImportService(repository))
+    }
     val playerState by playerController.state.collectAsState()
     val searchState by searchController.state.collectAsState()
 
@@ -153,6 +160,19 @@ fun AudioListScreen(
                             }
                         },
                         onBack = goHome,
+                        onScanResult = { result ->
+                            when {
+                                result.source == "spotify" && result.id.isNotBlank() -> {
+                                    spotifyController.onUrlChange("spotify:playlist:${result.id}")
+                                    currentScreen = Screen.CONFIG
+                                }
+                                result.source == "youtube" && result.id.isNotBlank() -> {
+                                    val url = "https://www.youtube.com/watch?v=${result.id}"
+                                    searchController.onQueryChange(url)
+                                    searchController.performSearch(url)
+                                }
+                            }
+                        },
                     )
                     Screen.QUEUE -> QueueScreen(
                         state = playerState,
@@ -182,6 +202,7 @@ fun AudioListScreen(
                         onBack = goHome,
                         onRepeatModeSelected = playerController::setRepeatMode,
                         backupController = backupController,
+                        spotifyImportController = spotifyController,
                     )
                 }
             }

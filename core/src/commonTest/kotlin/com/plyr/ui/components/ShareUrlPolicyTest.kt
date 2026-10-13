@@ -9,7 +9,7 @@ import org.junit.Test
  *
  * El bug era de precedencia: `ShareDialog` cogía `shareUrl` (montada por la
  * pantalla con `AppTrack.id`, que es `remoteTrackId`) y descartaba el
- * `youtubeVideoId` correcto. En lo importado de Spotify eso=shareaba
+ * `youtubeVideoId` correcto. En lo importado de Spotify eso compartía
  * `youtube.com/watch?v=spotify_<hash>_<hash>_<índice>`, que no existe.
  */
 class ShareUrlPolicyTest {
@@ -40,7 +40,7 @@ class ShareUrlPolicyTest {
             youtubeId = videoId,
         )
 
-        // Ni el prefijo de Spotify ni el host equivocado se colan.
+        // Ni el prefijo de Spotify ni el host equivocado se cuelan.
         assertEquals(false, url!!.contains("spotify_"))
     }
 

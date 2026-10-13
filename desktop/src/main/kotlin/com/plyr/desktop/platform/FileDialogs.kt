@@ -64,6 +64,39 @@ object FileDialogs {
         return File(directory, file)
     }
 
+    /**
+     * Abre un selector de imágenes (PNG/JPG) para leer un QR. Null si el usuario
+     * cancela.
+     */
+    fun chooseImageToOpen(title: String, initial: File? = null): File? = onEdt {
+        val chooser = JFileChooser().apply {
+            dialogTitle = title
+            fileSelectionMode = JFileChooser.FILES_ONLY
+            isMultiSelectionEnabled = false
+            fileFilter = FileNameExtensionFilter("Imagen (*.png, *.jpg, *.jpeg)", "png", "jpg", "jpeg")
+            initial?.takeIf { it.isDirectory }?.let { currentDirectory = it }
+        }
+        if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+            chooser.selectedFile
+        } else {
+            null
+        }
+    }
+
+    /**
+     * Abre el diálogo nativo de "guardar como" para una imagen PNG. Null si el
+     * usuario cancela.
+     */
+    fun saveImage(title: String, suggestedName: String, initial: File? = null): File? {
+        val dialog = FileDialog(null as Frame?, title, FileDialog.SAVE)
+        dialog.file = suggestedName
+        initial?.takeIf { it.isDirectory }?.let { dialog.directory = it.absolutePath }
+        dialog.isVisible = true
+        val file = dialog.file ?: return null
+        val directory = dialog.directory ?: return null
+        return File(directory, file)
+    }
+
     private fun <T> onEdt(block: () -> T): T {
         if (SwingUtilities.isEventDispatchThread()) return block()
         var result: T? = null

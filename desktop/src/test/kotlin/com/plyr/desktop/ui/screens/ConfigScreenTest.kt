@@ -12,6 +12,8 @@ import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.InMemoryTombstoneStore
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.desktop.spotify.SpotifyImportController
+import com.plyr.desktop.spotify.SpotifyImportService
 import com.plyr.desktop.sync.BackupConfig
 import com.plyr.desktop.sync.BackupController
 import com.plyr.desktop.sync.DataExporter
@@ -20,6 +22,7 @@ import com.plyr.desktop.sync.DataSync
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.plyr.desktop.utils.CoverCache
 import com.plyr.domain.RepeatMode
+import com.plyr.utils.SpotifyImport
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -126,6 +129,33 @@ class ConfigScreenTest {
         } finally {
             scope.cancel()
             sync.shutdown()
+            database.close()
+        }
+    }
+
+    @Test
+    fun muestraLaSeccionDeImportacionDeSpotify() = runComposeUiTest {
+        val database = DesktopDatabase.inMemory()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val controller = SpotifyImportController(
+            scope = scope,
+            service = SpotifyImportService(
+                repository = PlaylistRepository(database, InMemoryTombstoneStore()),
+                fetchPlaylist = { Result.success(SpotifyImport.SpotifyPlaylist("id22", "Lista", null, emptyList())) },
+                searchTrack = { null },
+            ),
+        )
+
+        try {
+            setContent { PlyrTheme { ConfigScreen(onBack = {}, spotifyImportController = controller) } }
+
+            // Sin `spotifyImportController` la sección no se pinta; con él, el campo
+            // y el botón están, y una URL vacía muestra el aviso de inmediato.
+            onNodeWithTag("spotify_url").assertIsDisplayed()
+            onNodeWithTag("spotify_import_button").performClick()
+            onNodeWithTag("spotify_status").assertIsDisplayed()
+        } finally {
+            scope.cancel()
             database.close()
         }
     }

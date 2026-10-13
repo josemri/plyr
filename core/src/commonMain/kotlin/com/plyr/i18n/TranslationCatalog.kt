@@ -119,6 +119,25 @@ object TranslationCatalog {
             "sync_archive_unreadable" to "● no se pudo leer la copia de la carpeta, no se ha tocado nada",
             "sync_folder_denied" to "● no se pudo guardar el acceso a la carpeta",
 
+            // QR e importación de Spotify (M11)
+            "qr_title" to "compartir por qr",
+            "qr_save" to "guardar png",
+            "qr_copy" to "copiar enlace",
+            "qr_copied" to "● copiado",
+            "qr_error" to "● error generando qr",
+            "scan_title" to "leer qr",
+            "scan_hint" to "pega una url o id...",
+            "scan_open_image" to "abrir imagen",
+            "scan_decode" to "decodificar",
+            "scan_error" to "● no se pudo leer el qr",
+            "scan_result" to "● leído: %1\$s",
+            "spotify_import_title" to "importar de spotify",
+            "spotify_import_hint" to "url o id de la lista",
+            "spotify_import_go" to "importar",
+            "spotify_importing" to "importando...",
+            "spotify_import_invalid" to "● url de spotify no válida",
+            "spotify_import_error" to "● no se pudo importar",
+
             // NEW MISSING KEYS
             "app_logo" to "logotipo de plyr",
             "update_available" to "actualiza",
@@ -183,6 +202,25 @@ object TranslationCatalog {
             "sync_error" to "● could not sync",
             "sync_archive_unreadable" to "● couldn't read the copy in the folder, nothing was touched",
             "sync_folder_denied" to "● folder access could not be saved",
+
+            // QR and Spotify import (M11)
+            "qr_title" to "share by qr",
+            "qr_save" to "save png",
+            "qr_copy" to "copy link",
+            "qr_copied" to "● copied",
+            "qr_error" to "● error generating qr",
+            "scan_title" to "read qr",
+            "scan_hint" to "paste a url or id...",
+            "scan_open_image" to "open image",
+            "scan_decode" to "decode",
+            "scan_error" to "● could not read the qr",
+            "scan_result" to "● read: %1\$s",
+            "spotify_import_title" to "import from spotify",
+            "spotify_import_hint" to "playlist url or id",
+            "spotify_import_go" to "import",
+            "spotify_importing" to "importing...",
+            "spotify_import_invalid" to "● invalid spotify url",
+            "spotify_import_error" to "● import failed",
 
             // Home Screen
             "home_feed" to "feed",
@@ -317,6 +355,25 @@ object TranslationCatalog {
             "sync_error" to "● no es va poder sincronitzar",
             "sync_archive_unreadable" to "● no es va poder llegir la còpia de la carpeta, no s'ha tocat res",
             "sync_folder_denied" to "● no es va poder desar l'accés a la carpeta",
+
+            // QR i importació de Spotify (M11)
+            "qr_title" to "compartir per qr",
+            "qr_save" to "desar png",
+            "qr_copy" to "copiar enllaç",
+            "qr_copied" to "● copiat",
+            "qr_error" to "● error generant qr",
+            "scan_title" to "llegir qr",
+            "scan_hint" to "enganxa una url o id...",
+            "scan_open_image" to "obrir imatge",
+            "scan_decode" to "descodificar",
+            "scan_error" to "● no s'ha pogut llegir el qr",
+            "scan_result" to "● llegit: %1\$s",
+            "spotify_import_title" to "importar de spotify",
+            "spotify_import_hint" to "url o id de la llista",
+            "spotify_import_go" to "importar",
+            "spotify_importing" to "important...",
+            "spotify_import_invalid" to "● url de spotify no vàlida",
+            "spotify_import_error" to "● no s'ha pogut importar",
 
 
             // Home Screen
@@ -454,6 +511,25 @@ object TranslationCatalog {
             "sync_error" to "● 同期できませんでした",
             "sync_archive_unreadable" to "● フォルダのコピーを読み込めませんでした。何も変更していません",
             "sync_folder_denied" to "● フォルダへのアクセスを保存できませんでした",
+
+            // QR と Spotify インポート (M11)
+            "qr_title" to "qrで共有",
+            "qr_save" to "pngを保存",
+            "qr_copy" to "リンクをコピー",
+            "qr_copied" to "● コピーしました",
+            "qr_error" to "● qr生成エラー",
+            "scan_title" to "qrを読む",
+            "scan_hint" to "urlまたはidを貼り付け...",
+            "scan_open_image" to "画像を開く",
+            "scan_decode" to "デコード",
+            "scan_error" to "● qrを読み取れませんでした",
+            "scan_result" to "● 読み取り: %1\$s",
+            "spotify_import_title" to "spotifyからインポート",
+            "spotify_import_hint" to "プレイリストのurlまたはid",
+            "spotify_import_go" to "インポート",
+            "spotify_importing" to "インポート中...",
+            "spotify_import_invalid" to "● spotifyのurlが無効です",
+            "spotify_import_error" to "● インポートできませんでした",
 
 
             // Home Screen

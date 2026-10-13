@@ -41,6 +41,9 @@ kotlin {
         jvmSharedMain.dependencies {
             implementation(libs.newpipe.extractor)
             implementation(libs.okhttp)
+            // ZXing: genera/decodifica QR desde código compartido (M11). En
+            // Android ya lo aportaba `:app`; aquí queda también para escritorio.
+            implementation(libs.core)
         }
         commonTest.dependencies {
             implementation(libs.junit)

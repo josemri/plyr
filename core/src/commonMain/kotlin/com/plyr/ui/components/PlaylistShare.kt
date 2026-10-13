@@ -97,6 +97,18 @@ object PlaylistShare {
         sourceId: String? = null,
     ): Boolean = classify(remoteId, description, source, sourceId) != PlaylistOrigin.UNKNOWN
 
+    /**
+     * Id que se usa al compartir: el `sourceId` persistido si lo hay, y si no el
+     * `remoteId` sin el prefijo interno `youtube_` (B53). Con eso una lista de
+     * YouTube `youtube_PL…` se comparte como `PL…` y una de Spotify
+     * `youtube_<idSpotify>` como `<idSpotify>`.
+     */
+    fun sharedId(remoteId: String?, sourceId: String?): String {
+        val stored = sourceId?.trim().orEmpty()
+        if (stored.isNotEmpty()) return stored
+        return extractInner(remoteId?.trim().orEmpty())
+    }
+
     private fun String.startsWithAny(prefixes: List<String>): Boolean =
         prefixes.any { startsWith(it) }
 }

@@ -10,10 +10,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.plyr.database.TrackRecord
+import com.plyr.desktop.qr.QrShareDialog
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
 import com.plyr.desktop.ui.components.ReorderState
 import com.plyr.desktop.ui.components.Titulo
+import com.plyr.ui.components.PlaylistShare
+import com.plyr.ui.components.ShareType
+import com.plyr.ui.components.ShareableItem
 
 
 @Composable
@@ -25,6 +29,7 @@ fun PlaylistDetailView(
 ) {
     val playlist = state.selectedPlaylist
     val reorderState = remember { ReorderState() }
+    var shareItem by remember { mutableStateOf<ShareableItem?>(null) }
 
     Titulo(playlist?.name ?: "Playlist")
 
@@ -33,6 +38,12 @@ fun PlaylistDetailView(
             data = ActionButtonData(text = "PLAY ALL", onClick = { if (state.tracks.isNotEmpty()) onPlayTracks(state.tracks, 0) }),
             modifier = Modifier.testTag("playlist_play_all")
         )
+        if (playlist != null && PlaylistShare.isShareable(playlist.remoteId, playlist.description, playlist.source, playlist.sourceId)) {
+            ActionButton(
+                data = ActionButtonData(text = "SHARE", onClick = { shareItem = playlist.toShareableItem() }),
+                modifier = Modifier.testTag("playlist_share")
+            )
+        }
         if (!state.isEditing && playlist?.remoteId != "liked_songs") {
             ActionButton(
                 data = ActionButtonData(text = "EDIT", onClick = { controller.enterEditMode() }),
@@ -92,6 +103,7 @@ fun PlaylistDetailView(
                 reorderState = reorderState,
                 onClick = { onPlayTracks(state.tracks, index) },
                 onRemove = { controller.removeTrack(track.remoteTrackId) },
+                onShare = track.youtubeVideoId?.let { { shareItem = track.toShareableItem() } },
             )
         }
     }
@@ -137,4 +149,29 @@ fun PlaylistDetailView(
             }
         )
     }
+
+    shareItem?.let { item ->
+        QrShareDialog(item = item, onDismiss = { shareItem = null })
+    }
 }
+
+/** Convierte la lista seleccionada en algo compartible por QR. */
+private fun com.plyr.database.PlaylistRecord.toShareableItem(): ShareableItem = ShareableItem(
+    remoteId = remoteId,
+    shareUrl = null,
+    youtubeId = PlaylistShare.sharedId(remoteId, sourceId),
+    title = name,
+    artist = "",
+    type = ShareType.PLAYLIST,
+    playlistOrigin = PlaylistShare.classify(remoteId, description, source, sourceId),
+)
+
+/** Convierte una pista en algo compartible por QR (solo si tiene vídeo). */
+private fun TrackRecord.toShareableItem(): ShareableItem = ShareableItem(
+    remoteId = remoteTrackId,
+    shareUrl = null,
+    youtubeId = youtubeVideoId,
+    title = name,
+    artist = artists,
+    type = ShareType.TRACK,
+)

@@ -113,4 +113,43 @@ class SearchScreenTest {
         onNodeWithTag("back_from_SEARCH").performClick()
         assertEquals(true, back)
     }
+
+    @Test
+    fun sinLectorDeQrNoMuestraElBoton() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_scan").assertDoesNotExist()
+    }
+
+    @Test
+    fun conLectorDeQrAbreElDialogoParaPegarUnaUrl() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                    onScanResult = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_scan").performClick()
+
+        onNodeWithTag("scan_input").assertIsDisplayed()
+        onNodeWithTag("scan_decode").assertIsDisplayed()
+        onNodeWithTag("scan_open_image").assertIsDisplayed()
+    }
 }

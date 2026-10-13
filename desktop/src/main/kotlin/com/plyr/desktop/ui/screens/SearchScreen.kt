@@ -17,6 +17,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -26,6 +30,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.player.PlayerTrack
+import com.plyr.desktop.qr.QrScanDialog
 import com.plyr.desktop.search.SearchState
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.components.ActionButton
@@ -34,14 +39,15 @@ import com.plyr.desktop.ui.components.Subtitulo
 import com.plyr.desktop.ui.components.Titulo
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
+import com.plyr.model.ScanResult
 
 /**
  * Pantalla de búsqueda de escritorio (M7).
  *
  * Puerto "de consola" de `com.plyr.ui.SearchScreen`: como en Android, la consulta
- * se lanza contra YouTube y los resultados se pueden reproducir. Se dejan fuera
- * las partes de móvil que no aplican (QR/NFC, hojas de playlist de YouTube) para
- * mantener el MVP centrado en el trazado crítico `M0 → M1 → M3 → M4 → M7`.
+ * se lanza contra YouTube y los resultados se pueden reproducir. Desde M11
+ * incluye el lector de QR sin cámara ([QrScanDialog]): pegar una URL o abrir una
+ * imagen, que se traduce al mismo [ScanResult] que Android.
  *
  * El estado y los callbacks llegan de fuera ([SearchState] + lambdas) para que el
  * composable sea testeable sin red ni motor de audio.
@@ -53,8 +59,11 @@ fun SearchScreen(
     onSearch: (String) -> Unit,
     onPlayResult: (Int) -> Unit,
     onBack: () -> Unit,
+    onScanResult: ((ScanResult) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    var showScan by remember { mutableStateOf(false) }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -69,6 +78,16 @@ fun SearchScreen(
             onQueryChange = onQueryChange,
             onSearch = { onSearch(state.query) },
         )
+
+        if (onScanResult != null) {
+            ActionButton(
+                data = ActionButtonData(
+                    text = "[ ${Translations.get("scan_title")} ]",
+                    onClick = { showScan = true },
+                ),
+                modifier = Modifier.testTag("search_scan"),
+            )
+        }
 
         Spacer(Modifier.height(PlyrSpacing.small))
 
@@ -90,6 +109,13 @@ fun SearchScreen(
                 onClick = onBack,
             ),
             modifier = Modifier.testTag("back_from_${Screen.SEARCH.name}"),
+        )
+    }
+
+    if (showScan) {
+        QrScanDialog(
+            onScanned = { onScanResult?.invoke(it) },
+            onDismiss = { showScan = false },
         )
     }
 }

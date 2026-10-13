@@ -28,37 +28,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.core.graphics.createBitmap
-import androidx.core.graphics.set
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.qrcode.QRCodeWriter
 import com.plyr.model.Group
 import com.plyr.network.SupabaseClient
 import com.plyr.utils.NfcReader
 import com.plyr.utils.NfcTagEvent
+import com.plyr.utils.QrCodec
 import com.plyr.utils.Translations
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-data class ShareableItem(
-    val remoteId: String?,
-    val shareUrl: String?,
-    val youtubeId: String?,
-    val title: String,
-    val artist: String,
-    val type: ShareType,
-    /**
-     * Origen de la lista, solo para `ShareType.PLAYLIST`. Sin esto la URL se
-     * deducía de los prefijos del id y una lista importada de Spotify se
-     * compartía como si fuera un vídeo (B53).
-     */
-    val playlistOrigin: PlaylistOrigin = PlaylistOrigin.UNKNOWN,
-)
-
-enum class ShareType {
-    TRACK, PLAYLIST, APP
-}
 
 enum class NfcWriteState {
     IDLE,
@@ -99,20 +77,16 @@ private fun writeNdefMessageToTag(tag: Tag, message: NdefMessage): Boolean {
     }
 }
 
+/**
+ * Genera el QR de [content] como `Bitmap` Android reutilizando el codec
+ * compartido [QrCodec] (M11). Devuelve `null` si el contenido no se puede
+ * codificar.
+ */
 fun generateQrBitmap(content: String): Bitmap? {
-    return try {
-        val size = 512
-        val bits = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
-        val bmp = createBitmap(size, size, Bitmap.Config.RGB_565)
-        for (x in 0 until size) {
-            for (y in 0 until size) {
-                bmp[x, y] = if (bits[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
-            }
-        }
-        bmp
-    } catch (_: Exception) {
-        null
-    }
+    val matrix = QrCodec.generate(content) ?: return null
+    val bmp = Bitmap.createBitmap(matrix.width, matrix.height, Bitmap.Config.ARGB_8888)
+    bmp.setPixels(QrCodec.toArgb(matrix), 0, matrix.width, 0, 0, matrix.width, matrix.height)
+    return bmp
 }
 
 private data class ShareDialogState(

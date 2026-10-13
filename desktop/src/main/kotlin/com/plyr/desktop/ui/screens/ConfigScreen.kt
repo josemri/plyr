@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +27,8 @@ import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.spotify.SpotifyImportController
+import com.plyr.desktop.spotify.SpotifyImportState
 import com.plyr.desktop.sync.BackupController
 import com.plyr.desktop.sync.BackupState
 import com.plyr.desktop.ui.components.ActionButton
@@ -40,10 +43,9 @@ import com.plyr.domain.RepeatMode
  * Pantalla de ajustes del escritorio (M9).
  *
  * Puerto de `com.plyr.ui.ConfigScreen` con lo que aplica a escritorio: tema,
- * idioma y modo de repetición, más las rutas de datos y caché del SO. Las
- * secciones de móvil (gestos de swipe, importar de Spotify, copia de seguridad,
- * compartir por QR/NFC) no existen aquí: la de copia llega en M10 y el resto se
- * descartan en el port.
+ * idioma y modo de repetición, más las rutas de datos y caché del SO. Desde M10
+ * incluye la copia de seguridad y desde M11 la importación de listas de Spotify.
+ * El compartir por QR vive en la vista de detalle de cada lista.
  *
  * Todos los valores se leen y escriben en [DesktopConfig], que los persiste entre
  * reinicios; el tema y el idioma cambian la UI al momento porque viven en estado
@@ -54,6 +56,7 @@ fun ConfigScreen(
     onBack: () -> Unit,
     onRepeatModeSelected: (String) -> Unit = { DesktopConfig.repeatMode = it },
     backupController: BackupController? = null,
+    spotifyImportController: SpotifyImportController? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -110,6 +113,12 @@ fun ConfigScreen(
         if (backupController != null) {
             Spacer(Modifier.height(PlyrSpacing.large))
             BackupSection(backupController)
+        }
+
+        // === IMPORTAR DE SPOTIFY (M11) ===
+        if (spotifyImportController != null) {
+            Spacer(Modifier.height(PlyrSpacing.large))
+            SpotifyImportSection(spotifyImportController)
         }
 
         Spacer(Modifier.height(PlyrSpacing.xxl))
@@ -170,6 +179,60 @@ private fun BackupStatusMessage(state: BackupState) {
         maxLines = 3,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth().testTag("sync_status"),
+    )
+}
+
+/**
+ * Sección de importación de Spotify: campo de URL/id, botón y estado del último
+ * intento. La lista importada aparece sola en la pantalla de listas porque el
+ * repositorio emite sus cambios (M11).
+ */
+@Composable
+private fun SpotifyImportSection(controller: SpotifyImportController) {
+    val state by controller.state.collectAsState()
+
+    Subtitulo(Translations.get("spotify_import_title"))
+    OutlinedTextField(
+        value = state.url,
+        onValueChange = { controller.onUrlChange(it) },
+        label = { Text(Translations.get("spotify_import_hint")) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().testTag("spotify_url"),
+    )
+    Spacer(Modifier.height(PlyrSpacing.small))
+    ActionButton(
+        data = ActionButtonData(
+            text = if (state.isImporting) {
+                Translations.get("spotify_importing")
+            } else {
+                Translations.get("spotify_import_go")
+            },
+            onClick = { controller.import() },
+            enabled = !state.isImporting,
+        ),
+        modifier = Modifier.testTag("spotify_import_button"),
+    )
+    SpotifyStatusMessage(state)
+}
+
+/** Mensaje del último intento de importación, si lo hay. */
+@Composable
+private fun SpotifyStatusMessage(state: SpotifyImportState) {
+    val message = state.statusMessage ?: return
+    Spacer(Modifier.height(PlyrSpacing.xxs))
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            color = if (state.statusIsError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+        ),
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().testTag("spotify_status"),
     )
 }
 

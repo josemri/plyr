@@ -1,6 +1,31 @@
 package com.plyr.ui.components
 
 /**
+ * Qué se comparte: una pista, una lista o la propia app. Decide la prioridad con
+ * la que [ShareUrlPolicy] arma la URL.
+ */
+enum class ShareType {
+    TRACK, PLAYLIST, APP
+}
+
+/**
+ * Datos de lo que se va a compartir (QR, enlace o NFC).
+ *
+ * [playlistOrigin] solo aplica a [ShareType.PLAYLIST]: sin él la URL se deducía
+ * de los prefijos del id y una lista importada de Spotify se compartía como si
+ * fuera un vídeo (B53).
+ */
+data class ShareableItem(
+    val remoteId: String?,
+    val shareUrl: String?,
+    val youtubeId: String?,
+    val title: String,
+    val artist: String,
+    val type: ShareType,
+    val playlistOrigin: PlaylistOrigin = PlaylistOrigin.UNKNOWN,
+)
+
+/**
  * Decide qué URL se comparte.
  *
  * El bug (B52): la URL la construía **la pantalla** y se pasaba ya montada en
@@ -13,10 +38,6 @@ package com.plyr.ui.components
  *
  * Aquí la regla es que **gana el id real de YouTube**, y una URL ya montada solo
  * se usa cuando no hay id. Es lógica pura a propósito: se testea sin Android.
- *
- * **Ojo, esto no arregla B53** (compartir una lista). Para las playlists el tipo
- * de URL se sigue deduciendo por prefijos del id, porque la app no guarda de qué
- * servicio viene la lista; eso requiere persistir el origen.
  */
 object ShareUrlPolicy {
 

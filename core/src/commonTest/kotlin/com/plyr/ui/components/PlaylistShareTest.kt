@@ -6,7 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Tests de la clasificación del origen de una lista (B53).
+ * Tests de la clasificación del origen de una lista (B53) y del id que se
+ * comparte.
  *
  * Cubren una fila por cada caso de la tabla del informe:
  *
@@ -103,5 +104,24 @@ class PlaylistShareTest {
         assertFalse(PlaylistShare.isShareable("liked_songs", null))
         assertFalse(PlaylistShare.isShareable("youtube_yt_1759000000000", null))
         assertFalse(PlaylistShare.isShareable(null, null))
+    }
+
+    @Test
+    fun sharedId_prefiereElSourceIdPersistido() {
+        // `sourceId` ya está limpio; no se le quita nada.
+        assertEquals("PLabc123", PlaylistShare.sharedId("youtube_PLabc123", "PLabc123"))
+        assertEquals(spotifyId, PlaylistShare.sharedId("youtube_$spotifyId", spotifyId))
+    }
+
+    @Test
+    fun sharedId_sinSourceId_quitaElPrefijoInterno() {
+        assertEquals("PLabc123", PlaylistShare.sharedId("youtube_PLabc123", null))
+        assertEquals(spotifyId, PlaylistShare.sharedId("youtube_$spotifyId", null))
+    }
+
+    @Test
+    fun sharedId_sourceIdEnBlanco_caeAlRemoteId() {
+        assertEquals("PLabc123", PlaylistShare.sharedId("youtube_PLabc123", "   "))
+        assertEquals("liked_songs", PlaylistShare.sharedId("liked_songs", null))
     }
 }
