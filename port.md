@@ -478,7 +478,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M10 | Import/Export + backup | 1 | ☑ |
 | M11 | QR + Spotify import | 1 | ☑ |
 | M12 | Feed Supabase | 0.5 | ☑ |
-| M13 | Integración nativa (MPRIS/SMTC/Now Playing) | 1–2 | ☐ |
+| M13 | Integración nativa (MPRIS/SMTC/Now Playing) | 1–2 | ☑ |
 | M14 | Empaquetado multiplataforma | 1 | ☐ |
 | M15 | Pulido y paridad final | 1–2 | ☐ |
 
@@ -603,6 +603,17 @@ ENTREGABLE: <qué debe quedar en el repo>.
   - **Tests:** `:core` nuevo `RelativeTimeTest` (**5**, movidos de `:app`); `:desktop` nuevos `FeedControllerTest` (**8**: grupo general, sin grupos, cambio de grupo, alta con recorte, alta sin URL, error de alta, apodo persistido, error de carga) y `FeedScreenTest` (**4** UI: listado, vacío, publicar, volver).
   - **Desviaciones respecto al plan (M12):** (1) sin metadatos de vídeo en escritorio (requiere portar `MediaMetadataExtractor`); (2) el alta y el selector de grupo viven en la propia pantalla (Android los repartía entre `FeedScreen` y el `ShareDialog`); (3) el apodo se guarda en `DesktopConfig`, que hace de `FeedConfig` de escritorio.
   - Verificado: `:core:jvmTest` (**385 tests**), `:desktop:test` (**167 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**160 tests**), 0 fallos. **Total: 712 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
+- **M13 — Integración nativa del escritorio ✅.** Las teclas multimedia del SO controlan la reproducción en Linux (MPRIS vía D-Bus) y hay icono de bandeja con controles.
+  - **`DesktopMediaIntegration` (`com.plyr.desktop.media`):** interfaz fina (`attach`/`updateNowPlaying`/`close`, más `backendName` e `isActive`) con `PlaybackControls` y `MediaInfo`; `NoopMediaIntegration` para los SO sin soporte y `createMediaIntegration()` elige MPRIS en Linux y no-op en el resto. `SmtcIntegration` (Windows) y `NowPlayingIntegration` (macOS) quedan para la fase posterior, bajo la misma interfaz.
+  - **MPRIS (`MprisMediaIntegration`):** publica `org.mpris.MediaPlayer2.plyr` en el bus de sesión y exporta `MprisPlayer` en `/org/mpris/MediaPlayer2` con `org.mpris.MediaPlayer2` + `...MediaPlayer2.Player`; traduce `PlayPause`/`Next`/`Previous`/`Play`/`Pause`/`Stop`/`Seek`/`SetPosition`/`Quit` a los controles del reproductor y emite `PropertiesChanged` cuando cambian el estado o los metadatos (la posición no se anuncia: `EmitsChangedSignal=false`). Si no hay bus de sesión (contenedores, CI…) falla en silencio y queda inactiva. La propiedad `Metadata` se fuerza a `a{sv}` con un `TypeRef` (`MprisMetadata`), porque la inferencia de dbus-java daría `a{vv}`.
+  - **`Properties` a mano (arreglo de conformidad):** con `@DBusBoundProperty`, dbus-java responde a `Properties.Get` con el **tipo crudo** en vez de un `Variant` (bug conocido, hypfvieh/dbus-java#253), lo que incumple la especificación y rompe a `playerctl`, que usa `Get` para posición y estado. Por eso `MprisPlayer` implementa `org.freedesktop.dbus.Properties` (`Get`/`Set`/`GetAll`) sobre una única tabla de valores, con las firmas de cable correctas (`v` y `a{sv}`), y declara las propiedades solo para introspección con `@DBusProperty`.
+  - **Bandeja (`DesktopTray`):** `java.awt.SystemTray` (no el `Tray` de Compose, que no degrada) con menú play/pause, siguiente, anterior y salir; el icono se genera en memoria (sin recursos) y, si el escritorio no soporta bandeja, `install()` falla en silencio sin romper la app. Se engancha en `Main.kt` junto a `createMediaIntegration()`.
+  - **UI:** `AudioListScreen` recibe `mediaIntegration`, `onPlayerControllerReady` y `onQuit`, y conecta el estado de reproducción con `updateNowPlaying`.
+  - **i18n:** 3 claves nuevas en los 4 idiomas (`tray_play_pause`, `tray_next`, `tray_previous`); el «salir» reutiliza `exit`.
+  - **Dependencias:** `dbus-java` 5.2.2 (+ `slf4j-api`/`slf4j-nop` 2.0.17 y el transporte `unixsocket` como `runtimeOnly`).
+  - **Tests:** `:desktop` nuevos `DesktopMediaIntegrationTest` (**10**: mapeo de metadatos, entradas de bandeja, imagen generada, no-op, selección por SO, anotaciones de introspección y bandeja con/sin soporte) y `MprisMediaIntegrationTest` (**1** contra el bus de sesión real: `GetAll`, `Get` conforme a variante y transporte).
+  - **Desviaciones respecto al plan (M13):** (1) solo Linux/MPRIS; Windows (SMTC) y macOS (Now Playing) siguen pendientes, como ya decía el plan; (2) no hay notificaciones nativas del SO (quedan para un hito posterior); (3) `Set` de propiedades MPRIS (volumen, loop, shuffle) devuelve `PropertyReadOnly`, porque el reproductor aún no las controla por esta vía.
+  - Verificado a mano en Linux: `playerctl -l` lista `plyr`; `playerctl -p plyr status` → `Stopped`, `position` → `0.0`, y `play-pause`/`next`/`previous`/`play`/`pause`/`stop` llegan sin error; `busctl introspect` anuncia `Metadata a{sv}` y `Position x`; `busctl get-property` y `dbus-send Properties.Get` devuelven `variant` (antes fallaban). `:core:jvmTest` (**385 tests**), `:desktop:test` (**178 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**160 tests**), 0 fallos. **Total: 723 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
 
 
 ---

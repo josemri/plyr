@@ -35,6 +35,12 @@ dependencies {
     // Coil 3 para carga de portadas (M8)
     implementation(libs.coil3.compose)
     implementation(libs.coil3.network.okhttp)
+    // Integración nativa de Linux (M13): MPRIS sobre D-Bus para las teclas
+    // multimedia y los metadatos que ven los clientes (playerctl, GNOME...).
+    implementation(libs.dbus.java.core)
+    runtimeOnly(libs.dbus.java.native.unixsocket)
+    implementation(libs.slf4j.api)
+    runtimeOnly(libs.slf4j.nop)
 }
 
 /**

@@ -55,6 +55,10 @@ object TranslationCatalog {
             "recommendation_error" to "no se pudo enviar la recomendación",
             "no_groups" to "no hay grupos disponibles",
             "feed_error" to "no se pudo cargar el feed",
+            // Bandeja del sistema (M13)
+            "tray_play_pause" to "reproducir/pausar",
+            "tray_next" to "siguiente",
+            "tray_previous" to "anterior",
 
             // Search Screen
             "search_title" to "plyr_buscar",
@@ -255,6 +259,10 @@ object TranslationCatalog {
             "recommendation_error" to "couldn't send the recommendation",
             "no_groups" to "no groups available",
             "feed_error" to "couldn't load the feed",
+            // Bandeja del sistema (M13)
+            "tray_play_pause" to "play/pause",
+            "tray_next" to "next",
+            "tray_previous" to "previous",
 
             // Search Screen
             "search_title" to "plyr_search",
@@ -421,6 +429,10 @@ object TranslationCatalog {
             "recommendation_error" to "no s'ha pogut enviar la recomanació",
             "no_groups" to "no hi ha grups disponibles",
             "feed_error" to "no s'ha pogut carregar el feed",
+            // Bandeja del sistema (M13)
+            "tray_play_pause" to "reproduir/pausar",
+            "tray_next" to "següent",
+            "tray_previous" to "anterior",
 
             // Search Screen
             "search_title" to "plyr_cercar",
@@ -588,6 +600,10 @@ object TranslationCatalog {
             "recommendation_error" to "おすすめを送信できませんでした",
             "no_groups" to "利用できるグループがありません",
             "feed_error" to "フィードを読み込めませんでした",
+            // Bandeja del sistema (M13)
+            "tray_play_pause" to "再生/一時停止",
+            "tray_next" to "次へ",
+            "tray_previous" to "前へ",
 
             // Search Screen
             "search_title" to "plyr_検索",

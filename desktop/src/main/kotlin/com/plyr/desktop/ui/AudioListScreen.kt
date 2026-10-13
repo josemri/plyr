@@ -29,6 +29,10 @@ import com.plyr.desktop.database.PlaylistRepository
 import com.plyr.desktop.database.SettingsTombstoneStore
 import com.plyr.desktop.feed.FeedController
 import com.plyr.desktop.feed.FeedScreen
+import com.plyr.desktop.media.DesktopMediaIntegration
+import com.plyr.desktop.media.MediaInfo
+import com.plyr.desktop.media.NoopMediaIntegration
+import com.plyr.desktop.media.PlaybackControls
 import com.plyr.desktop.platform.AppPaths
 import com.plyr.desktop.spotify.SpotifyImportController
 import com.plyr.desktop.spotify.SpotifyImportService
@@ -67,6 +71,9 @@ fun AudioListScreen(
     modifier: Modifier = Modifier,
     initialScreen: Screen = Screen.HOME,
     openDatabase: () -> DesktopDatabase = { DesktopDatabase.open(Path.of(AppPaths.databaseFile)) },
+    mediaIntegration: DesktopMediaIntegration = NoopMediaIntegration(),
+    onPlayerControllerReady: (PlayerController) -> Unit = {},
+    onQuit: () -> Unit = {},
 ) {
     var currentScreen by remember { mutableStateOf(initialScreen) }
     val goHome = { currentScreen = Screen.HOME }
@@ -93,6 +100,22 @@ fun AudioListScreen(
 
     DisposableEffect(playerController) {
         onDispose { playerController.release() }
+    }
+
+    // Integración nativa (M13): MPRIS publica metadatos y atiende las teclas
+    // multimedia; la bandeja del sistema comparte estos mismos controles.
+    val playbackControls = remember(playerController, onQuit) {
+        ControllerPlaybackControls(playerController, onQuit)
+    }
+    DisposableEffect(mediaIntegration, playbackControls) {
+        mediaIntegration.attach(playbackControls)
+        onDispose { mediaIntegration.close() }
+    }
+    LaunchedEffect(playerController) { onPlayerControllerReady(playerController) }
+    LaunchedEffect(playerController, mediaIntegration) {
+        playerController.state.collect { state ->
+            mediaIntegration.updateNowPlaying(state.toMediaInfo(), state.isPlaying, state.positionMs)
+        }
     }
 
     // Base de datos persistente bajo la carpeta de datos del SO (`AppPaths`, M9).
@@ -239,3 +262,53 @@ private fun PlayerState.toUiState() = PlayerUiState(
     queueSize = queue.size.takeIf { it > 0 },
     repeatMode = repeatMode,
 )
+
+/**
+ * Adapta [PlayerController] a las órdenes que llegan del sistema (MPRIS y
+ * bandeja). `play`/`pause`/`stop` se resuelven contra el estado actual para que
+ * un `Play` con la música sonando o un `Pause` en silencio no hagan nada.
+ */
+private class ControllerPlaybackControls(
+    private val controller: PlayerController,
+    private val onQuit: () -> Unit,
+) : PlaybackControls {
+    override fun play() {
+        if (!controller.state.value.isPlaying) controller.togglePlayPause()
+    }
+
+    override fun pause() {
+        if (controller.state.value.isPlaying) controller.togglePlayPause()
+    }
+
+    override fun togglePlayPause() = controller.togglePlayPause()
+
+    override fun next() = controller.next()
+
+    override fun previous() = controller.previous()
+
+    override fun stop() {
+        if (controller.state.value.isPlaying) controller.togglePlayPause()
+    }
+
+    override fun seekTo(positionMs: Long) = controller.seekTo(positionMs)
+
+    override fun quit() = onQuit()
+}
+
+/** Metadatos que se publican en el escritorio (MPRIS) desde el estado actual. */
+private fun PlayerState.toMediaInfo(): MediaInfo? {
+    val track = queue.getOrNull(currentIndex)
+    val trackTitle = title ?: track?.title ?: return null
+    return MediaInfo(
+        title = trackTitle,
+        artist = track?.artist.orEmpty(),
+        durationMs = durationMs,
+        trackId = trackPath(track?.id),
+    )
+}
+
+/** Ruta MPRIS del `trackid` (D-Bus exige `[A-Za-z0-9_]` en cada segmento). */
+private fun trackPath(trackId: String?): String {
+    if (trackId.isNullOrBlank()) return MediaInfo.DEFAULT_TRACK_ID
+    return "/org/mpris/MediaPlayer2/Track/" + trackId.replace(Regex("[^A-Za-z0-9_]"), "_")
+}
