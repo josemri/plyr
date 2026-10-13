@@ -1,13 +1,15 @@
 package com.plyr.desktop.playlists
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -15,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.plyr.database.LikedSongs
 import com.plyr.database.PlaylistRecord
 import com.plyr.database.TrackRecord
+import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
@@ -32,7 +35,7 @@ fun PlaylistsScreen(
     Column(
         modifier = modifier.fillMaxSize().padding(PlyrSpacing.large).testTag("screen_${Screen.PLAYLISTS.name}")
     ) {
-        Titulo(com.plyr.desktop.i18n.Translations.get("plyr_lists"))
+        Titulo(Translations.get("plyr_lists"))
         Spacer(modifier = Modifier.height(PlyrSpacing.small))
         when {
             state.showCreate -> CreatePlaylistView(controller, onBack)
@@ -50,7 +53,7 @@ private fun PlaylistGridView(
 ) {
     ActionButton(
         data = ActionButtonData(
-            text = "+ ${com.plyr.desktop.i18n.Translations.get("create_playlist")}",
+            text = "+ ${Translations.get("create_playlist")}",
             onClick = { controller.showCreate() },
         ),
         modifier = Modifier.testTag("playlists_create")
@@ -65,7 +68,7 @@ private fun PlaylistGridView(
 
     ActionButton(
         data = ActionButtonData(
-            text = "\u2190 ${com.plyr.desktop.i18n.Translations.get("close")}",
+            text = "\u2190 ${Translations.get("close")}",
             onClick = onBack,
         ),
         modifier = Modifier.testTag("back_from_${Screen.PLAYLISTS.name}")
@@ -83,11 +86,11 @@ private fun PlaylistItem(playlist: PlaylistRecord, onClick: () -> Unit) {
         onClick = onClick,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp)
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier.size(60.dp).background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
+            Box {
+                PlaylistCover(url = playlist.imageUrl, size = 60.dp)
                 if (isLiked) {
                     Text(
                         text = "♥",
@@ -95,7 +98,7 @@ private fun PlaylistItem(playlist: PlaylistRecord, onClick: () -> Unit) {
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.error,
                         ),
-                        modifier = Modifier.padding(12.dp)
+                        modifier = Modifier.align(Alignment.Center),
                     )
                 }
             }
@@ -106,7 +109,7 @@ private fun PlaylistItem(playlist: PlaylistRecord, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
                 )
                 Text(
-                    text = "${playlist.trackCount} tracks",
+                    text = String.format(Translations.get("tracks_count"), playlist.trackCount),
                     style = MaterialTheme.typography.bodySmall.copy(
                         fontFamily = FontFamily.Monospace,
                         color = MaterialTheme.colorScheme.secondary,

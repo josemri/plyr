@@ -1,6 +1,7 @@
 package com.plyr.desktop.playlists
 
 import com.plyr.database.PlaylistRecord
+import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackRecord
 import com.plyr.desktop.database.PlaylistRepository
 import kotlinx.coroutines.CoroutineScope
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * Estado de la pantalla de playlists (M8).
@@ -108,6 +110,48 @@ class PlaylistsController(
 
     fun hideCreate() {
         _state.update { it.copy(showCreate = false) }
+    }
+
+    /**
+     * Da de alta una lista local vacía y la abre. Es el alta que faltaba: el
+     * formulario solo cerraba el diálogo, así que no se guardaba nada.
+     *
+     * @return el `remoteId` de la lista creada, o `null` si el nombre está vacío.
+     */
+    fun createPlaylist(title: String, description: String?): String? {
+        val name = title.trim()
+        if (name.isEmpty()) return null
+        val id = "local_${UUID.randomUUID()}"
+        val record = PlaylistRecord(
+            remoteId = id,
+            name = name,
+            description = description?.trim()?.takeIf { it.isNotEmpty() },
+            trackCount = 0,
+            imageUrl = null,
+            lastSyncTime = System.currentTimeMillis(),
+            source = PlaylistSource.LOCAL,
+            sourceId = null,
+        )
+        if (!repository.savePlaylist(record, emptyList())) return null
+        _state.update { it.copy(showCreate = false) }
+        selectPlaylist(id)
+        return id
+    }
+
+    /** Portada personalizada (M8): guarda la ruta del recorte elegido por el usuario. */
+    fun updateCover(imageUrl: String): Boolean {
+        val id = state.value.selectedPlaylistId ?: return false
+        return repository.updatePlaylistImage(id, imageUrl)
+    }
+
+    /**
+     * Añade [track] al final de [playlistId] (acción contextual de la búsqueda,
+     * equivalente al "añadir a lista" de Android). Refresca la lista abierta si
+     * es la destino.
+     */
+    fun addTrackToPlaylist(playlistId: String, track: TrackRecord) {
+        repository.addTrack(playlistId, track)
+        if (state.value.selectedPlaylistId == playlistId) refresh()
     }
 
     fun enterEditMode() {

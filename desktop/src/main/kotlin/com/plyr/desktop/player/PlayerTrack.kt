@@ -1,5 +1,6 @@
 package com.plyr.desktop.player
 
+import com.plyr.database.TrackRecord
 import com.plyr.model.AudioItem
 
 /**
@@ -43,4 +44,22 @@ data class PlayerTrack(
             )
         }
     }
+
+    /**
+     * Prepara esta pista como pista de una lista (M8, "añadir a lista").
+     * `id`, `position` y `playlistId` los normaliza el repositorio al
+     * insertarla; aquí solo importan la identidad y los metadatos.
+     */
+    fun toTrackRecord(playlistId: String, now: Long = System.currentTimeMillis()): TrackRecord =
+        TrackRecord(
+            id = "",
+            playlistId = playlistId,
+            remoteTrackId = videoId ?: id,
+            name = title,
+            artists = artist,
+            youtubeVideoId = videoId,
+            audioUrl = null,
+            position = 0,
+            lastSyncTime = now,
+        )
 }

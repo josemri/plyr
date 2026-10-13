@@ -68,7 +68,7 @@ object CoverImages {
         null
     }
 
-    private fun encodeJpeg(image: BufferedImage): ByteArray? = try {
+    internal fun encodeJpeg(image: BufferedImage): ByteArray? = try {
         val output = ByteArrayOutputStream()
         val writers = ImageIO.getImageWritersByFormatName("jpg")
         if (!writers.hasNext()) {

@@ -1,6 +1,6 @@
 package com.plyr.desktop.ui.components
 
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -42,9 +42,9 @@ class ReorderState {
             .zIndex(if (dragging) 1f else 0f)
             .graphicsLayer { translationY = if (dragging) offsetY else 0f }
             .onSizeChanged { itemHeightPx = it.height.toFloat() }
-            .pointerInput(id, index) {
+            .pointerInput(id, index, itemCount) {
                 var start = 0
-                detectDragGesturesAfterLongPress(
+                detectDragGestures(
                     onDragStart = {
                         start = index
                         draggingId = id

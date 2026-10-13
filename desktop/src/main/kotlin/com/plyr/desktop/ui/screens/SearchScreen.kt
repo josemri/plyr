@@ -14,8 +14,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,6 +30,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import com.plyr.database.PlaylistRecord
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.qr.QrScanDialog
@@ -59,10 +62,13 @@ fun SearchScreen(
     onSearch: (String) -> Unit,
     onPlayResult: (Int) -> Unit,
     onBack: () -> Unit,
+    playlists: List<PlaylistRecord> = emptyList(),
+    onAddToPlaylist: ((PlayerTrack, String) -> Unit)? = null,
     onScanResult: ((ScanResult) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var showScan by remember { mutableStateOf(false) }
+    var pendingAdd by remember { mutableStateOf<PlayerTrack?>(null) }
 
     Column(
         modifier = modifier
@@ -98,7 +104,11 @@ fun SearchScreen(
                 state.isEmptyResult -> StatusText(Translations.get("no_tracks_loaded"), "search_empty")
                 state.results.isNotEmpty() -> Column(modifier = Modifier.fillMaxSize()) {
                     Subtitulo(Translations.get("search_youtube_results"))
-                    ResultsList(state.results, onPlayResult)
+                    ResultsList(
+                        results = state.results,
+                        onPlayResult = onPlayResult,
+                        onAddToPlaylist = onAddToPlaylist?.let { { track -> pendingAdd = track } },
+                    )
                 }
             }
         }
@@ -118,6 +128,54 @@ fun SearchScreen(
             onDismiss = { showScan = false },
         )
     }
+
+    pendingAdd?.let { track ->
+        AddToPlaylistDialog(
+            track = track,
+            playlists = playlists,
+            onPick = { playlistId ->
+                onAddToPlaylist?.invoke(track, playlistId)
+                pendingAdd = null
+            },
+            onDismiss = { pendingAdd = null },
+        )
+    }
+}
+
+/** Picker de lista destino para "añadir a lista" desde los resultados (M8). */
+@Composable
+private fun AddToPlaylistDialog(
+    track: PlayerTrack,
+    playlists: List<PlaylistRecord>,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(Translations.get("add_to_playlist")) },
+        text = {
+            if (playlists.isEmpty()) {
+                Text(Translations.get("no_playlists"))
+            } else {
+                Column {
+                    playlists.forEach { playlist ->
+                        Text(
+                            text = playlist.name,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(playlist.remoteId) }
+                                .padding(vertical = PlyrSpacing.xs)
+                                .testTag("add_to_${playlist.remoteId}"),
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(Translations.get("close")) }
+        },
+    )
 }
 
 @Composable
@@ -183,10 +241,11 @@ private fun SearchBar(
 private fun ResultsList(
     results: List<PlayerTrack>,
     onPlayResult: (Int) -> Unit,
+    onAddToPlaylist: ((PlayerTrack) -> Unit)? = null,
 ) {
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
         itemsIndexed(results, key = { index, track -> "${track.id}#$index" }) { index, track ->
-            ResultRow(index, track, onPlayResult)
+            ResultRow(index, track, onPlayResult, onAddToPlaylist)
         }
     }
 }
@@ -196,27 +255,41 @@ private fun ResultRow(
     index: Int,
     track: PlayerTrack,
     onPlayResult: (Int) -> Unit,
+    onAddToPlaylist: ((PlayerTrack) -> Unit)? = null,
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("search_result_$index")
-            .clickable { onPlayResult(index) }
-            .padding(vertical = PlyrSpacing.xs),
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "${index + 1}. ${track.title}",
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = listOf(track.artist, track.duration).filter { it.isNotBlank() }
-                .joinToString("  ·  "),
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .testTag("search_result_$index")
+                .clickable { onPlayResult(index) }
+                .padding(vertical = PlyrSpacing.xs),
+        ) {
+            Text(
+                text = "${index + 1}. ${track.title}",
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = listOf(track.artist, track.duration).filter { it.isNotBlank() }
+                    .joinToString("  ·  "),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (onAddToPlaylist != null) {
+            TextButton(
+                onClick = { onAddToPlaylist(track) },
+                modifier = Modifier.testTag("search_add_$index"),
+            ) {
+                Text(text = "+", fontFamily = FontFamily.Monospace)
+            }
+        }
     }
 }
 

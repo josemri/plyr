@@ -18,10 +18,12 @@ import com.plyr.desktop.ui.components.ReorderState
 fun PlaylistTrackItem(
     track: TrackRecord,
     index: Int,
+    itemCount: Int = 0,
     isEditing: Boolean = false,
     reorderState: ReorderState? = null,
     onClick: () -> Unit = {},
     onRemove: () -> Unit = {},
+    onMove: (Int, Int) -> Unit = { _, _ -> },
     onShare: (() -> Unit)? = null,
 ) {
     Row(
@@ -29,7 +31,7 @@ fun PlaylistTrackItem(
             .fillMaxWidth()
             .then(
                 if (isEditing && reorderState != null) {
-                    reorderState.itemModifier(track.remoteTrackId, index, Int.MAX_VALUE) { _, _ -> }
+                    reorderState.itemModifier(track.remoteTrackId, index, itemCount, onMove)
                 } else Modifier
             )
             .clickable(enabled = !isEditing) { onClick() }

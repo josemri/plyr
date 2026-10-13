@@ -155,8 +155,14 @@ fun AudioListScreen(
     }
     // Feed de recomendaciones (M12): Supabase inyectado en el propio controlador.
     val feedController = remember(scope) { FeedController(scope) }
+    // Listas (M8): el controlador vive aquí —y no en la pantalla— porque la
+    // búsqueda también lo usa para "añadir a lista".
+    val playlistsController = remember(scope, repository) {
+        com.plyr.desktop.playlists.PlaylistsController(scope, repository)
+    }
     val playerState by playerController.state.collectAsState()
     val searchState by searchController.state.collectAsState()
+    val playlistsState by playlistsController.state.collectAsState()
 
     // Refresca posición/duración solo mientras suena: con la reproducción parada
     // no hay bucle y la composición queda ociosa (los tests no se cuelgan).
@@ -186,6 +192,10 @@ fun AudioListScreen(
                             }
                         },
                         onBack = goHome,
+                        playlists = playlistsState.playlists,
+                        onAddToPlaylist = { track, playlistId ->
+                            playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
+                        },
                         onScanResult = { result ->
                             when {
                                 result.source == "spotify" && result.id.isNotBlank() -> {
@@ -207,10 +217,6 @@ fun AudioListScreen(
                         onBack = goHome,
                     )
                     Screen.PLAYLISTS -> {
-                        val playlistsScope = rememberCoroutineScope()
-                        val playlistsController = remember(playlistsScope, repository) {
-                            com.plyr.desktop.playlists.PlaylistsController(playlistsScope, repository)
-                        }
                         com.plyr.desktop.playlists.PlaylistsScreen(
                             controller = playlistsController,
                             onBack = goHome,
