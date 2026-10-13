@@ -100,7 +100,7 @@ private fun PlaylistItem(playlist: PlaylistRecord, onClick: () -> Unit) {
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = playlist.name,
                     style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),

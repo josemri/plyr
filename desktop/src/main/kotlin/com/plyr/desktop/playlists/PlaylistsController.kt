@@ -190,6 +190,9 @@ class PlaylistsController(
         val tracks = state.value.tracks
         if (from !in tracks.indices || to !in tracks.indices || from == to) return
         val reordered = tracks.toMutableList().apply { add(to, removeAt(from)) }
+        // Renumber positions for display
+        // We don't have mutable position in TrackRecord - but we sort by original index in view
+        // Instead, just send ordered ids - repository handles it
         _state.update { it.copy(tracks = reordered) }
         val id = state.value.selectedPlaylistId ?: return
         val orderedIds = reordered.map { it.remoteTrackId }

@@ -1,6 +1,5 @@
 package com.plyr.desktop.playlists
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -10,12 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.plyr.database.TrackRecord
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
 import com.plyr.desktop.ui.components.ReorderState
 import com.plyr.desktop.ui.components.Titulo
+
 
 @Composable
 fun PlaylistDetailView(
@@ -84,38 +83,16 @@ fun PlaylistDetailView(
         Spacer(modifier = Modifier.height(8.dp))
     }
 
-    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-        itemsIndexed(state.tracks, key = { index, track -> track.remoteTrackId }) { index, track ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(if (state.isEditing) reorderState.itemModifier(track.remoteTrackId, index, state.tracks.size) { from, to -> controller.reorderTracks(from, to) } else Modifier)
-                    .padding(vertical = 4.dp)
-                    .clickable(enabled = !state.isEditing) { onPlayTracks(state.tracks, index) }
-                    .testTag("track_item_$index")
-            ) {
-                Text("${track.position + 1}. ", fontFamily = FontFamily.Monospace)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(track.name, fontFamily = FontFamily.Monospace)
-                    Text(track.artists, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
-                }
-                if (state.isEditing) {
-                    Text(
-                        text = "≡",
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(4.dp).testTag("track_drag_$index")
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "×",
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .clickable { controller.removeTrack(track.remoteTrackId) }
-                            .testTag("track_remove_$index")
-                    )
-                }
-            }
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        itemsIndexed(state.tracks, key = { _, track -> track.remoteTrackId }) { index, track ->
+            PlaylistTrackItem(
+                track = track,
+                index = index,
+                isEditing = state.isEditing,
+                reorderState = reorderState,
+                onClick = { onPlayTracks(state.tracks, index) },
+                onRemove = { controller.removeTrack(track.remoteTrackId) },
+            )
         }
     }
 
