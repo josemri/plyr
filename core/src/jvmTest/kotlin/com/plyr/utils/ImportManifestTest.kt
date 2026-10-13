@@ -1,8 +1,8 @@
 package com.plyr.utils
 
-import com.plyr.database.PlaylistLocalRepository
+import com.plyr.database.LikedSongs
 import com.plyr.database.PlaylistSource
-import com.plyr.database.TrackEntity
+import com.plyr.database.TrackRecord
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -12,7 +12,7 @@ import org.junit.Test
 
 /**
  * Tests de la importación: validación del manifiesto, política de conflictos y
- * conversión a `TrackEntity`.
+ * conversión a `TrackRecord`.
  *
  * La política es lo que evita que importar un ZIP destruya datos, así que cada
  * rama de [ImportManifest.plan] tiene su propio caso.
@@ -164,8 +164,8 @@ class ImportManifestTest {
     @Test
     fun plan_alwaysMergesLikedSongsEvenThoughItAlwaysExists() {
         val actions = ImportManifest.plan(
-            listOf(playlist(PlaylistLocalRepository.LIKED_SONGS_ID)),
-            existingIds = setOf(PlaylistLocalRepository.LIKED_SONGS_ID)
+            listOf(playlist(LikedSongs.ID)),
+            existingIds = setOf(LikedSongs.ID)
         )
 
         assertEquals(PlaylistAction.MergeLikedSongs, actions.single())
@@ -221,10 +221,10 @@ class ImportManifestTest {
         val actions = ImportManifest.plan(
             playlists = listOf(
                 playlist("youtube_PL1"),
-                playlist(PlaylistLocalRepository.LIKED_SONGS_ID),
+                playlist(LikedSongs.ID),
                 playlist("youtube_PL2")
             ),
-            existingIds = setOf(PlaylistLocalRepository.LIKED_SONGS_ID)
+            existingIds = setOf(LikedSongs.ID)
         )
 
         assertEquals(3, actions.size)
@@ -290,9 +290,9 @@ class ImportManifestTest {
     @Test
     fun plan_likedSongsIsNeverTombstoned() {
         val actions = ImportManifest.plan(
-            listOf(playlist(PlaylistLocalRepository.LIKED_SONGS_ID)),
-            existingIds = setOf(PlaylistLocalRepository.LIKED_SONGS_ID),
-            deletedPlaylistIds = setOf(PlaylistLocalRepository.LIKED_SONGS_ID)
+            listOf(playlist(LikedSongs.ID)),
+            existingIds = setOf(LikedSongs.ID),
+            deletedPlaylistIds = setOf(LikedSongs.ID)
         )
 
         assertEquals(PlaylistAction.MergeLikedSongs, actions.single())
@@ -342,7 +342,7 @@ class ImportManifestTest {
     }
 
     /**
-     * `TrackEntity.id` es la clave primaria global y `PlayerViewModel` la usa para
+     * `TrackRecord.id` es la clave primaria global y `PlayerViewModel` la usa para
      * resolver "qué pista suena": si dos pistas comparten id, la navegación y el
      * indicador de reproducción se rompen en silencio.
      */
@@ -462,7 +462,7 @@ class ImportManifestTest {
         youtubeVideoId = youtubeVideoId
     )
 
-    private fun ImportedTrack.toEntity(playlistId: String, position: Int) = TrackEntity(
+    private fun ImportedTrack.toEntity(playlistId: String, position: Int) = TrackRecord(
         id = ImportManifest.synthesizeTrackId(playlistId, position),
         playlistId = playlistId,
         remoteTrackId = remoteTrackId,
@@ -470,7 +470,8 @@ class ImportManifestTest {
         artists = artists,
         youtubeVideoId = youtubeVideoId,
         audioUrl = null,
-        position = position
+        position = position,
+        lastSyncTime = 0L,
     )
 
     /** Construye un manifiesto con una sola lista "p" y las pistas dadas. */
@@ -673,14 +674,15 @@ class ImportManifestTest {
         name: String = "Song One",
         artists: String = "A, B",
         youtubeVideoId: String? = "yt-1",
-    ) = TrackEntity(
+    ) = TrackRecord(
         id = "liked_songs_r1_0",
-        playlistId = PlaylistLocalRepository.LIKED_SONGS_ID,
+        playlistId = LikedSongs.ID,
         remoteTrackId = "remote-1",
         name = name,
         artists = artists,
         youtubeVideoId = youtubeVideoId,
         audioUrl = null,
         position = 0,
+        lastSyncTime = 0L,
     )
 }

@@ -1,8 +1,9 @@
 package com.plyr.utils
 
-import com.plyr.database.PlaylistLocalRepository
+import com.plyr.database.LikedSongs
 import com.plyr.database.PlaylistSource
-import com.plyr.database.TrackEntity
+import com.plyr.database.TrackRecord
+import com.plyr.database.TrackRow
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -11,7 +12,7 @@ class ManifestFormatException(message: String) : Exception(message)
 
 /**
  * Una pista tal y como se lee de `playlists.json`. [artists] viene ya unida con
- * `", "` porque así lo guarda Room en `TrackEntity.artists`.
+ * `", "` porque así la guarda la base de datos (`TrackRow.artists`).
  */
 data class ImportedTrack(
     val position: Int,
@@ -85,11 +86,12 @@ sealed interface PlaylistAction {
 
 /**
  * ImportManifest - Lógica pura de importación: leer `playlists.json`, decidir
- * qué hacer con cada lista y convertirla en `TrackEntity`.
+ * qué hacer con cada lista y convertirla en `TrackRecord`.
  *
- * No toca Android ni el sistema de archivos (eso es [DataImporter] y
- * [ImportArchive]), así que todo el riesgo —validación del formato, política de
- * conflictos y generación de ids— se cubre con tests JVM.
+ * No toca el sistema de archivos (eso es responsabilidad de cada plataforma:
+ * `DataImporter` en Android y su equivalente de escritorio), así que todo el
+ * riesgo —validación del formato, política de conflictos y generación de ids—
+ * se cubre con tests JVM. Compartido por Android y escritorio.
  */
 object ImportManifest {
 
@@ -143,7 +145,7 @@ object ImportManifest {
         return buildSet {
             for (i in 0 until array.length()) {
                 val id = array.optString(i).trim()
-                if (id.isNotEmpty() && id != PlaylistLocalRepository.LIKED_SONGS_ID) add(id)
+                if (id.isNotEmpty() && id != LikedSongs.ID) add(id)
             }
         }
     }
@@ -180,7 +182,7 @@ object ImportManifest {
             playlist.id.isBlank() -> PlaylistAction.Skip(playlist.id, SkipReason.INVALID_ID)
             playlist.id.startsWith(LEGACY_ALBUM_PREFIX) ->
                 PlaylistAction.Skip(playlist.id, SkipReason.LEGACY_ALBUM)
-            playlist.id == PlaylistLocalRepository.LIKED_SONGS_ID -> PlaylistAction.MergeLikedSongs
+            playlist.id == LikedSongs.ID -> PlaylistAction.MergeLikedSongs
             playlist.id in deletedPlaylistIds -> PlaylistAction.Skip(playlist.id, SkipReason.IGNORED_DELETED)
             playlist.id in existingIds -> PlaylistAction.Skip(playlist.id, SkipReason.ALREADY_EXISTS)
             else -> PlaylistAction.Create(playlist)
@@ -188,20 +190,21 @@ object ImportManifest {
     }
 
     /**
-     * Convierte las pistas de una lista en `TrackEntity` listas para Room.
+     * Convierte las pistas de una lista en `TrackRecord` listas para la base de
+     * datos.
      *
      * Las posiciones se renumeran de 0 a n-1 siguiendo el orden del array, en vez
      * de fiarse del `position` exportado: es lo que garantiza un orden coherente
      * aunque el archivo se haya editado a mano. El `id` se sintetiza por posición
-     * porque el manifiesto no lo incluye y `TrackEntity.id` es la clave primaria
+     * porque el manifiesto no lo incluye y `TrackRecord.id` es la clave primaria
      * global: reutilizar `remoteTrackId` a secas fusionaría pistas repetidas.
      */
     fun buildTracks(
         playlistId: String,
         tracks: List<ImportedTrack>,
         now: Long = System.currentTimeMillis()
-    ): List<TrackEntity> = tracks.mapIndexed { index, track ->
-        TrackEntity(
+    ): List<TrackRecord> = tracks.mapIndexed { index, track ->
+        TrackRecord(
             id = synthesizeTrackId(playlistId, index),
             playlistId = playlistId,
             remoteTrackId = track.remoteTrackId,
@@ -222,10 +225,9 @@ object ImportManifest {
      * campo vacío no se puede comparar por vídeo, que es lo que usa
      * `toggleLikeTrack`).
      *
-     * Delega en [TrackIdentity] (`:core`), la identidad compartida con el
-     * escritorio.
+     * Delega en [TrackIdentity], la identidad compartida por Android y escritorio.
      */
-    fun fallbackDedupeKey(track: TrackEntity): String = TrackIdentity.fallbackDedupeKey(track)
+    fun fallbackDedupeKey(track: TrackRow): String = TrackIdentity.fallbackDedupeKey(track)
 
     /**
      * La clave con la que se identifica un favorito, y con la que se tombstonea un
@@ -233,7 +235,7 @@ object ImportManifest {
      * que usa la fusión: si fueran dos criterios distintos, un tomb no cuadraría
      * con la pista que pretende tapar.
      */
-    fun likedTrackKey(track: TrackEntity): String = TrackIdentity.likedTrackKey(track)
+    fun likedTrackKey(track: TrackRow): String = TrackIdentity.likedTrackKey(track)
 
     /**
      * La misma clave, calculada desde los datos crudos que recibe
@@ -281,7 +283,7 @@ private object ManifestJson {
         }
     }
 
-    /** Vuelve a unir el array de artistas con el `", "` que espera Room. */
+    /** Vuelve a unir el array de artistas con el `", "` que espera la BD. */
     private fun artists(json: JSONArray?): String {
         if (json == null) return ""
         return (0 until json.length())

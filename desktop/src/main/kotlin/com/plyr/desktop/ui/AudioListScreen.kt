@@ -26,12 +26,19 @@ import com.plyr.desktop.player.YouTubeTrackSourceResolver
 import com.plyr.desktop.search.SearchController
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.desktop.database.SettingsTombstoneStore
 import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.sync.BackupConfig
+import com.plyr.desktop.sync.BackupController
+import com.plyr.desktop.sync.DataExporter
+import com.plyr.desktop.sync.DataImporter
+import com.plyr.desktop.sync.DataSync
 import com.plyr.desktop.ui.screens.ConfigScreen
 import com.plyr.desktop.ui.screens.HomeScreen
 import com.plyr.desktop.ui.screens.PlaceholderScreen
 import com.plyr.desktop.ui.screens.QueueScreen
 import com.plyr.desktop.ui.screens.SearchScreen
+import com.plyr.desktop.utils.CoverCache
 import com.plyr.network.YouTubeManager
 import kotlinx.coroutines.delay
 import java.nio.file.Path
@@ -92,6 +99,29 @@ fun AudioListScreen(
     DisposableEffect(database) {
         onDispose { database.close() }
     }
+
+    // Repositorio único de la sesión, con tombs persistentes (M10). Se comparte
+    // entre la pantalla de listas y la copia de seguridad, y avisa a esta última
+    // de cada cambio para programar el volcado a la carpeta elegida.
+    val tombstones = remember { SettingsTombstoneStore() }
+    val repository = remember(database, tombstones) { PlaylistRepository(database, tombstones) }
+    val backupScope = rememberCoroutineScope()
+    val dataSync = remember(repository, tombstones) {
+        DataSync(
+            exporter = DataExporter(repository, tombstones, CoverCache()),
+            importer = DataImporter(repository, tombstones),
+            config = BackupConfig(),
+        )
+    }
+    val backupController = remember(dataSync, backupScope) { BackupController(dataSync, backupScope) }
+    DisposableEffect(repository, dataSync) {
+        repository.onChanged = { dataSync.markDirty() }
+        onDispose {
+            repository.onChanged = null
+            dataSync.shutdown()
+        }
+    }
+
     val playerState by playerController.state.collectAsState()
     val searchState by searchController.state.collectAsState()
 
@@ -131,10 +161,9 @@ fun AudioListScreen(
                         onBack = goHome,
                     )
                     Screen.PLAYLISTS -> {
-                        val playlistsRepo = remember { PlaylistRepository(database) }
                         val playlistsScope = rememberCoroutineScope()
-                        val playlistsController = remember(playlistsScope, playlistsRepo) {
-                            com.plyr.desktop.playlists.PlaylistsController(playlistsScope, playlistsRepo)
+                        val playlistsController = remember(playlistsScope, repository) {
+                            com.plyr.desktop.playlists.PlaylistsController(playlistsScope, repository)
                         }
                         com.plyr.desktop.playlists.PlaylistsScreen(
                             controller = playlistsController,
@@ -152,6 +181,7 @@ fun AudioListScreen(
                     Screen.CONFIG -> ConfigScreen(
                         onBack = goHome,
                         onRepeatModeSelected = playerController::setRepeatMode,
+                        backupController = backupController,
                     )
                 }
             }

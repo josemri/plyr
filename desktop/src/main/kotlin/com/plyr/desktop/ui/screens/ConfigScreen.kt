@@ -12,6 +12,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -23,6 +26,8 @@ import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.sync.BackupController
+import com.plyr.desktop.sync.BackupState
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
 import com.plyr.desktop.ui.components.Subtitulo
@@ -48,6 +53,7 @@ import com.plyr.domain.RepeatMode
 fun ConfigScreen(
     onBack: () -> Unit,
     onRepeatModeSelected: (String) -> Unit = { DesktopConfig.repeatMode = it },
+    backupController: BackupController? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -100,6 +106,12 @@ fun ConfigScreen(
         PathRow(Translations.get("data_folder"), AppPaths.directories.dataDir, "path_data")
         PathRow(Translations.get("cache_folder"), AppPaths.directories.cacheDir, "path_cache")
 
+        // === COPIA DE SEGURIDAD (M10) ===
+        if (backupController != null) {
+            Spacer(Modifier.height(PlyrSpacing.large))
+            BackupSection(backupController)
+        }
+
         Spacer(Modifier.height(PlyrSpacing.xxl))
 
         ActionButton(
@@ -110,6 +122,55 @@ fun ConfigScreen(
             modifier = Modifier.testTag("back_from_CONFIG"),
         )
     }
+}
+
+/**
+ * Sección de copia de seguridad: un botón que elige carpeta o sincroniza, el
+ * estado del último intento y la ruta de la carpeta elegida.
+ */
+@Composable
+private fun BackupSection(controller: BackupController) {
+    val state by controller.state.collectAsState()
+    LaunchedEffect(controller) { controller.refresh() }
+
+    Subtitulo(Translations.get("sync"))
+    ActionButton(
+        data = ActionButtonData(
+            text = if (state.isSyncing) {
+                Translations.get("sync_working")
+            } else {
+                controller.buttonLabel(state)
+            },
+            onClick = { controller.onSyncPressed() },
+        ),
+        modifier = Modifier.testTag("sync_button"),
+    )
+    BackupStatusMessage(state)
+    state.folderPath?.takeIf { state.isConfigured }?.let { folder ->
+        Spacer(Modifier.height(PlyrSpacing.xxs))
+        PathRow(Translations.get("backup_folder"), folder, "path_backup")
+    }
+}
+
+/** Mensaje del último intento de sincronización, si lo hay. */
+@Composable
+private fun BackupStatusMessage(state: BackupState) {
+    val message = state.statusMessage ?: return
+    Spacer(Modifier.height(PlyrSpacing.xxs))
+    Text(
+        text = message,
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            color = if (state.statusIsError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+        ),
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().testTag("sync_status"),
+    )
 }
 
 /**

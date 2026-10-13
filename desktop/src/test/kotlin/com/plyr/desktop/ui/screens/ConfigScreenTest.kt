@@ -9,12 +9,26 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
+import com.plyr.desktop.database.DesktopDatabase
+import com.plyr.desktop.database.InMemoryTombstoneStore
+import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.desktop.sync.BackupConfig
+import com.plyr.desktop.sync.BackupController
+import com.plyr.desktop.sync.DataExporter
+import com.plyr.desktop.sync.DataImporter
+import com.plyr.desktop.sync.DataSync
 import com.plyr.desktop.ui.theme.PlyrTheme
+import com.plyr.desktop.utils.CoverCache
 import com.plyr.domain.RepeatMode
 import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import java.nio.file.Files
 
 /**
  * Ajustes del escritorio (M9): tema, idioma, repetición y rutas del SO. El estado
@@ -84,5 +98,35 @@ class ConfigScreenTest {
 
         onNodeWithTag("repeat_one").performClick()
         assertEquals(RepeatMode.ONE, DesktopConfig.repeatMode)
+    }
+
+    @Test
+    fun muestraLaSeccionDeCopiaDeSeguridad() = runComposeUiTest {
+        val tmp = Files.createTempDirectory("plyr-sync-test")
+        val database = DesktopDatabase.inMemory()
+        val tombstones = InMemoryTombstoneStore()
+        val repository = PlaylistRepository(database, tombstones)
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val sync = DataSync(
+            exporter = DataExporter(
+                repository,
+                tombstones,
+                CoverCache(tmp.resolve("cache"), download = { null }),
+            ),
+            importer = DataImporter(repository, tombstones, tmp.resolve("covers")),
+            config = BackupConfig(MapSettings()),
+        )
+        val controller = BackupController(sync, scope)
+
+        try {
+            setContent { PlyrTheme { ConfigScreen(onBack = {}, backupController = controller) } }
+
+            // Sin `backupController` la sección no se pinta; con él, el botón está.
+            onNodeWithTag("sync_button").assertIsDisplayed()
+        } finally {
+            scope.cancel()
+            sync.shutdown()
+            database.close()
+        }
     }
 }

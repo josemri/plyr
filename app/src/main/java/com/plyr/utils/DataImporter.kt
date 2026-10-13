@@ -8,6 +8,7 @@ import com.plyr.database.PlaylistEntity
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackEntity
+import com.plyr.database.TrackRecord
 import com.plyr.service.CoverImageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -173,6 +174,7 @@ object DataImporter {
         val now = System.currentTimeMillis()
         val tracks: List<TrackEntity> =
             ImportManifest.buildTracks(playlistId = playlist.id, tracks = playlist.tracks, now = now)
+                .map { it.toEntity() }
         val cover = restoreCover(context, playlist, entries)
 
         val saved = repository.playlists.restorePlaylist(
@@ -205,7 +207,8 @@ object DataImporter {
         playlist: ImportedPlaylist,
         removedKeys: Set<String>
     ): Int = repository.liked.mergeLikedSongsTracks(
-        tracks = ImportManifest.buildTracks(playlistId = playlist.id, tracks = playlist.tracks),
+        tracks = ImportManifest.buildTracks(playlistId = playlist.id, tracks = playlist.tracks)
+            .map { it.toEntity() },
         removedKeys = removedKeys,
     )
 
@@ -273,3 +276,19 @@ object DataImporter {
         )
     }
 }
+
+/**
+ * `ImportManifest` (`:core`) devuelve el modelo portable `TrackRecord`; Room
+ * necesita su `TrackEntity`, estructuralmente idéntico.
+ */
+private fun TrackRecord.toEntity() = TrackEntity(
+    id = id,
+    playlistId = playlistId,
+    remoteTrackId = remoteTrackId,
+    name = name,
+    artists = artists,
+    youtubeVideoId = youtubeVideoId,
+    audioUrl = audioUrl,
+    position = position,
+    lastSyncTime = lastSyncTime,
+)
