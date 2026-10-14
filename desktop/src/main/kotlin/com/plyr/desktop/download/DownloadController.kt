@@ -75,6 +75,14 @@ class DownloadController(
     /** ¿Está [videoId] descargado? (la UI filtra las pistas offline con esto). */
     fun isDownloaded(videoId: String): Boolean = store.isDownloaded(videoId)
 
+    /**
+     * Subconjunto de [videoIds] que ya está offline. La UI lo recalcula cuando
+     * cambia [DownloadState.revision] (p. ej. tras terminar una descarga o borrar
+     * un fichero), para pintar el indicador `↓` sin releer cada fila una a una.
+     */
+    fun downloadedIds(videoIds: Collection<String>): Set<String> =
+        videoIds.filterTo(mutableSetOf()) { store.isDownloaded(it) }
+
     /** Cuántas pistas hay offline y cuánto ocupan (diálogo de almacenamiento, M17). */
     fun summary(): DownloadedAudioStore.Summary = store.summary()
 

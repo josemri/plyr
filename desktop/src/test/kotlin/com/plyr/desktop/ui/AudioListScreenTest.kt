@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
@@ -63,7 +64,7 @@ class AudioListScreenTest {
         setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("menu_CONFIG").performClick()
         onNodeWithTag("screen_CONFIG").assertIsDisplayed()
-        onNodeWithTag("back_from_CONFIG").performClick()
+        onNodeWithTag("back_from_CONFIG").performScrollTo().performClick()
         onNodeWithTag("screen_HOME").assertIsDisplayed()
     }
 

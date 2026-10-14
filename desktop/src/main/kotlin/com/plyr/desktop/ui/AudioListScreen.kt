@@ -22,6 +22,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
 import com.plyr.desktop.config.DesktopConfig
+import com.plyr.desktop.download.AudioDownloader
+import com.plyr.desktop.download.DownloadController
 import com.plyr.desktop.download.DownloadedAudioStore
 import com.plyr.desktop.player.PlayerController
 import com.plyr.desktop.player.PlayerState
@@ -169,6 +171,16 @@ fun AudioListScreen(
     val playlistsController = remember(scope, repository) {
         com.plyr.desktop.playlists.PlaylistsController(scope, repository)
     }
+    // Descarga offline (M16 backend, M17 UI): un controlador por sesión que
+    // comparten el detalle de lista (bajar/cancelar/borrar) y Ajustes (tamaño y
+    // borrar todo). Reutiliza el mismo almacén que el resolutor de reproducción.
+    val downloadController = remember(scope, downloadStore) {
+        DownloadController(
+            scope = scope,
+            store = downloadStore,
+            downloader = AudioDownloader(store = downloadStore),
+        )
+    }
     val playerState by playerController.state.collectAsState()
     val searchState by searchController.state.collectAsState()
     val playlistsState by playlistsController.state.collectAsState()
@@ -279,6 +291,7 @@ fun AudioListScreen(
                     Screen.PLAYLISTS -> {
                         com.plyr.desktop.playlists.PlaylistsScreen(
                             controller = playlistsController,
+                            downloadController = downloadController,
                             onBack = goHome,
                             onPlayTracks = { tracks: List<com.plyr.database.TrackRecord>, index: Int ->
                                 playerController.play(
@@ -298,6 +311,7 @@ fun AudioListScreen(
                         onRepeatModeSelected = playerController::setRepeatMode,
                         backupController = backupController,
                         spotifyImportController = spotifyController,
+                        downloadController = downloadController,
                     )
                 }
             }

@@ -16,6 +16,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -24,6 +27,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
+import com.plyr.desktop.download.DownloadController
+import com.plyr.desktop.download.OfflineStorageDialog
+import com.plyr.desktop.download.offlineStorageMessage
+import com.plyr.desktop.download.rememberOfflineSummary
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.AppPaths
 import com.plyr.desktop.spotify.SpotifyImportController
@@ -56,6 +63,7 @@ fun ConfigScreen(
     onRepeatModeSelected: (String) -> Unit = { DesktopConfig.repeatMode = it },
     backupController: BackupController? = null,
     spotifyImportController: SpotifyImportController? = null,
+    downloadController: DownloadController? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -104,9 +112,7 @@ fun ConfigScreen(
         Spacer(Modifier.height(PlyrSpacing.large))
 
         // === ALMACENAMIENTO (rutas por SO) ===
-        Subtitulo(Translations.get("paths_title"))
-        PathRow(Translations.get("data_folder"), AppPaths.directories.dataDir, "path_data")
-        PathRow(Translations.get("cache_folder"), AppPaths.directories.cacheDir, "path_cache")
+        PathsSection()
 
         // === COPIA DE SEGURIDAD (M10) ===
         if (backupController != null) {
@@ -120,6 +126,12 @@ fun ConfigScreen(
             SpotifyImportSection(spotifyImportController)
         }
 
+        // === ALMACENAMIENTO OFFLINE (M17) ===
+        if (downloadController != null) {
+            Spacer(Modifier.height(PlyrSpacing.large))
+            OfflineStorageSection(downloadController)
+        }
+
         Spacer(Modifier.height(PlyrSpacing.xxl))
 
         ActionButton(
@@ -130,6 +142,16 @@ fun ConfigScreen(
             modifier = Modifier.testTag("back_from_CONFIG"),
         )
     }
+}
+
+/**
+ * Rutas de datos y caché del SO en las que vive la app (solo informativo).
+ */
+@Composable
+private fun PathsSection() {
+    Subtitulo(Translations.get("paths_title"))
+    PathRow(Translations.get("data_folder"), AppPaths.directories.dataDir, "path_data")
+    PathRow(Translations.get("cache_folder"), AppPaths.directories.cacheDir, "path_cache")
 }
 
 /**
@@ -233,6 +255,41 @@ private fun SpotifyStatusMessage(state: SpotifyImportState) {
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth().testTag("spotify_status"),
     )
+}
+
+/**
+ * Sección de almacenamiento offline (M17): resume cuántas pistas hay
+ * descargadas y cuánto ocupan, y abre el diálogo con el «borrar todo». El
+ * resumen se recalcula cuando cambia el almacén (revisión del controlador).
+ */
+@Composable
+private fun OfflineStorageSection(controller: DownloadController) {
+    var showDialog by remember { mutableStateOf(false) }
+    val summary = rememberOfflineSummary(controller)
+
+    Subtitulo(Translations.get("storage_title"))
+    Text(
+        text = offlineStorageMessage(summary),
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.secondary,
+        ),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().testTag("offline_storage_summary"),
+    )
+    Spacer(Modifier.height(PlyrSpacing.small))
+    ActionButton(
+        data = ActionButtonData(
+            text = Translations.get("download_clean"),
+            onClick = { showDialog = true },
+        ),
+        modifier = Modifier.testTag("offline_storage_button"),
+    )
+
+    if (showDialog) {
+        OfflineStorageDialog(controller = controller, onDismiss = { showDialog = false })
+    }
 }
 
 /**

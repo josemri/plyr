@@ -103,6 +103,13 @@ object TranslationCatalog {
             "storage_empty" to "no hay audio descargado",
             "storage_message" to "audio: %1\$d pistas · %2\$s",
             "delete_download" to "eliminar descarga",
+            "download" to "descargar",
+            "download_clean" to "limpiar",
+            "download_downloading" to "descargando %1\$d/%2\$d",
+            "download_done" to "descargado %1\$d/%2\$d",
+            "download_partial" to "descargado %1\$d/%2\$d (con errores)",
+            "download_already" to "ya descargado",
+            "download_cancelled" to "descarga cancelada",
 
             // SongListItem
             "add_to_playlist" to "añadir a playlist",
@@ -312,6 +319,13 @@ object TranslationCatalog {
             "storage_empty" to "no downloaded audio",
             "storage_message" to "audio: %1\$d tracks · %2\$s",
             "delete_download" to "delete download",
+            "download" to "download",
+            "download_clean" to "clean",
+            "download_downloading" to "downloading %1\$d/%2\$d",
+            "download_done" to "downloaded %1\$d/%2\$d",
+            "download_partial" to "downloaded %1\$d/%2\$d (with errors)",
+            "download_already" to "already downloaded",
+            "download_cancelled" to "download cancelled",
 
             // SongListItem
             "add_to_playlist" to "add to playlist",
@@ -489,6 +503,13 @@ object TranslationCatalog {
             "storage_empty" to "no hi ha àudio descarregat",
             "storage_message" to "àudio: %1\$d pistes · %2\$s",
             "delete_download" to "elimina la descàrrega",
+            "download" to "descarrega",
+            "download_clean" to "neteja",
+            "download_downloading" to "descarregant %1\$d/%2\$d",
+            "download_done" to "descarregat %1\$d/%2\$d",
+            "download_partial" to "descarregat %1\$d/%2\$d (amb errors)",
+            "download_already" to "ja descarregat",
+            "download_cancelled" to "descàrrega cancel·lada",
 
             // SongListItem
             "add_to_playlist" to "afegir a playlist",
@@ -666,6 +687,13 @@ object TranslationCatalog {
             "storage_empty" to "ダウンロード済みの音声はありません",
             "storage_message" to "音声: %1\$d 曲 · %2\$s",
             "delete_download" to "ダウンロードを削除",
+            "download" to "ダウンロード",
+            "download_clean" to "クリーン",
+            "download_downloading" to "ダウンロード中 %1\$d/%2\$d",
+            "download_done" to "ダウンロード済み %1\$d/%2\$d",
+            "download_partial" to "ダウンロード済み %1\$d/%2\$d (エラーあり)",
+            "download_already" to "ダウンロード済み",
+            "download_cancelled" to "ダウンロードをキャンセルしました",
 
             // SongListItem
             "add_to_playlist" to "プレイリストに追加",

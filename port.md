@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M16` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M17` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -33,7 +33,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | # | Funcionalidad | Implementación Android | Estado en escritorio | Prioridad |
 |---|---|---|---|---|
 | F14 | Descarga de audio offline y reproducción sin conexión | `AudioDownloader` + `DownloadedAudioStore` + `DownloadPlan` (OkHttp + SAF/`filesDir`) | **Presente (M16)**: `AudioDownloader` + `DownloadedAudioStore` + `DownloadController` (OkHttp + `java.nio`); el resolutor prefiere el fichero local | **Alta** |
-| F15 | UI de almacenamiento offline (descargar/limpiar y resumen) | `PlaylistScreen` + `PlaylistDownloadBar` + `OfflineStorageDialog` | Ausente | Media |
+| F15 | UI de almacenamiento offline (descargar/limpiar y resumen) | `PlaylistScreen` + `PlaylistDownloadBar` + `OfflineStorageDialog` | **Presente (M17)**: `DownloadStatusBar` + `OfflineStorageDialog` + botón descargar/limpiar e indicador por pista (`PlaylistDetailView`/`PlaylistTrackItem`); sección de almacén en `ConfigScreen` | Media |
 | F16 | Carrusel de playlists en Home | `HomeScreen` (`HomePlaylistCarousel`) | Home es solo un menú de consola | Media |
 | F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | Solo se buscan vídeos | **Alta** |
 | F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | Sin shuffle (MPRIS `Shuffle` es de solo lectura y falso) | **Alta** |
@@ -46,7 +46,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
 | F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | El modo edición solo tiene título/descripción/portada y borrar/reordenar | Media |
 
-> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`), pero el escritorio solo consume `add_to_playlist` de entre ellas; el resto está listo para usarse cuando se implementen M17/M22/M24 (la descarga de M16 no traduce nada todavía: su UI es M17).
+> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist` y, desde M17, `storage_*` (almacén offline); `delete_download` y el resto de F22/F24 siguen listos para usarse cuando se implementen M22/M24. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`.
 
 > **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 es más barato de lo que sugiere su kdoc (que aún dice «no portado»).
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M16` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M17` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -268,6 +268,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M14 — Empaquetado:** `jpackage` vía plugin Compose (`.deb` verificado; `.rpm`/`.msi`/`.dmg` configurados).
 - **M15 — Pulido:** atajos de teclado, `UpdateChecker` de escritorio, detekt con `detekt-baseline.xml`, checklist i18n y docs.
 - **M16 — Descarga offline:** `DownloadPlan` (puro) a `:core`; `DownloadedAudioStore` (`java.nio`, `dataDir/audio/<videoId>.m4a`), `AudioDownloader` (OkHttp, con `AudioFetcher` inyectable) y `DownloadController` (`StateFlow`); `YouTubeTrackSourceResolver` prefiere el fichero local y deja el streaming de respaldo.
+- **M17 — UI de almacenamiento offline:** `DownloadStatusBar` y `OfflineStorageDialog` en `:desktop`; botón descargar/limpiar en el detalle de lista, indicador `↓`/`↓ NN%` por pista y acción «borrar descarga»; sección de almacén en Ajustes (tamaño, nº de pistas y «borrar todo»).
 
 ### 6.2 Tabla de seguimiento
 
@@ -290,7 +291,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M14 | Empaquetado multiplataforma | 1 | ☑ |
 | M15 | Pulido y paridad final | 1–2 | ☑ (paridad parcial, ver §6.4) |
 | M16 | Descarga de audio offline + reproducción sin conexión ⭐ | 1–2 | ☑ |
-| M17+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M17 | UI de almacenamiento offline | 1 | ☑ |
+| M18+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -300,13 +302,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M17+)
+### 6.4 Backlog de paridad pendiente (M18+)
 
 Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F17, F18 y F23 del inventario (§1.1).
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M17 | UI de almacenamiento offline | Media | 1 |
 | M18 | Carrusel de playlists en Home | Media | 0.5 |
 | M19 | Playlists de YouTube en búsqueda + detalle | **Alta** | 1–1.5 |
 | M20 | Reproducción aleatoria (`<rnd>`) en playlists | **Alta** | 0.5 |
@@ -332,7 +333,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M17 — UI de almacenamiento offline
+#### M17 — UI de almacenamiento offline ☑ (completado)
 **Objetivo:** paridad con la UI de descargas de `PlaylistScreen`.
 **Tareas**
 - Barra de descarga en el detalle de lista (descargar todas / limpiar) y en el lista de playlists.
@@ -342,6 +343,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test` + prueba manual.
 **Prompt opencode:**
 > Añade a `:desktop` la UI de descargas offline: barra de descarga en el detalle de lista, indicador por pista, acción «borrar descarga» y un diálogo de almacenamiento con tamaño total y «borrar todo». Reutiliza `DownloadController` de M16. Verifica con tests de Compose y manualmente.
+
+**Implementado:** `DownloadStatusBar` (`downloadStatusMessage`) y `OfflineStorageDialog` (`rememberOfflineSummary`/`offlineStorageMessage`) en `com.plyr.desktop.download`; en `PlaylistDetailView` el botón `playlist_download` alterna descargar/cancelar/limpiar y `PlaylistTrackItem` pinta `↓` (`track_downloaded_*`) / `↓ NN%` (`track_downloading_*`) con borrado por pista (`track_delete_download_*`); `ConfigScreen` gana la sección de almacén (`offline_storage_summary`/`offline_storage_button`) y `AudioListScreen` comparte un `DownloadController` entre Ajustes y listas. 7 claves `download_*` nuevas en el catálogo. Tests: `DownloadMessagesTest`, `OfflineStorageDialogTest`, `PlaylistDetailViewTest` y caso de almacén en `ConfigScreenTest`.
 
 ---
 

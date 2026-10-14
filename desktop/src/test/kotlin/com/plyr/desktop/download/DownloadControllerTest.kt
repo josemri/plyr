@@ -217,4 +217,16 @@ class DownloadControllerTest {
         controller.dismissResult()
         assertNull(controller.state.value.outcome)
     }
+
+    @Test
+    fun downloadedIds_devuelveSoloLosQueEstanOffline() = runBlocking {
+        val store = store()
+        val scope = CoroutineScope(Dispatchers.Unconfined)
+        store.write("vidA") { it.write(byteArrayOf(1)); true }
+        val (fetcher, _) = countingFetcher()
+        val controller = controller(scope, store, fetcher)
+
+        assertEquals(setOf("vidA"), controller.downloadedIds(listOf("vidA", "vidB")))
+        assertEquals(emptySet<String>(), controller.downloadedIds(emptyList()))
+    }
 }

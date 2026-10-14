@@ -12,6 +12,9 @@ import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.InMemoryTombstoneStore
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.desktop.download.AudioDownloader
+import com.plyr.desktop.download.DownloadController
+import com.plyr.desktop.download.DownloadedAudioStore
 import com.plyr.desktop.spotify.SpotifyImportController
 import com.plyr.desktop.spotify.SpotifyImportService
 import com.plyr.desktop.sync.BackupConfig
@@ -157,6 +160,25 @@ class ConfigScreenTest {
         } finally {
             scope.cancel()
             database.close()
+        }
+    }
+
+    @Test
+    fun muestraLaSeccionDeAlmacenamientoOffline() = runComposeUiTest {
+        val store = DownloadedAudioStore(directory = Files.createTempDirectory("plyr-audio-test"))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val controller = DownloadController(scope, store, AudioDownloader(store = store))
+
+        try {
+            setContent { PlyrTheme { ConfigScreen(onBack = {}, downloadController = controller) } }
+
+            // Sin `downloadController` la sección no se pinta; con él, el resumen y
+            // el botón que abre el diálogo de borrado están.
+            onNodeWithTag("offline_storage_summary").assertIsDisplayed()
+            onNodeWithTag("offline_storage_button").performClick()
+            onNodeWithTag("storage_dialog").assertIsDisplayed()
+        } finally {
+            scope.cancel()
         }
     }
 }

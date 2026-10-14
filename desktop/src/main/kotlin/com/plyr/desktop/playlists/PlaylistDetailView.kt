@@ -7,10 +7,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import com.plyr.database.TrackRecord
+import com.plyr.desktop.download.DownloadController
+import com.plyr.desktop.download.DownloadStatusBar
+import com.plyr.desktop.download.OfflineStorageDialog
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.FileDialogs
 import com.plyr.desktop.qr.QrShareDialog
@@ -31,6 +35,7 @@ import java.awt.image.BufferedImage
 @Composable
 fun PlaylistDetailView(
     controller: PlaylistsController,
+    downloadController: DownloadController,
     state: PlaylistsState,
     onPlayTracks: (List<TrackRecord>, Int) -> Unit,
     onBack: () -> Unit,
@@ -41,6 +46,21 @@ fun PlaylistDetailView(
     val scope = rememberCoroutineScope()
     var shareItem by remember { mutableStateOf<ShareableItem?>(null) }
     var cropSource by remember { mutableStateOf<BufferedImage?>(null) }
+    var showStorageDialog by remember { mutableStateOf(false) }
+
+    // Estado de descarga offline de la lista abierta (M17): qué pistas ya están
+    // en el almacén, si se está bajando esta lista y el progreso de la pista
+    // actual. `revision` sube al bajar/borrar y fuerza a recalcular el conjunto.
+    val downloadState by downloadController.state.collectAsState()
+    val selectedPlaylistId = state.selectedPlaylistId
+    val videoIds = remember(state.tracks) {
+        state.tracks.mapNotNull { it.youtubeVideoId }.filter { it.isNotBlank() }.toSet()
+    }
+    val downloadedIds = remember(videoIds, downloadState.revision) {
+        downloadController.downloadedIds(videoIds)
+    }
+    val allDownloaded = videoIds.isNotEmpty() && downloadedIds.containsAll(videoIds)
+    val downloadingThis = downloadState.isDownloading && downloadState.playlistId == selectedPlaylistId
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         PlaylistCover(url = playlist?.imageUrl, size = 64.dp, modifier = Modifier.testTag("playlist_cover"))
@@ -57,6 +77,33 @@ fun PlaylistDetailView(
             ActionButton(
                 data = ActionButtonData(text = Translations.get("share"), onClick = { shareItem = playlist.toShareableItem() }),
                 modifier = Modifier.testTag("playlist_share")
+            )
+        }
+        // Botón de descarga offline (M17): baja lo que falte, cancela si está en
+        // curso, o abre el diálogo de almacén cuando ya está todo en disco. No
+        // aparece si la lista no tiene ninguna pista con vídeo descargable.
+        if (!state.isEditing && selectedPlaylistId != null && videoIds.isNotEmpty()) {
+            ActionButton(
+                data = ActionButtonData(
+                    text = when {
+                        downloadingThis -> Translations.get("cancel")
+                        allDownloaded -> Translations.get("download_clean")
+                        else -> Translations.get("download")
+                    },
+                    color = if (downloadingThis) MaterialTheme.colorScheme.error else Color.Unspecified,
+                    onClick = {
+                        when {
+                            downloadingThis -> downloadController.cancel()
+                            allDownloaded -> showStorageDialog = true
+                            else -> downloadController.startDownload(
+                                playlistId = selectedPlaylistId,
+                                playlistTitle = playlist?.name.orEmpty(),
+                                tracks = state.tracks,
+                            )
+                        }
+                    },
+                ),
+                modifier = Modifier.testTag("playlist_download")
             )
         }
         if (!state.isEditing && playlist?.remoteId != "liked_songs") {
@@ -93,6 +140,13 @@ fun PlaylistDetailView(
             )
         }
     }
+
+    // Barra de descarga de la lista (M17): progreso/resultado de esta playlist.
+    DownloadStatusBar(
+        state = downloadState,
+        controller = downloadController,
+        playlistId = selectedPlaylistId,
+    )
 
     Spacer(modifier = Modifier.height(8.dp))
 
@@ -132,6 +186,15 @@ fun PlaylistDetailView(
                 onRemove = { controller.removeTrack(track.remoteTrackId) },
                 onMove = { from, to -> controller.reorderTracks(from, to) },
                 onShare = track.youtubeVideoId?.let { { shareItem = track.toShareableItem() } },
+                isDownloaded = track.youtubeVideoId != null && track.youtubeVideoId in downloadedIds,
+                downloadProgress = if (downloadingThis && track.youtubeVideoId == downloadState.currentVideoId) {
+                    downloadState.currentFraction
+                } else {
+                    null
+                },
+                onDeleteDownload = track.youtubeVideoId?.let { videoId ->
+                    { downloadController.removeDownload(videoId) }
+                },
             )
         }
     }
@@ -175,6 +238,13 @@ fun PlaylistDetailView(
             dismissButton = {
                 TextButton(onClick = { controller.exitEdit() }) { Text(Translations.get("cancel")) }
             }
+        )
+    }
+
+    if (showStorageDialog) {
+        OfflineStorageDialog(
+            controller = downloadController,
+            onDismiss = { showStorageDialog = false },
         )
     }
 
