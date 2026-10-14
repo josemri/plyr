@@ -109,7 +109,11 @@ class PlayerController(
 
     private val engine = QueueEngine<PlayerTrack>()
 
-    private val _state = MutableStateFlow(PlayerState(repeatMode = initialRepeatMode))
+    init {
+        engine.setRepeatMode(initialRepeatMode)
+    }
+
+    private val _state = MutableStateFlow(PlayerState(repeatMode = engine.repeatMode))
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
     private var player: AudioPlayer? = null
@@ -409,6 +413,7 @@ class PlayerController(
         return try {
             openPlayer().also {
                 it.setListener(playerListener)
+                it.setRepeatOne(engine.repeatMode == com.plyr.domain.RepeatMode.ONE)
                 player = it
             }
         } catch (t: Throwable) {
@@ -489,7 +494,7 @@ class PlayerController(
         backwards: Boolean = target < currentIndex,
     ) {
         if (transitionInFlight) return
-        val player = player ?: return
+        val player = ensurePlayer() ?: return
         if (target !in queue.indices) {
             stopAtQueueEnd()
             return

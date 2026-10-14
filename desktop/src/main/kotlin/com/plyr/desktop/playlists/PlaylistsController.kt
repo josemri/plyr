@@ -215,7 +215,7 @@ class PlaylistsController(
         val title = state.value.newTitle.trim()
         val desc = state.value.newDescription.trim()
         if (title.isEmpty()) return
-        repository.updatePlaylistDetails(id, title, if (desc.isEmpty()) null else desc)
+        repository.updatePlaylistDetails(id, title, desc)
         scope.launch {
             val tracks = repository.tracksByPlaylist(id)
             _state.update {

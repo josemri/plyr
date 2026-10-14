@@ -111,7 +111,7 @@ class PlaylistRepository(
         writePlaylist(
             current.copy(
                 name = newTitle ?: current.name,
-                description = newDesc ?: current.description,
+                description = newDesc,
                 lastSyncTime = System.currentTimeMillis(),
             )
         )

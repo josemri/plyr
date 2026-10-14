@@ -60,7 +60,7 @@ private fun PlaylistGridView(
     )
     Spacer(modifier = Modifier.height(PlyrSpacing.medium))
 
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
         itemsIndexed(state.playlists) { _, playlist ->
             PlaylistItem(playlist = playlist, onClick = { controller.selectPlaylist(playlist.remoteId) })
         }
