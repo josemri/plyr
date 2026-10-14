@@ -9,7 +9,9 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.search.SearchState
 import com.plyr.desktop.ui.theme.PlyrTheme
+import com.plyr.network.YouTubePlaylistInfo
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -151,5 +153,96 @@ class SearchScreenTest {
         onNodeWithTag("scan_input").assertIsDisplayed()
         onNodeWithTag("scan_decode").assertIsDisplayed()
         onNodeWithTag("scan_open_image").assertIsDisplayed()
+    }
+
+    @Test
+    fun muestraListasYAlPulsarAbreElDetalle() = runComposeUiTest {
+        var opened: YouTubePlaylistInfo? = null
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "mix",
+                        playlists = listOf(YouTubePlaylistInfo("PL1", "Mix", "DJ", 3, null)),
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                    onOpenPlaylist = { opened = it },
+                )
+            }
+        }
+
+        onNodeWithTag("search_playlist_PL1").assertIsDisplayed()
+        onNodeWithTag("search_playlist_PL1").performClick()
+
+        assertEquals("PL1", opened?.playlistId)
+    }
+
+    @Test
+    fun seccionDeVideosPlegadaOcultaSusResultados() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "x",
+                        results = listOf(track("a")),
+                        videosExpanded = false,
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_videos_header").assertIsDisplayed()
+        onNodeWithTag("search_result_0").assertDoesNotExist()
+    }
+
+    @Test
+    fun plegarVideosInvocaElCallback() = runComposeUiTest {
+        var toggled = false
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(query = "x", results = listOf(track("a"))),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                    onToggleVideos = { toggled = true },
+                )
+            }
+        }
+
+        onNodeWithTag("search_videos_header").performClick()
+
+        assertTrue(toggled)
+    }
+
+    @Test
+    fun seccionDeListasPlegadaOcultaSusListas() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "x",
+                        playlists = listOf(YouTubePlaylistInfo("PL1", "Mix", "DJ", 3, null)),
+                        playlistsExpanded = false,
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                    onOpenPlaylist = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_playlists_header").assertIsDisplayed()
+        onNodeWithTag("search_playlist_PL1").assertDoesNotExist()
     }
 }

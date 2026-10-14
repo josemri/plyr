@@ -11,9 +11,32 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.schabi.newpipe.extractor.ServiceList
+import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Ficha de una lista (playlist) de YouTube.
+ *
+ * Es lo mínimo que la UI necesita para pintar el resultado y abrir el detalle:
+ * el id de la lista (PL/UU/FL/RD...), su título, quién la subió, cuántos vídeos
+ * tiene y su portada. Equivale a lo que Android guarda al vuelo desde
+ * `PlaylistInfoItem`, pero sin depender de Android.
+ */
+data class YouTubePlaylistInfo(
+    val playlistId: String,
+    val title: String,
+    val uploader: String,
+    val videoCount: Int,
+    val thumbnailUrl: String?,
+)
+
+/** Resultado de [YouTubeManager.searchAll]: los vídeos y las listas de una búsqueda. */
+data class YouTubeSearchAllResult(
+    val videos: List<AudioItem> = emptyList(),
+    val playlists: List<YouTubePlaylistInfo> = emptyList(),
+)
 
 /**
  * Gestor unificado de YouTube - Búsqueda, extracción de audio y caché de URLs.
@@ -115,17 +138,7 @@ object YouTubeManager {
                 extractor.initialPage.items
                     .asSequence()
                     .filterIsInstance<StreamInfoItem>()
-                    .mapNotNull { item ->
-                        val videoId = UrlParser.extractYoutubeVideoId(item.url)
-                        if (videoId == null || videoId.length != 11) return@mapNotNull null
-                        AudioItem(
-                            title = item.name,
-                            url = "",
-                            videoId = videoId,
-                            channel = item.uploaderName.orEmpty(),
-                            duration = formatDurationSeconds(item.duration),
-                        )
-                    }
+                    .mapNotNull { audioItemFrom(it) }
                     .take(maxResults)
                     .toList()
             } catch (e: Exception) {
@@ -133,6 +146,130 @@ object YouTubeManager {
                 emptyList()
             }
         }
+
+    /**
+     * Busca en YouTube y devuelve **vídeos y listas** de una sola pasada.
+     *
+     * Es la variante "completa" de [searchVideos]: NewPipe devuelve resultados
+     * mezclados ([StreamInfoItem] y [PlaylistInfoItem]) y aquí se separan en dos
+     * cubos, respetando sendos topes. La UI de escritorio (M19) muestra las
+     * listas junto a los vídeos y abre su detalle. Si algo falla devuelve el
+     * resultado vacío, nunca lanza.
+     */
+    suspend fun searchAll(
+        query: String,
+        maxVideos: Int = 25,
+        maxPlaylists: Int = 10,
+    ): YouTubeSearchAllResult = withContext(Dispatchers.IO) {
+        try {
+            NewPipeHolder.ensureInitialized()
+
+            val extractor = ServiceList.YouTube.getSearchExtractor(query)
+            extractor.fetchPage()
+
+            val videos = mutableListOf<AudioItem>()
+            val playlists = mutableListOf<YouTubePlaylistInfo>()
+            for (item in extractor.initialPage.items) {
+                when (item) {
+                    is StreamInfoItem -> if (videos.size < maxVideos) {
+                        audioItemFrom(item)?.let { videos.add(it) }
+                    }
+                    is PlaylistInfoItem -> if (playlists.size < maxPlaylists) {
+                        playlistInfoFrom(item)?.let { playlists.add(it) }
+                    }
+                }
+                if (videos.size >= maxVideos && playlists.size >= maxPlaylists) break
+            }
+            YouTubeSearchAllResult(videos = videos, playlists = playlists)
+        } catch (e: Exception) {
+            Logger.e("YouTubeManager", "❌ Error buscando '$query': ${e.message}")
+            YouTubeSearchAllResult()
+        }
+    }
+
+    /**
+     * Ficha de una lista de YouTube por su id. Devuelve `null` si falla.
+     *
+     * La portada no viene aquí (la ficha de una lista no siempre la trae): la UI
+     * usa la del primer vídeo o deja el hueco vacío.
+     */
+    suspend fun getPlaylistInfo(playlistId: String): YouTubePlaylistInfo? =
+        withContext(Dispatchers.IO) {
+            try {
+                NewPipeHolder.ensureInitialized()
+
+                val extractor = ServiceList.YouTube.getPlaylistExtractor(playlistUrl(playlistId))
+                extractor.fetchPage()
+
+                YouTubePlaylistInfo(
+                    playlistId = playlistId,
+                    title = extractor.name.orEmpty(),
+                    uploader = extractor.uploaderName.orEmpty(),
+                    videoCount = extractor.streamCount.toInt(),
+                    thumbnailUrl = null,
+                )
+            } catch (e: Exception) {
+                Logger.e("YouTubeManager", "❌ Error obteniendo la lista $playlistId: ${e.message}")
+                null
+            }
+        }
+
+    /**
+     * Pistas de una lista de YouTube, ya como [AudioItem].
+     *
+     * Igual que [searchVideos], no extrae la URL de audio: se resuelve al
+     * reproducir. Si algo falla devuelve una lista vacía, nunca lanza.
+     */
+    suspend fun getPlaylistVideos(playlistId: String, maxVideos: Int = 100): List<AudioItem> =
+        withContext(Dispatchers.IO) {
+            try {
+                NewPipeHolder.ensureInitialized()
+
+                val extractor = ServiceList.YouTube.getPlaylistExtractor(playlistUrl(playlistId))
+                extractor.fetchPage()
+
+                extractor.initialPage.items
+                    .asSequence()
+                    .filterIsInstance<StreamInfoItem>()
+                    .mapNotNull { audioItemFrom(it) }
+                    .take(maxVideos)
+                    .toList()
+            } catch (e: Exception) {
+                Logger.e("YouTubeManager", "❌ Error obteniendo los vídeos de $playlistId: ${e.message}")
+                emptyList()
+            }
+        }
+
+    /** URL canónica de una lista; NewPipe la necesita para construir el extractor. */
+    private fun playlistUrl(playlistId: String) = "https://www.youtube.com/playlist?list=$playlistId"
+
+    /**
+     * Convierte un resultado de vídeo a [AudioItem], o `null` si no tiene un id
+     * de YouTube válido (los resultados promocionados a veces no lo traen).
+     */
+    private fun audioItemFrom(item: StreamInfoItem): AudioItem? {
+        val videoId = UrlParser.extractYoutubeVideoId(item.url)
+        if (videoId == null || videoId.length != 11) return null
+        return AudioItem(
+            title = item.name,
+            url = "",
+            videoId = videoId,
+            channel = item.uploaderName.orEmpty(),
+            duration = formatDurationSeconds(item.duration),
+        )
+    }
+
+    /** Convierte un resultado de lista a [YouTubePlaylistInfo], o `null` sin id. */
+    private fun playlistInfoFrom(item: PlaylistInfoItem): YouTubePlaylistInfo? {
+        val playlistId = UrlParser.extractYoutubePlaylistId(item.url) ?: return null
+        return YouTubePlaylistInfo(
+            playlistId = playlistId,
+            title = item.name,
+            uploader = item.uploaderName.orEmpty(),
+            videoCount = item.streamCount.toInt(),
+            thumbnailUrl = item.thumbnails.firstOrNull()?.url,
+        )
+    }
 
     /**
      * Extrae la URL de audio de un video de YouTube.

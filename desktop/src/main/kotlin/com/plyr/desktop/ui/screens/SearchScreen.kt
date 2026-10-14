@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -30,19 +32,23 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.plyr.database.PlaylistRecord
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.player.PlayerTrack
+import com.plyr.desktop.playlists.PlaylistCover
 import com.plyr.desktop.qr.QrScanDialog
 import com.plyr.desktop.search.SearchState
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
-import com.plyr.desktop.ui.components.Subtitulo
 import com.plyr.desktop.ui.components.Titulo
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
 import com.plyr.model.ScanResult
+import com.plyr.network.YouTubePlaylistInfo
+import java.util.Locale
+
 
 /**
  * Pantalla de búsqueda de escritorio (M7).
@@ -50,7 +56,9 @@ import com.plyr.model.ScanResult
  * Puerto "de consola" de `com.plyr.ui.SearchScreen`: como en Android, la consulta
  * se lanza contra YouTube y los resultados se pueden reproducir. Desde M11
  * incluye el lector de QR sin cámara ([QrScanDialog]): pegar una URL o abrir una
- * imagen, que se traduce al mismo [ScanResult] que Android.
+ * imagen, que se traduce al mismo [ScanResult] que Android. Desde M19 muestra
+ * las listas de YouTube junto a los vídeos (dos secciones plegables, `v`/`>`) y
+ * avisa al pulsarlas para abrir su detalle.
  *
  * El estado y los callbacks llegan de fuera ([SearchState] + lambdas) para que el
  * composable sea testeable sin red ni motor de audio.
@@ -65,6 +73,9 @@ fun SearchScreen(
     playlists: List<PlaylistRecord> = emptyList(),
     onAddToPlaylist: ((PlayerTrack, String) -> Unit)? = null,
     onScanResult: ((ScanResult) -> Unit)? = null,
+    onToggleVideos: () -> Unit = {},
+    onTogglePlaylists: () -> Unit = {},
+    onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     var showScan by remember { mutableStateOf(false) }
@@ -102,14 +113,14 @@ fun SearchScreen(
                 state.isLoading -> StatusText(Translations.get("search_loading"), "search_loading")
                 state.error != null -> StatusText(state.error, "search_error", isError = true)
                 state.isEmptyResult -> StatusText(Translations.get("no_tracks_loaded"), "search_empty")
-                state.results.isNotEmpty() -> Column(modifier = Modifier.fillMaxSize()) {
-                    Subtitulo(Translations.get("search_youtube_results"))
-                    ResultsList(
-                        results = state.results,
-                        onPlayResult = onPlayResult,
-                        onAddToPlaylist = onAddToPlaylist?.let { { track -> pendingAdd = track } },
-                    )
-                }
+                state.hasResults -> SearchResultsList(
+                    state = state,
+                    onPlayResult = onPlayResult,
+                    onAddToPlaylist = onAddToPlaylist?.let { { track -> pendingAdd = track } },
+                    onToggleVideos = onToggleVideos,
+                    onTogglePlaylists = onTogglePlaylists,
+                    onOpenPlaylist = onOpenPlaylist,
+                )
             }
         }
 
@@ -235,15 +246,127 @@ private fun SearchBar(
     }
 }
 
+/**
+ * Resultados de una búsqueda (M19): una sola `LazyColumn` con la sección de
+ * vídeos y la de listas, ambas plegables —el mismo `v`/`>` que Android.
+ */
 @Composable
-private fun ResultsList(
-    results: List<PlayerTrack>,
+private fun SearchResultsList(
+    state: SearchState,
     onPlayResult: (Int) -> Unit,
-    onAddToPlaylist: ((PlayerTrack) -> Unit)? = null,
+    onAddToPlaylist: ((PlayerTrack) -> Unit)?,
+    onToggleVideos: () -> Unit,
+    onTogglePlaylists: () -> Unit,
+    onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)?,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        itemsIndexed(results, key = { index, track -> "${track.id}#$index" }) { index, track ->
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        videosSection(state, onPlayResult, onAddToPlaylist, onToggleVideos)
+        playlistsSection(state, onTogglePlaylists, onOpenPlaylist)
+    }
+}
+
+/** Sección de vídeos: cabecera plegable y, si está abierta, sus resultados. */
+private fun LazyListScope.videosSection(
+    state: SearchState,
+    onPlayResult: (Int) -> Unit,
+    onAddToPlaylist: ((PlayerTrack) -> Unit)?,
+    onToggle: () -> Unit,
+) {
+    if (state.results.isEmpty()) return
+    item(key = "search_videos_header") {
+        SectionHeader(
+            expanded = state.videosExpanded,
+            label = Translations.get("search_youtube_results"),
+            count = state.results.size,
+            onClick = onToggle,
+            tag = "search_videos_header",
+        )
+    }
+    if (state.videosExpanded) {
+        itemsIndexed(state.results, key = { index, track -> "${track.id}#$index" }) { index, track ->
             ResultRow(index, track, onPlayResult, onAddToPlaylist)
+        }
+    }
+}
+
+/** Sección de listas: cabecera plegable y, si está abierta, cada lista. */
+private fun LazyListScope.playlistsSection(
+    state: SearchState,
+    onToggle: () -> Unit,
+    onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)?,
+) {
+    if (state.playlists.isEmpty()) return
+    item(key = "search_playlists_header") {
+        SectionHeader(
+            expanded = state.playlistsExpanded,
+            label = Translations.get("youtube_playlists"),
+            count = state.playlists.size,
+            onClick = onToggle,
+            tag = "search_playlists_header",
+        )
+    }
+    if (state.playlistsExpanded) {
+        itemsIndexed(state.playlists, key = { _, playlist -> playlist.playlistId }) { _, playlist ->
+            PlaylistResultRow(playlist, onOpenPlaylist)
+        }
+    }
+}
+
+/** Cabecera plegable estilo consola: `v etiqueta [n]` / `> etiqueta [n]`. */
+@Composable
+private fun SectionHeader(
+    expanded: Boolean,
+    label: String,
+    count: Int,
+    onClick: () -> Unit,
+    tag: String,
+) {
+    Text(
+        text = "${if (expanded) "v" else ">"} $label [$count]",
+        style = MaterialTheme.typography.titleMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.primary,
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(tag)
+            .clickable(onClick = onClick)
+            .padding(vertical = PlyrSpacing.small),
+    )
+}
+
+/** Fila de una lista en los resultados: portada, título y datos (M19). */
+@Composable
+private fun PlaylistResultRow(
+    playlist: YouTubePlaylistInfo,
+    onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)?,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("search_playlist_${playlist.playlistId}")
+            .clickable(enabled = onOpenPlaylist != null) { onOpenPlaylist?.invoke(playlist) }
+            .padding(vertical = PlyrSpacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PlaylistCover(url = playlist.thumbnailUrl, size = 40.dp)
+        Spacer(Modifier.width(PlyrSpacing.small))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = playlist.title,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = listOf(
+                    playlist.uploader,
+                    String.format(Locale.ROOT, Translations.get("tracks_count"), playlist.videoCount),
+                ).filter { it.isNotBlank() }.joinToString("  ·  "),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

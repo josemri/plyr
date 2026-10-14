@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M18` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M19` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -35,7 +35,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F14 | Descarga de audio offline y reproducción sin conexión | `AudioDownloader` + `DownloadedAudioStore` + `DownloadPlan` (OkHttp + SAF/`filesDir`) | **Presente (M16)**: `AudioDownloader` + `DownloadedAudioStore` + `DownloadController` (OkHttp + `java.nio`); el resolutor prefiere el fichero local | **Alta** |
 | F15 | UI de almacenamiento offline (descargar/limpiar y resumen) | `PlaylistScreen` + `PlaylistDownloadBar` + `OfflineStorageDialog` | **Presente (M17)**: `DownloadStatusBar` + `OfflineStorageDialog` + botón descargar/limpiar e indicador por pista (`PlaylistDetailView`/`PlaylistTrackItem`); sección de almacén en `ConfigScreen` | Media |
 | F16 | Carrusel de playlists en Home | `HomeScreen` (`HomePlaylistCarousel`) | **Presente (M18)**: `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover` en `HomeScreen`, con las listas visibles y clic para abrir el detalle | Media |
-| F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | Solo se buscan vídeos | **Alta** |
+| F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | **Presente (M19)**: `YouTubeManager.searchAll`/`getPlaylistInfo`/`getPlaylistVideos` en `:core`, sección plegable de listas en `SearchScreen` y `YouTubePlaylistDetailView` (reproducir todo y guardar como lista local) | **Alta** |
 | F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | Sin shuffle (MPRIS `Shuffle` es de solo lectura y falso) | **Alta** |
 | F19 | Historial de búsqueda (no es hueco real) | `SearchViewModel` lo persiste, pero **`getAllSearches()` nunca se llama**: Android tampoco lo muestra | `SearchHistoryRepository` persiste igual; la UI no lo usa en ninguno de los dos | — |
 | F20 | Paginación / «cargar más» en búsqueda | `SearchViewModel.onLoadMore` | Una sola consulta, sin paginar | Media |
@@ -46,7 +46,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
 | F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | El modo edición solo tiene título/descripción/portada y borrar/reordenar | Media |
 
-> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist` y, desde M17, `storage_*` (almacén offline); `delete_download` y el resto de F22/F24 siguen listos para usarse cuando se implementen M22/M24. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`.
+> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist` y, desde M17, `storage_*` (almacén offline); `delete_download` y el resto de F22/F24 siguen listos para usarse cuando se implementen M22/M24. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`.
 
 > **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 es más barato de lo que sugiere su kdoc (que aún dice «no portado»).
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M18` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M19` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -270,6 +270,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M16 — Descarga offline:** `DownloadPlan` (puro) a `:core`; `DownloadedAudioStore` (`java.nio`, `dataDir/audio/<videoId>.m4a`), `AudioDownloader` (OkHttp, con `AudioFetcher` inyectable) y `DownloadController` (`StateFlow`); `YouTubeTrackSourceResolver` prefiere el fichero local y deja el streaming de respaldo.
 - **M17 — UI de almacenamiento offline:** `DownloadStatusBar` y `OfflineStorageDialog` en `:desktop`; botón descargar/limpiar en el detalle de lista, indicador `↓`/`↓ NN%` por pista y acción «borrar descarga»; sección de almacén en Ajustes (tamaño, nº de pistas y «borrar todo»).
 - **M18 — Carrusel de playlists en Home:** `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover` en `HomeScreen`; carga las listas visibles (mismo filtro que la pantalla de listas) con portada Coil 3 y abre el detalle al pulsarlas, manteniendo el menú de consola y el aviso de actualización.
+- **M19 — Playlists de YouTube en búsqueda + detalle:** `YouTubeManager.searchAll`/`getPlaylistInfo`/`getPlaylistVideos` en `:core`; la búsqueda muestra vídeos y listas en dos secciones plegables (`v`/`>`) y `YouTubePlaylistDetailView` abre una lista, la reproduce entera y la guarda como lista local.
 
 ### 6.2 Tabla de seguimiento
 
@@ -294,7 +295,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M16 | Descarga de audio offline + reproducción sin conexión ⭐ | 1–2 | ☑ |
 | M17 | UI de almacenamiento offline | 1 | ☑ |
 | M18 | Carrusel de playlists en Home | 0.5 | ☑ |
-| M19+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M19 | Playlists de YouTube en búsqueda + detalle | 1–1.5 | ☑ |
+| M20+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -304,13 +306,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M19+)
+### 6.4 Backlog de paridad pendiente (M20+)
 
-Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F17, F18 y F23 del inventario (§1.1).
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F18 y F23 del inventario (§1.1).
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M19 | Playlists de YouTube en búsqueda + detalle | **Alta** | 1–1.5 |
 | M20 | Reproducción aleatoria (`<rnd>`) en playlists | **Alta** | 0.5 |
 | M21 | Paginación («cargar más») en búsqueda | Media | 0.5 |
 | M22 | Crear/editar playlist con búsqueda + acciones por pista | Media | 1 |
@@ -363,16 +364,18 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M19 — Playlists de YouTube en búsqueda + detalle
+#### M19 — Playlists de YouTube en búsqueda + detalle ☑ (completado)
 **Objetivo:** buscar también *playlists* de YouTube y poder abrir/reproducir/guardar una.
 **Tareas**
 - `:core`: `YouTubeManager.searchAll` (vídeos + listas), `getPlaylistInfo` y `getPlaylistVideos`, reutilizables desde Android.
-- `SearchScreen`: mostrar resultados de lista junto a los vídeos (mismo patrón que Android): dos secciones **colapsables** («vídeos» y «playlists», con el mismo `v`/`>` de Android) y el botón «cargar más» (F20/M21) en la sección de vídeos.
+- `SearchScreen`: mostrar resultados de lista junto a los vídeos (mismo patrón que Android): dos secciones **colapsables** («vídeos» y «playlists», con el mismo `v`/`>` de Android). El botón «cargar más» de la sección de vídeos (F20) se pospuso a **M21**.
 - `YouTubePlaylistDetailView`: ver las pistas, reproducir todo y guardar como lista local (`PlaylistSource`).
 **Definition of Done:** una búsqueda devuelve listas y se puede guardar/reproducir una.
 **Verificación:** `:core:jvmTest` (con `assumeTrue` de red) + `:desktop:test` + manual.
 **Prompt opencode:**
 > Añade búsqueda de playlists de YouTube en `:core` (`searchAll`, `getPlaylistInfo`, `getPlaylistVideos`) y muéstralas en la búsqueda de `:desktop` junto a los vídeos. Implementa una vista de detalle que liste sus pistas, las reproduzca todas y permita guardarlas como lista local. Verifica con tests y manualmente.
+
+**Implementado:** `:core` gana `YouTubePlaylistInfo`, `YouTubeSearchAllResult` y los métodos `searchAll`/`getPlaylistInfo`/`getPlaylistVideos` (más el helper `audioItemFrom`, compartido con `searchVideos`). La búsqueda de escritorio devuelve `SearchResults` (vídeos + listas) en una sola llamada de red; `SearchController.SearchState` añade `playlists`, `videosExpanded`/`playlistsExpanded` (con `toggleVideos`/`togglePlaylists`) y `hasResults`/`isEmptyResult` ampliados. `SearchScreen` pinta una `LazyColumn` con dos secciones plegables (`v`/`>`, cabeceras `search_videos_header`/`search_playlists_header`) y filas de lista con portada (`search_playlist_<id>`). Nuevos `YouTubePlaylistDetailController` (+`YouTubePlaylistDetailState`) y `YouTubePlaylistDetailView` en `com.plyr.desktop.search`: cargan las pistas, «play all» y guardar/quitar como lista local con `PlaylistRepository` (`remoteId = "youtube_<id>"`, `source = YOUTUBE`, `sourceId = <id>`, misma convención que Android). `AudioListScreen` muestra el detalle dentro de `Screen.SEARCH` cuando hay una lista abierta y salta a `Screen.QUEUE` al reproducir. 2 claves nuevas (`youtube_playlists`, `saved`). Tests: `YouTubePlaylistDetailControllerTest` (7), `YouTubePlaylistDetailViewTest` (6), `SearchScreenTest` (+4) y `SearchControllerTest` (+3), más 3 casos de red en `NetworkSmokeTest` (con `assumeTrue`).
 
 ---
 

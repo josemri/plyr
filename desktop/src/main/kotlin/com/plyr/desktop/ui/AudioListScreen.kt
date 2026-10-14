@@ -31,6 +31,9 @@ import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.player.VlcAudioPlayer
 import com.plyr.desktop.player.YouTubeTrackSourceResolver
 import com.plyr.desktop.search.SearchController
+import com.plyr.desktop.search.SearchResults
+import com.plyr.desktop.search.YouTubePlaylistDetailController
+import com.plyr.desktop.search.YouTubePlaylistDetailView
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.PlaylistRepository
 import com.plyr.desktop.database.SettingsTombstoneStore
@@ -55,6 +58,7 @@ import com.plyr.desktop.ui.screens.SearchScreen
 import com.plyr.desktop.utils.CoverCache
 import com.plyr.desktop.utils.UpdateChecker
 import com.plyr.network.YouTubeManager
+import com.plyr.network.YouTubePlaylistInfo
 import com.plyr.receivers.MediaCommand
 import kotlinx.coroutines.delay
 import java.nio.file.Path
@@ -103,10 +107,29 @@ fun AudioListScreen(
         SearchController(
             scope = scope,
             search = { query, maxResults ->
-                YouTubeManager.searchVideos(query, maxResults)
-                    .mapIndexed { index, item -> PlayerTrack.fromSearchResult(index, item) }
+                // M19: una sola búsqueda devuelve vídeos y listas; los vídeos se
+                // mapean a la cola y las listas se abren desde la UI.
+                val found = YouTubeManager.searchAll(query, maxResults)
+                SearchResults(
+                    videos = found.videos.mapIndexed { index, item ->
+                        PlayerTrack.fromSearchResult(index, item)
+                    },
+                    playlists = found.playlists,
+                )
             },
         )
+    }
+
+    // Reproduce una lista de pistas y salta a la cola; lo comparten el detalle de
+    // listas locales (M8) y el de listas de YouTube (M19).
+    val playTracks: (List<com.plyr.database.TrackRecord>, Int) -> Unit = { tracks, index ->
+        playerController.play(
+            tracks.mapIndexed { i: Int, t: com.plyr.database.TrackRecord ->
+                PlayerTrack.fromTrackRecord(i, t)
+            },
+            index,
+        )
+        currentScreen = Screen.QUEUE
     }
 
     DisposableEffect(playerController) {
@@ -185,6 +208,19 @@ fun AudioListScreen(
     val searchState by searchController.state.collectAsState()
     val playlistsState by playlistsController.state.collectAsState()
 
+    // Detalle de una lista de YouTube buscada (M19): carga sus pistas con la red
+    // y las puede guardar como lista local reutilizando el repositorio de la
+    // sesión. La lista abierta vive aquí para que la búsqueda vuelva a ella.
+    val youtubeDetailController = remember(scope, repository) {
+        YouTubePlaylistDetailController(
+            scope = scope,
+            repository = repository,
+            loadVideos = { playlistId -> YouTubeManager.getPlaylistVideos(playlistId) },
+        )
+    }
+    var selectedYouTubePlaylist by remember { mutableStateOf<YouTubePlaylistInfo?>(null) }
+    val youtubeDetailState by youtubeDetailController.state.collectAsState()
+
     // Atajos de teclado (M15): el foco vive en la raíz para que las teclas
     // multimedia y los cursores lleguen aunque no haya nada más enfocado; los
     // campos de texto consumen lo suyo antes (fase de burbujeo).
@@ -261,34 +297,57 @@ fun AudioListScreen(
                         },
                         checkForUpdate = checkForUpdate,
                     )
-                    Screen.SEARCH -> SearchScreen(
-                        state = searchState,
-                        onQueryChange = searchController::onQueryChange,
-                        onSearch = { searchController.performSearch(it) },
-                        onPlayResult = { index ->
-                            if (index in searchState.results.indices) {
-                                playerController.play(searchState.results, index)
-                            }
-                        },
-                        onBack = goHome,
-                        playlists = playlistsState.playlists,
-                        onAddToPlaylist = { track, playlistId ->
-                            playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
-                        },
-                        onScanResult = { result ->
-                            when {
-                                result.source == "spotify" && result.id.isNotBlank() -> {
-                                    spotifyController.onUrlChange("spotify:playlist:${result.id}")
-                                    currentScreen = Screen.CONFIG
-                                }
-                                result.source == "youtube" && result.id.isNotBlank() -> {
-                                    val url = "https://www.youtube.com/watch?v=${result.id}"
-                                    searchController.onQueryChange(url)
-                                    searchController.performSearch(url)
-                                }
-                            }
-                        },
-                    )
+                    Screen.SEARCH -> {
+                        val openPlaylist = selectedYouTubePlaylist
+                        if (openPlaylist != null) {
+                            // Detalle de la lista de YouTube abierta (M19): sus
+                            // pistas, reproducir todo y guardarla como lista local.
+                            YouTubePlaylistDetailView(
+                                state = youtubeDetailState,
+                                onPlayTracks = playTracks,
+                                onToggleSave = youtubeDetailController::toggleSave,
+                                onBack = {
+                                    youtubeDetailController.close()
+                                    selectedYouTubePlaylist = null
+                                },
+                            )
+                        } else {
+                            SearchScreen(
+                                state = searchState,
+                                onQueryChange = searchController::onQueryChange,
+                                onSearch = { searchController.performSearch(it) },
+                                onPlayResult = { index ->
+                                    if (index in searchState.results.indices) {
+                                        playerController.play(searchState.results, index)
+                                    }
+                                },
+                                onBack = goHome,
+                                playlists = playlistsState.playlists,
+                                onAddToPlaylist = { track, playlistId ->
+                                    playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
+                                },
+                                onScanResult = { result ->
+                                    when {
+                                        result.source == "spotify" && result.id.isNotBlank() -> {
+                                            spotifyController.onUrlChange("spotify:playlist:${result.id}")
+                                            currentScreen = Screen.CONFIG
+                                        }
+                                        result.source == "youtube" && result.id.isNotBlank() -> {
+                                            val url = "https://www.youtube.com/watch?v=${result.id}"
+                                            searchController.onQueryChange(url)
+                                            searchController.performSearch(url)
+                                        }
+                                    }
+                                },
+                                onToggleVideos = searchController::toggleVideos,
+                                onTogglePlaylists = searchController::togglePlaylists,
+                                onOpenPlaylist = { playlist ->
+                                    selectedYouTubePlaylist = playlist
+                                    youtubeDetailController.open(playlist)
+                                },
+                            )
+                        }
+                    }
                     Screen.QUEUE -> QueueScreen(
                         state = playerState,
                         onJump = playerController::jumpTo,
@@ -300,13 +359,7 @@ fun AudioListScreen(
                             controller = playlistsController,
                             downloadController = downloadController,
                             onBack = goHome,
-                            onPlayTracks = { tracks: List<com.plyr.database.TrackRecord>, index: Int ->
-                                playerController.play(
-                                    tracks.mapIndexed { i: Int, t: com.plyr.database.TrackRecord -> PlayerTrack.fromTrackRecord(i, t) },
-                                    index
-                                )
-                                currentScreen = Screen.QUEUE
-                            }
+                            onPlayTracks = playTracks,
                         )
                     }
                     Screen.FEED -> FeedScreen(

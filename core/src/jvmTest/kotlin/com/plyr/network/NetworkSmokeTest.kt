@@ -52,6 +52,43 @@ class NetworkSmokeTest {
         assertTrue("La URL extraída no es http(s): $url", url!!.startsWith("http"))
     }
 
+    @Test
+    fun searchAll_returnsVideosAlongsideLists() = runBlocking {
+        val result = YouTubeManager.searchAll("lofi hip hop")
+
+        assumeTrue("YouTube no devolvió resultados combinados", result.videos.isNotEmpty())
+        assertTrue(
+            "Los vídeos de la búsqueda no traen id de YouTube válido",
+            result.videos.all { it.videoId.length == 11 },
+        )
+    }
+
+    @Test
+    fun getPlaylistVideos_returnsTracksForASearchedPlaylist() = runBlocking {
+        val playlist = YouTubeManager.searchAll("lofi hip hop").playlists.firstOrNull()
+        assumeTrue("La búsqueda no devolvió ninguna lista de YouTube", playlist != null)
+
+        val videos = YouTubeManager.getPlaylistVideos(playlist!!.playlistId)
+
+        assumeTrue("YouTube no devolvió pistas de la lista", videos.isNotEmpty())
+        assertTrue(
+            "Las pistas de la lista no traen id de YouTube válido",
+            videos.all { it.videoId.length == 11 },
+        )
+    }
+
+    @Test
+    fun getPlaylistInfo_returnsTitleAndCount() = runBlocking {
+        val playlist = YouTubeManager.searchAll("lofi hip hop").playlists.firstOrNull()
+        assumeTrue("La búsqueda no devolvió ninguna lista de YouTube", playlist != null)
+
+        val info = YouTubeManager.getPlaylistInfo(playlist!!.playlistId)
+
+        assumeTrue("YouTube no devolvió la ficha de la lista", info != null)
+        assertNotNull("La ficha de la lista llegó vacía", info)
+        assertTrue("La ficha no trae título", info!!.title.isNotBlank())
+    }
+
     private fun canReachYoutube(): Boolean = try {
         Socket().use { it.connect(InetSocketAddress("www.youtube.com", 443), CONNECT_TIMEOUT_MS) }
         true

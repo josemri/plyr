@@ -189,6 +189,8 @@ object TranslationCatalog {
             "tracks_count" to "%1\$d canciones",
             "create_playlist_discarded" to "%1\$d de %2\$d canciones se añadieron (%3\$d sin vídeo)",
             "youtube_search_failed" to "La búsqueda en YouTube falló",
+            "youtube_playlists" to "listas de youtube",
+            "saved" to "guardada",
             "error_adding_track" to "Error al añadir la canción",
             "error_removing_track" to "Error al quitar la canción",
 
@@ -371,6 +373,8 @@ object TranslationCatalog {
             "tracks_count" to "%1\$d tracks",
             "create_playlist_discarded" to "%1\$d of %2\$d tracks were added (%3\$d without a video)",
             "youtube_search_failed" to "YouTube search failed",
+            "youtube_playlists" to "youtube playlists",
+            "saved" to "saved",
             "error_adding_track" to "Error adding track",
             "error_removing_track" to "Error removing track",
 
@@ -555,6 +559,8 @@ object TranslationCatalog {
             "tracks_count" to "%1\$d cançons",
             "create_playlist_discarded" to "%1\$d de %2\$d cançons es van afegir (%3\$d sense vídeo)",
             "youtube_search_failed" to "La cerca a YouTube ha fallat",
+            "youtube_playlists" to "llistes de youtube",
+            "saved" to "desada",
             "error_adding_track" to "Error en afegir la cançó",
             "error_removing_track" to "Error en treure la cançó",
 
@@ -738,6 +744,8 @@ object TranslationCatalog {
             "tracks_count" to "%1\$d 曲",
             "create_playlist_discarded" to "%2\$d 曲中 %1\$d 曲を追加しました（%3\$d 曲は動画なし）",
             "youtube_search_failed" to "YouTube 検索に失敗しました",
+            "youtube_playlists" to "YouTube プレイリスト",
+            "saved" to "保存済み",
             "error_adding_track" to "曲の追加中にエラー",
             "error_removing_track" to "曲の削除中にエラー",
         ),

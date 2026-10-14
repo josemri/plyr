@@ -1,6 +1,7 @@
 package com.plyr.desktop.search
 
 import com.plyr.desktop.player.PlayerTrack
+import com.plyr.network.YouTubePlaylistInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
@@ -29,11 +30,19 @@ class SearchControllerTest {
 
     private fun track(id: String) = PlayerTrack(id = id, title = "Track $id", artist = "Artist $id")
 
+    private fun playlist(id: String) = YouTubePlaylistInfo(
+        playlistId = id,
+        title = "Playlist $id",
+        uploader = "Uploader",
+        videoCount = 3,
+        thumbnailUrl = null,
+    )
+
     @Test
     fun performSearch_publishesResultsAndStopsLoading() {
         val controller = SearchController(
             scope = scope,
-            search = { query, _ -> listOf(track("$query-1"), track("$query-2")) },
+            search = { query, _ -> SearchResults(videos = listOf(track("$query-1"), track("$query-2"))) },
         )
 
         controller.onQueryChange("daft punk")
@@ -47,13 +56,46 @@ class SearchControllerTest {
     }
 
     @Test
+    fun performSearch_publishesPlaylistsToo() {
+        val controller = SearchController(
+            scope = scope,
+            search = { _, _ ->
+                SearchResults(videos = listOf(track("v")), playlists = listOf(playlist("PL1")))
+            },
+        )
+
+        controller.performSearch("mix")
+
+        val state = controller.state.value
+        assertEquals(1, state.results.size)
+        assertEquals(listOf("PL1"), state.playlists.map { it.playlistId })
+        assertTrue(state.hasResults)
+        assertFalse(state.isEmptyResult)
+    }
+
+    @Test
+    fun toggles_flipEachSectionIndependently() {
+        val controller = SearchController(scope = scope, search = { _, _ -> SearchResults() })
+
+        assertTrue(controller.state.value.videosExpanded)
+        assertTrue(controller.state.value.playlistsExpanded)
+
+        controller.toggleVideos()
+        assertFalse(controller.state.value.videosExpanded)
+        assertTrue(controller.state.value.playlistsExpanded)
+
+        controller.togglePlaylists()
+        assertFalse(controller.state.value.playlistsExpanded)
+    }
+
+    @Test
     fun performSearch_withBlankQueryDoesNothing() {
         var called = false
         val controller = SearchController(
             scope = scope,
             search = { _, _ ->
                 called = true
-                emptyList()
+                SearchResults()
             },
         )
 
@@ -71,7 +113,7 @@ class SearchControllerTest {
             scope = scope,
             search = { query, _ ->
                 received = query
-                emptyList()
+                SearchResults()
             },
         )
 
@@ -95,13 +137,14 @@ class SearchControllerTest {
         assertFalse(state.isLoading)
         assertNotNull(state.error)
         assertTrue(state.results.isEmpty())
+        assertTrue(state.playlists.isEmpty())
     }
 
     @Test
     fun clear_resetsEverything() {
         val controller = SearchController(
             scope = scope,
-            search = { _, _ -> listOf(track("a")) },
+            search = { _, _ -> SearchResults(videos = listOf(track("a"))) },
         )
 
         controller.performSearch("algo")
@@ -114,7 +157,7 @@ class SearchControllerTest {
     fun performSearch_keepsLastResults() {
         val controller = SearchController(
             scope = scope,
-            search = { query, _ -> listOf(track(query)) },
+            search = { query, _ -> SearchResults(videos = listOf(track(query))) },
         )
 
         controller.performSearch("primera")
