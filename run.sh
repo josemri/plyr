@@ -49,33 +49,41 @@ El entorno (Java, Android SDK, caches) se monta solo en /tmp y no crea nada
 en tu carpeta personal. Para borrarlo todo: ./run.sh clean
 
 Comandos:
-  build [release] [--clean]   Compila el APK (debug por defecto).
-  run [release] [-log...]     Compila, instala y abre la app en el móvil.
-  install [release] [-log...] Instala el APK ya compilado (sin recompilar).
-  test [device]               Ejecuta los tests unitarios. Con "device", los del móvil.
-  check                       Análisis del código: detekt (código muerto y
-                              estructura), lint y cobertura de tests.
-  env                         Imprime las variables de entorno (eval "$(./run.sh env)").
-  setup                       (Re)monta el entorno en /tmp (igual que haría build/run solo).
-  log [-tags...] [-split...]  Muestra los logs de la app en tiempo real.
-  stop                        Cierra la app en el móvil.
-  clean                       Borra TODO lo generado (entorno /tmp y builds).
-  help                        Muestra esta ayuda.
+  build [release|desktop] [--clean]
+                              Android APK (debug) o Desktop (con 'desktop').
+  run [release|desktop] [-log...]
+                              Android: compilar+instalar+abrir. Desktop: compilar+ejecutar.
+  install [release] [-log...] Instala APK Android.
+  test [device|desktop]       Unit tests (Android) o 'desktop'.
+  desktop-build [--clean]     Compilar escritorio.
+  desktop-run                 Compilar+ejecutar escritorio.
+  desktop-test                Tests escritorio.
+  desktop-package [fmt]       Empaquetar escritorio (deb|rpm|appimage|msi|dmg|all).
+  desktop-dist                Todos los formatos del host.
+  check                       detekt (app+desktop+core), lint, cobertura.
+  env                         eval "$(./run.sh env)"
+  setup                       Monta entorno en /tmp.
+  log [-tags...] [-split...]  Logs Android.
+  stop                        Cierra Android.
+  clean                       Limpia todo.
+  help                        Ayuda.
 
 Opciones:
-  release           Compila/usa la variante release (por defecto: debug).
-  --clean           Fuerza la recompilación completa (sin borrar el entorno).
-  -log              Muestra los logs al terminar (solo con run/install).
-  -tags "A B"       Filtra los logs por etiquetas (con run/install/log).
-  -split v|h        Muestra los logs en un panel de tmux, vertical (v) u horizontal (h).
+  release/desktop   Selecciona plataforma/variante.
+  --clean           Recompilación completa.
+  -log              Muestra logs al terminar (Android).
+  -tags "A B"       Filtra logs (Android).
+  -split v|h        Logs en panel tmux (Android).
 
 Ejemplos:
-  ./run.sh build release          # compilar el APK release
-  ./run.sh run -log -tags Player  # compilar, instalar, abrir y ver los logs
-  ./run.sh test device            # tests en el móvil
-  ./run.sh check                  # detekt + lint + cobertura
-  ./run.sh log -tags Player       # ver los logs de la app
-  ./run.sh clean                  # borrar todo lo generado
+  ./run.sh build release          # APK release
+  ./run.sh build desktop          # compilar escritorio
+  ./run.sh run desktop            # ejecutar escritorio
+  ./run.sh test desktop           # tests escritorio
+  ./run.sh desktop-package deb     # paquete .deb
+  ./run.sh desktop-dist            # empaquetar para SO actual
+  ./run.sh check                  # análisis
+  ./run.sh clean                  # limpiar todo
 EOF
 }
 
@@ -295,6 +303,17 @@ show_logs() {
 # ==============================================================
 
 cmd_build() {
+    if [[ "${BUILD_TYPE:-debug}" == "desktop" ]]; then
+        echo "=============================================================="
+        echo "  COMPILANDO ESCRITORIO"
+        echo "=============================================================="
+        local extra=()
+        [[ "$DO_CLEAN" == "true" ]] && extra+=(clean)
+        run_gradle "${extra[@]}" :desktop:build -x :desktop:test
+        echo ""
+        echo "Escritorio compilado. Ejecuta: ./run.sh run desktop"
+        return
+    fi
     local task="assembleDebug"
     [[ "$BUILD_TYPE" == "release" ]] && task="assembleRelease"
 
@@ -311,6 +330,15 @@ cmd_build() {
 }
 
 cmd_run() {
+    if [[ "${BUILD_TYPE:-debug}" == "desktop" ]]; then
+        echo "=============================================================="
+        echo "  EJECUTANDO ESCRITORIO"
+        echo "=============================================================="
+        local extra=()
+        [[ "$DO_CLEAN" == "true" ]] && extra+=(clean)
+        run_gradle "${extra[@]}" :desktop:run
+        return
+    fi
     check_device
     cmd_build
 
@@ -338,6 +366,24 @@ cmd_install() {
 
 cmd_test() {
     local task results_dir gradle_rc=0
+
+    if [[ "${BUILD_TYPE:-}" == "desktop" ]]; then
+        echo "=============================================================="
+        echo "  TESTS ESCRITORIO"
+        echo "=============================================================="
+        task=":desktop:test"
+        results_dir="$SCRIPT_DIR/desktop/build/test-results/test"
+        run_gradle "$task" || gradle_rc=$?
+        echo ""
+        echo "=============================================================="
+        echo "  RESULTADOS ESCRITORIO"
+        echo "=============================================================="
+        print_test_summary "$results_dir"
+        [[ "$gradle_rc" -ne 0 ]] && die "Tests con fallos (código $gradle_rc)."
+        echo ""
+        echo "Tests completados."
+        return
+    fi
 
     if [[ "$TEST_DEVICE" == "true" ]]; then
         check_device
@@ -578,6 +624,36 @@ cmd_clean() {
     echo "se montará de nuevo el entorno en /tmp desde cero."
 }
 
+DESKTOP_FMT=""
+
+cmd_desktop_package() {
+    local fmt="${DESKTOP_FMT:-auto}"
+    echo "=============================================================="
+    echo "  EMPAQUETANDO ESCRITORIO ($fmt)"
+    echo "=============================================================="
+    case "$fmt" in
+        deb) run_gradle :desktop:packageDeb ;;
+        rpm) run_gradle :desktop:packageRpm ;;
+        appimage) run_gradle :desktop:packageAppImage ;;
+        msi) run_gradle :desktop:packageMsi ;;
+        dmg) run_gradle :desktop:packageDmg ;;
+        all) run_gradle :desktop:packageDistributionForCurrentOS ;;
+        auto) run_gradle :desktop:packageDistributionForCurrentOS ;;
+        *) die "Formato de paquete desconocido: $fmt" ;;
+    esac
+    echo ""
+    echo "Paquetes en: $SCRIPT_DIR/desktop/build/compose/binaries"
+}
+
+cmd_desktop_dist() {
+    echo "=============================================================="
+    echo "  EMPAQUETANDO TODOS LOS FORMATOS DEL HOST"
+    echo "=============================================================="
+    run_gradle :desktop:packageDistributionForCurrentOS
+    echo ""
+    echo "Paquetes en: $SCRIPT_DIR/desktop/build/compose/binaries"
+}
+
 list_test_files() {
     local dir="$1"
     [[ -d "$dir" ]] || { echo "   (no existe $dir)"; return; }
@@ -665,10 +741,12 @@ parse_args() {
     COMMAND="$1"; shift
 
     case "$COMMAND" in
-        build|run|install|test|check|log|env|setup|stop|clean) ;;
+        build|run|install|test|check|log|env|setup|stop|clean|desktop-build|desktop-run|desktop-test|desktop-package|desktop-dist) ;;
         help|-h|--help)  COMMAND="help" ;;
         reiniciar)       COMMAND="clean" ;;
         -stop)           COMMAND="stop" ;;
+        dbuild|dtest|drun|dpackage|ddist) COMMAND="desktop-${COMMAND#d}" ;;
+        d*) COMMAND="desktop-${COMMAND#d}" ;;
         *) die "Comando desconocido: '$COMMAND' (usa ./run.sh help)" ;;
     esac
 
@@ -678,12 +756,16 @@ parse_args() {
                 require_opts "$1" build run install
                 BUILD_TYPE="$1"; shift
                 ;;
+            desktop)
+                require_opts "desktop" build run test
+                BUILD_TYPE="desktop"; shift
+                ;;
             device)
                 require_opts "device" test
                 TEST_DEVICE=true; shift
                 ;;
             --clean|-clean)
-                require_opts "--clean" build run
+                require_opts "--clean" build run desktop-build desktop-run
                 DO_CLEAN=true; shift
                 ;;
             -log)
@@ -703,6 +785,10 @@ parse_args() {
                 [[ "$1" == v || "$1" == h ]] || die "-split solo acepta 'v' (vertical) u 'h' (horizontal)"
                 TMUX_SPLIT="$1"; shift
                 ;;
+            deb|rpm|appimage|msi|dmg|all)
+                [[ "$COMMAND" == "desktop-package" ]] || die "Formato solo válido para desktop-package"
+                DESKTOP_FMT="$1"; shift
+                ;;
             *)
                 die "Opción desconocida para '$COMMAND': '$1' (usa ./run.sh help)"
                 ;;
@@ -714,6 +800,13 @@ parse_args "$@"
 
 [[ -n "$COMMAND" ]] || { usage; exit 0; }
 
+# desktop aliases
+case "$COMMAND" in
+    desktop-build) COMMAND="build"; BUILD_TYPE="desktop" ;;
+    desktop-run) COMMAND="run"; BUILD_TYPE="desktop" ;;
+    desktop-test) COMMAND="test"; BUILD_TYPE="desktop" ;;
+esac
+
 case "$COMMAND" in
     help)    usage ;;
     clean)   cmd_clean ;;
@@ -722,6 +815,8 @@ case "$COMMAND" in
     build)   ensure_env; cmd_build ;;
     run)     ensure_env; cmd_run ;;
     test)    ensure_env; cmd_test ;;
+    desktop-package) ensure_env; cmd_desktop_package ;;
+    desktop-dist) ensure_env; cmd_desktop_dist ;;
     check)   ensure_env; cmd_check ;;
     install) ensure_env; cmd_install ;;
     log)     ensure_env; cmd_log ;;
