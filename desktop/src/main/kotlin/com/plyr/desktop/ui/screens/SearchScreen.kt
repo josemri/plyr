@@ -58,7 +58,9 @@ import java.util.Locale
  * incluye el lector de QR sin cámara ([QrScanDialog]): pegar una URL o abrir una
  * imagen, que se traduce al mismo [ScanResult] que Android. Desde M19 muestra
  * las listas de YouTube junto a los vídeos (dos secciones plegables, `v`/`>`) y
- * avisa al pulsarlas para abrir su detalle.
+ * avisa al pulsarlas para abrir su detalle. Desde M21 ofrece «cargar más» al
+ * pie de los vídeos (mismo umbral que Android: ≥10 resultados) y va añadiendo
+ * páginas.
  *
  * El estado y los callbacks llegan de fuera ([SearchState] + lambdas) para que el
  * composable sea testeable sin red ni motor de audio.
@@ -76,6 +78,7 @@ fun SearchScreen(
     onToggleVideos: () -> Unit = {},
     onTogglePlaylists: () -> Unit = {},
     onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)? = null,
+    onLoadMore: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showScan by remember { mutableStateOf(false) }
@@ -120,6 +123,7 @@ fun SearchScreen(
                     onToggleVideos = onToggleVideos,
                     onTogglePlaylists = onTogglePlaylists,
                     onOpenPlaylist = onOpenPlaylist,
+                    onLoadMore = onLoadMore,
                 )
             }
         }
@@ -258,19 +262,21 @@ private fun SearchResultsList(
     onToggleVideos: () -> Unit,
     onTogglePlaylists: () -> Unit,
     onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)?,
+    onLoadMore: () -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        videosSection(state, onPlayResult, onAddToPlaylist, onToggleVideos)
+        videosSection(state, onPlayResult, onAddToPlaylist, onToggleVideos, onLoadMore)
         playlistsSection(state, onTogglePlaylists, onOpenPlaylist)
     }
 }
 
-/** Sección de vídeos: cabecera plegable y, si está abierta, sus resultados. */
+/** Sección de vídeos: cabecera plegable, resultados y «cargar más» (M21). */
 private fun LazyListScope.videosSection(
     state: SearchState,
     onPlayResult: (Int) -> Unit,
     onAddToPlaylist: ((PlayerTrack) -> Unit)?,
     onToggle: () -> Unit,
+    onLoadMore: () -> Unit,
 ) {
     if (state.results.isEmpty()) return
     item(key = "search_videos_header") {
@@ -286,7 +292,32 @@ private fun LazyListScope.videosSection(
         itemsIndexed(state.results, key = { index, track -> "${track.id}#$index" }) { index, track ->
             ResultRow(index, track, onPlayResult, onAddToPlaylist)
         }
+        when {
+            state.isLoadingMore ->
+                item(key = "search_loading_more") {
+                    StatusText(Translations.get("search_loading"), "search_loading_more")
+                }
+            state.canLoadMore ->
+                item(key = "search_load_more") { LoadMoreRow(onLoadMore) }
+        }
     }
+}
+
+/** Fila «> cargar más» al pie de los vídeos (M21), igual que en Android. */
+@Composable
+private fun LoadMoreRow(onLoadMore: () -> Unit) {
+    Text(
+        text = "> ${Translations.get("search_load_more")}",
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.secondary,
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("search_load_more")
+            .clickable(onClick = onLoadMore)
+            .padding(vertical = PlyrSpacing.small),
+    )
 }
 
 /** Sección de listas: cabecera plegable y, si está abierta, cada lista. */

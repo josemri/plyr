@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M20` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M21` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -38,7 +38,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | **Presente (M19)**: `YouTubeManager.searchAll`/`getPlaylistInfo`/`getPlaylistVideos` en `:core`, sección plegable de listas en `SearchScreen` y `YouTubePlaylistDetailView` (reproducir todo y guardar como lista local) | **Alta** |
 | F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | **Presente (M20)**: `Shuffle` puro + `PlayerController.startRandomized`/`stopRandomized`; botón `<rnd>`/`<stop>` en el detalle de lista y `<rnd>` en el detalle de lista de YouTube. MPRIS `Shuffle` sigue siendo de solo lectura | **Alta** |
 | F19 | Historial de búsqueda (no es hueco real) | `SearchViewModel` lo persiste, pero **`getAllSearches()` nunca se llama**: Android tampoco lo muestra | `SearchHistoryRepository` persiste igual; la UI no lo usa en ninguno de los dos | — |
-| F20 | Paginación / «cargar más» en búsqueda | `SearchViewModel.onLoadMore` | Una sola consulta, sin paginar | Media |
+| F20 | Paginación / «cargar más» en búsqueda | `SearchViewModel.onLoadMore` | **Presente (M21)**: `YouTubeManager.searchAll(page)` + `SearchController.loadMore` van añadiendo páginas; «cargar más» al pie de los vídeos con el umbral de Android (≥10). Android solo re-lanzaba la misma consulta | Media |
 | F21 | Crear playlist buscando en YouTube | `CreatePlaylistScreen` | `CreatePlaylistView` es solo título+descripción | Media |
 | F22 | Acciones por pista (like / añadir a cola / añadir a playlist) | `SongListItem` (menú contextual) | Solo compartir `⤴` | Baja |
 | F23 | Metadatos del vídeo en el feed + reproducir desde el feed | `FeedScreen` + `MediaMetadataExtractor` | Feed sin metadatos ni clic-para-reproducir | **Alta** |
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M20` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M21` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -272,6 +272,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M18 — Carrusel de playlists en Home:** `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover` en `HomeScreen`; carga las listas visibles (mismo filtro que la pantalla de listas) con portada Coil 3 y abre el detalle al pulsarlas, manteniendo el menú de consola y el aviso de actualización.
 - **M19 — Playlists de YouTube en búsqueda + detalle:** `YouTubeManager.searchAll`/`getPlaylistInfo`/`getPlaylistVideos` en `:core`; la búsqueda muestra vídeos y listas en dos secciones plegables (`v`/`>`) y `YouTubePlaylistDetailView` abre una lista, la reproduce entera y la guarda como lista local.
 - **M20 — Reproducción aleatoria (`<rnd>`) en playlists:** `Shuffle` puro (semilla inyectable) y `PlayerController.startRandomized`/`stopRandomized` con `isRandomizing` en el estado; botón `<rnd>`/`<stop>` en el detalle de lista local y `<rnd>` en el detalle de lista de YouTube, sin salir de la pantalla (la barra flotante muestra lo que suena).
+- **M21 — Paginación («cargar más») en búsqueda:** `YouTubeManager.searchAll(page)` avanza con `getPage(nextPage)` y expone `hasMore`; `SearchController.loadMore` **añade** la página siguiente (con `isLoadingMore` para no vaciar la lista) y `SearchScreen` muestra «> cargar más» al pie de los vídeos, con el umbral de Android (≥10).
 
 ### 6.2 Tabla de seguimiento
 
@@ -298,7 +299,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M18 | Carrusel de playlists en Home | 0.5 | ☑ |
 | M19 | Playlists de YouTube en búsqueda + detalle | 1–1.5 | ☑ |
 | M20 | Reproducción aleatoria (`<rnd>`) en playlists | 0.5 | ☑ |
-| M21+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M21 | Paginación («cargar más») en búsqueda | 0.5 | ☑ |
+| M22+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -308,13 +310,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M21+)
+### 6.4 Backlog de paridad pendiente (M22+)
 
 Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F23 del inventario (§1.1).
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M21 | Paginación («cargar más») en búsqueda | Media | 0.5 |
 | M22 | Crear/editar playlist con búsqueda + acciones por pista | Media | 1 |
 | M23 | Feed: metadatos del vídeo y reproducir desde el feed | **Alta** | 0.5 |
 | M24 | «Compartir app» por QR en Config | Baja | 0.5 |
@@ -369,7 +370,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Objetivo:** buscar también *playlists* de YouTube y poder abrir/reproducir/guardar una.
 **Tareas**
 - `:core`: `YouTubeManager.searchAll` (vídeos + listas), `getPlaylistInfo` y `getPlaylistVideos`, reutilizables desde Android.
-- `SearchScreen`: mostrar resultados de lista junto a los vídeos (mismo patrón que Android): dos secciones **colapsables** («vídeos» y «playlists», con el mismo `v`/`>` de Android). El botón «cargar más» de la sección de vídeos (F20) se pospuso a **M21**.
+- `SearchScreen`: mostrar resultados de lista junto a los vídeos (mismo patrón que Android): dos secciones **colapsables** («vídeos» y «playlists», con el mismo `v`/`>` de Android). El botón «cargar más» de la sección de vídeos (F20) se pospuso a **M21** (ya hecho: ver más abajo).
 - `YouTubePlaylistDetailView`: ver las pistas, reproducir todo y guardar como lista local (`PlaylistSource`).
 **Definition of Done:** una búsqueda devuelve listas y se puede guardar/reproducir una.
 **Verificación:** `:core:jvmTest` (con `assumeTrue` de red) + `:desktop:test` + manual.
@@ -394,7 +395,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M21 — Paginación («cargar más») en búsqueda
+#### M21 — Paginación («cargar más») en búsqueda ☑ (completado)
 **Objetivo:** poder pedir más resultados, como el «cargar más» de Android (F20).
 **Tareas**
 - Soporte de paginación en `SearchController`/`SearchScreen` (`onLoadMore`), con el mismo umbral que Android (aparece «cargar más» cuando hay ≥10 resultados).
@@ -403,6 +404,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test`.
 **Prompt opencode:**
 > Añade paginación («cargar más») a la búsqueda de `:desktop` (`SearchController`/`SearchScreen`), con el mismo umbral que Android. Verifica con tests. (El historial de búsqueda no hace falta para paridad: Android lo guarda pero no lo lista.)
+
+**Implementado:** `:core` `YouTubeManager.searchAll(query, page, …)` avanza con `InfoItemsPage.getPage(nextPage)` hasta la página pedida y devuelve `YouTubeSearchAllResult.hasMore` (la UI de escritorio pasó a pedir página). `SearchController` cambia su función inyectada a `(query, page)`, añade `loadMore()` —que **acumula** la página siguiente sin vaciar la lista, con `isLoadingMore`— y `SearchState.canLoadMore` (≥10 vídeos como Android **y** `hasMore`, para no ofrecer un botón muerto). `SearchScreen` pinta «> cargar más» (`search_load_more`) al pie de los vídeos y «cargando» mientras llega la página. Nota: la paginación de Android era en realidad un no-op (re-lanzaba la misma consulta); aquí sí trae resultados nuevos. Tests: `SearchControllerTest` (+6) y `SearchScreenTest` (+4); un smoke de red (`NetworkSmokeTest`) cubre la página 2. **El historial de búsqueda se dejó fuera** (Android lo guarda pero no lo lista: no es paridad).
 
 ---
 

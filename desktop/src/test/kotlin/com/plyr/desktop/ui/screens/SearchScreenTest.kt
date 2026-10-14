@@ -245,4 +245,97 @@ class SearchScreenTest {
         onNodeWithTag("search_playlists_header").assertIsDisplayed()
         onNodeWithTag("search_playlist_PL1").assertDoesNotExist()
     }
+
+    // --- M21: paginación («cargar más») ---
+
+    @Test
+    fun cargarMasApareceConElUmbralYUnaPaginaDetras() = runComposeUiTest {
+        var loaded = false
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "x",
+                        results = (1..10).map { track("t$it") },
+                        hasMore = true,
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                    onLoadMore = { loaded = true },
+                )
+            }
+        }
+
+        onNodeWithTag("search_load_more").assertIsDisplayed()
+        onNodeWithTag("search_load_more").performClick()
+
+        assertTrue(loaded)
+    }
+
+    @Test
+    fun sinPaginaDetrasNoSeOfreceCargarMas() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "x",
+                        results = (1..15).map { track("t$it") },
+                        hasMore = false,
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_load_more").assertDoesNotExist()
+    }
+
+    @Test
+    fun porDebajoDelUmbralNoSeOfreceCargarMas() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "x",
+                        results = (1..5).map { track("t$it") },
+                        hasMore = true,
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_load_more").assertDoesNotExist()
+    }
+
+    @Test
+    fun mientrasCargaMasSeMuestraElIndicador() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "x",
+                        results = (1..10).map { track("t$it") },
+                        hasMore = true,
+                        isLoadingMore = true,
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_loading_more").assertIsDisplayed()
+        onNodeWithTag("search_load_more").assertDoesNotExist()
+    }
 }

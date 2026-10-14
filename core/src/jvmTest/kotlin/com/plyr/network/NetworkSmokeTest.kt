@@ -64,6 +64,20 @@ class NetworkSmokeTest {
     }
 
     @Test
+    fun searchAll_pageTwoReturnsMoreVideos() = runBlocking {
+        val first = YouTubeManager.searchAll("lofi hip hop", page = 1)
+        assumeTrue("YouTube no anunció más páginas para la búsqueda", first.hasMore)
+
+        val second = YouTubeManager.searchAll("lofi hip hop", page = 2)
+
+        assumeTrue("YouTube no devolvió la segunda página", second.videos.isNotEmpty())
+        assertTrue(
+            "Los vídeos de la segunda página no traen id de YouTube válido",
+            second.videos.all { it.videoId.length == 11 },
+        )
+    }
+
+    @Test
     fun getPlaylistVideos_returnsTracksForASearchedPlaylist() = runBlocking {
         val playlist = YouTubeManager.searchAll("lofi hip hop").playlists.firstOrNull()
         assumeTrue("La búsqueda no devolvió ninguna lista de YouTube", playlist != null)

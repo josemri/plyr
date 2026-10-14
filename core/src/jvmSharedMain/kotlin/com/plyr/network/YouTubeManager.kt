@@ -10,6 +10,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.schabi.newpipe.extractor.InfoItem
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.playlist.PlaylistInfoItem
 import org.schabi.newpipe.extractor.services.youtube.extractors.YoutubeStreamExtractor
@@ -36,6 +37,8 @@ data class YouTubePlaylistInfo(
 data class YouTubeSearchAllResult(
     val videos: List<AudioItem> = emptyList(),
     val playlists: List<YouTubePlaylistInfo> = emptyList(),
+    /** `true` si YouTube aún tiene una página más detrás de esta (M21). */
+    val hasMore: Boolean = false,
 )
 
 /**
@@ -155,9 +158,16 @@ object YouTubeManager {
      * cubos, respetando sendos topes. La UI de escritorio (M19) muestra las
      * listas junto a los vídeos y abre su detalle. Si algo falla devuelve el
      * resultado vacío, nunca lanza.
+     *
+     * Desde M21 [page] permite pedir páginas siguientes (1 = la primera): la
+     * búsqueda de escritorio ofrece «cargar más» y va **añadiendo** páginas.
+     * [YouTubeSearchAllResult.hasMore] indica si YouTube aún tiene una página
+     * detrás de la devuelta. Si se pide una página que ya no existe, se devuelve
+     * la última disponible.
      */
     suspend fun searchAll(
         query: String,
+        page: Int = 1,
         maxVideos: Int = 25,
         maxPlaylists: Int = 10,
     ): YouTubeSearchAllResult = withContext(Dispatchers.IO) {
@@ -167,24 +177,48 @@ object YouTubeManager {
             val extractor = ServiceList.YouTube.getSearchExtractor(query)
             extractor.fetchPage()
 
-            val videos = mutableListOf<AudioItem>()
-            val playlists = mutableListOf<YouTubePlaylistInfo>()
-            for (item in extractor.initialPage.items) {
-                when (item) {
-                    is StreamInfoItem -> if (videos.size < maxVideos) {
-                        audioItemFrom(item)?.let { videos.add(it) }
-                    }
-                    is PlaylistInfoItem -> if (playlists.size < maxPlaylists) {
-                        playlistInfoFrom(item)?.let { playlists.add(it) }
-                    }
-                }
-                if (videos.size >= maxVideos && playlists.size >= maxPlaylists) break
+            // Avanza hasta la página pedida: la 1 es `initialPage`; las demás se
+            // piden con `getPage(nextPage)`. Si YouTube se queda sin páginas
+            // antes de llegar, se devuelve la última disponible.
+            var current = extractor.initialPage
+            var fetched = 1
+            while (fetched < page && current.hasNextPage()) {
+                current = extractor.getPage(current.nextPage)
+                fetched++
             }
-            YouTubeSearchAllResult(videos = videos, playlists = playlists)
+
+            val (videos, playlists) = collectSearchItems(current.items, maxVideos, maxPlaylists)
+            YouTubeSearchAllResult(
+                videos = videos,
+                playlists = playlists,
+                hasMore = current.hasNextPage(),
+            )
         } catch (e: Exception) {
             Logger.e("YouTubeManager", "❌ Error buscando '$query': ${e.message}")
             YouTubeSearchAllResult()
         }
+    }
+
+    /** Separa los items de una página en vídeos y listas, respetando los topes. */
+    private fun collectSearchItems(
+        items: List<InfoItem>,
+        maxVideos: Int,
+        maxPlaylists: Int,
+    ): Pair<List<AudioItem>, List<YouTubePlaylistInfo>> {
+        val videos = mutableListOf<AudioItem>()
+        val playlists = mutableListOf<YouTubePlaylistInfo>()
+        for (item in items) {
+            when (item) {
+                is StreamInfoItem -> if (videos.size < maxVideos) {
+                    audioItemFrom(item)?.let { videos.add(it) }
+                }
+                is PlaylistInfoItem -> if (playlists.size < maxPlaylists) {
+                    playlistInfoFrom(item)?.let { playlists.add(it) }
+                }
+            }
+            if (videos.size >= maxVideos && playlists.size >= maxPlaylists) break
+        }
+        return videos to playlists
     }
 
     /**

@@ -106,15 +106,16 @@ fun AudioListScreen(
     val searchController = remember(scope) {
         SearchController(
             scope = scope,
-            search = { query, maxResults ->
-                // M19: una sola búsqueda devuelve vídeos y listas; los vídeos se
-                // mapean a la cola y las listas se abren desde la UI.
-                val found = YouTubeManager.searchAll(query, maxResults)
+            search = { query, page ->
+                // M19: una sola búsqueda devuelve vídeos y listas. M21: `page`
+                // pide la página siguiente, que `loadMore` irá añadiendo.
+                val found = YouTubeManager.searchAll(query, page = page)
                 SearchResults(
                     videos = found.videos.mapIndexed { index, item ->
                         PlayerTrack.fromSearchResult(index, item)
                     },
                     playlists = found.playlists,
+                    hasMore = found.hasMore,
                 )
             },
         )
@@ -323,6 +324,7 @@ fun AudioListScreen(
                                 },
                                 onBack = goHome,
                                 playlists = playlistsState.playlists,
+                                onLoadMore = searchController::loadMore,
                                 onAddToPlaylist = { track, playlistId ->
                                     playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
                                 },

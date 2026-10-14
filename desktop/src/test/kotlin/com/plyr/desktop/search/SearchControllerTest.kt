@@ -15,9 +15,9 @@ import org.junit.Test
 /**
  * Tests de [SearchController] con la búsqueda inyectada, sin red.
  *
- * La búsqueda es el segundo parámetro del constructor y [SearchController] tiene
- * un `maxResults` con valor por defecto al final, así que hay que pasarla con
- * nombre (`search =`) y no como lambda de cola.
+ * La búsqueda es el segundo parámetro del constructor, así que se pasa con
+ * nombre (`search =`) y no como lambda de cola. Desde M21 recibe también la
+ * página a pedir, de modo que estos tests controlan qué devuelve cada página.
  */
 class SearchControllerTest {
 
@@ -164,5 +164,120 @@ class SearchControllerTest {
         controller.performSearch("segunda")
 
         assertEquals("segunda", controller.state.value.results.first().id)
+    }
+
+    // --- M21: paginación («cargar más») ---
+
+    @Test
+    fun canLoadMore_needsTheAndroidThreshold() {
+        val controller = SearchController(
+            scope = scope,
+            search = { _, _ -> SearchResults(videos = (1..9).map { track("t$it") }, hasMore = true) },
+        )
+
+        controller.performSearch("mix")
+
+        // 9 vídeos con página detrás: por debajo del umbral (>=10) no se ofrece.
+        assertFalse(controller.state.value.canLoadMore)
+    }
+
+    @Test
+    fun canLoadMore_isOfferedAtTheThresholdWithMorePages() {
+        val controller = SearchController(
+            scope = scope,
+            search = { _, _ -> SearchResults(videos = (1..10).map { track("t$it") }, hasMore = true) },
+        )
+
+        controller.performSearch("mix")
+
+        assertTrue(controller.state.value.canLoadMore)
+    }
+
+    @Test
+    fun loadMore_appendsTheNextPageAndStopsWhenExhausted() {
+        val pages = mutableListOf<Int>()
+        val controller = SearchController(
+            scope = scope,
+            search = { _, page ->
+                pages += page
+                if (page == 1) {
+                    SearchResults(videos = (1..12).map { track("p1-$it") }, hasMore = true)
+                } else {
+                    SearchResults(videos = (1..3).map { track("p2-$it") }, hasMore = false)
+                }
+            },
+        )
+
+        controller.performSearch("mix")
+        assertTrue(controller.state.value.canLoadMore)
+
+        controller.loadMore()
+
+        val state = controller.state.value
+        assertEquals(listOf(1, 2), pages)
+        assertEquals(15, state.results.size)
+        assertFalse(state.canLoadMore)
+        assertFalse(state.isLoadingMore)
+        assertNull(state.error)
+    }
+
+    @Test
+    fun loadMore_doesNothingWhenThereIsNoNextPage() {
+        var calls = 0
+        val controller = SearchController(
+            scope = scope,
+            search = { _, _ ->
+                calls++
+                SearchResults(videos = (1..12).map { track("t$it") }, hasMore = false)
+            },
+        )
+
+        controller.performSearch("mix")
+        assertFalse(controller.state.value.canLoadMore)
+
+        controller.loadMore()
+
+        assertEquals(1, calls)
+        assertEquals(12, controller.state.value.results.size)
+    }
+
+    @Test
+    fun loadMore_errorKeepsAlreadyLoadedResults() {
+        val controller = SearchController(
+            scope = scope,
+            search = { _, page ->
+                if (page == 1) {
+                    SearchResults(videos = (1..10).map { track("t$it") }, hasMore = true)
+                } else {
+                    error("página caída")
+                }
+            },
+        )
+
+        controller.performSearch("mix")
+        controller.loadMore()
+
+        val state = controller.state.value
+        assertNotNull(state.error)
+        assertFalse(state.isLoadingMore)
+        assertEquals(10, state.results.size)
+    }
+
+    @Test
+    fun performSearch_resetsToTheFirstPage() {
+        val pages = mutableListOf<Int>()
+        val controller = SearchController(
+            scope = scope,
+            search = { _, page ->
+                pages += page
+                SearchResults(videos = (1..12).map { track("t$it") }, hasMore = true)
+            },
+        )
+
+        controller.performSearch("primera")
+        controller.loadMore()
+        controller.performSearch("segunda")
+
+        assertEquals(listOf(1, 2, 1), pages)
     }
 }
