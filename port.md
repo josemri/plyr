@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M15` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M16` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -32,7 +32,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 
 | # | Funcionalidad | Implementación Android | Estado en escritorio | Prioridad |
 |---|---|---|---|---|
-| F14 | Descarga de audio offline y reproducción sin conexión | `AudioDownloader` + `DownloadedAudioStore` + `DownloadPlan` (OkHttp + SAF/`filesDir`) | **Ausente**: `YouTubeTrackSourceResolver` siempre hace streaming | **Alta** |
+| F14 | Descarga de audio offline y reproducción sin conexión | `AudioDownloader` + `DownloadedAudioStore` + `DownloadPlan` (OkHttp + SAF/`filesDir`) | **Presente (M16)**: `AudioDownloader` + `DownloadedAudioStore` + `DownloadController` (OkHttp + `java.nio`); el resolutor prefiere el fichero local | **Alta** |
 | F15 | UI de almacenamiento offline (descargar/limpiar y resumen) | `PlaylistScreen` + `PlaylistDownloadBar` + `OfflineStorageDialog` | Ausente | Media |
 | F16 | Carrusel de playlists en Home | `HomeScreen` (`HomePlaylistCarousel`) | Home es solo un menú de consola | Media |
 | F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | Solo se buscan vídeos | **Alta** |
@@ -46,9 +46,9 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
 | F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | El modo edición solo tiene título/descripción/portada y borrar/reordenar | Media |
 
-> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`), pero el escritorio solo consume `add_to_playlist` de entre ellas; el resto está listo para usarse cuando se implementen M17/M22/M24.
+> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`), pero el escritorio solo consume `add_to_playlist` de entre ellas; el resto está listo para usarse cuando se implementen M17/M22/M24 (la descarga de M16 no traduce nada todavía: su UI es M17).
 
-> **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 es más barato de lo que sugiere su kdoc (que aún dice «no portado»). Igual pasa con el comentario de `YouTubeTrackSourceResolver` («el escritorio aún no descarga audio, eso es M10»), que quedó obsoleto: la descarga offline nunca se portó (F14).
+> **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 es más barato de lo que sugiere su kdoc (que aún dice «no portado»).
 
 ### 1.2 Lenguaje y stack seleccionados
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M15` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M16` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -267,6 +267,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M13 — Integración nativa:** MPRIS (Linux, D-Bus) y bandeja del sistema; SMTC/Now Playing quedan para más adelante.
 - **M14 — Empaquetado:** `jpackage` vía plugin Compose (`.deb` verificado; `.rpm`/`.msi`/`.dmg` configurados).
 - **M15 — Pulido:** atajos de teclado, `UpdateChecker` de escritorio, detekt con `detekt-baseline.xml`, checklist i18n y docs.
+- **M16 — Descarga offline:** `DownloadPlan` (puro) a `:core`; `DownloadedAudioStore` (`java.nio`, `dataDir/audio/<videoId>.m4a`), `AudioDownloader` (OkHttp, con `AudioFetcher` inyectable) y `DownloadController` (`StateFlow`); `YouTubeTrackSourceResolver` prefiere el fichero local y deja el streaming de respaldo.
 
 ### 6.2 Tabla de seguimiento
 
@@ -288,7 +289,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M13 | Integración nativa (MPRIS/SMTC/Now Playing) | 1–2 | ☑ (solo MPRIS) |
 | M14 | Empaquetado multiplataforma | 1 | ☑ |
 | M15 | Pulido y paridad final | 1–2 | ☑ (paridad parcial, ver §6.4) |
-| M16+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M16 | Descarga de audio offline + reproducción sin conexión ⭐ | 1–2 | ☑ |
+| M17+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -298,13 +300,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M16+)
+### 6.4 Backlog de paridad pendiente (M17+)
 
-Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F14, F17, F18 y F23 del inventario (§1.1).
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F17, F18 y F23 del inventario (§1.1).
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M16 | Descarga de audio offline + reproducción sin conexión | **Alta** | 1–2 |
 | M17 | UI de almacenamiento offline | Media | 1 |
 | M18 | Carrusel de playlists en Home | Media | 0.5 |
 | M19 | Playlists de YouTube en búsqueda + detalle | **Alta** | 1–1.5 |
@@ -317,7 +318,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M16 — Descarga de audio offline + reproducción sin conexión ⭐
+#### M16 — Descarga de audio offline + reproducción sin conexión ⭐ ☑ (completado)
 **Objetivo:** que el escritorio descargue el audio (m4a) de una pista y lo reproduzca desde disco cuando exista, igual que Android; solo hace streaming si no está descargada.
 **Tareas**
 - Extraer a `:core` la parte pura de `DownloadPlan` (qué pistas faltan por descargar) validando que no depende de Room.
@@ -457,7 +458,49 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio cancela el flush pendiente al cerrar (`DataSync.shutdown()`), mientras que Android espera a escribirlo en `onStop` (comportamiento a corregir en **M26**).
+#### M27 — Acceso a la cola solo desde controles (escritorio)
+**Objetivo:** cambiar navegación en escritorio para acceder a la cola únicamente desde el indicador `^` del `FloatingMusicControls` (igual que en Android, que no tiene botón de cola en la barra/menu principal). **Solo afecta a UI de escritorio, no tocar Android.**
+**Tareas**
+- Quitar el botón `plyr_queue` del menú/navegación de escritorio (`Screen`, `AudioListScreen`, `MenuBar`/botones según corresponda).
+- Asegurar que la cola solo se abre al pulsar el botón `^` de `FloatingMusicControls` en escritorio (ya existente).
+- No añadir ni quitar rutas en Android; no tocar `com.plyr.ui.Screen` ni la navegación de Android.
+**Definition of Done:** en escritorio no aparece el botón para ir a la cola desde la barra de navegación; sigue siendo accesible desde `^` en los controles flotantes. En Android sin cambios.
+**Verificación:** `:desktop:test`, manual (comprueba menús).
+**Prompt opencode:**
+> Solo en `desktop/...` (no toques `app/src/...`), elimina cualquier entrada de navegación/botón que lleve a la cola desde el menú principal. La cola debe seguir abriéndose únicamente al pulsar el botón `^` de `FloatingMusicControls`. Revisa `Screen.kt`, `AudioListScreen.kt`, menús y tests de escritorio afectados. No modifiques nada de Android.
+
+---
+
+#### M28 — Quitar QR scanning y mover búsqueda al inicio (escritorio)
+**Objetivo:** simplificar la barra superior/navegación de escritorio: eliminar el escáner QR de la pantalla de búsqueda y meter la barra de búsqueda directamente en `HomeScreen`, de modo que se pueda eliminar el botón `plyr_search`. **Solo UI de escritorio.**
+**Tareas**
+- Quitar el botón/diálogo `QrScanDialog`/escaneo QR de `SearchScreen` de escritorio (mantener el lector vía QR share existente solo si aplica, pero eliminar la UI de escaneo en Search; no tocar Android).
+- Añadir un campo de búsqueda (input) en `desktop/.../ui/screens/HomeScreen.kt` que dispare la navegación a `SearchScreen` con el término o directamente muestre resultados según el diseño actual (o reutiliza el `SearchController` para pasar query). 
+- Quitar el botón `plyr_search` de la navegación de escritorio (`Screen`, menú, etc.).
+- Eliminar referencias a QR scan de tests de escritorio que dejen de tener sentido; no tocar Android.
+**Definition of Done:** en escritorio `HomeScreen` tiene la barra de búsqueda; el botón `plyr_search` desaparece del menú; `SearchScreen` ya no muestra la opción de escanear QR. Android intacto.
+**Verificación:** `:desktop:test` + manual.
+**Prompt opencode:**
+> Solo en `desktop/...`, mueve la barra de búsqueda a `HomeScreen`. Elimina la UI de escaneo QR de `SearchScreen` (código y botones). Quita la entrada `SEARCH` del enum `Screen` de escritorio y cualquier botón de navegación asociado. Asegúrate de que al enviar búsqueda desde Home se navegue a Search con el texto (o se reutilice la pantalla existente). No toques código Android.
+
+---
+
+#### M29 — Carrusel horizontal de playlists en Home (escritorio)
+**Objetivo:** reemplazar el acceso a `plyr_lists` por un carrusel horizontal de portadas a la izquierda, y al final un botón `>` que lleve a `PlaylistsScreen`. **Solo UI de escritorio.**
+**Tareas**
+- En `HomeScreen` de escritorio, mostrar un carrusel horizontal (LazyRow) con las portadas de las playlists visibles (reutilizar `PlaylistsController`/repositorio ya existente).
+- Mostrar miniaturas (`PlaylistCover`/Coil) con título opcional; al pulsar una portada, abrir su detalle (`PlaylistDetailView`/navegación ya existente).
+- Añadir un botón `>` al final del carrusel que navegue a `PlaylistsScreen` (mismo destino que el antiguo botón `plyr_lists`).
+- Quitar el botón `plyr_lists` de la navegación de escritorio. Actualizar `Screen` de escritorio si procede (mantén las demás pantallas).
+- No tocar Android.
+**Definition of Done:** Home muestra el carrusel de playlists; el `>` lleva a la pantalla de listas; el botón `plyr_lists` ya no aparece en el menú de escritorio. Android sin cambios.
+**Verificación:** `:desktop:test` + manual.
+**Prompt opencode:**
+> Solo en `desktop/...`, modifica `HomeScreen` para mostrar un carrusel horizontal con portadas de playlists (usa datos existentes de PlaylistsController/repositorio). Añade un botón `>` al final que navegue a la pantalla de playlists. Elimina la entrada/navegación a `PLAYLISTS` desde el menú principal de escritorio. No modifiques código de `app/src/...`.
+
+---
+
+**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio cancela el flush pendiente al cerrar (`DataSync.shutdown()`), mientras que Android espera a escribirlo en `onStop` (comportamiento a corregir en **M26**); **UI escritorio (M27–M29):** acceso a cola solo desde `^` en controles, búsqueda integrada en Home, carrusel de playlists en Home con `>` a listas.
 
 **A favor del escritorio (no perder):** el feed tiene formulario de publicación + selector de grupo + muestra el `comment` (Android no); Config tiene filas extra de **repetición** y **rutas de datos/caché** (Android no); atajos de teclado, bandeja del sistema (`DesktopTray`) y prueba de sonido por CLI (`SoundCheck`).
 

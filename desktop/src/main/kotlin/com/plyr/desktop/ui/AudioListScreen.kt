@@ -22,6 +22,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
 import com.plyr.desktop.config.DesktopConfig
+import com.plyr.desktop.download.DownloadedAudioStore
 import com.plyr.desktop.player.PlayerController
 import com.plyr.desktop.player.PlayerState
 import com.plyr.desktop.player.PlayerTrack
@@ -79,6 +80,7 @@ fun AudioListScreen(
     openDatabase: () -> DesktopDatabase = { DesktopDatabase.open(Path.of(AppPaths.databaseFile)) },
     mediaIntegration: DesktopMediaIntegration = NoopMediaIntegration(),
     checkForUpdate: (suspend () -> UpdateChecker.UpdateInfo?)? = null,
+    downloadStore: DownloadedAudioStore = DownloadedAudioStore(),
     onPlayerControllerReady: (PlayerController) -> Unit = {},
     onQuit: () -> Unit = {},
 ) {
@@ -86,11 +88,11 @@ fun AudioListScreen(
     val goHome = { currentScreen = Screen.HOME }
     val scope = rememberCoroutineScope()
 
-    val playerController = remember(scope) {
+    val playerController = remember(scope, downloadStore) {
         PlayerController(
             scope = scope,
             openPlayer = { VlcAudioPlayer() },
-            sourceResolver = YouTubeTrackSourceResolver(),
+            sourceResolver = YouTubeTrackSourceResolver(store = downloadStore),
             initialRepeatMode = DesktopConfig.repeatMode,
             onRepeatModeChanged = { DesktopConfig.repeatMode = it },
         )
