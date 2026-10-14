@@ -1,8 +1,8 @@
 # Análisis de portabilidad de **plyr** a escritorio (Windows / Linux / macOS)
 
-**Fecha:** 2026-10-09
+**Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido y un **roadmap por hitos** listo para ejecutar con opencode.
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M15` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -26,7 +26,31 @@ Reproductor de música minimalista con estética de terminal (fuente monoespacia
 | F12 | Multi-idioma (es/en/ca/ja) | `Translations` propio (mapa en código) | **Alta** (Kotlin puro) |
 | F13 | Auto‑update / update checker | `UpdateChecker` | Adaptar (repo/URL) |
 
-### 1.1 Lenguaje y stack seleccionados
+### 1.1 Funciones de Android **aún no presentes** en escritorio
+
+Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que tienen justificación (NFC, cámara, sensor de luz, swipe, notificaciones nativas) se listan al final del backlog (§6.4).
+
+| # | Funcionalidad | Implementación Android | Estado en escritorio | Prioridad |
+|---|---|---|---|---|
+| F14 | Descarga de audio offline y reproducción sin conexión | `AudioDownloader` + `DownloadedAudioStore` + `DownloadPlan` (OkHttp + SAF/`filesDir`) | **Ausente**: `YouTubeTrackSourceResolver` siempre hace streaming | **Alta** |
+| F15 | UI de almacenamiento offline (descargar/limpiar y resumen) | `PlaylistScreen` + `PlaylistDownloadBar` + `OfflineStorageDialog` | Ausente | Media |
+| F16 | Carrusel de playlists en Home | `HomeScreen` (`HomePlaylistCarousel`) | Home es solo un menú de consola | Media |
+| F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | Solo se buscan vídeos | **Alta** |
+| F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | Sin shuffle (MPRIS `Shuffle` es de solo lectura y falso) | **Alta** |
+| F19 | Historial de búsqueda (no es hueco real) | `SearchViewModel` lo persiste, pero **`getAllSearches()` nunca se llama**: Android tampoco lo muestra | `SearchHistoryRepository` persiste igual; la UI no lo usa en ninguno de los dos | — |
+| F20 | Paginación / «cargar más» en búsqueda | `SearchViewModel.onLoadMore` | Una sola consulta, sin paginar | Media |
+| F21 | Crear playlist buscando en YouTube | `CreatePlaylistScreen` | `CreatePlaylistView` es solo título+descripción | Media |
+| F22 | Acciones por pista (like / añadir a cola / añadir a playlist) | `SongListItem` (menú contextual) | Solo compartir `⤴` | Baja |
+| F23 | Metadatos del vídeo en el feed + reproducir desde el feed | `FeedScreen` + `MediaMetadataExtractor` | Feed sin metadatos ni clic-para-reproducir | **Alta** |
+| F24 | «Compartir app» por QR en Config | `ShareAppSection` + `ShareType.APP` | Ausente | Baja |
+| F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
+| F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | El modo edición solo tiene título/descripción/portada y borrar/reordenar | Media |
+
+> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`), pero el escritorio solo consume `add_to_playlist` de entre ellas; el resto está listo para usarse cuando se implementen M17/M22/M24.
+
+> **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 es más barato de lo que sugiere su kdoc (que aún dice «no portado»). Igual pasa con el comentario de `YouTubeTrackSourceResolver` («el escritorio aún no descarga audio, eso es M10»), que quedó obsoleto: la descarga offline nunca se portó (F14).
+
+### 1.2 Lenguaje y stack seleccionados
 
 - **Lenguaje:** seguir en **Kotlin** (no reescribir). Se reutiliza ~65% del código y el 100% de los 455 tests.
 - **Compartición de lógica:** **Kotlin Multiplatform** (módulo `core`, targets `jvm` + `android`).
@@ -39,7 +63,7 @@ Reproductor de música minimalista con estética de terminal (fuente monoespacia
 - **Integración nativa:** **MPRIS** (Linux), **SMTC** (Windows), **Now Playing** (macOS) tras una interfaz común.
 - **Empaquetado:** `jpackage` (o Conveyor).
 
-### 1.2 ¿Es multiplataforma?
+### 1.3 ¿Es multiplataforma?
 
 **Sí, Windows, Linux y macOS** desde el mismo código. Solo cambian las capas nativas:
 
@@ -200,7 +224,9 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Cada hito (`M0`…`M15`) es **autocontenido y verificable**: se le puede pasar a opencode tal cual. La regla de oro es que **al terminar cada hito, `./gradlew build` los tests deben pasar**, tanto en Android como en desktop y se debe pasar el checkeo de run.sh
+Los hitos `M0`–`M15` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+
+Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
 ### 6.0 Cómo usar el roadmap con opencode
 
@@ -223,243 +249,24 @@ VERIFICACIÓN: <comandos>. Ejecútalos y no pares hasta que pasen.
 ENTREGABLE: <qué debe quedar en el repo>.
 ```
 
-### 6.1 Hitos
+### 6.1 Hitos completados (resumen)
 
----
-
-#### M0 — Andamiaje de módulos (0.5 semana)
-**Objetivo:** crear la estructura de módulos sin mover código todavía.
-**Tareas**
-- `settings.gradle.kts`: añadir `include(":core")` y `include(":desktop")`.
-- `core/build.gradle.kts`: plugin `kotlin.multiplatform`, targets `androidTarget()` + `jvm()`; `commonMain` con `kotlinx-coroutines`.
-- `desktop/build.gradle.kts`: Compose Multiplatform (`org.jetbrains.compose`) + `application` (target `jvm`), JDK 17.
-- `libs.versions.toml`: versiones de Compose MP, VLCJ, SQLDelight, multiplatform-settings y Coil 3.
-- `:app` depende de `:core`; `:desktop` depende de `:core`.
-- **Fallback anti-fricción:** si el wiring KMP (dependencias JVM-only en `commonMain`) da problemas, `core` puede empezar como `kotlin("jvm")` puro (Android lo consume igual). Se convierte a KMP en M2 si hace falta.
-
-**Definition of Done:** `:core` vacío compila para Android y JVM; `:desktop` abre una ventana vacía; el APK de Android sigue construyendo.
-**Verificación:** `./gradlew :core:build`, `./gradlew :desktop:run`, `./run.sh build`
-**Prompt opencode:**
-> Crea los módulos `:core` (Kotlin Multiplatform, targets `androidTarget()` y `jvm()`) y `:desktop` (Compose Multiplatform desktop, target `jvm`, aplicación) en `settings.gradle.kts` con sus `build.gradle.kts`. No muevas código existente todavía. Añade `kotlinx-coroutines` a `commonMain` de `:core` y las versiones nuevas a `gradle/libs.versions.toml`. Haz que `:app` y `:desktop` dependan de `:core`. Verifica con `./gradlew :core:build` y `./gradlew :desktop:run`.
-
----
-
-#### M1 — Extraer la lógica pura a `core` + migrar los 455 tests (1–2 semanas) ⭐
-**Objetivo:** mover a `core/src/commonMain` todo lo que no importa Android, y a `core/src/jvmTest` los tests puros. **Es el hito que desriesga el port.**
-**Tareas**
-- Mover a `core` los paquetes/archivos de §2.2: `model/`, `QueueIndex`, `WindowState`, `LoadingState`, `PendingSkips`, `IdlePlayback`, `UrlParser`, `ImportManifest`, `ExportManifest`, `ExportDigest`, `ImportArchive`, `LikedSongsMerge`, `MediaMetadataExtractor`, `PlaylistSource`, `CoverCropMath`, `PlaybackNotificationState`, `NotificationRefreshPolicy`, `YouTubePlaylistCreator`.
-- Mover a `jvmTest` los 35 archivos de test correspondientes.
-- Ajustar `package`/`import` en `:app` para referencia a `:core`.
-- Sustituir cualquier referencia a `android.util.Log` de estos archivos por un logger propio (`core/util/Logger`).
-
-**Definition of Done:** los 455 tests corren y pasan **en el JVM de escritorio** (`./gradlew :core:jvmTest`), y Android sigue compilando con la lógica delegada en `:core`.
-**Verificación:** `./gradlew :core:jvmTest`, `./run.sh build`, `./run.sh test`
-**Prompt opencode:**
-> Mueve a `core/src/commonMain` los archivos puros listados en port.md §2.2 (model/, QueueIndex, WindowState, LoadingState, PendingSkips, IdlePlayback, UrlParser, ImportManifest, ExportManifest, ExportDigest, ImportArchive, LikedSongsMerge, MediaMetadataExtractor, PlaylistSource, CoverCropMath, PlaybackNotificationState, NotificationRefreshPolicy, YouTubePlaylistCreator) y sus tests a `core/src/jvmTest`. Reemplaza `android.util.Log` por un logger propio. Actualiza `:app` para que los use desde `:core`. No cambies la lógica. Verifica con `./gradlew :core:jvmTest` (deben pasar los ~455 tests) y `./run.sh build`.
-
----
-
-#### M2 — Red a `core` sin Android (0.5 semana)
-**Objetivo:** portar `YouTubeManager`, `NewPipeHolder`, `SimpleDownloader`, `SupabaseClient` y `AppModels`.
-**Tareas**
-- Declarar `NewPipeExtractor`, `OkHttp` y `org.json` para los targets `jvm` y `android`.
-- Quitar `android.util.Log` de `SimpleDownloader`, `SupabaseClient` y `YouTubeManager`.
-- Mover `Translations` a `core` (es un mapa puro).
-- Añadir un **test de humo** de red en `jvmTest` (búsqueda + extracción de URL, marcado como opcional/con `assumeTrue` de conexión).
-
-**Definition of Done:** `YouTubeManager.searchVideoId("...")` y `getAudioUrl(...)` funcionan desde un test JVM de escritorio.
-**Verificación:** `./gradlew :core:jvmTest --tests "*Network*"`
-**Prompt opencode:**
-> Porta a `:core` los archivos de red: `YouTubeManager`, `NewPipeHolder`, `SimpleDownloader`, `SupabaseClient`, `AppModels` y `Translations`. Declara `NewPipeExtractor`, `OkHttp` y `org.json` en los targets JVM y Android. Elimina las dependencias de `android.util.Log`. Añade un test JVM de humo que haga una búsqueda real y extraiga una URL de audio (que se omita si no hay red). Verifica con `./gradlew :core:jvmTest`.
-
----
-
-#### M3 — Interfaz `AudioPlayer` + `QueueEngine` (1 semana) ⭐
-**Objetivo:** desacoplar la lógica de cola de ExoPlayer **sin cambiar el comportamiento de Android**.
-**Tareas**
-- Definir en `core` la interfaz `AudioPlayer` y `AudioPlayerListener` de §3.2, más el modelo `AudioTrack`.
-- Extraer de `PlayerViewModel` una clase pura `QueueEngine` con toda la lógica de ventana/transición (lo que ya cubren `WindowState`, `QueueIndex`, `LoadingState`, `PendingSkips`).
-- `PlayerViewModel` (en `:app`) pasa a depender de `AudioPlayer`; se añade `ExoAudioPlayer : AudioPlayer` envolviendo `ExoPlayer`.
-- Portar a `core` los tests de `QueueIndex`, `WindowState`, `IdlePlayback`, `PendingSkips` y añadir tests de `QueueEngine`.
-
-**Definition of Done:** Android reproduce igual que antes (mismos 455+ tests verdes) y `PlayerViewModel` ya no menciona `ExoPlayer` directamente salvo en `ExoAudioPlayer`.
-**Verificación:** `./gradlew :core:jvmTest`, `./run.sh test`, `./run.sh build`
-**Prompt opencode:**
-> Crea en `:core` la interfaz `AudioPlayer`, `AudioPlayerListener` y el modelo `AudioTrack`. Extrae de `PlayerViewModel` una clase pura `QueueEngine` con la lógica de ventana/transición, reutilizando `WindowState`/`QueueIndex`/`LoadingState`/`PendingSkips`. En `:app`, crea `ExoAudioPlayer : AudioPlayer` que envuelva `ExoPlayer` y haz que `PlayerViewModel` dependa de la interfaz. No cambies el comportamiento. Verifica que los tests siguen verdes y el APK compila.
-
----
-
-#### M4 — Adaptador VLCJ + prueba de sonido (1 semana) ⭐
-**Objetivo:** demostrar que el motor de audio funciona en desktop. **Si este hito cierra, el port es técnicamente viable.**
-**Tareas**
-- Añadir `uk.co.caprica:vlcj` a `:desktop`.
-- Implementar `VlcAudioPlayer : AudioPlayer` sobre `EmbeddedMediaPlayer` (solo audio).
-- CLI/prototipo en `:desktop` que: busca una canción, extrae la URL con `YouTubeManager` y la reproduce.
-- Detectar `libvlc` ausente y mostrar error claro.
-
-**Definition of Done:** en Linux (y opcionalmente Win/mac), `./gradlew :desktop:run` reproduce una canción real de YouTube.
-**Verificación:** manual: `./gradlew :desktop:run` reproduce audio; test JVM de la máquina de estados de `VlcAudioPlayer`.
-**Prompt opencode:**
-> Añade VLCJ a `:desktop` e implementa `VlcAudioPlayer : AudioPlayer` sobre `EmbeddedMediaPlayer` (solo audio). Crea un punto de entrada temporal que use `YouTubeManager` para resolver y reproducir una canción de YouTube. Maneja el caso de que `libvlc` no esté instalado con un mensaje claro. Verifica arrancando la app de escritorio y reproduciendo.
-
----
-
-#### M5 — Esqueleto de UI Compose Desktop (1 semana)
-**Objetivo:** ventana, tema terminal, navegación e i18n compartida.
-**Tareas**
-- Definir `MaterialTheme` con la estética terminal y fuente monoespaciada (arte ASCII donde aplique).
-- `Screen` enum y navegación con `AudioListScreen` equivalente (Home/Search/Queue/Playlists/Feed/Config).
-- Cablear `Translations` y `Config` (aún con backend temporal).
-- `FloatingMusicControls` portado (sin reproducción real todavía).
-
-**Definition of Done:** la app de escritorio abre, navega entre pantallas vacías y cambia de idioma/tema.
-**Verificación:** `./gradlew :desktop:run` + test de Compose UI (`runComposeUiTest`) del cambio de pantalla.
-**Prompt opencode:**
-> Crea el esqueleto de UI de `:desktop` con Compose Multiplatform: tema terminal (monoespaciado, arte ASCII), enum `Screen` y navegación entre Home/Search/Queue/Playlists/Feed/Config, componentes `Titulo` y `ActionBttn` portados, y `FloatingMusicControls`. Usa `Translations` de `:core`. Verifica con `./gradlew :desktop:run` y un test de UI.
-
----
-
-#### M6 — Persistencia SQLDelight (1–2 semanas)
-**Objetivo:** sustituir Room por SQLDelight y portar los repositorios.
-**Tareas**
-- Definir esquema `.sq` equivalente a `PlaylistEntity`, `TrackEntity`, `SearchHistoryEntity` (versión 8 actual).
-- Generar DAOs y escribir `PlaylistRepository` + `SearchHistoryRepository` en `:desktop` reutilizando la lógica de `PlaylistLocalRepository`.
-- Migrar la lógica de negocio portable (liked, tombstones, `visiblePlaylists`) a `:core` como funciones puras.
-- Tests de repositorio con SQLite en memoria.
-
-**Definition of Done:** crear/editar/borrar playlists y favoritos funciona y sobrevive a reinicios; tests en verde.
-**Verificación:** `./gradlew :desktop:test`
-**Prompt opencode:**
-> Añade SQLDelight a `:desktop` con un esquema equivalente a las entidades Room actuales (`playlists`, `tracks`, `search_history`, versión 8). Implementa `PlaylistRepository` y `SearchHistoryRepository` reutilizando la lógica de `PlaylistLocalRepository`; extrae a `:core` las funciones puras (fusión de liked, tombstones, `visiblePlaylists`). Añade tests con SQLite en memoria. Verifica con `./gradlew :desktop:test`.
-
----
-
-#### M7 — Reproducción integrada en la UI (1–2 semanas) ⭐ (MVP)
-**Objetivo:** reproducir desde búsqueda y gestionar la cola en desktop.
-**Tareas**
-- Conectar `VlcAudioPlayer` + `QueueEngine` + UI.
-- `SearchScreen` con búsqueda de YouTube y reproducción del resultado.
-- `QueueScreen` con reordenar/saltar.
-- Estado con `StateFlow` en lugar de `LiveData`.
-
-**Definition of Done:** **MVP**: buscar en YouTube, reproducir, saltar, pausar y ver la cola funcionando en escritorio.
-**Verificación:** `./gradlew :desktop:run` + tests de `QueueEngine` y del viewmodel.
-**Prompt opencode:**
-> Integra `VlcAudioPlayer` y `QueueEngine` en la UI de `:desktop` usando `StateFlow`. Implementa la búsqueda de YouTube y la reproducción desde los resultados, y una pantalla de cola con reordenar y saltar. Verifica con `./gradlew :desktop:run` y tests.
-
----
-
-#### M8 — Playlists UI + drag & drop (1–2 semanas)
-**Objetivo:** paridad con `PlaylistScreen` (1.421 líneas) en escritorio.
-**Tareas**
-- Portar `PlaylistScreen`, `SongListItem`, `PlaylistShare`, `CoverCropDialog`.
-- Drag & drop para reordenar; acciones contextuales en lugar de swipe.
-- Carga de portadas con Coil 3.
-
-**Definition of Done:** crear/editar listas, añadir/quitar/reordenar pistas y portada personalizada funcionan.
-**Verificación:** `./gradlew :desktop:test` + prueba manual.
-**Prompt opencode:**
-> Porta a `:desktop` las pantallas de playlists: `PlaylistScreen`, `SongListItem`, `PlaylistShare` y `CoverCropDialog`. Implementa drag & drop para reordenar y menú contextual en lugar de swipe. Usa Coil 3 para las portadas. Verifica manualmente y con tests.
-
----
-
-#### M9 — Config/Ajustes multiplataforma (1 semana)
-**Objetivo:** preferencias, rutas y tema por SO.
-**Tareas**
-- `Config` con backend multiplataforma (multiplatform-settings / `java.util.prefs`) manteniendo claves y migraciones actuales.
-- Rutas por SO: `%APPDATA%`, `~/.config`+`~/.local/share`, `~/Library/Application Support`. `CoverCache` en la carpeta de caché equivalente.
-- `ConfigScreen` portado (674 líneas).
-
-**Definition of Done:** los ajustes persisten entre reinicios en el SO correspondiente; tema e idioma se aplican.
-**Verificación:** `./gradlew :desktop:test` + prueba manual en al menos un SO.
-**Prompt opencode:**
-> Implementa `Config` de `:desktop` con backend multiplataforma conservando claves y migraciones actuales, y rutas de datos/caché por SO. Porta `ConfigScreen`. Verifica que los ajustes persisten y que los tests pasan.
-
----
-
-#### M10 — Import/Export + copia de seguridad (1 semana)
-**Objetivo:** `plyr-sync.zip` en carpeta local.
-**Tareas**
-- `DataExporter`/`DataImporter`/`DataSync`/`ExportManifest`/`ImportManifest` sobre `java.nio` (sin SAF).
-- Carpeta de backup configurable (diálogo nativo del SO).
-- Reutilizar tombstones y la lógica de fusión; tests puros en `:core`.
-
-**Definition of Done:** exportar, importar y la copia automática funcionan; los tombstones evitan resurrecciones.
-**Verificación:** `./gradlew :core:jvmTest :desktop:test`
-**Prompt opencode:**
-> Porta `DataExporter`, `DataImporter`, `DataSync`, `ExportManifest` e `ImportManifest` a `:desktop` usando `java.nio` en lugar de SAF, con una carpeta de backup elegible por el usuario. Mantén la política de tombstones y fusión. Verifica con tests puros y una exportación/importación real.
-
----
-
-#### M11 — QR + Spotify import (1 semana)
-**Objetivo:** compartir por QR y leer QR sin cámara.
-**Tareas**
-- `QRDialog` con ZXing JVM (generar imagen + guardar/copiar).
-- Lector alternativo: pegar URL o abrir imagen de QR (decodificar con ZXing) en lugar de CameraX.
-- `SpotifyImporter` desacoplado de `Context` y del repositorio.
-
-**Definition of Done:** generar y decodificar un QR de playlist/pista funciona; importar una playlist de Spotify crea la lista.
-**Verificación:** `./gradlew :core:jvmTest :desktop:test`
-**Prompt opencode:**
-> Porta `QRDialog` con ZXing para generar y decodificar QR en JVM. Sustituye `QrScannerDialog` (CameraX) por una entrada de URL o la apertura de una imagen. Desacopla `SpotifyImporter` de `Context` y del repositorio. Verifica con tests y manualmente.
-
----
-
-#### M12 — Feed de recomendaciones (Supabase) (0.5 semana)
-**Objetivo:** `FeedScreen` con `SupabaseClient` (ya en `:core`).
-**Tareas**
-- Portar `FeedScreen`; nickname, grupos y recomendaciones.
-- Reducir los logs de `SupabaseClient` (PII, punto pendiente del `report.md`).
-
-**Definition of Done:** se listan recomendaciones reales y se puede crear una.
-**Verificación:** `./gradlew :desktop:test` + prueba manual con red.
-**Prompt opencode:**
-> Porta `FeedScreen` a `:desktop` usando el `SupabaseClient` de `:core`: listar recomendaciones, nickname y grupos, y crear una recomendación. Reduce los logs con datos sensibles. Verifica con una prueba manual con red.
-
----
-
-#### M13 — Integración nativa del escritorio (1–2 semanas)
-**Objetivo:** teclas multimedia, bandeja y notificaciones del SO.
-**Tareas**
-- Interfaz `DesktopMediaIntegration` en `:desktop` + implementación Linux (**MPRIS** vía D-Bus).
-- Bandeja del sistema (`SystemTray`) con controles; menú de salir.
-- *(Fase posterior)* `SmtcIntegration` (Windows) y `NowPlayingIntegration` (macOS) bajo la misma interfaz.
-
-**Definition of Done:** las teclas play/pause/next/prev del SO controlan la reproducción en Linux; hay icono de bandeja.
-**Verificación:** prueba manual en Linux con `playerctl`.
-**Prompt opencode:**
-> Crea la interfaz `DesktopMediaIntegration` y su implementación Linux con MPRIS (D-Bus) para integrar teclas multimedia y metadatos. Añade icono de bandeja con play/pause/next/prev y salir. Verifica con `playerctl` y manualmente.
-
----
-
-#### M14 — Empaquetado multiplataforma (1 semana)
-**Objetivo:** instalables por SO.
-**Tareas**
-- `jpackage` (o Conveyor) y tareas Gradle: Linux (`.deb`, `.rpm`, AppImage, Flatpak), Windows (`.msi`), macOS (`.dmg`).
-- `.desktop` + icono (`.png`/`.svg`) + AppStream metadata en Linux.
-- Declarar `libvlc` como dependencia; documentar en `README`.
-
-**Definition of Done:** se genera un instalable para el SO objetivo que arranca sin Java instalado.
-**Verificación:** instalar el paquete generado y abrir la app.
-**Prompt opencode:**
-> Configura el empaquetado de `:desktop`: tareas Gradle con `jpackage` para Linux (.deb/.rpm/AppImage), Windows (.msi) y macOS (.dmg), `.desktop` + icono + AppStream en Linux, y declaración de `libvlc` como dependencia. Documenta en el README. Verifica generando e instalando el paquete de Linux.
-
----
-
-#### M15 — Pulido y paridad final (1–2 semanas)
-**Objetivo:** cerrar diferencias y calidad.
-**Tareas**
-- Atajos de teclado, drag & drop fino, estados de carga/error pulidos.
-- `UpdateChecker` adaptado (GitHub releases / gestor de paquetes).
-- Actualizar `README.md` y `report.md` con la parte de escritorio.
-- Checklist de i18n y detekt aplicado a los módulos nuevos.
-
-**Definition of Done:** paridad funcional con Android menos NFC/cámara/sensor; documentación actualizada.
-**Verificación:** `./gradlew build`, `./run.sh check`
-**Prompt opencode:**
-> Cierra la paridad: atajos de teclado, pulido de estados, `UpdateChecker` para escritorio, y actualiza README/report.md. Pasa detekt y los tests. Verifica con `./gradlew build` y `./run.sh check`.
-
----
+- **M0 — Andamiaje de módulos:** `:core` (KMP; se usa `com.android.kotlin.multiplatform.library` en lugar de `androidTarget()`, que AGP 9 marca deprecado) y `:desktop` (Compose MP); `:app` y `:desktop` dependen de `:core`.
+- **M1 — Lógica pura a `:core`:** 13 archivos a `commonMain` y 5 a `jvmSharedMain` (source set nuevo compartido JVM+Android), con `Logger` propio en vez de `android.util.Log`; los tests puros pasan a `:core:jvmTest`.
+- **M2 — Red a `:core`:** `YouTubeManager`, `NewPipeHolder`, `SimpleDownloader`, `SupabaseClient`, `AppModels` y el catálogo de traducciones; `NetworkConfig` sustituye a `BuildConfig`; `MediaMetadataExtractor` se mueve a `jvmSharedMain`.
+- **M3 — `AudioPlayer` + `QueueEngine`:** interfaz neutral de reproducción y lógica de cola pura; ExoPlayer queda aislado en `ExoAudioPlayer`.
+- **M4 — VLCJ:** `VlcAudioPlayer` + `VlcPlaybackStateMachine` + detección de `libvlc`; prueba de sonido con YouTube real.
+- **M5 — Esqueleto UI:** tema terminal, `Screen`/navegación, `Translations` y `FloatingMusicControls`.
+- **M6 — SQLDelight:** esquema `.sq` + `PlaylistRepository`/`SearchHistoryRepository`; lógica de fusión (liked/tombstones/visibles) extraída a `:core`.
+- **M7 — Reproducción en UI (MVP):** `PlayerController` y `SearchController` sobre `StateFlow`; búsqueda y cola reales.
+- **M8 — Playlists UI:** alta/edición/borrado/reordenado, portada recortada con Coil 3 y «añadir a lista».
+- **M9 — Config:** `DesktopConfig` persistente (multiplatform-settings), rutas por SO y `CoverCache`.
+- **M10 — Import/Export + backup:** `plyr-sync.zip` con `java.nio`, tombstones persistentes y selector de carpeta nativo.
+- **M11 — QR + Spotify:** `QrCodec`/`QrImages` (ZXing, sin cámara) y `SpotifyImport` desacoplado de Android/Room.
+- **M12 — Feed (Supabase):** `FeedController`/`FeedScreen` con listado, publicación y apodo persistido.
+- **M13 — Integración nativa:** MPRIS (Linux, D-Bus) y bandeja del sistema; SMTC/Now Playing quedan para más adelante.
+- **M14 — Empaquetado:** `jpackage` vía plugin Compose (`.deb` verificado; `.rpm`/`.msi`/`.dmg` configurados).
+- **M15 — Pulido:** atajos de teclado, `UpdateChecker` de escritorio, detekt con `detekt-baseline.xml`, checklist i18n y docs.
 
 ### 6.2 Tabla de seguimiento
 
@@ -478,168 +285,185 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M10 | Import/Export + backup | 1 | ☑ |
 | M11 | QR + Spotify import | 1 | ☑ |
 | M12 | Feed Supabase | 0.5 | ☑ |
-| M13 | Integración nativa (MPRIS/SMTC/Now Playing) | 1–2 | ☑ |
+| M13 | Integración nativa (MPRIS/SMTC/Now Playing) | 1–2 | ☑ (solo MPRIS) |
 | M14 | Empaquetado multiplataforma | 1 | ☑ |
-| M15 | Pulido y paridad final | 1–2 | ☑ |
+| M15 | Pulido y paridad final | 1–2 | ☑ (paridad parcial, ver §6.4) |
+| M16+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
-**Ruta crítica:** `M0 → M1 → M3 → M4 → M7` da un MVP funcional. `M2`, `M5` y `M6` pueden ir en paralelo si hay más de un dev.
+### 6.3 Decisiones clave del port
 
-### 6.3 Registro de ejecución del port
+- **Stack final:** Kotlin + Compose Multiplatform; `:core` KMP (`commonMain` puro + `jvmSharedMain` para `java.*` compartido JVM/Android + `jvmTest`); SQLDelight en vez de Room; VLCJ en vez de ExoPlayer; multiplatform-settings en vez de SharedPreferences; Coil 3; MPRIS tras `DesktopMediaIntegration`; `jpackage`.
+- **Desviaciones conscientes (no son deuda):** sin NFC; sin CameraX (se pega URL / se abre imagen); sin sensor de luz (tema del SO); sin swipe (acciones contextuales con ratón); sin notificaciones nativas del SO (MPRIS); sin SAF (`java.nio`); listas creadas localmente (no de YouTube).
+- **Código compartido en `:core`:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport`, `CoverCacheKey`, `formatTimestamp`, `PlaylistFilters`/`TrackIdentity`/`Tombstones`, `ShareUrlPolicy`/`PlaylistShare`.
+- **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
+- **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-- **M0 — Andamiaje de módulos ✅.** Módulos `:core` (Kotlin Multiplatform, target Android vía el plugin `com.android.kotlin.multiplatform.library` + `jvm()`) y `:desktop` (Compose Multiplatform, toolchain JVM 21). `:app` y `:desktop` dependen de `:core`.
-  - Versiones fijadas en `gradle/libs.versions.toml`: Compose Multiplatform `1.12.1`, SQLDelight `2.4.1`, VLCJ `4.12.1`, multiplatform-settings `1.3.0`, Coil 3 `3.6.3`, kotlinx-coroutines `1.10.2` (usados en hitos posteriores).
-  - **Desviación respecto al plan (M0):** se usa `com.android.kotlin.multiplatform.library` (`kotlin { androidLibrary { … } }`) en lugar de `androidTarget()` + `com.android.library`. AGP 9 marca esa combinación como deprecada y recomienda el plugin nuevo; el resultado (target Android + JVM compartidos) es equivalente.
-  - Verificado: `./gradlew :core:build`, `./gradlew :desktop:build`, `./gradlew :desktop:run` (abre la ventana) y `./run.sh build` (APK de Android).
-- **M1 — Extraer lógica pura a `:core` ✅.** Movidos **13 archivos** a `core/src/commonMain` (`model/AudioItem`, `model/ScanResult`, `viewmodel/{WindowState,LoadingState,PendingSkips,IdlePlayback}`, `service/{CoverCropMath,PlaybackNotificationState,NotificationRefreshPolicy}`, `utils/{UrlParser,LikedSongsMerge}`, `database/PlaylistSource`) y **5** al source set compartido `jvmSharedMain` (usa `java.*`, presente en JVM y Android/ART): `model/Recommendation`, `utils/{ExportManifest,ExportDigest,ImportArchive}`, `utils/NfcScanEvent`. Se movieron **169 tests** que pasan en `:core:jvmTest`; los **335** restantes siguen en `:app` (UI/Room/red) y migrarán en M2/M3/M5/M6/M9.
-  - Nuevo source set KMP `jvmSharedMain` compartido por los targets `jvm` y `android` (intermedio entre `commonMain` y ambos), para el código JVM (`java.*`) que no encaja en `commonMain` estricto.
-  - Logger propio `com.plyr.core.util.Logger` (`jvmSharedMain`, vía `java.util.logging`, equivalente en Android) sustituye a `android.util.Log` en `NfcScanEvent`.
-  - **Diferidos respecto al plan (M1):** `QueueIndex` (depende de `Config`→M9/M3), `ImportManifest` (Room→M6), `YouTubePlaylistCreator` (Room+red→M2/M6), `MediaMetadataExtractor` (NewPipe→M2), `NfcTagEvent` (`android.nfc.Tag`, se queda en `:app`) y `ModelDefaultsTest` (depende de UI). Se documentan aquí para no perderlos.
-  - Verificado: `./gradlew :core:jvmTest` (169 tests, 0 fallos), `./gradlew :app:assembleDebug` y `./gradlew :app:testDebugUnitTest` (335 tests, 0 fallos).
-  - **Cierre de M1 (pasada final).** Movidos a `core/src/commonMain` los últimos ayudantes puros sin dependencia de Android que seguían en `:app`: `receivers/MediaButtonCommand` (enum `MediaCommand` + mapeo de keyCodes), `ui/components/{NfcPulse,SongSwipe}` y `ui/utils/StableKeys`; `utils/StorageSize` va a `jvmSharedMain` (usa `java.util.Locale`). Sus **5 tests** (**37 casos**) se movieron a `commonTest`/`jvmTest`. Quedan en `:app` solo los adaptadores con dependencia de Room/UI/ViewModel (`DatabaseExtensions`, `YouTubePlaylistCreator`, `PlaylistMappings`, `DownloadPlan`, `PlaybackRequester`): no son lógica pura portable y la creación de listas de YouTube es una función exclusiva de Android. Verificado: `:core:jvmTest` **422** tests y `:app:testDebugUnitTest` **123** (mismos **545**, 0 fallos); `./run.sh build` (APK) correcto.
-- **M2 — Red a `:core` sin Android ✅.** Movidos **7 archivos** de `:app` a `:core`:
-  - `commonMain` (puro): `network/AppModels.kt` (data classes de Spotify) e `i18n/TranslationCatalog.kt` (catálogo de traducciones: mapas + `get(language, key)`).
-  - `jvmSharedMain` (JVM/Android): `network/{YouTubeManager,SimpleDownloader,SupabaseClient}.kt` y `utils/{NewPipeHolder,MediaMetadataExtractor}.kt` (este último era un diferido de M1).
-  - **Sin dependencia de Android:** `android.util.Log` → `com.plyr.core.util.Logger` en los tres ficheros de red; `BuildConfig` → nuevo `com.plyr.core.NetworkConfig`, que `:app` rellena en `PlyrApp.onCreate` desde `BuildConfig` (conserva los overrides de `local.properties`/entorno de S9/S10). `SupabaseClient` lee `NetworkConfig.supabaseUrl`/`supabaseAnonKey` mediante getters para no capturar valores en el init.
-  - **Traducciones (desviación respecto al plan):** el catálogo puro se mueve a `:core` (`com.plyr.i18n.TranslationCatalog`); `:app` conserva un envoltorio fino `com.plyr.utils.Translations.get(context, key)` que resuelve el idioma con `Config` y delega en el catálogo. Así las ~110 llamadas `Translations.get(context, …)` no cambian y la parte que necesita `Context` no contamina `:core`.
-  - **Dependencias** declaradas en `jvmSharedMain` (compartidas por `jvm` + `android`): `NewPipeExtractor` (`v0.26.3`) y `OkHttp`. `org.json` se declara solo para `jvm`: en Android lo aporta el SDK (android.jar), y declararlo empaquetaría una copia duplicada en el APK.
-  - **Tests movidos:** `AppModelsTest` y `TranslationCatalogTest` (ex `TranslationsTest`) a `commonTest`; `SimpleDownloaderLogRedactionTest`, `SupabaseClientTest`, `NewPipeHolderTest` y `AudioUrlExtractionTest` (usa el overload `internal` de `YouTubeManager`) a `jvmTest`. `TranslationKeysUsageTest` se queda en `:app` (escanea las fuentes de la app) pero refleja el catálogo de `:core`.
-  - **Smoke test de red** (`jvmTest/.../NetworkSmokeTest.kt`): verifica desde un JVM de escritorio que `YouTubeManager.searchVideoId(...)` devuelve un id y que `getAudioUrl(...)` extrae una URL reproducible; se omite con `assumeTrue` cuando no hay conexión (en esta máquina **se ejecutó y pasó**).
-  - **Ajuste de test:** `NewPipeHolderTest.init_notInitializedBeforeFirstCall` asumía un JVM limpio; al inicializar el smoke test NewPipe en el mismo proceso dejaba de ser válido. Se sustituye por `init_secondCallIsIdempotentAndKeepsFirstDownloader`, que comprueba el contrato real (idempotencia: el segundo init no reemplaza el `Downloader`) y no depende del orden de ejecución.
-  - Verificado: `./gradlew :core:jvmTest` (**225 tests**, 0 fallos), `./run.sh test` (**280 tests** de `:app`, 0 fallos) y `./run.sh build` (APK de Android, sin clases duplicadas). **Total: 505 tests.**
-- **M3 — `AudioPlayer` + `QueueEngine` ✅.** `PlayerViewModel` (y el resto de `:app`) ya no menciona ExoPlayer: solo lo hace `ExoAudioPlayer`.
-  - **`core` (puro):** nuevo paquete `com.plyr.player` con `AudioTrack` (`mediaId`, `title`, `artist`, `uri`), la interfaz `AudioPlayer` (`mediaItemCount`, `currentMediaItemIndex`, `currentPosition`, `duration`, `isPlaying`, `playbackState`, `setListener`, `setMediaItems`/`addMediaItems`/`removeMediaItems`, `prepare`/`play`/`pause`/`stop`/`clearMediaItems`, `seekTo(index,position)`/`seekTo(position)`/`seekForward`/`seekBack`, `setRepeatOne`, `release`, y `TIME_UNSET`), el enum `PlaybackState` (`IDLE`/`BUFFERING`/`READY`/`ENDED`) y `AudioPlayerListener`. `PlaybackState` se eligió sobre booleanos (`isIdle`/`isBuffering`/`isReady`) para que la UI y la cola distingan READY de ENDED sin exponer las constantes de media3.
-  - **`RepeatMode`** (`com.plyr.domain`, valores `"off"`/`"one"`/`"all"`) centraliza el modo de repetición; `Config.REPEAT_MODE_*` pasan a ser alias `const val` para no tocar las llamadas de `:app`.
-  - **`QueueEngine<T>` (puro, `commonMain`):** reúne el estado que antes vivía suelto en `PlayerViewModel` (cola, índice actual, modo de repetición y `WindowState`) y delega las decisiones en `QueueIndex`: `nextTarget`/`previousTarget`/`onTrackEndedTarget`/`retryTarget`/`hasNext`, `fillTarget(mediaItemCount)` y `trimCount(currentMediaItemIndex)`, más `setQueue`/`appendTrack`/`replaceQueue`/`anchorWindowAt`/`resetWindow`/`shiftWindow`/`invalidateWindow`. Es genérico (`<T>`) para no depender de `TrackEntity` (que vive en `:app`). `PlayerViewModel` lo usa con propiedades de delegación (`queue`, `currentIndex`, `windowStart`, `generation`, `queueRepeatMode`), de modo que el grueso del código no cambia.
-  - **`:app`:** `ExoAudioPlayer` (paquete `com.plyr.player`) envuelve `ExoPlayer` (misma configuración: atributos de audio, `setHandleAudioBecomingNoisy(true)`, incrementos de 10 s) y traduce `MediaItem`/`Player.STATE_*`/`PlaybackException` a los tipos neutrales; expone `val player: ExoPlayer` para lo intrínsecamente Android. `TrackResolver` construye `AudioTrack` en vez de `MediaItem` (`ResolvedItem.track`). `PlayerViewModel` pasa de `_exoPlayer: ExoPlayer?`/`exoPlayer` a `_player: AudioPlayer?`/`audioPlayer`, y `onMediaSessionUpdate` es `((AudioPlayer) -> Unit)?`. `MusicService.setupMediaSession(AudioPlayer, …)` desenvuelve a `ExoPlayer` para la `MediaSession`; `FloatingMusicControls` y `MediaButtonReceiver` usan la interfaz. En `FloatingMusicControls` se renombró la data class local `PlaybackState` a `PlaybackUiState` para no chocar con el enum de `:core`.
-  - **Tests portados/creados:** `QueueIndexTest` (32) se movió de `:app` a `commonTest`; ya estaban en `:core` los de `WindowState`, `LoadingState`, `IdlePlayback` y `PendingSkips`. Nuevo `QueueEngineTest` (**19 tests**) cubre navegación, anclaje/generación de ventana, `fillTarget` y `trimCount`.
-  - **Sin cambios de comportamiento:** `ExoAudioPlayer` reproduce la misma configuración de ExoPlayer y el mismo mapeo de eventos; `QueueEngine` conserva la aritmética exacta de `fillTarget`/`trimWindow` y la delegación en `QueueIndex`.
-  - Verificado: `./gradlew :core:jvmTest` (**276 tests**, 0 fallos), `./run.sh test` (**248 tests** de `:app`, 0 fallos), `./run.sh build` (APK) y `./gradlew :desktop:build`. **Total: 524 tests** (505 + 19 de `QueueEngine`; el recuento de `:app` baja de 280 a 248 porque `QueueIndexTest` pasa a `:core`).
-  - **Nota para M4:** `ExoAudioPlayer` es el molde de `VlcAudioPlayer`; la ventana de cola y las decisiones de salto ya viven en `QueueEngine` (puro), así que el adaptador de escritorio solo debe implementar `AudioPlayer`.
-- **M4 — Adaptador VLCJ + prueba de sonido ✅.** El motor de audio funciona en escritorio: `:desktop:soundCheck` reproduce una canción real de YouTube (verificado).
-  - **Dependencia:** `uk.co.caprica:vlcj:4.12.1` en `:desktop` (arrastra `vlcj-natives`, que son solo los bindings JNA). `libvlc` nativo **no** va incluido: hay que tener VLC instalado en el sistema.
-  - **`VlcAudioPlayer : AudioPlayer`** (`com.plyr.desktop.player`), sobre `EmbeddedMediaPlayer`. VLCJ no tiene un "media item list" como media3, así que la ventana de pistas se mantiene en la propia clase y cada salto recarga la URL en VLC (`media().play(url, ":no-video")`). Reproduce el comportamiento de `ExoAudioPlayer`: avance automático al siguiente item de la ventana al terminar (`finished`), "repetir uno" recargando la actual, y `PlaybackState.ENDED` solo al agotar la ventana.
-  - **Máquina de estados pura** `VlcPlaybackStateMachine`: traduce los eventos de VLCJ (`opening`/`buffering`/`playing`/`paused`/`stopped`/`finished`/`error`) a `PlaybackState` y avisa al `AudioPlayerListener`, notificando solo cuando el valor cambia. Es testeable **sin** `libvlc` (justo lo que pide la verificación).
-  - **Detección de `libvlc`** (`VlcEnvironment`): busca el runtime en `PLYR_VLC_DIR` y, si no, en rutas estándar por SO; construye `--plugin-path` y `jna.library.path` para VLC no estándar; y da un **mensaje claro** con cómo instalarlo si falta (la CLI sale con código 2 y la ventana lo muestra en pantalla).
-  - **Prueba de sonido:** `SoundCheck.kt` (CLI, tarea `:desktop:soundCheck`) busca en YouTube con `YouTubeManager`, extrae la URL con `getAudioUrl` y reproduce informando posición/duración/estado. `Main.kt` pasa a ser una ventana mínima (campo de búsqueda + Reproducir/Parar) para que `./gradlew :desktop:run` también reproduzca. Ambas vías admiten `-PvlcDir=/ruta/a/libvlc` (o `PLYR_VLC_DIR`), que se propaga a `run`/`soundCheck`/`test` como `PLYR_VLC_DIR` + `LD_LIBRARY_PATH`.
-  - **Tests (15, `desktop/src/test`):** `VlcPlaybackStateMachineTest` (9) cubre la máquina de estados; `VlcEnvironmentTest` (5) la detección y los argumentos; `VlcAudioPlayerSmokeTest` (1) construye el reproductor y gestiona la ventana, **se omite con `assumeTrue`** si no hay `libvlc`.
-  - **Verificado aquí:** esta máquina no tenía VLC ni permisos de `sudo`, así que se extrajo VLC 3.0.24 sin root (`apt-get install --download-only` + `dpkg-deb -x` en `/tmp/opencode/vlc`) y se ejecutó con `PLYR_VLC_DIR`+`LD_LIBRARY_PATH`: `:desktop:soundCheck` reprodujo **audio real** (posición avanzando 3.7s→18.2s de una pista de 450.7s, estado "sonando"); la ventana de `:desktop:run` arranca sin excepciones; y sin `libvlc` el mensaje de instalación y la salida con código 2 son correctos. En un sistema con VLC instalado no hace falta nada de esto. Procedimiento sin root (por si hace falta repetirlo):
-    ```bash
-    mkdir -p /tmp/opencode/vlcdebs/partial
-    apt-get install --download-only --no-install-recommends -y \
-      -o Dir::Cache::archives=/tmp/opencode/vlcdebs -o Debug::NoLocking=1 vlc
-    for d in /tmp/opencode/vlcdebs/*.deb; do dpkg-deb -x "$d" /tmp/opencode/vlc; done
-    D=/tmp/opencode/vlc/usr/lib/x86_64-linux-gnu          # libvlc.so.5 / libvlccore.so.9
-    ln -sf libvlc.so.5 "$D/libvlc.so"; ln -sf libvlccore.so.9 "$D/libvlccore.so"
-    ./gradlew :desktop:soundCheck -PvlcDir="$D" --args="artista canción"
-    ```
-  - Verificado: `:desktop:test` (**15 tests** con VLC, 14 + 1 omitido sin él, 0 fallos), `:desktop:build`, `./run.sh build` (APK), `./run.sh test` (248) y `:core:jvmTest` (276). **Total: 539 tests** (524 + 15 de `:desktop`).
-- **M5 — Esqueleto de UI Compose Desktop ✅.** `:desktop` ya tiene navegación, tema terminal e i18n; la reproducción real llega en M7.
-  - **Tema** (`com.plyr.desktop.ui.theme.Theme`): portado tal cual de `com.plyr.ui.theme` (colores claro/oscuro, `PlyrSpacing`, `PlyrSymbols`, `Typography` monoespaciada y `PlyrTheme`, sin `@Preview`). El logo de Android (drawables `ascii_1..50`) se sustituye por un banner de texto fijo `AsciiArt.LOGO`.
-  - **Navegación** (`com.plyr.desktop.ui`): `enum Screen` (HOME/SEARCH/QUEUE/PLAYLISTS/FEED/CONFIG) y `AudioListScreen` como contenedor. En vez de los `Pager` de Android (que no encajan con ratón/teclado) la Home es un menú de consola explícito que cambia de pantalla; cada pantalla de datos es un `PlaceholderScreen` hasta M6/M7.
-  - **Componentes portados** (`ui/components`): `Titulo`/`Subtitulo` y `ActionButton`/`ActionButtonsGroup`.
-  - **Pantallas** (`ui/screens`): `HomeScreen` (banner ASCII + menú), `PlaceholderScreen` (Search/Queue/Playlists/Feed) y `ConfigScreen` (selectores de tema e idioma, con la opción activa marcada).
-  - **`FloatingMusicControls` portado sin reproducción real** (`ui/FloatingMusicControls.kt`): recibe un `PlayerUiState` neutral (título, tiempos, cola, repetición) + callbacks que cablea M7; conserva la estética terminal (`//`, `>`, `<<`, `>>`, `^`, ciclo `o`/`1`/`*`). En el esqueleto se muestra con el estado "player not available". La marquesina solo crea la animación infinita si el texto desborda: así la composición queda ociosa y los tests de Compose no se cuelgan.
-  - **Config + i18n:** `DesktopConfig` (backend **temporal en memoria** con estado de Compose; M9 lo hará persistente con `multiplatform-settings`) expone tema, idioma, modo de repetición y buscador; `ThemeMode`/`Language` usan los **mismos ids** que Android (`"dark"`, `"español"`, …). `com.plyr.desktop.i18n.Translations` envuelve `TranslationCatalog` de `:core` resolviendo el idioma actual.
-  - **`Main.kt`** aplica `PlyrTheme(DesktopConfig.isDark(isSystemInDarkTheme()))` y muestra `AudioListScreen` (la ventana de prueba de M4 desaparece; M4 sigue verificándose con `:desktop:soundCheck`). El tema por defecto es `SYSTEM`.
-  - **Tests (13 nuevos, `desktop/src/test`):** `AudioListScreenTest` (**6**, con `runComposeUiTest` v2 — `androidx.compose.ui.test.v2`, que evita el aviso de deprecación del v1 y usa `StandardTestDispatcher`) abre en Home, navega por el menú, vuelve, usa el botón de cola y cambia idioma/tema; `DesktopConfigTest` (**4**) y `TranslationsTest` (**3**). Se añade `testImplementation(compose.desktop.uiTestJUnit4)`.
-  - **Verificado aquí:** `:desktop:test` (**28 tests**, 1 omitido sin `libvlc`, 0 fallos); `:desktop:run` abre una ventana real —comprobado bajo Xvfb con `xdotool` (ventana "plyr", 800x600, `IsViewable`, sin excepciones)— y el OCR de una captura confirma el banner ASCII, los 5 ítems del menú (`> plyr_search`, `> plyr_queue`, `> plyr_lists`, `> plyr_feed`, `> plyr_config`) y los controles. **Total: 552 tests** (539 + 13 de `:desktop`; `:core` 276 + `:app` 248 + `:desktop` 28).
-- **M6 — Persistencia SQLDelight ✅.** El escritorio ya guarda listas, pistas, favoritos e historial sin Room y **sobrevive a reinicios**.
-  - **Lógica portable a `:core` (commonMain).** Nuevas interfaces de vista mínima `PlaylistRow` (`remoteId`, `name`, `trackCount`) y `TrackRow` (`name`, `artists`, `youtubeVideoId`) + modelos completos `PlaylistRecord`/`TrackRecord` (`com.plyr.database`) y constante compartida `LikedSongs.ID = "liked_songs"`. `PlaylistFilters.visiblePlaylists` (filtro/orden de listas visibles, ex-`PlaylistLocalRepository`) y `TrackIdentity` (`fallbackDedupeKey`/`likedTrackKey`/`likedTrackOf`, ex-`ImportManifest`+`PlaylistLocalRepository`) viven ahora en `:core`; `Tombstones` (`merge`/`add`/`remove`) aporta las operaciones puras de tombs. `LikedSongsMerge` y `PlaylistSource` ya estaban en `:core`.
-  - **`:app` sin cambios de comportamiento.** `PlaylistEntity`/`TrackEntity` implementan `PlaylistRow`/`TrackRow` (`override`); `PlaylistLocalRepository.likedTrackOf`/`visiblePlaylists` pasan a **delegar** en `:core` (misma firma: los tests de `:app` no cambian); `ImportManifest.fallbackDedupeKey`/`likedTrackKey` delegan en `TrackIdentity` y `LIKED_SONGS_ID` es `LikedSongs.ID`. Room y sus DAOs/migraciones se mantienen intactos.
-  - **Esquema `.sq` (SQLDelight 2.4.1)** en `desktop/src/main/sqldelight/com/plyr/desktop/database/`: `Playlist.sq`, `Track.sq` (FK a `playlists` + índice en `playlistId`) y `SearchHistory.sq`, equivalentes a las entidades Room v8. El escritorio parte de base nueva, así que no arrastra las migraciones 5→8 (el esquema ya incluye su resultado: `source`/`sourceId`). Genera `PlyrDatabase` en `com.plyr.desktop.database`.
-  - **Repositorios de escritorio** (`com.plyr.desktop.database`): `DesktopDatabase` (abre/crea el fichero, crea el esquema si falta, activa FKs; `inMemory()` para tests), `PlaylistRepository` (alta/edición/borrado de listas, pistas con dedupe por identidad, reordenación con renumerado, favoritos con tombstones, fusión de liked con `LikedSongsMerge`, `visiblePlaylists` y observación por `Flow` vía `sqldelight-coroutines`) y `SearchHistoryRepository` (sin duplicados por texto+motor, 50 recientes). Los tombs usan un `TombstoneStore` con implementación en memoria (`InMemoryTombstoneStore`): el escritorio aún no tiene copia de seguridad (M10), único consumidor de los tombs, que podrá inyectar un almacén persistente sin tocar los repositorios.
-  - **Desviaciones respecto al plan (M6):** (1) el escritorio **no migra** desde el esquema Room v8 —no hay base previa—, solo replica el esquema final; (2) `ImportManifest` **no** se mueve a `:core` (sigue en `:app`, ya que su `buildTracks` construye `TrackEntity` y solo el escritorio usará import/export en M10); se extrae lo portable (`TrackIdentity`). (3) Los repositorios de escritorio son **síncronos** con `Flow` para observación, en vez de `suspend`: SQLDelight/JDBC es bloqueante y la UI de Compose lo consumirá en M7/M8.
-  - **Tests (nuevos):** `:core` `PlaylistFiltersTest` (5), `TrackIdentityTest` (8) y `TombstonesTest` (6); `:desktop` `PlaylistRepositoryTest` (20), `SearchHistoryRepositoryTest` (7) y `DesktopDatabaseTest` (5, incluida la persistencia cerrando y reabriendo el fichero SQLite). Se añaden `app.cash.sqldelight:coroutines-extensions` y el plugin `app.cash.sqldelight` en `:desktop`.
-  - Verificado: `:core:jvmTest` (**295 tests**, 0 fallos), `:desktop:test` (**62 tests**, 1 omitido sin `libvlc`, 0 fallos) y `./run.sh test` (**248 tests** de `:app`, 0 fallos). **Total: 605 tests** (`:core` 295 + `:app` 248 + `:desktop` 62). `:desktop:compileKotlin` y `./run.sh build` (APK) compilan.
-  - **Nota:** `./run.sh check` reporta 1 hallazgo de detekt (`complexity, TooManyFunctions` en `app/src/main/java/com/plyr/player/ExoAudioPlayer.kt`), **ajeno a M6** y ya presente en el commit `m4`; se deja sin tocar.
-- **M7 — Reproducción integrada en la UI ✅ (MVP).** El escritorio ya busca en YouTube, reproduce, pausa/salta y muestra la cola, todo sobre `StateFlow`.
-  - **Controlador de escritorio** (`com.plyr.desktop.player.PlayerController`): orquesta `QueueEngine` (+ `QueueIndex`/`LoadingState`/`PendingSkips`/`IdlePlayback` de `:core`) sobre un `StateFlow<PlayerState>`. Reutiliza la lógica del `PlayerViewModel` de Android (ventana contigua, resolución perezosa, reintentos con re-resolución, saltos pendientes) pero sin `LiveData` ni Android. El motor y la resolución se **inyectan** —`openPlayer: () -> AudioPlayer` (perezoso) y `sourceResolver: TrackSourceResolver`—, de modo que los tests corren sin `libvlc` ni red. La pista de cola es un tipo neutral propio, `PlayerTrack` (+ `PlayerTrack.fromSearchResult`).
-  - **`SearchController`** (`com.plyr.desktop.search`): `StateFlow<SearchState>` (query/resultados/carga/error) con la búsqueda inyectada. La búsqueda real vive en `:core`: `YouTubeManager.searchVideos(query, maxResults)` (+ `formatDurationSeconds` privado) devuelve `List<AudioItem>`, reutilizable desde Android.
-  - **UI** (`com.plyr.desktop.ui`): `AudioListScreen` pasa a ser el contenedor que crea el controlador y el buscador, traduce `PlayerState` a `PlayerUiState` y enruta `SEARCH`/`QUEUE`. Nuevas `SearchScreen` (buscar + reproducir resultado) y `QueueScreen` (listar/saltar/reordenar). `FloatingMusicControls` recibe ahora estado real: **se oculta cuando no hay nada** (título/carga/error), así que la barra solo aparece al reproducir. El progreso se refresca por sondeo de la UI (`LaunchedEffect` solo mientras suena), no con un bucle interno.
-  - **Resolución real** (`YouTubeTrackSourceResolver`): usa `YouTubeManager.resolveVideoId`/`getAudioUrl` de `:core`.
-  - **Correcciones de concurrencia (descubiertas con VLC real):** (1) todas las mutaciones del `StateFlow` usan `MutableStateFlow.update` (atómico) en vez de `value = value.copy(...)`, que perdía actualizaciones cuando dos callbacks de VLC (que llegan por el hilo de VLC y se reencolan en el `scope`) coincidían; (2) `VlcPlaybackStateMachine.state`/`isPlaying` pasan a `@Volatile`. Sin (1) el estado se quedaba en "cargando" con audio sonando.
-  - **Bug latente de M4 corregido:** VLCJ emite `buffering` **justo después** de `playing` (con la caché llena), y `onBuffering()` devolvía el estado a `BUFFERING` para siempre: la UI mostraba "cargando" indefinidamente aunque el audio avanzaba. `onBuffering()` ahora solo pasa a `BUFFERING` si aún no se está reproduciendo (+ test de regresión).
-  - **Desviaciones respecto al plan (M7):** (1) reordenar en la cola **reanuda** la pista actual reconstruyendo la ventana (drag & drop suave es M8/M15); (2) el **historial de búsqueda** de M6 aún no se cablea a la búsqueda (diferido); (3) el `PlayerState` es un espejo neutral de escritorio, no el `PlayerViewModel` de Android.
-  - **Tests (nuevos):** `:desktop` `PlayerControllerTest` (15, con `FakeAudioPlayer` + resolver falso, `Dispatchers.Unconfined`), `SearchControllerTest` (6), `SearchScreenTest` (5), `QueueScreenTest` (3), `PlayerControllerVlcIntegrationTest` (1, reproduce un WAV local con **VLC real**; se omite sin `libvlc`) y +1 en `VlcPlaybackStateMachineTest` (10) por el bug del `buffering`. Se actualizó `AudioListScreenTest` al comportamiento de M7 (la barra flotante no aparece sin reproducción; la cola se abre desde el menú de Home).
-  - Verificado en vivo: `./gradlew :desktop:run` (bajo `Xvfb`, `PLYR_VLC_DIR=/tmp/opencode/vlc/...`); búsqueda "daft punk" con resultados reales de YouTube, reproducción de un resultado (posición avanzando `01:32→01:48→02:39…`), cola con **15** pistas y pista actual `4/15`, **pausa** (posición congelada en `02:32`) y reanudación (`02:34→02:39`).
-  - Verificado: `:core:jvmTest` (**295 tests**), `./run.sh test` (**248 tests** de `:app`), `:desktop:test` (**93 tests**; con `libvlc` corren los 93 —incluida la integración—, sin él se omiten 2: el de humo y la integración). **Total: 636 tests** (`:core` 295 + `:app` 248 + `:desktop` 93), 0 fallos. Compilan `:core:build`, `:app:compileDebugKotlin` y `./gradlew build -x :app:detekt`. **Nota:** `./gradlew build` (sin excluir nada) sigue fallando **solo** por el hallazgo de detekt preexistente de M4 (`TooManyFunctions` en `ExoAudioPlayer.kt:26:7`), ajeno a M7.
-- **M8 — Playlists UI + drag & drop ✅.** Las listas ya se crean, editan, borran, reordenan y se les pone portada en escritorio, con paridad de `PlaylistScreen` (Android).
-  - **Alta que faltaba.** `CreatePlaylistView` solo cerraba el diálogo: el botón de guardar no llamaba a nada. Se añade `PlaylistsController.createPlaylist(título, descripción)` (lista local `local_<uuid>`, `PlaylistSource.LOCAL`, nombre recortado y obligatorio) y se cablea el formulario (guardar valida/crea y abre la lista; cancelar cierra). Se localizaron sus rótulos.
-  - **Reordenado real.** `PlaylistTrackItem` pasaba `Int.MAX_VALUE` como número de pistas y descartaba el destino (`onDrop` vacío), así que el drag era decorativo: ahora recibe `itemCount` y `onMove`, y `PlaylistsController.reorderTracks` persiste el orden vía `PlaylistRepository.reorderTracks`. `ReorderState` cambia `detectDragGesturesAfterLongPress` por `detectDragGestures` (arrastre directo en escritorio, ya que solo está activo en modo edición) e incluye `itemCount` en las claves de `pointerInput`.
-  - **Portada personalizada.** `CoverCropDialog` (escritorio) replica el de Android sobre `java.awt.image`/Skia y reutiliza la matemática pura de `:core` (`CoverCropMath`, zoom por arrastre/rueda y botones `-`/`+`). `CoverStore` (`com.plyr.desktop.utils`) recorta el cuadrado visible, lo reescala a 512 px, lo recomprime en JPEG (mismo escritor que la exportación de M10, ahora `internal`) y lo guarda en `<dataDir>/covers`, devolviendo la URL `file://` que persiste `imageUrl` con `PlaylistsController.updateCover`.
-  - **Portadas visibles.** `PlaylistCover` usa `AsyncImage` de **Coil 3** (componentes por defecto cubren `file://` y `http(s)`), en la rejilla y en la cabecera del detalle.
-  - **Añadir a lista.** Se hoistea `PlaylistsController` a `AudioListScreen` (antes vivía dentro de la rama de pantalla) para compartirlo con la búsqueda: cada resultado tiene una acción `+` que abre un `AddToPlaylistDialog` con las listas visibles y llama a `PlaylistsController.addTrackToPlaylist` (`PlayerTrack.toTrackRecord(playlistId)` construye la pista; el repositorio deduplica por vídeo y numera).
-  - **i18n.** Nuevas claves `edit`, `save`, `play_all`, `edit_cover`, `change_cover` y `tracks_count` en los **4** idiomas (español, inglés, catalán, japonés) y sustitución de los literales de las vistas de listas.
-  - **Desviaciones respecto al plan (M8):** (1) se usa `javax.imageio` en vez de `Bitmap` y Coil 3 en vez de la carga manual, igual que en M9–M14; (2) el alta crea listas **locales**, no de YouTube (eso es exclusivo de Android, `YouTubePlaylistCreator`); (3) el drag de reordenado es inmediato (no long-press), más natural con ratón.
-  - **Tests (nuevos):** `PlaylistsControllerTest` (**10**: alta válida/recorte/descripción vacía/nombre vacío, reordenado persistido, quitar, añadir con deduplicación, portada, guardar edición, cancelación con confirmación y borrado). Verificado: `:desktop:test` **188 tests** (4 omitidos: 2 de bandeja en headless y 2 de `libvlc`), 0 fallos; `:core:jvmTest` **422**.
-- **M9 — Config/Ajustes multiplataforma ✅.** Los ajustes del escritorio ya persisten entre reinicios y las rutas de datos/caché siguen la convención de cada SO.
-  - **`DesktopConfig` persistente** (`com.plyr.desktop.config`): mantiene las claves y migraciones de `com.plyr.utils.Config` de Android (`theme`, `language`, `repeat_mode`, `search_engine`, `search_engine_migrated`), pero con backend multiplataforma `multiplatform-settings` 1.3.0 sobre `java.util.prefs` (`DesktopSettings.create()`, nodo `com/plyr/desktop`). Conserva la migración del idioma legacy `"japanese"` → `"日本語"` y la inicialización única del buscador (`search_engine_migrated`). Los valores viven en `mutableStateOf` (la UI reacciona al cambiarlos) y se escriben al almacén en el mismo setter. `installSettings(Settings)` permite sustituir el almacén en tests y relee los valores aplicando de nuevo las migraciones.
-  - **Rutas por SO** (`com.plyr.desktop.platform.AppPaths`): **Windows** `%APPDATA%\plyr` (config y datos) + `%LOCALAPPDATA%\plyr\cache`; **Linux** `$XDG_CONFIG_HOME/plyr`, `$XDG_DATA_HOME/plyr` y `$XDG_CACHE_HOME/plyr` con los fallbacks `~/.config`, `~/.local/share` y `~/.cache`; **macOS** `~/Library/Application Support/plyr` + `~/Library/Caches/plyr`. `resolve(osName, home, env)` es lógica pura y devuelve **cadenas** (no `Path`, que interpreta los separadores del SO anfitrión) para poder testear los tres sistemas desde cualquiera; `ensureDirectories()` las crea.
-  - **Datos persistentes (cabía en M6, se cierra aquí):** la base SQLite se abre ahora en `AppPaths.databaseFile` (`dataDir/plyr.db`) desde `AudioListScreen` (la fábrica se inyecta; los tests usan `DesktopDatabase.inMemory()`) y se cierra al salir, y `Main` llama a `AppPaths.ensureDirectories()` al arrancar. Hasta M7 la UI usaba `DesktopDatabase.inMemory()`, así que listas, favoritos e historial **no** sobrevivían a reinicios; ahora sí.
-  - **Caché de portadas de escritorio** (`com.plyr.desktop.utils.CoverCache`): descarga con OkHttp y guarda cada portada una sola vez en `AppPaths.directories.cacheDir/export-covers`, con carpeta y descarga inyectables. La clave del nombre de archivo (SHA-256 hex de la URL) se extrae a `:core` (`com.plyr.utils.CoverCacheKey`, `jvmSharedMain`) y el `CoverCache` de Android pasa a **delegar** en ella, de modo que ambas plataformas usan los mismos nombres de archivo.
-  - **`ConfigScreen` portado** (`desktop/.../ui/screens/ConfigScreen.kt`): selectores de **tema**, **idioma** y **modo de repetición** (este último cableado a `PlayerController.setRepeatMode` desde `AudioListScreen`) más las **rutas de datos y caché** reales del SO. Se omiten las secciones que no aplican a escritorio (swipe, importación de Spotify, QR/NFC); la copia de seguridad llega en M10.
-  - **i18n:** 7 claves nuevas (`repeat`, `repeat_off`, `repeat_one`, `repeat_all`, `paths_title`, `data_folder`, `cache_folder`) en los 4 idiomas de `TranslationCatalog`. `TranslationKeysUsageTest` (`:app`) pasa a escanear también `desktop/src/main/kotlin` y a reconocer la variante de un solo argumento `Translations.get("clave")`, que antes no veía.
-  - **Tests nuevos/actualizados:** `:core` `CoverCacheKeyTest` (**6**, portado desde `:app`); `:desktop` `AppPathsTest` (**7**, los tres SO + `ensureDirectories` + `databaseFile`), `CoverCacheTest` (**4**, con carpeta temporal y descarga inyectada), `ConfigScreenTest` (**6**, con `runComposeUiTest`) y `DesktopConfigTest` ampliado a **10** (persistencia "releída" como tras reiniciar y migraciones); `AudioListScreenTest` inyecta una BD en memoria y `DesktopDatabaseTest` ya cubría la persistencia cerrando y reabriendo el fichero. Los tests de `:desktop` usan `MapSettings` (artefacto `multiplatform-settings-test`, alias nuevo) y la tarea `Test` fija `java.util.prefs.userRoot` a una carpeta de build para no tocar las preferencias reales del usuario.
-  - **Desviaciones respecto al plan (M9):** (1) `ConfigScreen` (674 líneas en Android) se porta solo en la parte aplicable a escritorio, no de forma literal; (2) el `CoverCache` de Android se refactoriza mínimamente para compartir la clave; (3) en escritorio `AUTO` y `SYSTEM` siguen el tema del SO (no hay sensor de luz).
-  - Verificado: `:core:jvmTest` (**301 tests**), `./run.sh test` (**242 tests** de `:app`) y `:desktop:test` (**116 tests**, 2 omitidos sin `libvlc`), 0 fallos. **Total: 659 tests** (`:core` 301 + `:app` 242 + `:desktop` 116). `./run.sh build` genera el APK de Android. Prueba manual en Linux: dos procesos JVM distintos sobre el mismo nodo `com/plyr/desktop` conservan `theme=dark`, `language=日本語` y `repeat_mode=all`. `:app:lint` pasa. **Nota:** `./gradlew build` (agregado) sigue fallando por **dos causas preexistentes y ajenas a M9**, confirmadas sobre `HEAD` con los cambios apartados: (1) `:app:detektMain` → `TooManyFunctions` en `ExoAudioPlayer.kt:26:7`; (2) `:app:minifyReleaseWithR8` → clase duplicada `com.plyr.ui.components.PlaylistOrigin` entre `:app` y `:core` (introducida en M8). **Ambas quedaron resueltas al cerrar M10 (ver más abajo).**
-- **M10 — Import/Export + copia de seguridad ✅.** El escritorio mantiene `plyr-sync.zip` al día en una carpeta que el usuario elige una vez, fusiona en los dos sentidos y respeta los tombstones.
-  - **Política de importación compartida en `:core`:** `ImportManifest` se mueve de `:app` a `core/src/jvmSharedMain` (usa `org.json`, que el JVM resuelve con `libs.json` y Android aporta del SDK) y pasa a devolver tipos de `:core` (`TrackRecord`, `PlaylistSource`, `LikedSongs`) en vez de `TrackEntity`. El `DataImporter` de `:app` mapea con una extensión privada `TrackRecord.toEntity()`. Sus **36** tests puros se mueven a `:core:jvmTest`.
-  - **`DataExporter` de escritorio** (`com.plyr.desktop.sync`): recoge listas, pistas y portadas y las vuelca como ZIP (`playlists.json` + `covers/<id>.jpg`) con `ZipOutputStream`, reutilizando `ExportManifest`/`ExportDigest`. Igual que Android, separa `buildBundle()` (recoger + huella) de `writeTo()` (escribir). Las portadas locales (`file://`) se leen con `java.nio`; las remotas pasan por `CoverCache`. Sin `BitmapFactory`: `CoverImages` usa `javax.imageio` para recortar a cuadrado de 512 px y recomprimir JPEG (misma política que Android), con reserva a los bytes originales si no se puede decodificar.
-  - **`DataImporter` de escritorio:** lee el ZIP con `ImportArchive`, lo interpreta con `ImportManifest` (`plan`: crear / omitir / fusionar favoritos), escribe en `PlaylistRepository` (SQLDelight) y guarda las portadas en `dataDir/covers` devolviendo un `file://`. Fusiona los tombstones en ambos sentidos (`Tombstones.merge`) y aplica los borrados pendientes (salvo `liked_songs`).
-  - **`DataSync` + `BackupConfig` + `BackupFolder`:** `markDirty()` programa el volcado con debounce (30 s, sin E/S); `flush(force)` se serializa con un `Mutex`, omite la escritura si la huella no cambió, fusiona antes lo que traiga el archivo y escribe siempre en `plyr-sync.zip.part` para renombrarlo de forma atómica (nunca sobre la copia buena; se aparta un `.old`). Un archivo ilegible **no** se pisa (`ArchiveUnreadable`); un ZIP con nombre de plyr pero ajeno se reescribe. `BackupConfig` persiste carpeta y huella en `Settings`.
-  - **Tombstones persistentes:** `SettingsTombstoneStore` guarda los conjuntos en `Settings` (multiplatform-settings / `java.util.prefs`) con las **mismas claves** que `TombstoneConfig` de Android (`deleted_playlist_ids`, `removed_liked_track_keys`), serializadas separadas por saltos de línea. Es lo que permite que una copia creada en Android se entienda en escritorio y viceversa.
-  - **Selector nativo + UI:** `FileDialogs` (`com.plyr.desktop.platform`) usa los selectores de Swing (`JFileChooser` para carpeta/ZIP, `FileDialog` para guardar) ejecutados en el EDT. `ConfigScreen` gana una sección de copia de seguridad (botón `< sync >` / `synced w/ <carpeta>`, estado traducido y ruta elegida) respaldada por `BackupController` (`StateFlow`): el botón **elige carpeta** si aún no hay copia y **sincroniza** si la hay, como en Android. `AudioListScreen` comparte un único `PlaylistRepository` (con tombstones persistente) y cablea `repository.onChanged = { dataSync.markDirty() }`.
-  - **i18n:** 2 claves nuevas (`backup_choose_folder`, `backup_folder`) en los 4 idiomas; las claves de estado (`sync_*`) ya existían de Android.
-  - **Tests:** `:core` `ImportManifestTest` movido (**36**); `:desktop` nuevos `DataSyncTest` (**13**: exportar→importar, restauración de portada, fusión de favoritos sin duplicar, tombstones de listas y de favoritos, copia automática con debounce, fusión desde carpeta en instalación nueva, archivo ilegible que no se pisa, borrado que reescribe la huella e `importFromBackupFolder`), `BackupControllerTest` (**4**) y `SettingsTombstoneStoreTest` (**4**, verifica las claves de Android), más `ConfigScreenTest` (la sección de copia se pinta con un controlador).
-  - **Desviaciones respecto al plan (M10):** (1) se implementa la **sección única de sync** (carpeta + botón) como en Android, en vez de botones separados de exportar/importar; `DataExporter.exportTo`/`DataImporter.importFrom` existen igualmente y están cubiertos por tests. (2) La lógica pura de importación se **comparte** en `:core` en lugar de duplicarse en `:desktop`. (3) Sin SAF: la carpeta es una ruta de `java.nio`, sin `treeUri`/`documentId`.
-  - Verificado: `:core:jvmTest` (**337 tests**), `:desktop:test` (**138 tests**, 2 omitidos sin `libvlc`), `./run.sh test` (**206 tests** de `:app`), 0 fallos. **Total: 681 tests**. Compilan `:app:compileDebugKotlin`, `:app:compileReleaseKotlin` y `./run.sh build` (APK debug); `:desktop:run` arranca bajo Xvfb.
-  - **Arreglo de los bloqueos arrastrados de M9/M8:** se eliminan las dos causas que impedían que `./gradlew build` (agregado) pasara: (1) `ExoAudioPlayer` implementa los 15 métodos de `AudioPlayer`, así que el número de funciones lo fija el contrato de la interfaz y se silencia `TooManyFunctions` con un `@Suppress` justificado; (2) se **borra la copia duplicada** de `PlaylistShare`/`PlaylistOrigin` en `:app` (idéntica a la de `:core`, origen del fallo de R8) y ambas plataformas usan la de `:core`. Con esto `./gradlew build` (detekt + R8 release) **pasa**.
-- **M11 — QR + Spotify import ✅.** Se comparte por QR y se lee sin cámara, y la importación de listas de Spotify está desacoplada de Android y Room.
-  - **QR compartido en `:core`:** `QrCodec` (`core/src/jvmSharedMain`) genera la rejilla (`generate`), la convierte a píxeles ARGB (`toArgb`) y decodifica (`decode`) con **ZXing JVM** (`libs.core`, nueva dependencia solo de `jvmSharedMain`). Cada plataforma aporta el transporte de imagen: Android pinta un `Bitmap`; el escritorio, `QrImages` (Skiko `Image.makeRaster` → `ImageBitmap` y `javax.imageio` → PNG). El `generateQrBitmap` de Android se reimplementa sobre `QrCodec` (512 px, mismo lado que antes).
-  - **Ajustes del QR portados a `:desktop`:** `QrShareDialog` replica el `ShareDialog` de Android sin NFC ni grupos (imagen, URL, copiar al portapapeles de AWT y guardar PNG) usando el `ShareUrlPolicy` **movido a `:core` `commonMain`** (`ShareableItem`/`ShareType`/`ShareUrlPolicy`, mismo paquete, así que `:app` no cambia sus imports). `QrScanDialog` sustituye a `QrScannerDialog` (CameraX, imposible en JVM) por dos entradas: pegar una URL/id o abrir una imagen, ambas decodificadas con `QrCodec` y traducidas con el mismo `UrlParser.parseScanText` de `:core`. El lector se engancha en `SearchScreen` (botón `[ leer qr ]`); un QR de YouTube entra como búsqueda y uno de Spotify precarga la importación.
-  - **`SpotifyImporter` desacoplado:** la lógica reutilizable pasa a `SpotifyImport` (`core/src/jvmSharedMain`): parseo del HTML embebido (`parseEmbedHtml`), descarga (`fetchPlaylist`), extracción del id (`extractPlaylistId`), identidad de pistas (`dbPlaylistId`/`remoteTrackId`) y construcción del plan (`buildPlan`), que recibe la búsqueda **inyectada** y no conoce almacenamiento. El `SpotifyImporter` de `:app` queda como adaptador fino (búsqueda con `YouTubeSearchManager`, comprobación de duplicados en Room y guardado con `PlaylistLocalRepository`). En `:desktop`, `SpotifyImportService` traduce el plan a `PlaylistRecord`/`TrackRecord` y guarda en SQLDelight (dependencias inyectables para tests), y `SpotifyImportController`(`StateFlow`) alimenta la nueva sección de `ConfigScreen`.
-  - **`PlaylistShare.sharedId`:** helper nuevo en `:core` para reconstruir el id compartido de una lista (incluidas las importadas de Spotify, B53) a partir del `remoteId` y el `sourceId`, sin depender del prefijo.
-  - **i18n:** 17 claves nuevas en los 4 idiomas (`qr_*`, `scan_*`, `spotify_import_*`), todas usadas por literales de `Translations.get(...)` para que `TranslationKeysUsageTest` siga verde.
-  - **Tests:** `:core` nuevos `ShareUrlPolicyTest` y `PlaylistShareTest` (movidos de `:app`, más `sharedId`), `QrCodecTest` (**round-trip** generar→píxeles→decodificar) y `SpotifyImportTest` (URLs, HTML de muestra, `buildPlan` con búsqueda falsa); `:desktop` nuevos `QrImagesTest` (**6**: PNG guardado y re-decodificado, texto e imagen, `toImageBitmap`) y `SpotifyImportServiceTest` (**5**: alta con pistas, pista sin coincidencia, duplicado omitido, URL inválida y error de descarga). Se **borran** los tests puros de `:app` movidos a `:core`.
-  - **Desviaciones respecto al plan (M11):** (1) no hay cámara en escritorio: el lector es pegar-URL/abrir-imagen (lo que pedía el hito); (2) el QR de escritorio se guarda como **PNG** (no JPEG) para preservar nitidez; (3) `SpotifyImport` se llama así (y no `SpotifyImporter`) para no chocar con el adaptador Android homónimo.
-  - Verificado: `:core:jvmTest` (**380 tests**), `:desktop:test` (**149 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**164 tests**), 0 fallos. **Total: 693 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
-- **M12 — Feed de recomendaciones (Supabase) ✅.** El feed lista recomendaciones reales y permite publicar una, con el apodo persistido.
-  - **Feed de escritorio (`com.plyr.desktop.feed`):** `FeedController` (`StateFlow`) es el port de `FeedScreen`/`FeedConfig` de Android sobre el `SupabaseClient` de `:core`, con las tres llamadas de red (`getGroups`, `getRecommendations`, `createRecommendation`) **inyectadas** como funciones para poder testearlo sin red. Al abrir la pantalla carga los grupos y elige el **general** por defecto (como Android); un selector de grupo recarga sus recomendaciones.
-  - **Publicar una recomendación:** el formulario fija apodo, grupo, URL y comentario opcional; valida (URL, apodo y grupo) y, al aceptar, antepone la recomendación recién creada que devuelve Supabase. El apodo se persiste con **la misma clave** que Android (`user_nickname`) vía `DesktopConfig.userNickname`.
-  - **Pantalla (`FeedScreen`):** sustituye al `PlaceholderScreen` que ocupaba `Screen.FEED` (se **borra** el placeholder, ya sin uso). Pinta comentario/URL/antigüedad+apodo por recomendación (sin extraer metadatos del vídeo: `MediaMetadataExtractor` sigue en `:app`).
-  - **Tiempo relativo compartido:** `formatTimestamp` se mueve de `Utils.kt` (`:app`) a `core/src/commonMain` (`com.plyr.utils`), con sus tests trasladados de `:app` a `:core`; ambas plataformas resuelven la misma función.
-  - **PII en logs (S7):** `SupabaseClient.getRecommendations` ya no registra la **URL completa** (contenía el `group_id` en el query) ni el `groupId` en claro; solo longitud redactada.
-  - **i18n:** 12 claves nuevas en los 4 idiomas (`your_nickname`, `nickname_description`, `save_nickname`, `nickname_saved`, `recommend_to_group`, `recommendation_url`, `comment_optional`, `sending`, `recommendation_sent`, `recommendation_error`, `no_groups`, `feed_error`); se corrige el valor catalán de `nickname_description` (tenía texto en español) y se añade a ES/EN.
-  - **Tests:** `:core` nuevo `RelativeTimeTest` (**5**, movidos de `:app`); `:desktop` nuevos `FeedControllerTest` (**8**: grupo general, sin grupos, cambio de grupo, alta con recorte, alta sin URL, error de alta, apodo persistido, error de carga) y `FeedScreenTest` (**4** UI: listado, vacío, publicar, volver).
-  - **Desviaciones respecto al plan (M12):** (1) sin metadatos de vídeo en escritorio (requiere portar `MediaMetadataExtractor`); (2) el alta y el selector de grupo viven en la propia pantalla (Android los repartía entre `FeedScreen` y el `ShareDialog`); (3) el apodo se guarda en `DesktopConfig`, que hace de `FeedConfig` de escritorio.
-  - Verificado: `:core:jvmTest` (**385 tests**), `:desktop:test` (**167 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**160 tests**), 0 fallos. **Total: 712 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
-- **M13 — Integración nativa del escritorio ✅.** Las teclas multimedia del SO controlan la reproducción en Linux (MPRIS vía D-Bus) y hay icono de bandeja con controles.
-  - **`DesktopMediaIntegration` (`com.plyr.desktop.media`):** interfaz fina (`attach`/`updateNowPlaying`/`close`, más `backendName` e `isActive`) con `PlaybackControls` y `MediaInfo`; `NoopMediaIntegration` para los SO sin soporte y `createMediaIntegration()` elige MPRIS en Linux y no-op en el resto. `SmtcIntegration` (Windows) y `NowPlayingIntegration` (macOS) quedan para la fase posterior, bajo la misma interfaz.
-  - **MPRIS (`MprisMediaIntegration`):** publica `org.mpris.MediaPlayer2.plyr` en el bus de sesión y exporta `MprisPlayer` en `/org/mpris/MediaPlayer2` con `org.mpris.MediaPlayer2` + `...MediaPlayer2.Player`; traduce `PlayPause`/`Next`/`Previous`/`Play`/`Pause`/`Stop`/`Seek`/`SetPosition`/`Quit` a los controles del reproductor y emite `PropertiesChanged` cuando cambian el estado o los metadatos (la posición no se anuncia: `EmitsChangedSignal=false`). Si no hay bus de sesión (contenedores, CI…) falla en silencio y queda inactiva. La propiedad `Metadata` se fuerza a `a{sv}` con un `TypeRef` (`MprisMetadata`), porque la inferencia de dbus-java daría `a{vv}`.
-  - **`Properties` a mano (arreglo de conformidad):** con `@DBusBoundProperty`, dbus-java responde a `Properties.Get` con el **tipo crudo** en vez de un `Variant` (bug conocido, hypfvieh/dbus-java#253), lo que incumple la especificación y rompe a `playerctl`, que usa `Get` para posición y estado. Por eso `MprisPlayer` implementa `org.freedesktop.dbus.Properties` (`Get`/`Set`/`GetAll`) sobre una única tabla de valores, con las firmas de cable correctas (`v` y `a{sv}`), y declara las propiedades solo para introspección con `@DBusProperty`.
-  - **Bandeja (`DesktopTray`):** `java.awt.SystemTray` (no el `Tray` de Compose, que no degrada) con menú play/pause, siguiente, anterior y salir; el icono se genera en memoria (sin recursos) y, si el escritorio no soporta bandeja, `install()` falla en silencio sin romper la app. Se engancha en `Main.kt` junto a `createMediaIntegration()`.
-  - **UI:** `AudioListScreen` recibe `mediaIntegration`, `onPlayerControllerReady` y `onQuit`, y conecta el estado de reproducción con `updateNowPlaying`.
-  - **i18n:** 3 claves nuevas en los 4 idiomas (`tray_play_pause`, `tray_next`, `tray_previous`); el «salir» reutiliza `exit`.
-  - **Dependencias:** `dbus-java` 5.2.2 (+ `slf4j-api`/`slf4j-nop` 2.0.17 y el transporte `unixsocket` como `runtimeOnly`).
-  - **Tests:** `:desktop` nuevos `DesktopMediaIntegrationTest` (**10**: mapeo de metadatos, entradas de bandeja, imagen generada, no-op, selección por SO, anotaciones de introspección y bandeja con/sin soporte) y `MprisMediaIntegrationTest` (**1** contra el bus de sesión real: `GetAll`, `Get` conforme a variante y transporte).
-  - **Desviaciones respecto al plan (M13):** (1) solo Linux/MPRIS; Windows (SMTC) y macOS (Now Playing) siguen pendientes, como ya decía el plan; (2) no hay notificaciones nativas del SO (quedan para un hito posterior); (3) `Set` de propiedades MPRIS (volumen, loop, shuffle) devuelve `PropertyReadOnly`, porque el reproductor aún no las controla por esta vía.
-  - Verificado a mano en Linux: `playerctl -l` lista `plyr`; `playerctl -p plyr status` → `Stopped`, `position` → `0.0`, y `play-pause`/`next`/`previous`/`play`/`pause`/`stop` llegan sin error; `busctl introspect` anuncia `Metadata a{sv}` y `Position x`; `busctl get-property` y `dbus-send Properties.Get` devuelven `variant` (antes fallaban). `:core:jvmTest` (**385 tests**), `:desktop:test` (**178 tests**, 2 omitidos sin `libvlc`), `:app:testDebugUnitTest` (**160 tests**), 0 fallos. **Total: 723 tests**. `./gradlew build` (detekt + R8 release + lint) **pasa**.
-- **M14 — Empaquetado multiplataforma ✅.** Instalables con `jpackage` a través del plugin de Compose; en Linux se genera y verifica un `.deb` que arranca sin Java instalado.
-  - **Configuración (`desktop/build.gradle.kts`):** `nativeDistributions` con `targetFormats(Deb, Rpm, AppImage, Msi, Dmg)`, `packageName`/`packageVersion` (1.3.0, igual que Android), `description`, `vendor`, `copyright`, `includeAllModules = true` (VLCJ/JNA, dbus-java y SQLite-JDBC cargan clases por reflexión/JNI, así que jlink no puede deducirlas) y bloque `linux` (icono, `appCategory`/`menuGroup` «Audio», `debMaintainer`, `rpmLicenseType` `GPL-3.0-or-later`).
-  - **Metadatos Linux (`desktop/packaging/`):** `icon.png` (el icono de la app, 512×512) y `io.github.josemri.plyr.metainfo.xml` (ficha AppStream con `launchable` apuntando al `.desktop` que instala jpackage).
-  - **Dependencia `libvlc`:** jpackage no permite añadir dependencias de paquete, así que la tarea `patchDeb` (script `packaging/patch-deb.sh`, con `dpkg-deb -R`/`-b`) inyecta `Depends: …, libvlc5 | libvlc-bin, vlc-plugin-base` y la ficha AppStream en `/usr/share/metainfo/`; se engancha con `finalizedBy` a `packageDeb`.
-  - **`packageRpm` condicionada:** jpackage solo reconoce el tipo `rpm` si `rpmbuild` (paquete `rpm-build`) está en el PATH; sin él, `packageDistributionForCurrentOS` (que compila **todos** los formatos compatibles con el SO) fallaba con «Invalid or unsupported type: [rpm]». Ahora `packageRpm` se omite si falta `rpmbuild`.
-  - **Desviaciones respecto al plan (M14):** (1) el `TargetFormat.AppImage` de Compose pasa `--type app-image` a jpackage, es decir, produce el **directorio portable**, no un AppImage de un solo fichero; un AppImage real o un Flatpak necesitan `appimagetool`/`flatpak-builder` y quedan documentados, no automatizados; (2) no se genera `.rpm` en esta máquina (sin `rpm-build`) ni `.msi`/`.dmg` (solo desde su SO); (3) el `.deb` pesa ~90 MB por `includeAllModules` (se puede afinar con `suggestRuntimeModules()` en M15).
-  - **Verificado en Linux:** `./gradlew :desktop:packageDeb` produce `desktop/build/compose/binaries/main/deb/plyr_1.3.0_amd64.deb` (~90 MB) con `Maintainer` correcto, `Depends` incluyendo `libvlc5`/`vlc-plugin-base` y `/usr/share/metainfo/io.github.josemri.plyr.metainfo.xml`; `packageDistributionForCurrentOS` termina (Deb + app-image; Rpm omitida). El paquete se extrajo (`dpkg-deb -x`) y el lanzador `opt/plyr/bin/plyr` arranca **sin Java en el PATH** (`env -i … PATH=/nonexistent`) usando el runtime incluido, y la ventana permanece abierta. No se pudo hacer `dpkg -i` por falta de root en el entorno; se validó ejecutando el contenido extraído.
-- **M15 — Pulido y paridad final ✅.** Cierra las diferencias restantes frente a Android (salvo NFC/cámara/sensor).
-  - **Atajos de teclado (`ui/KeyboardShortcuts.kt`):** reutiliza el enum `MediaCommand` de `:core` (el mismo vocabulario de los botones multimedia de Android) para mapear pulsaciones a órdenes: `Espacio` → play/pausa; `→`/`←` → ±10 s; `Ctrl`/`Cmd` + `→`/`←` → siguiente/anterior; y las teclas multimedia dedicadas a su acción. `AudioListScreen` los engancha con `onKeyEvent` en un `Box` raíz focusable (`FocusRequester` + `focusable()`), en fase de burbujeo, así los campos de texto conservan prioridad. El núcleo (`mapKey`) es puro y se prueba sin construir un `KeyEvent`.
-  - **`UpdateChecker` de escritorio (`utils/UpdateChecker.kt`):** adapta el de Android con OkHttp + `org.json` (en vez de `HttpURLConnection`): consulta la última release de GitHub (`api.github.com/repos/josemri/plyr/releases/latest`), interpreta `tag_name`/`name`/`assets` y elige el instalable del SO (`.deb`/`.rpm`/`.AppImage`, `.msi` o `.dmg`), con la página de releases como respaldo; cachea en memoria 24 h. `parseRelease` es puro (sin red) y se testea. El aviso («actualiza vX → vY») aparece en `HomeScreen` junto a la versión (que ahora sale de `CURRENT_VERSION`, 1.3.0, en vez del `v1.0.0` fijo) y solo si `Main.kt` inyecta el comprobador, de modo que los tests no tocan la red; el clic abre el enlace con `platform/Browser.kt` (`java.awt.Desktop`).
-  - **detekt en los módulos nuevos:** la config de `:app` se mueve a `detekt.yml` (raíz) y se aplica a `:desktop` y `:core` con la misma config; se excluye el Kotlin generado por SQLDelight (`build/generated`). El análisis destapó y se corrigió **código muerto real** (imports y parámetros sin uso y una propiedad privada sin usar); el resto (estructura de composables ya portados: `LongMethod`/`CyclomaticComplexMethod`/`TooManyFunctions`, más `ImplicitDefaultLocale`/`SpreadOperator`) queda fijado en `detekt-baseline.xml` por módulo, de forma que solo falla el código nuevo. `./run.sh check` ejecuta los tres `detektMain` y resume los tres informes.
-  - **Checklist i18n:** nuevo test `allLanguagesShareTheSameKeys` que exige el mismo conjunto de claves en los 4 idiomas (la regresión típica al añadir una clave en uno solo). Sin claves nuevas: el aviso reutiliza `update_available`.
-  - **Docs:** ampliada la sección de escritorio del `README.md` con los atajos y el comportamiento del aviso de actualización. No se crea `report.md` (no existe en el repo; el README es la documentación viva).
-  - **Desviaciones respecto al plan (M15):** (1) los estados de carga/error y el reordenado fino ya se cerraron en hitos previos (M5–M12 y M8), así que M15 se centra en atajos, actualizaciones, detekt, i18n y docs; (2) se usa un baseline en vez de refactorizar composables ya portados, para no tocar código ajeno a M15; (3) solo se documentan atajos de teclado (no se añaden atajos globales del SO).
-  - Verificado: `./gradlew build` **pasa**; `:core:jvmTest` (**423**, +1 de i18n), `:desktop:test` (**198**, 4 omitidos: 2 de bandeja sin escritorio y 2 de libvlc) y `:app:testDebugUnitTest` (**123**), 0 fallos; `:app:detektMain`, `:desktop:detektMain` y `:core:detektMainJvm` sin findings; `./run.sh check` en verde.
+### 6.4 Backlog de paridad pendiente (M16+)
 
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F14, F17, F18 y F23 del inventario (§1.1).
+
+| Hito | Descripción | Prioridad | Semanas est. |
+|---|---|---|---|
+| M16 | Descarga de audio offline + reproducción sin conexión | **Alta** | 1–2 |
+| M17 | UI de almacenamiento offline | Media | 1 |
+| M18 | Carrusel de playlists en Home | Media | 0.5 |
+| M19 | Playlists de YouTube en búsqueda + detalle | **Alta** | 1–1.5 |
+| M20 | Reproducción aleatoria (`<rnd>`) en playlists | **Alta** | 0.5 |
+| M21 | Paginación («cargar más») en búsqueda | Media | 0.5 |
+| M22 | Crear/editar playlist con búsqueda + acciones por pista | Media | 1 |
+| M23 | Feed: metadatos del vídeo y reproducir desde el feed | **Alta** | 0.5 |
+| M24 | «Compartir app» por QR en Config | Baja | 0.5 |
+| M25 | Recomendar al feed desde el diálogo de compartir | Media | 0.5 |
+
+---
+
+#### M16 — Descarga de audio offline + reproducción sin conexión ⭐
+**Objetivo:** que el escritorio descargue el audio (m4a) de una pista y lo reproduzca desde disco cuando exista, igual que Android; solo hace streaming si no está descargada.
+**Tareas**
+- Extraer a `:core` la parte pura de `DownloadPlan` (qué pistas faltan por descargar) validando que no depende de Room.
+- `AudioDownloader` de escritorio sobre `SimpleDownloader`/OkHttp; `DownloadedAudioStore` con `java.nio` en `AppPaths.directories.dataDir/audio/<videoId>.m4a` («ya descargado» = existe el fichero, sin tabla nueva).
+- `DownloadController` (`StateFlow`) al estilo de `DownloadViewModel`: encolar, progreso y cancelación.
+- Envolver/ajustar `YouTubeTrackSourceResolver` para **preferir el fichero local**; el streaming queda como respaldo. Corregir su kdoc obsoleto («eso es M10»).
+**Definition of Done:** una pista descargada se reproduce sin red; borrar `dataDir/audio` vuelve al streaming.
+**Verificación:** tests con descarga inyectada + prueba manual sin conexión.
+**Prompt opencode:**
+> Porta el subsistema de descarga offline de Android a `:desktop`. Extrae a `:core` la lógica pura de `DownloadPlan`; implementa `AudioDownloader` (OkHttp) y `DownloadedAudioStore` (`java.nio`, `dataDir/audio/<videoId>.m4a`) y un `DownloadController` sobre `StateFlow`. Haz que `YouTubeTrackSourceResolver` prefiera el fichero local si existe y solo haga streaming si no. Verifica con tests y reproduciendo una pista descargada sin red.
+
+---
+
+#### M17 — UI de almacenamiento offline
+**Objetivo:** paridad con la UI de descargas de `PlaylistScreen`.
+**Tareas**
+- Barra de descarga en el detalle de lista (descargar todas / limpiar) y en el lista de playlists.
+- Indicador `↓` por pista ya descargada y acción por pista «borrar descarga».
+- `OfflineStorageDialog`: tamaño total ocupado, número de pistas y «borrar todo».
+**Definition of Done:** se puede descargar una lista entera, ver el estado y liberar espacio desde Ajustes.
+**Verificación:** `:desktop:test` + prueba manual.
+**Prompt opencode:**
+> Añade a `:desktop` la UI de descargas offline: barra de descarga en el detalle de lista, indicador por pista, acción «borrar descarga» y un diálogo de almacenamiento con tamaño total y «borrar todo». Reutiliza `DownloadController` de M16. Verifica con tests de Compose y manualmente.
+
+---
+
+#### M18 — Carrusel de playlists en Home
+**Objetivo:** que la Home muestre las listas visibles con portada, no solo el menú de consola.
+**Tareas**
+- Portar `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover`; cargar listas visibles desde `PlaylistRepository`; clic para abrir el detalle.
+- Mantener el menú de consola y el aviso de actualización bajo el carrusel.
+**Definition of Done:** la Home lista las listas con portada y navega al pulsarlas.
+**Verificación:** `:desktop:test` (Compose UI) + manual.
+**Prompt opencode:**
+> Añade a la Home de `:desktop` un carrusel horizontal de las playlists visibles con su portada (Coil 3), portando `HomePlaylistCarousel` de Android, manteniendo el menú de consola. Al pulsar una lista se abre su detalle. Verifica con tests de Compose.
+
+---
+
+#### M19 — Playlists de YouTube en búsqueda + detalle
+**Objetivo:** buscar también *playlists* de YouTube y poder abrir/reproducir/guardar una.
+**Tareas**
+- `:core`: `YouTubeManager.searchAll` (vídeos + listas), `getPlaylistInfo` y `getPlaylistVideos`, reutilizables desde Android.
+- `SearchScreen`: mostrar resultados de lista junto a los vídeos (mismo patrón que Android): dos secciones **colapsables** («vídeos» y «playlists», con el mismo `v`/`>` de Android) y el botón «cargar más» (F20/M21) en la sección de vídeos.
+- `YouTubePlaylistDetailView`: ver las pistas, reproducir todo y guardar como lista local (`PlaylistSource`).
+**Definition of Done:** una búsqueda devuelve listas y se puede guardar/reproducir una.
+**Verificación:** `:core:jvmTest` (con `assumeTrue` de red) + `:desktop:test` + manual.
+**Prompt opencode:**
+> Añade búsqueda de playlists de YouTube en `:core` (`searchAll`, `getPlaylistInfo`, `getPlaylistVideos`) y muéstralas en la búsqueda de `:desktop` junto a los vídeos. Implementa una vista de detalle que liste sus pistas, las reproduzca todas y permita guardarlas como lista local. Verifica con tests y manualmente.
+
+---
+
+#### M20 — Reproducción aleatoria (`<rnd>`) en playlists
+**Objetivo:** botón `<rnd>` que baraja y reproduce una lista.
+**Tareas**
+- `PlayerController.startRandomized(tracks)` / stop; barajado puro y testeable.
+- Cablear el botón en el detalle de lista.
+**Definition of Done:** pulsar `<rnd>` reproduce las pistas en orden aleatorio.
+**Verificación:** test puro del barajado + `:desktop:test`.
+**Prompt opencode:**
+> Añade a `:desktop` reproducción aleatoria en el detalle de playlist: un método `startRandomized` en `PlayerController` (barajado puro y testeable) y el botón `<rnd>` en la vista de lista. Verifica con un test del barajado.
+
+---
+
+#### M21 — Paginación («cargar más») en búsqueda
+**Objetivo:** poder pedir más resultados, como el «cargar más» de Android (F20).
+**Tareas**
+- Soporte de paginación en `SearchController`/`SearchScreen` (`onLoadMore`), con el mismo umbral que Android (aparece «cargar más» cuando hay ≥10 resultados).
+- *(Opcional, más allá de Android)* cablear `SearchHistoryRepository` para guardar cada búsqueda: en Android el historial se **persiste pero nunca se muestra** (`getAllSearches()` no se usa), así que no es un hueco de paridad.
+**Definition of Done:** se pueden pedir más resultados desde la búsqueda.
+**Verificación:** `:desktop:test`.
+**Prompt opencode:**
+> Añade paginación («cargar más») a la búsqueda de `:desktop` (`SearchController`/`SearchScreen`), con el mismo umbral que Android. Verifica con tests. (El historial de búsqueda no hace falta para paridad: Android lo guarda pero no lo lista.)
+
+---
+
+#### M22 — Crear/editar playlist con búsqueda + acciones por pista
+**Objetivo:** crear o editar una lista agregando pistas mientras se busca en YouTube, y acciones por pista completas.
+**Tareas**
+- `CreatePlaylistView` con buscador de YouTube y lista de seleccionadas.
+- Modo edición del detalle de lista (F26): buscador de YouTube para **añadir** pistas (`+`) junto a las actuales, además de quitarlas (`x`) y reordenarlas.
+- Menú por pista (detalle, cola y resultados): me gusta (favoritos), añadir a cola (`PlayerController.addToQueue`, hoy ausente) y añadir a playlist, además de compartir.
+- **Nota:** el menú por pista de escritorio (`ui/components/SongListItem.kt`) usa hoy texto fijo en inglés («Play»/«Remove») en vez de `Translations`; hay que pasarlo por el catálogo al añadir las acciones nuevas.
+**Definition of Done:** se crea/edita una lista eligiendo pistas desde la búsqueda y las acciones por pista funcionan.
+**Verificación:** `:desktop:test`.
+**Prompt opencode:**
+> Amplía `:desktop` para (1) buscar en YouTube y elegir pistas al crear una lista y (2) añadir pistas a una lista existente desde el modo edición (buscador + `+`, junto a `x`/reordenar). Añade a las pistas (detalle, cola y resultados) un menú con me gusta, añadir a cola (`addToQueue` en `PlayerController`) y añadir a playlist, además de compartir. Verifica con tests.
+
+---
+
+#### M23 — Feed: metadatos del vídeo y reproducir desde el feed
+**Objetivo:** mostrar título/autor/miniatura en cada recomendación y reproducirla o abrirla al pulsar.
+**Tareas**
+- Usar `MediaMetadataExtractor` (ya en `:core`) en `FeedController`/`FeedScreen` para enriquecer cada entrada (título, autor y miniatura), con concurrencia acotada como en Android (`METADATA_CONCURRENCY`).
+- Clic según el tipo de contenido (`MediaType`): vídeo de YouTube → reproducir directamente; *playlist* de YouTube → abrirla en la búsqueda (mismo `ScanResult` que usa el lector de QR); desconocido → intentar extraer un `videoId` y reproducir.
+- Corregir el kdoc obsoleto de `FeedScreen.kt` («`MediaMetadataExtractor`… todavía no se ha portado»): sí está, en `:core`.
+- **No perder de más:** el feed de escritorio ya tiene cosas que Android **no** tiene y deben conservarse: formulario de publicación (apodo + URL + comentario), selector de grupo destino y mostrar el `comment` de cada recomendación (Android no lo pinta). Android, en cambio, publica desde el diálogo de compartir (F25) y solo lista el grupo general.
+**Definition of Done:** el feed muestra metadatos y al pulsar reproduce el vídeo o abre la lista.
+**Verificación:** `:desktop:test` + manual con red.
+**Prompt opencode:**
+> Enriquece el feed de `:desktop` con `MediaMetadataExtractor` de `:core` (título, autor y miniatura por recomendación, con concurrencia acotada) y haz que al pulsar una recomendación se comporte como en Android: vídeo de YouTube → reproducir; playlist de YouTube → abrirla en la búsqueda (reutiliza el `ScanResult` del lector de QR); desconocido → extraer el `videoId` y reproducir. Corrige el kdoc que dice que `MediaMetadataExtractor` no está portado. Verifica con tests y manualmente.
+
+---
+
+#### M24 — «Compartir app» por QR en Config
+**Objetivo:** paridad con `ShareAppSection` de Android.
+**Tareas**
+- Añadir a `ConfigScreen` una sección que comparta la app «plyr» (enlace/QR de descarga) reutilizando `QrShareDialog`/`QrCodec`.
+**Definition of Done:** la sección aparece y genera el QR/enlace.
+**Verificación:** `:desktop:test`.
+**Prompt opencode:**
+> Añade a `ConfigScreen` de `:desktop` una sección «compartir app» que genere el QR y el enlace de descarga de plyr, reutilizando `QrShareDialog`/`QrCodec`. Verifica con tests.
+
+---
+
+#### M25 — Recomendar al feed desde el diálogo de compartir
+**Objetivo:** paridad con `RecommendButton`/`requestRecommendation` de Android: publicar la URL compartida en el feed (grupo general) usando el apodo guardado, sin pasar por la pantalla de Feed.
+**Tareas**
+- Añadir el botón «recomendar» a `QrShareDialog` (solo si hay URL) que llame a `SupabaseClient.postRecommendation` con el `DesktopConfig.userNickname`.
+- Mensaje de estado (`recommendation_sent`/`recommendation_error`, ya en `:core`).
+**Definition of Done:** desde el QR de una pista/lista se puede enviar la recomendación y aparece en el feed.
+**Verificación:** `:desktop:test` + manual con red.
+**Prompt opencode:**
+> Añade al `QrShareDialog` de `:desktop` un botón «recomendar» que publique la URL compartida en el feed (grupo general) con el apodo de `DesktopConfig.userNickname`, reutilizando `postRecommendation` de `FeedController`/`SupabaseClient` y las claves `recommendation_sent`/`recommendation_error`. Verifica con tests.
+
+---
+
+#### M26 — Flush de copia de seguridad al cerrar la app
+**Objetivo:** paridad con Android `DataSync.flushOnStop`: no perder la copia pendiente al cerrar.
+**Tareas**
+- Evitar que `DataSync.shutdown()` cancele un flush pendiente sin intentar escribirlo. Añadir un método `flushOnStop()` (o ajustar shutdown) que intente `flush(force=false)` con un timeout corto (p.ej. 3–5s) sin bloquear indefinidamente.
+- Llamarlo desde `AudioListScreen.onDispose` en vez de cancelar a ciegas.
+- Mantener el comportamiento de `markDirty` y la comparación de huellas.
+**Definition of Done:** si hay cambios pendientes al cerrar, se vuelca la copia de seguridad a la carpeta configurada (o se aguanta el timeout razonable) antes de salir.
+**Verificación:** `:desktop:test` + manual (modificar lista, cerrar ventana antes de 30s; verificar `plyr-sync.zip`).
+**Prompt opencode:**
+> Modifica `DataSync.shutdown()` de `:desktop` para, cuando haya un `debounceJob` activo o se haya marcado sucio, intentar `flush(force=false)` con `withTimeout(5000)` antes de cancelar. En `AudioListScreen.onDispose`, llama a este shutdown modificado (o `dataSync.flushOnStop()`). Mantén la lógica de huellas y no rompas los tests existentes.
+
+---
+
+**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio cancela el flush pendiente al cerrar (`DataSync.shutdown()`), mientras que Android espera a escribirlo en `onStop` (comportamiento a corregir en **M26**).
+
+**A favor del escritorio (no perder):** el feed tiene formulario de publicación + selector de grupo + muestra el `comment` (Android no); Config tiene filas extra de **repetición** y **rutas de datos/caché** (Android no); atajos de teclado, bandeja del sistema (`DesktopTray`) y prueba de sonido por CLI (`SoundCheck`).
+
+**Nota:** `SearchHistoryRepository` de escritorio ya cubre la persistencia del historial de búsqueda con la misma política que el DAO de Android, pero **ninguna de las dos UIs lo muestra** (ver F19).
+
+**No se porta (desviaciones conscientes):** NFC; escáner QR con cámara (se sustituye por pegar URL / abrir imagen); tema por sensor de luz (tema del SO); gestos swipe (acciones contextuales); notificaciones nativas del SO (MPRIS); SAF (`java.nio`); creación de playlists de YouTube como fuente (las locales las cubre M19).
 
 ---
 
