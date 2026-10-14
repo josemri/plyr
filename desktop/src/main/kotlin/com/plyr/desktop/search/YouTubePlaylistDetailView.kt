@@ -44,6 +44,7 @@ fun YouTubePlaylistDetailView(
     onPlayTracks: (List<TrackRecord>, Int) -> Unit,
     onToggleSave: () -> Unit,
     onBack: () -> Unit,
+    onShuffle: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -62,7 +63,7 @@ fun YouTubePlaylistDetailView(
             Titulo(state.title.ifBlank { Translations.get("youtube_playlists") })
         }
 
-        DetailActions(state = state, onPlayTracks = onPlayTracks, onToggleSave = onToggleSave)
+        DetailActions(state = state, onPlayTracks = onPlayTracks, onToggleSave = onToggleSave, onShuffle = onShuffle)
 
         if (state.uploader.isNotBlank()) {
             Text(
@@ -92,14 +93,25 @@ fun YouTubePlaylistDetailView(
     }
 }
 
-/** Botonera del detalle: reproducir todo y guardar/quitar la lista. */
+/** Botonera del detalle: barajar, reproducir todo y guardar/quitar la lista. */
 @Composable
 private fun DetailActions(
     state: YouTubePlaylistDetailState,
     onPlayTracks: (List<TrackRecord>, Int) -> Unit,
     onToggleSave: () -> Unit,
+    onShuffle: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.small)) {
+        // `<rnd>` (M20): baraja y reproduce, como el `onShuffle` de Android. Es
+        // una acción puntual, así que no alterna a `<stop>`.
+        ActionButton(
+            data = ActionButtonData(
+                text = "<rnd>",
+                enabled = state.tracks.isNotEmpty(),
+                onClick = onShuffle,
+            ),
+            modifier = Modifier.testTag("youtube_playlist_random"),
+        )
         ActionButton(
             data = ActionButtonData(
                 text = "[ ${Translations.get("play_all")} ]",

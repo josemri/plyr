@@ -87,6 +87,26 @@ class YouTubePlaylistDetailViewTest {
     }
 
     @Test
+    fun barajarInvocaElCallback() = runComposeUiTest {
+        var shuffled = false
+        setContent {
+            PlyrTheme {
+                YouTubePlaylistDetailView(
+                    state = state(),
+                    onPlayTracks = { _, _ -> },
+                    onToggleSave = {},
+                    onBack = {},
+                    onShuffle = { shuffled = true },
+                )
+            }
+        }
+
+        onNodeWithTag("youtube_playlist_random").performClick()
+
+        assertTrue(shuffled)
+    }
+
+    @Test
     fun elBotonGuardarInvocaElCallback() = runComposeUiTest {
         var toggled = false
         setContent {

@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -160,5 +161,58 @@ class PlaylistDetailViewTest {
         }
         assertFalse(downloadStore.isDownloaded("vidA"))
         assertTrue(downloadStore.isDownloaded("vidB"))
+    }
+
+    @Test
+    fun elBotonAleatorioBarajaLaLista() = runComposeUiTest {
+        seedPlaylist()
+        var randomTracks: List<TrackRecord>? = null
+
+        setContent {
+            PlyrTheme {
+                Column {
+                    PlaylistDetailView(
+                        controller = controller,
+                        downloadController = downloadController(),
+                        state = controller.state.value,
+                        onPlayTracks = { _, _ -> },
+                        onBack = {},
+                        isRandomizing = false,
+                        onPlayRandom = { randomTracks = it },
+                    )
+                }
+            }
+        }
+
+        onNodeWithTag("playlist_random").assertIsDisplayed()
+        onNodeWithTag("playlist_random").performClick()
+
+        assertEquals(2, randomTracks?.size)
+    }
+
+    @Test
+    fun enModoAleatorioElBotonPara() = runComposeUiTest {
+        seedPlaylist()
+        var stopped = false
+
+        setContent {
+            PlyrTheme {
+                Column {
+                    PlaylistDetailView(
+                        controller = controller,
+                        downloadController = downloadController(),
+                        state = controller.state.value,
+                        onPlayTracks = { _, _ -> },
+                        onBack = {},
+                        isRandomizing = true,
+                        onStopRandomize = { stopped = true },
+                    )
+                }
+            }
+        }
+
+        onNodeWithTag("playlist_random").performClick()
+
+        assertTrue(stopped)
     }
 }

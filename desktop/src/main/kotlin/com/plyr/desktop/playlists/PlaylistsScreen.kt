@@ -37,6 +37,9 @@ fun PlaylistsScreen(
     downloadController: DownloadController,
     onBack: () -> Unit,
     onPlayTracks: (List<TrackRecord>, Int) -> Unit = { _, _ -> },
+    isRandomizing: Boolean = false,
+    onPlayRandom: (List<TrackRecord>) -> Unit = {},
+    onStopRandomize: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by controller.state.collectAsState()
@@ -59,7 +62,16 @@ fun PlaylistsScreen(
         when {
             state.showCreate -> CreatePlaylistView(controller)
             state.selectedPlaylistId != null ->
-                PlaylistDetailView(controller, downloadController, state, onPlayTracks, onBack)
+                PlaylistDetailView(
+                    controller = controller,
+                    downloadController = downloadController,
+                    state = state,
+                    onPlayTracks = onPlayTracks,
+                    onBack = onBack,
+                    isRandomizing = isRandomizing,
+                    onPlayRandom = onPlayRandom,
+                    onStopRandomize = onStopRandomize,
+                )
             else -> PlaylistGridView(controller, downloadController, state, onBack)
         }
     }

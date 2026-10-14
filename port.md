@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M19` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M20` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -36,7 +36,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F15 | UI de almacenamiento offline (descargar/limpiar y resumen) | `PlaylistScreen` + `PlaylistDownloadBar` + `OfflineStorageDialog` | **Presente (M17)**: `DownloadStatusBar` + `OfflineStorageDialog` + botón descargar/limpiar e indicador por pista (`PlaylistDetailView`/`PlaylistTrackItem`); sección de almacén en `ConfigScreen` | Media |
 | F16 | Carrusel de playlists en Home | `HomeScreen` (`HomePlaylistCarousel`) | **Presente (M18)**: `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover` en `HomeScreen`, con las listas visibles y clic para abrir el detalle | Media |
 | F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | **Presente (M19)**: `YouTubeManager.searchAll`/`getPlaylistInfo`/`getPlaylistVideos` en `:core`, sección plegable de listas en `SearchScreen` y `YouTubePlaylistDetailView` (reproducir todo y guardar como lista local) | **Alta** |
-| F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | Sin shuffle (MPRIS `Shuffle` es de solo lectura y falso) | **Alta** |
+| F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | **Presente (M20)**: `Shuffle` puro + `PlayerController.startRandomized`/`stopRandomized`; botón `<rnd>`/`<stop>` en el detalle de lista y `<rnd>` en el detalle de lista de YouTube. MPRIS `Shuffle` sigue siendo de solo lectura | **Alta** |
 | F19 | Historial de búsqueda (no es hueco real) | `SearchViewModel` lo persiste, pero **`getAllSearches()` nunca se llama**: Android tampoco lo muestra | `SearchHistoryRepository` persiste igual; la UI no lo usa en ninguno de los dos | — |
 | F20 | Paginación / «cargar más» en búsqueda | `SearchViewModel.onLoadMore` | Una sola consulta, sin paginar | Media |
 | F21 | Crear playlist buscando en YouTube | `CreatePlaylistScreen` | `CreatePlaylistView` es solo título+descripción | Media |
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M19` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M20` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -271,6 +271,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M17 — UI de almacenamiento offline:** `DownloadStatusBar` y `OfflineStorageDialog` en `:desktop`; botón descargar/limpiar en el detalle de lista, indicador `↓`/`↓ NN%` por pista y acción «borrar descarga»; sección de almacén en Ajustes (tamaño, nº de pistas y «borrar todo»).
 - **M18 — Carrusel de playlists en Home:** `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover` en `HomeScreen`; carga las listas visibles (mismo filtro que la pantalla de listas) con portada Coil 3 y abre el detalle al pulsarlas, manteniendo el menú de consola y el aviso de actualización.
 - **M19 — Playlists de YouTube en búsqueda + detalle:** `YouTubeManager.searchAll`/`getPlaylistInfo`/`getPlaylistVideos` en `:core`; la búsqueda muestra vídeos y listas en dos secciones plegables (`v`/`>`) y `YouTubePlaylistDetailView` abre una lista, la reproduce entera y la guarda como lista local.
+- **M20 — Reproducción aleatoria (`<rnd>`) en playlists:** `Shuffle` puro (semilla inyectable) y `PlayerController.startRandomized`/`stopRandomized` con `isRandomizing` en el estado; botón `<rnd>`/`<stop>` en el detalle de lista local y `<rnd>` en el detalle de lista de YouTube, sin salir de la pantalla (la barra flotante muestra lo que suena).
 
 ### 6.2 Tabla de seguimiento
 
@@ -296,7 +297,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M17 | UI de almacenamiento offline | 1 | ☑ |
 | M18 | Carrusel de playlists en Home | 0.5 | ☑ |
 | M19 | Playlists de YouTube en búsqueda + detalle | 1–1.5 | ☑ |
-| M20+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M20 | Reproducción aleatoria (`<rnd>`) en playlists | 0.5 | ☑ |
+| M21+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -306,13 +308,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M20+)
+### 6.4 Backlog de paridad pendiente (M21+)
 
-Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F18 y F23 del inventario (§1.1).
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F23 del inventario (§1.1).
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M20 | Reproducción aleatoria (`<rnd>`) en playlists | **Alta** | 0.5 |
 | M21 | Paginación («cargar más») en búsqueda | Media | 0.5 |
 | M22 | Crear/editar playlist con búsqueda + acciones por pista | Media | 1 |
 | M23 | Feed: metadatos del vídeo y reproducir desde el feed | **Alta** | 0.5 |
@@ -379,7 +380,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M20 — Reproducción aleatoria (`<rnd>`) en playlists
+#### M20 — Reproducción aleatoria (`<rnd>`) en playlists ☑ (completado)
 **Objetivo:** botón `<rnd>` que baraja y reproduce una lista.
 **Tareas**
 - `PlayerController.startRandomized(tracks)` / stop; barajado puro y testeable.
@@ -388,6 +389,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** test puro del barajado + `:desktop:test`.
 **Prompt opencode:**
 > Añade a `:desktop` reproducción aleatoria en el detalle de playlist: un método `startRandomized` en `PlayerController` (barajado puro y testeable) y el botón `<rnd>` en la vista de lista. Verifica con un test del barajado.
+
+**Implementado:** `com.plyr.desktop.player.Shuffle.randomized(items, random)` es una permutación pura con `Random` inyectable (semilla reproducible en tests). `PlayerController` gana `startRandomized(tracks, random)` (baraja y arranca) y `stopRandomized()` (para y vacía la cola); el body de `play` se extrajo a `startPlayback(tracks, startIndex, randomizing)` para compartirlo. `PlayerState` expone `isRandomizing`, que se resetea al parar, al vaciar la cola y al terminar la cola (`stopAtQueueEnd`). En la UI, `PlaylistDetailView` muestra `<rnd>`/`<stop>` (testTag `playlist_random`, mismo `playbackRandomButton` que Android, solo fuera del modo edición) y `YouTubePlaylistDetailView` un `<rnd>` puntual (testTag `youtube_playlist_random`, como el `onShuffle` de Android). Ninguno navega a la cola: la barra flotante muestra lo que suena, de modo que `<stop>` sigue accesible. Cableado en `PlaylistsScreen` y `AudioListScreen` (helper `List<TrackRecord>.toPlayerTracks()`). Tests: `ShuffleTest` (4), `PlayerControllerTest` (+4) y un caso de `<rnd>`/`<stop>` en `PlaylistDetailViewTest` (+2) y `YouTubePlaylistDetailViewTest` (+1).
 
 ---
 

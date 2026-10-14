@@ -7,11 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.random.Random
 
 /**
  * Tests de la orquestación de [PlayerController] sin VLC ni red.
@@ -227,6 +229,53 @@ class PlayerControllerTest {
         val withoutId = PlayerTrack.fromSearchResult(3, AudioItem(title = "T", url = "", channel = "C"))
         assertNull(withoutId.videoId)
         assertTrue(withoutId.id.contains("3"))
+    }
+
+    @Test
+    fun startRandomized_playsShuffledAndFlagsRandom() {
+        val tracks = (1..8).map { track("t$it") }
+        val originalIds = tracks.map { it.id }
+
+        controller.startRandomized(tracks, Random(7))
+
+        // Arranca por la primera barajada y suena.
+        assertEquals(0, state.currentIndex)
+        assertTrue(player.isPlaying)
+        // El orden es una permutación distinta del original.
+        assertEquals(originalIds.sorted(), state.queue.map { it.id }.sorted())
+        assertNotEquals(originalIds, state.queue.map { it.id })
+        assertTrue(state.isRandomizing)
+    }
+
+    @Test
+    fun startRandomized_emptyListIsNoOp() {
+        controller.startRandomized(emptyList())
+
+        assertTrue(state.queue.isEmpty())
+        assertFalse(state.isRandomizing)
+    }
+
+    @Test
+    fun stopRandomized_clearsQueueAndFlag() {
+        controller.startRandomized((1..5).map { track("t$it") }, Random(3))
+        assertTrue(state.isRandomizing)
+
+        controller.stopRandomized()
+
+        assertTrue(state.queue.isEmpty())
+        assertFalse(state.isRandomizing)
+        assertFalse(player.isPlaying)
+    }
+
+    @Test
+    fun normalPlayClearsRandomFlag() {
+        controller.startRandomized((1..5).map { track("t$it") }, Random(3))
+        assertTrue(state.isRandomizing)
+
+        controller.play(listOf(track("x")), 0)
+
+        assertFalse(state.isRandomizing)
+        assertEquals(listOf("x"), state.queue.map { it.id })
     }
 
     /** Resolutor falso: nunca toca red; permite forzar fallos y registra llamadas. */

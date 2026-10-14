@@ -39,6 +39,9 @@ fun PlaylistDetailView(
     state: PlaylistsState,
     onPlayTracks: (List<TrackRecord>, Int) -> Unit,
     onBack: () -> Unit,
+    isRandomizing: Boolean = false,
+    onPlayRandom: (List<TrackRecord>) -> Unit = {},
+    onStopRandomize: () -> Unit = {},
 ) {
     val playlist = state.selectedPlaylist
     val description = playlist?.description
@@ -73,6 +76,19 @@ fun PlaylistDetailView(
             data = ActionButtonData(text = Translations.get("play_all"), onClick = { if (state.tracks.isNotEmpty()) onPlayTracks(state.tracks, 0) }),
             modifier = Modifier.testTag("playlist_play_all")
         )
+        // Reproducción aleatoria (M20): `<rnd>` baraja y arranca; mientras dura,
+        // el mismo botón pasa a `<stop>` (como el `playbackRandomButton` de
+        // Android). Solo en modo normal, no editando la lista.
+        if (!state.isEditing) {
+            ActionButton(
+                data = ActionButtonData(
+                    text = if (isRandomizing) "<stop>" else "<rnd>",
+                    color = if (isRandomizing) MaterialTheme.colorScheme.error else Color.Unspecified,
+                    onClick = { if (isRandomizing) onStopRandomize() else onPlayRandom(state.tracks) },
+                ),
+                modifier = Modifier.testTag("playlist_random")
+            )
+        }
         if (playlist != null && PlaylistShare.isShareable(playlist.remoteId, playlist.description, playlist.source, playlist.sourceId)) {
             ActionButton(
                 data = ActionButtonData(text = Translations.get("share"), onClick = { shareItem = playlist.toShareableItem() }),

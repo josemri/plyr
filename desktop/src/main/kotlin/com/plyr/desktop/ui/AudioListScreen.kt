@@ -123,12 +123,7 @@ fun AudioListScreen(
     // Reproduce una lista de pistas y salta a la cola; lo comparten el detalle de
     // listas locales (M8) y el de listas de YouTube (M19).
     val playTracks: (List<com.plyr.database.TrackRecord>, Int) -> Unit = { tracks, index ->
-        playerController.play(
-            tracks.mapIndexed { i: Int, t: com.plyr.database.TrackRecord ->
-                PlayerTrack.fromTrackRecord(i, t)
-            },
-            index,
-        )
+        playerController.play(tracks.toPlayerTracks(), index)
         currentScreen = Screen.QUEUE
     }
 
@@ -306,6 +301,11 @@ fun AudioListScreen(
                                 state = youtubeDetailState,
                                 onPlayTracks = playTracks,
                                 onToggleSave = youtubeDetailController::toggleSave,
+                                onShuffle = {
+                                    // Aleatorio (M20): misma idea que Android; no
+                                    // navega, la barra flotante muestra lo que suena.
+                                    playerController.startRandomized(youtubeDetailState.tracks.toPlayerTracks())
+                                },
                                 onBack = {
                                     youtubeDetailController.close()
                                     selectedYouTubePlaylist = null
@@ -360,6 +360,12 @@ fun AudioListScreen(
                             downloadController = downloadController,
                             onBack = goHome,
                             onPlayTracks = playTracks,
+                            // Aleatorio (M20): baraja la lista abierta y arranca.
+                            // No navega a la cola: así el botón sigue a la vista
+                            // para poder parar con `<stop>`.
+                            isRandomizing = playerState.isRandomizing,
+                            onPlayRandom = { tracks -> playerController.startRandomized(tracks.toPlayerTracks()) },
+                            onStopRandomize = playerController::stopRandomized,
                         )
                     }
                     Screen.FEED -> FeedScreen(
@@ -390,9 +396,12 @@ fun AudioListScreen(
     }
 }
 
+/** Mapea las pistas de una lista local/YouTube a la cola del reproductor. */
+private fun List<com.plyr.database.TrackRecord>.toPlayerTracks(): List<PlayerTrack> =
+    mapIndexed { index, track -> PlayerTrack.fromTrackRecord(index, track) }
+
 /** Traduce el estado del reproductor al que pinta la barra flotante. */
-private fun PlayerState.toUiState() = PlayerUiState(
-    title = title,
+private fun PlayerState.toUiState() = PlayerUiState(    title = title,
     isLoading = isLoading,
     error = error,
     isPlaying = isPlaying,

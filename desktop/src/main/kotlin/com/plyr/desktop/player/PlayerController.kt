@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.random.Random
 
 /**
  * Estado de la reproducción de escritorio, ya resuelto para pintarse.
@@ -42,6 +43,8 @@ data class PlayerState(
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val repeatMode: String = RepeatMode.OFF,
+    /** `true` mientras la cola viene de un barajado (`<rnd>`, M20). */
+    val isRandomizing: Boolean = false,
 ) {
     val hasQueue: Boolean get() = queue.isNotEmpty()
 }
@@ -125,6 +128,9 @@ class PlayerController(
      */
     private val resolvedVideoId = ConcurrentHashMap<String, String>()
 
+    /** `true` mientras la cola en curso viene de un barajado (M20). */
+    private var randomizing = false
+
     private val loading = LoadingState()
     private val transitions = LoadingState()
     private val pendingSkips = PendingSkips()
@@ -197,6 +203,35 @@ class PlayerController(
      * ser la cola y la pista pulsada, la actual.
      */
     fun play(tracks: List<PlayerTrack>, startIndex: Int = 0) {
+        startPlayback(tracks, startIndex, randomizing = false)
+    }
+
+    /**
+     * Reproduce [tracks] en orden aleatorio, empezando por la primera barajada
+     * (M20, el `<rnd>` de las listas).
+     *
+     * Mismo camino que [play], pero el orden lo fija [Shuffle] —con un [random]
+     * inyectable para los tests— y el estado queda marcado como aleatorio
+     * (`isRandomizing`), que la UI usa para ofrecer `<stop>`. Con la lista vacía
+     * no hace nada (en Android el caso equivalente tampoco arranca nada).
+     */
+    fun startRandomized(tracks: List<PlayerTrack>, random: Random = Random.Default) {
+        if (tracks.isEmpty()) return
+        startPlayback(Shuffle.randomized(tracks, random), 0, randomizing = true)
+    }
+
+    /**
+     * Detiene la reproducción y sale del modo aleatorio (`<stop>`, M20).
+     *
+     * Vacía la cola como [clear]: tras parar, el botón vuelve a `<rnd>`.
+     */
+    fun stopRandomized() {
+        clear()
+    }
+
+    /** Cuerpo compartido de [play] y [startRandomized]; fija el modo aleatorio. */
+    private fun startPlayback(tracks: List<PlayerTrack>, startIndex: Int, randomizing: Boolean) {
+        this.randomizing = randomizing
         invalidateLoads()
         prefetchJob?.cancel()
         prefetchJob = null
@@ -338,6 +373,7 @@ class PlayerController(
 
     /** Para la reproducción y vacía la cola. */
     fun clear() {
+        randomizing = false
         playJob?.cancel()
         playJob = null
         prefetchJob?.cancel()
@@ -365,6 +401,7 @@ class PlayerController(
                 isPlaying = false,
                 positionMs = 0L,
                 durationMs = 0L,
+                isRandomizing = false,
             )
         }
     }
@@ -723,6 +760,8 @@ class PlayerController(
     }
 
     private fun stopAtQueueEnd() {
+        // La cola (aleatoria o no) se acabó: ya no hay sesión que parar (M20).
+        randomizing = false
         player?.let {
             it.stop()
             it.clearMediaItems()
@@ -735,6 +774,7 @@ class PlayerController(
                 isPlaying = false,
                 positionMs = 0L,
                 durationMs = 0L,
+                isRandomizing = false,
             )
         }
         updateLoadingState()
@@ -808,6 +848,7 @@ class PlayerController(
                 queue = queue,
                 currentIndex = currentIndex,
                 repeatMode = engine.repeatMode,
+                isRandomizing = randomizing,
             )
         }
     }

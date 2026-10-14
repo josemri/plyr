@@ -26,3 +26,5 @@ app/release/
 /*/build
 /.kotlin
 /*/.kotlin
+.plyr_android_env
+plyr-sync.zip
