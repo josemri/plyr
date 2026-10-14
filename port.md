@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M17` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M18` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -34,7 +34,7 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 |---|---|---|---|---|
 | F14 | Descarga de audio offline y reproducción sin conexión | `AudioDownloader` + `DownloadedAudioStore` + `DownloadPlan` (OkHttp + SAF/`filesDir`) | **Presente (M16)**: `AudioDownloader` + `DownloadedAudioStore` + `DownloadController` (OkHttp + `java.nio`); el resolutor prefiere el fichero local | **Alta** |
 | F15 | UI de almacenamiento offline (descargar/limpiar y resumen) | `PlaylistScreen` + `PlaylistDownloadBar` + `OfflineStorageDialog` | **Presente (M17)**: `DownloadStatusBar` + `OfflineStorageDialog` + botón descargar/limpiar e indicador por pista (`PlaylistDetailView`/`PlaylistTrackItem`); sección de almacén en `ConfigScreen` | Media |
-| F16 | Carrusel de playlists en Home | `HomeScreen` (`HomePlaylistCarousel`) | Home es solo un menú de consola | Media |
+| F16 | Carrusel de playlists en Home | `HomeScreen` (`HomePlaylistCarousel`) | **Presente (M18)**: `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover` en `HomeScreen`, con las listas visibles y clic para abrir el detalle | Media |
 | F17 | Búsqueda y detalle de *playlists* de YouTube | `YouTubeSearchManager.searchYouTubeAll` + `YouTubePlaylistDetailView` | Solo se buscan vídeos | **Alta** |
 | F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | Sin shuffle (MPRIS `Shuffle` es de solo lectura y falso) | **Alta** |
 | F19 | Historial de búsqueda (no es hueco real) | `SearchViewModel` lo persiste, pero **`getAllSearches()` nunca se llama**: Android tampoco lo muestra | `SearchHistoryRepository` persiste igual; la UI no lo usa en ninguno de los dos | — |
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M17` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M18` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -269,6 +269,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M15 — Pulido:** atajos de teclado, `UpdateChecker` de escritorio, detekt con `detekt-baseline.xml`, checklist i18n y docs.
 - **M16 — Descarga offline:** `DownloadPlan` (puro) a `:core`; `DownloadedAudioStore` (`java.nio`, `dataDir/audio/<videoId>.m4a`), `AudioDownloader` (OkHttp, con `AudioFetcher` inyectable) y `DownloadController` (`StateFlow`); `YouTubeTrackSourceResolver` prefiere el fichero local y deja el streaming de respaldo.
 - **M17 — UI de almacenamiento offline:** `DownloadStatusBar` y `OfflineStorageDialog` en `:desktop`; botón descargar/limpiar en el detalle de lista, indicador `↓`/`↓ NN%` por pista y acción «borrar descarga»; sección de almacén en Ajustes (tamaño, nº de pistas y «borrar todo»).
+- **M18 — Carrusel de playlists en Home:** `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover` en `HomeScreen`; carga las listas visibles (mismo filtro que la pantalla de listas) con portada Coil 3 y abre el detalle al pulsarlas, manteniendo el menú de consola y el aviso de actualización.
 
 ### 6.2 Tabla de seguimiento
 
@@ -292,7 +293,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M15 | Pulido y paridad final | 1–2 | ☑ (paridad parcial, ver §6.4) |
 | M16 | Descarga de audio offline + reproducción sin conexión ⭐ | 1–2 | ☑ |
 | M17 | UI de almacenamiento offline | 1 | ☑ |
-| M18+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M18 | Carrusel de playlists en Home | 0.5 | ☑ |
+| M19+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -302,13 +304,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M18+)
+### 6.4 Backlog de paridad pendiente (M19+)
 
 Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F17, F18 y F23 del inventario (§1.1).
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M18 | Carrusel de playlists en Home | Media | 0.5 |
 | M19 | Playlists de YouTube en búsqueda + detalle | **Alta** | 1–1.5 |
 | M20 | Reproducción aleatoria (`<rnd>`) en playlists | **Alta** | 0.5 |
 | M21 | Paginación («cargar más») en búsqueda | Media | 0.5 |
@@ -348,7 +349,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M18 — Carrusel de playlists en Home
+#### M18 — Carrusel de playlists en Home ☑ (completado)
 **Objetivo:** que la Home muestre las listas visibles con portada, no solo el menú de consola.
 **Tareas**
 - Portar `HomePlaylistCarousel`/`HomePlaylistItem`/`HomePlaylistCover`; cargar listas visibles desde `PlaylistRepository`; clic para abrir el detalle.
@@ -357,6 +358,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test` (Compose UI) + manual.
 **Prompt opencode:**
 > Añade a la Home de `:desktop` un carrusel horizontal de las playlists visibles con su portada (Coil 3), portando `HomePlaylistCarousel` de Android, manteniendo el menú de consola. Al pulsar una lista se abre su detalle. Verifica con tests de Compose.
+
+**Implementado:** `HomeScreen` recibe `playlists` (ya filtradas por `PlaylistFilters` en `PlaylistsController`) y `onOpenPlaylist`; pinta `HomePlaylistCarousel` (`LazyRow` con `home_playlists`/`home_playlist_<remoteId>`) sobre el menú. `HomePlaylistItem`/`HomePlaylistCover` muestran la portada con Coil 3 (`UrlParser.normalizeYoutubeThumb`), el corazón en Favoritos y la inicial si no hay imagen. `AudioListScreen` cablea el clic a `selectPlaylist` + `Screen.PLAYLISTS`, de modo que se abre el detalle. Sin listas el carrusel no ocupa sitio. Tests: `HomeScreenTest` (3).
 
 ---
 

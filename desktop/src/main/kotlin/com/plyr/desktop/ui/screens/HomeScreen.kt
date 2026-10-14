@@ -1,11 +1,22 @@
 package com.plyr.desktop.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,11 +27,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.plyr.database.LikedSongs
+import com.plyr.database.PlaylistRecord
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.Browser
 import com.plyr.desktop.ui.MenuOption
@@ -31,19 +48,27 @@ import com.plyr.desktop.ui.theme.AsciiArt
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
 import com.plyr.desktop.utils.UpdateChecker
+import com.plyr.utils.UrlParser
 
 private val APP_VERSION = "v${UpdateChecker.CURRENT_VERSION}"
+
+/** Portada y ancho de celda del carrusel de listas de la Home (M18). */
+private val HOME_CAROUSEL_COVER = 120.dp
+private val HOME_CAROUSEL_ITEM_WIDTH = 140.dp
 
 /**
  * Pantalla de inicio del escritorio.
  *
- * Es el equivalente de `com.plyr.ui.HomeScreen`, pero en vez del carrusel de
- * playlists (que necesita base de datos, M6) muestra un menú de consola con las
- * pantallas disponibles. Sirve de puerta de entrada a la navegación.
+ * Porta `com.plyr.ui.HomeScreen`: sobre el menú de consola muestra un carrusel
+ * horizontal con las listas visibles ([playlists], ya filtradas por
+ * `PlaylistFilters` en `AudioListScreen`) y su portada. Pulsar una lista avisa
+ * por [onOpenPlaylist] para que la app abra su detalle.
  */
 @Composable
 fun HomeScreen(
     onNavigate: (Screen) -> Unit,
+    playlists: List<PlaylistRecord> = emptyList(),
+    onOpenPlaylist: (String) -> Unit = {},
     checkForUpdate: (suspend () -> UpdateChecker.UpdateInfo?)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -80,6 +105,12 @@ fun HomeScreen(
             ),
             textAlign = TextAlign.Center,
         )
+
+        // Carrusel de listas (M18): solo si hay alguna visible, para no dejar un
+        // hueco vacío cuando aún no se ha creado/importado nada.
+        if (playlists.isNotEmpty()) {
+            HomePlaylistCarousel(playlists = playlists, onOpenPlaylist = onOpenPlaylist)
+        }
 
         HomeVersion(update)
 
@@ -131,4 +162,107 @@ private fun HomeVersion(update: UpdateChecker.UpdateInfo?) {
             .testTag("home_version")
             .clickable(enabled = latest != null) { Browser.open(latest?.downloadUrl ?: UpdateChecker.RELEASES_URL) },
     )
+}
+
+/**
+ * Carrusel horizontal con las listas visibles (M18), portado de Android.
+ *
+ * Empieza siempre por la primera lista a la izquierda. El estado del scroll se
+ * recuerda por composición para que no "salte" al recomponer.
+ */
+@Composable
+private fun HomePlaylistCarousel(
+    playlists: List<PlaylistRecord>,
+    onOpenPlaylist: (String) -> Unit,
+) {
+    val listState = remember { LazyListState() }
+    LaunchedEffect(playlists) {
+        if (playlists.isNotEmpty()) listState.scrollToItem(0)
+    }
+
+    LazyRow(
+        state = listState,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = PlyrSpacing.medium)
+            .testTag("home_playlists"),
+        horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.medium),
+    ) {
+        items(playlists, key = { it.remoteId }) { playlist ->
+            HomePlaylistItem(playlist = playlist, onOpenPlaylist = onOpenPlaylist)
+        }
+    }
+}
+
+/** Celda del carrusel: portada + nombre; al pulsarla se abre el detalle. */
+@Composable
+private fun HomePlaylistItem(
+    playlist: PlaylistRecord,
+    onOpenPlaylist: (String) -> Unit,
+) {
+    val isLiked = playlist.remoteId == LikedSongs.ID
+    val coverUrl = if (isLiked) null else UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
+
+    Column(
+        modifier = Modifier
+            .width(HOME_CAROUSEL_ITEM_WIDTH)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onOpenPlaylist(playlist.remoteId) }
+            .testTag("home_playlist_${playlist.remoteId}"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        HomePlaylistCover(isLiked = isLiked, coverUrl = coverUrl, name = playlist.name)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = playlist.name,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * Portada de una lista en el carrusel (M18).
+ *
+ * Favoritos va con el corazón; el resto usa Coil 3 (como [com.plyr.desktop.playlists.PlaylistCover])
+ * o, si no hay portada, la inicial del nombre.
+ */
+@Composable
+private fun HomePlaylistCover(isLiked: Boolean, coverUrl: String?, name: String) {
+    val shape = RoundedCornerShape(12.dp)
+    when {
+        isLiked -> Box(
+            modifier = Modifier
+                .size(HOME_CAROUSEL_COVER)
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = "♥", fontSize = 40.sp, color = MaterialTheme.colorScheme.error)
+        }
+        !coverUrl.isNullOrBlank() -> AsyncImage(
+            model = coverUrl,
+            contentDescription = name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(HOME_CAROUSEL_COVER)
+                .clip(shape),
+        )
+        else -> Box(
+            modifier = Modifier
+                .size(HOME_CAROUSEL_COVER)
+                .clip(shape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = name.take(1),
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }

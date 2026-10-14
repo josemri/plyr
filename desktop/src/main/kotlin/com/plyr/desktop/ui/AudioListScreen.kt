@@ -252,6 +252,13 @@ fun AudioListScreen(
                 when (currentScreen) {
                     Screen.HOME -> HomeScreen(
                         onNavigate = { currentScreen = it },
+                        // Carrusel de listas (M18): mismas listas visibles que la
+                        // pantalla de playlists; al pulsar una se abre su detalle.
+                        playlists = playlistsState.playlists,
+                        onOpenPlaylist = { id ->
+                            playlistsController.selectPlaylist(id)
+                            currentScreen = Screen.PLAYLISTS
+                        },
                         checkForUpdate = checkForUpdate,
                     )
                     Screen.SEARCH -> SearchScreen(
