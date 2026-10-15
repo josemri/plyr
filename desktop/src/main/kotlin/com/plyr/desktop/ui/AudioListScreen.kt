@@ -247,9 +247,9 @@ fun AudioListScreen(
     var selectedYouTubePlaylist by remember { mutableStateOf<YouTubePlaylistInfo?>(null) }
     val youtubeDetailState by youtubeDetailController.state.collectAsState()
 
-    // Abrir una lista de YouTube por su id (M23): es el mismo camino que un
-    // `ScanResult("youtube", "playlist", …)` de QR/NFC. Carga la ficha con `:core`
-    // y abre el detalle; si no está disponible, deja la URL en la búsqueda.
+    // Abrir una lista de YouTube por su id (M23): lo usa el feed al pulsar una
+    // recomendación de tipo lista. Carga la ficha con `:core` y abre el detalle;
+    // si no está disponible, deja la URL en la búsqueda.
     val openYouTubePlaylist: (String) -> Unit = { playlistId ->
         currentScreen = Screen.SEARCH
         scope.launch {
@@ -339,6 +339,12 @@ fun AudioListScreen(
                             playlistsController.selectPlaylist(id)
                             currentScreen = Screen.PLAYLISTS
                         },
+                        // Búsqueda en la Home (M28): lanza la consulta y abre los
+                        // resultados; sustituye al antiguo botón `plyr_search`.
+                        onSearch = { query ->
+                            searchController.performSearch(query)
+                            currentScreen = Screen.SEARCH
+                        },
                         checkForUpdate = checkForUpdate,
                     )
                     Screen.SEARCH -> {
@@ -375,22 +381,6 @@ fun AudioListScreen(
                                 onLoadMore = searchController::loadMore,
                                 onAddToPlaylist = { track, playlistId ->
                                     playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
-                                },
-                                onScanResult = { result ->
-                                    when {
-                                        result.source == "spotify" && result.id.isNotBlank() -> {
-                                            spotifyController.onUrlChange("spotify:playlist:${result.id}")
-                                            currentScreen = Screen.CONFIG
-                                        }
-                                        result.source == "youtube" && result.type == "playlist" && result.id.isNotBlank() -> {
-                                            openYouTubePlaylist(result.id)
-                                        }
-                                        result.source == "youtube" && result.id.isNotBlank() -> {
-                                            val url = "https://www.youtube.com/watch?v=${result.id}"
-                                            searchController.onQueryChange(url)
-                                            searchController.performSearch(url)
-                                        }
-                                    }
                                 },
                                 onToggleVideos = searchController::toggleVideos,
                                 onTogglePlaylists = searchController::togglePlaylists,

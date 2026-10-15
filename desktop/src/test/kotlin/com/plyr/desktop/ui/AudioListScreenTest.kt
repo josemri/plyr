@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
@@ -18,9 +19,10 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Test de UI del esqueleto de M5: comprueba que la app abre en Home, que el
- * menú navega entre pantallas y vuelve, que la cola ya no está en el menú (M27)
- * y que cambiar el idioma en Ajustes actualiza las etiquetas.
+ * Test de UI del esqueleto de M5: comprueba que la app abre en Home, que el menú
+ * navega entre pantallas y vuelve, que la búsqueda vive en la Home (M28) y que la
+ * cola ya no está en el menú (M27), y que cambiar el idioma en Ajustes actualiza
+ * las etiquetas.
  */
 @OptIn(ExperimentalTestApi::class)
 class AudioListScreenTest {
@@ -53,9 +55,10 @@ class AudioListScreenTest {
     }
 
     @Test
-    fun elMenuNavegaABuscar() = runComposeUiTest {
+    fun laBusquedaDeLaHomeAbreLosResultados() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
-        onNodeWithTag("menu_SEARCH").performClick()
+        onNodeWithTag("home_search_input").performTextInput("daft punk")
+        onNodeWithTag("home_search_button").performClick()
         onNodeWithTag("screen_SEARCH").assertIsDisplayed()
     }
 

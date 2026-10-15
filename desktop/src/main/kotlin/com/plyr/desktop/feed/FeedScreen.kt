@@ -214,8 +214,8 @@ private fun FeedThumbnail(url: String?) {
 /**
  * Maneja el click en una recomendación según su tipo de contenido (M23), igual
  * que Android: los vídeos de YouTube se reproducen y las listas se abren en la
- * pantalla de búsqueda (mismo `ScanResult` que usa el lector de QR); si no hay
- * metadatos pero la URL lleva un id de vídeo, se reproduce igualmente.
+ * pantalla de búsqueda; si no hay metadatos pero la URL lleva un id de vídeo, se
+ * reproduce igualmente.
  */
 internal fun handleRecommendationClick(
     recommendation: Recommendation,

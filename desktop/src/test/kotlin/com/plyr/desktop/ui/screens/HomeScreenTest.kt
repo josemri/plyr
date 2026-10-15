@@ -4,6 +4,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.database.PlaylistRecord
 import com.plyr.database.PlaylistSource
@@ -17,7 +18,8 @@ import org.junit.Test
 /**
  * Home del escritorio (M18): carrusel horizontal de las listas visibles con su
  * portada. Pulsar una lista avisa para abrir su detalle; sin listas, el carrusel
- * no ocupa sitio y el menú de consola sigue igual.
+ * no ocupa sitio y el menú de consola sigue igual. M28 añade la barra de búsqueda
+ * en la Home (sustituye a la entrada `plyr_search` del menú).
  */
 @OptIn(ExperimentalTestApi::class)
 class HomeScreenTest {
@@ -59,8 +61,21 @@ class HomeScreenTest {
         setContent { PlyrTheme { HomeScreen(onNavigate = {}) } }
 
         onNodeWithTag("home_playlist_p1").assertDoesNotExist()
-        // El menú de consola sigue estando.
-        onNodeWithTag("menu_SEARCH").assertIsDisplayed()
+        // El menú de consola sigue estando y ahora la búsqueda vive en la Home.
+        onNodeWithTag("menu_CONFIG").assertIsDisplayed()
+        onNodeWithTag("home_search_button").assertIsDisplayed()
+        onNodeWithTag("menu_SEARCH").assertDoesNotExist()
+    }
+
+    @Test
+    fun escribirYBuscarAvisaConLaConsulta() = runComposeUiTest {
+        var consulta: String? = null
+        setContent { PlyrTheme { HomeScreen(onNavigate = {}, onSearch = { consulta = it }) } }
+
+        onNodeWithTag("home_search_input").performTextInput("daft punk")
+        onNodeWithTag("home_search_button").performClick()
+
+        assertEquals("daft punk", consulta)
     }
 
     @Test

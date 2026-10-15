@@ -14,11 +14,10 @@ import javax.imageio.ImageIO
 /**
  * Transporte de imagen para el QR en escritorio (M11).
  *
- * La matriz y el round-trip de decodificación viven en `:core` (`[QrCodec]`); lo
- * que queda aquí es lo que cada plataforma aporta: pintar la matriz como
- * `ImageBitmap` de Compose, exportarla a PNG con `ImageIO` y leer los píxeles de
- * una imagen del disco para volver a decodificarla. Todo funciona en modo
- * *headless*, sin cámara.
+ * La matriz la genera `:core` (`[QrCodec]`); lo que queda aquí es lo que cada
+ * plataforma aporta: pintar la matriz como `ImageBitmap` de Compose y exportarla
+ * a PNG con `ImageIO`. El lado de lectura (`decodeImage`) se retiró en M28 junto
+ * con el escáner de QR de escritorio. Todo funciona en modo *headless*, sin cámara.
  */
 object QrImages {
 
@@ -43,13 +42,5 @@ object QrImages {
         val image = BufferedImage(matrix.width, matrix.height, BufferedImage.TYPE_INT_RGB)
         image.setRGB(0, 0, matrix.width, matrix.height, QrCodec.toArgb(matrix), 0, matrix.width)
         ImageIO.write(image, "png", file)
-    }
-
-    /** Lee [file] y devuelve el primer QR que contenga, o `null`. */
-    fun decodeImage(file: File): String? {
-        val image = ImageIO.read(file) ?: return null
-        val pixels = IntArray(image.width * image.height)
-        image.getRGB(0, 0, image.width, image.height, pixels, 0, image.width)
-        return QrCodec.decode(pixels, image.width, image.height)
     }
 }

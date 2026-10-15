@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,9 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,18 +70,19 @@ private val HOME_CAROUSEL_ITEM_WIDTH = 140.dp
  * por [onOpenPlaylist] para que la app abra su detalle.
  *
  * M27: el menú ya no ofrece la cola; como en Android, se abre solo con el `^` de
- * los controles flotantes.
+ * los controles flotantes. M28: la búsqueda deja de ser una entrada del menú y
+ * pasa a ser la barra [onSearch] de la Home, que navega a los resultados.
  */
 @Composable
 fun HomeScreen(
     onNavigate: (Screen) -> Unit,
     playlists: List<PlaylistRecord> = emptyList(),
     onOpenPlaylist: (String) -> Unit = {},
+    onSearch: (String) -> Unit = {},
     checkForUpdate: (suspend () -> UpdateChecker.UpdateInfo?)? = null,
     modifier: Modifier = Modifier,
 ) {
     val options = listOf(
-        MenuOption(Screen.SEARCH, Translations.get(Screen.SEARCH.titleKey)),
         MenuOption(Screen.PLAYLISTS, Translations.get(Screen.PLAYLISTS.titleKey)),
         MenuOption(Screen.FEED, Translations.get(Screen.FEED.titleKey)),
         MenuOption(Screen.CONFIG, Translations.get(Screen.CONFIG.titleKey)),
@@ -122,6 +128,11 @@ fun HomeScreen(
             modifier = Modifier.padding(vertical = PlyrSpacing.large),
         )
 
+        // Búsqueda en la Home (M28): sustituye al botón `plyr_search` del menú.
+        HomeSearchBar(onSearch = onSearch)
+
+        Spacer(Modifier.height(PlyrSpacing.large))
+
         Column(
             modifier = Modifier.widthIn(min = 220.dp),
             verticalArrangement = Arrangement.spacedBy(PlyrSpacing.xs),
@@ -138,6 +149,59 @@ fun HomeScreen(
                 )
             }
         }
+    }
+}
+
+/**
+ * Barra de búsqueda de la Home (M28): sustituye a la entrada `plyr_search` del
+ * menú. Al enviar (Enter o el botón `[ plyr_search ]`), avisa con [onSearch] para
+ * que la app navegue a la pantalla de resultados y lance la consulta.
+ */
+@Composable
+private fun HomeSearchBar(onSearch: (String) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    fun submit() {
+        val trimmed = query.trim()
+        if (trimmed.isNotEmpty()) onSearch(trimmed)
+    }
+
+    Row(
+        modifier = Modifier
+            .widthIn(min = 220.dp, max = 420.dp)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = PlyrSymbols.PROMPT,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
+            ),
+        )
+
+        BasicTextField(
+            value = query,
+            onValueChange = { query = it },
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface,
+            ),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { submit() }),
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = PlyrSpacing.small)
+                .testTag("home_search_input"),
+        )
+
+        ActionButton(
+            data = ActionButtonData(
+                text = "[ ${Translations.get("search_title")} ]",
+                onClick = { submit() },
+            ),
+            modifier = Modifier.testTag("home_search_button"),
+        )
     }
 }
 

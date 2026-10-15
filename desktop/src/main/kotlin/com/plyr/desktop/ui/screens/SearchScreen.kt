@@ -36,7 +36,6 @@ import com.plyr.database.PlaylistRecord
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.playlists.PlaylistCover
-import com.plyr.desktop.qr.QrScanDialog
 import com.plyr.desktop.search.SearchState
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.components.ActionButton
@@ -49,7 +48,6 @@ import com.plyr.desktop.ui.components.TrackMenuItem
 import com.plyr.desktop.ui.components.itemsFor
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
-import com.plyr.model.ScanResult
 import com.plyr.network.YouTubePlaylistInfo
 import java.util.Locale
 
@@ -58,13 +56,12 @@ import java.util.Locale
  * Pantalla de búsqueda de escritorio (M7).
  *
  * Puerto "de consola" de `com.plyr.ui.SearchScreen`: como en Android, la consulta
- * se lanza contra YouTube y los resultados se pueden reproducir. Desde M11
- * incluye el lector de QR sin cámara ([QrScanDialog]): pegar una URL o abrir una
- * imagen, que se traduce al mismo [ScanResult] que Android. Desde M19 muestra
+ * se lanza contra YouTube y los resultados se pueden reproducir. Desde M19 muestra
  * las listas de YouTube junto a los vídeos (dos secciones plegables, `v`/`>`) y
  * avisa al pulsarlas para abrir su detalle. Desde M21 ofrece «cargar más» al
  * pie de los vídeos (mismo umbral que Android: ≥10 resultados) y va añadiendo
- * páginas.
+ * páginas. M28 retiró el lector de QR sin cámara (M11): la consulta llega desde la
+ * barra de búsqueda de la Home.
  *
  * El estado y los callbacks llegan de fuera ([SearchState] + lambdas) para que el
  * composable sea testeable sin red ni motor de audio.
@@ -78,7 +75,6 @@ fun SearchScreen(
     onBack: () -> Unit,
     playlists: List<PlaylistRecord> = emptyList(),
     onAddToPlaylist: ((PlayerTrack, String) -> Unit)? = null,
-    onScanResult: ((ScanResult) -> Unit)? = null,
     onToggleVideos: () -> Unit = {},
     onTogglePlaylists: () -> Unit = {},
     onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)? = null,
@@ -86,7 +82,6 @@ fun SearchScreen(
     menuActions: TrackMenuActions = TrackMenuActions(),
     modifier: Modifier = Modifier,
 ) {
-    var showScan by remember { mutableStateOf(false) }
     var pendingAdd by remember { mutableStateOf<PlayerTrack?>(null) }
 
     Column(
@@ -103,16 +98,6 @@ fun SearchScreen(
             onQueryChange = onQueryChange,
             onSearch = { onSearch(state.query) },
         )
-
-        if (onScanResult != null) {
-            ActionButton(
-                data = ActionButtonData(
-                    text = "[ ${Translations.get("scan_title")} ]",
-                    onClick = { showScan = true },
-                ),
-                modifier = Modifier.testTag("search_scan"),
-            )
-        }
 
         Spacer(Modifier.height(PlyrSpacing.small))
 
@@ -140,13 +125,6 @@ fun SearchScreen(
                 onClick = onBack,
             ),
             modifier = Modifier.testTag("back_from_${Screen.SEARCH.name}"),
-        )
-    }
-
-    if (showScan) {
-        QrScanDialog(
-            onScanned = { onScanResult?.invoke(it) },
-            onDismiss = { showScan = false },
         )
     }
 
