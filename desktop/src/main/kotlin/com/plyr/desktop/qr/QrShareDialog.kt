@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +27,8 @@ import com.plyr.desktop.platform.FileDialogs
 import com.plyr.ui.components.ShareUrlPolicy
 import com.plyr.ui.components.ShareableItem
 import com.plyr.utils.QrCodec
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 
@@ -38,7 +41,11 @@ import java.awt.datatransfer.StringSelection
  * compartir, avisa en lugar de dejar un diálogo vacío (B54).
  */
 @Composable
-fun QrShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
+fun QrShareDialog(
+    item: ShareableItem,
+    onDismiss: () -> Unit,
+    recommend: RecommendationSender = SupabaseRecommendationSender,
+) {
     val shareUrl = ShareUrlPolicy.resolve(
         type = item.type,
         shareUrl = item.shareUrl,
@@ -120,6 +127,7 @@ fun QrShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
                             modifier = Modifier.testTag("qr_status"),
                         )
                     }
+                    RecommendSection(shareUrl, recommend)
                 }
             }
         },
@@ -141,6 +149,56 @@ private fun QrImage(bitmap: androidx.compose.ui.graphics.ImageBitmap?, shareUrl:
             bitmap = bitmap,
             contentDescription = shareUrl,
             modifier = Modifier.size(220.dp).testTag("qr_image"),
+        )
+    }
+}
+
+/**
+ * Botón «recomendar» del diálogo (M25): publica la URL compartida en el feed con
+ * el apodo guardado y muestra `recommendation_sent`/`recommendation_error`.
+ * Equivale al `RecommendButton`/`requestRecommendation` de Android.
+ */
+@Composable
+private fun RecommendSection(shareUrl: String, recommend: RecommendationSender) {
+    val scope = rememberCoroutineScope()
+    var isSending by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
+
+    TextButton(
+        onClick = {
+            isSending = true
+            status = null
+            scope.launch {
+                val sent = try {
+                    recommend.send(shareUrl)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    false
+                }
+                isError = !sent
+                status = if (sent) {
+                    Translations.get("recommendation_sent")
+                } else {
+                    Translations.get("recommendation_error")
+                }
+                isSending = false
+            }
+        },
+        enabled = !isSending,
+        modifier = Modifier.testTag("qr_recommend"),
+    ) {
+        Text(Translations.get("add_recommendation"), fontFamily = FontFamily.Monospace)
+    }
+
+    status?.let {
+        Text(
+            text = it,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
+            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.testTag("qr_recommend_status"),
         )
     }
 }
