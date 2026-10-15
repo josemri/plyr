@@ -36,8 +36,8 @@ import java.awt.datatransfer.StringSelection
  * Diálogo de compartir por QR en escritorio (M11).
  *
  * Es el puerto del `ShareDialog` de Android sin las partes que no existen aquí
- * (NFC, recomendaciones a grupos): muestra el QR de la URL que decide
- * [ShareUrlPolicy], permite copiar el enlace y guardar el PNG. Si no hay nada que
+ * (NFC): muestra el QR de la URL que decide [ShareUrlPolicy], permite copiar el
+ * enlace y guardar el PNG, y publicar la URL en el feed (M25). Si no hay nada que
  * compartir, avisa en lugar de dejar un diálogo vacío (B54).
  */
 @Composable

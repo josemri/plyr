@@ -43,10 +43,10 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F22 | Acciones por pista (like / añadir a cola / añadir a playlist) | `SongListItem` (menú contextual) | **Presente (M22)**: menú `⋯` por pista en detalle, cola y resultados (me gusta, añadir a cola, añadir a lista y compartir). El `ui/components/SongListItem.kt` de escritorio (muerto, con textos fijos en inglés) se eliminó | Baja |
 | F23 | Metadatos del vídeo en el feed + reproducir desde el feed | `FeedScreen` + `MediaMetadataExtractor` | **Presente (M23)**: `FeedController`/`FeedScreen` enriquecen cada recomendación (título, autor y miniatura) con concurrencia acotada y, al pulsar, reproducen el vídeo o abren la lista | **Alta** |
 | F24 | «Compartir app» por QR en Config | `ShareAppSection` + `ShareType.APP` | **Presente (M24)**: sección «compartir app» en `ConfigScreen` que abre `QrShareDialog` con `ShareType.APP` (enlace de descarga) | Baja |
-| F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
+| F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | **Presente (M25)**: botón «recomendar» en `QrShareDialog` que publica la URL compartida en el grupo general del feed con el apodo guardado | Media |
 | F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | **Presente (M22)**: el modo edición añade un buscador de YouTube (`+`/`x`) junto a las pistas actuales | Media |
 
-> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist`, `like`/`liked`, `add_to_queue` y `share` (F22, M22), desde M17 `storage_*` (almacén offline) y desde M24 `share_me` (compartir app); `delete_download` sigue listo para F14. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`; M22, `search_tracks_label`/`tracks_count` y `save`/`cancel`.
+> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist`, `like`/`liked`, `add_to_queue` y `share` (F22, M22), desde M17 `storage_*` (almacén offline) y desde M24 `share_me` (compartir app); `delete_download` sigue listo para F14. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`; M22, `search_tracks_label`/`tracks_count` y `save`/`cancel`; y M25 pinta `add_recommendation`/`recommendation_sent`/`recommendation_error` (ya presentes por Android y el feed).
 
 > **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 fue más barato de lo que sugería su kdoc (ya corregido en M23).
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M24` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M26` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -306,7 +306,9 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M22 | Crear/editar playlist con búsqueda + acciones por pista | 1 | ☑ |
 | M23 | Feed: metadatos del vídeo y reproducir desde el feed | 0.5 | ☑ |
 | M24 | «Compartir app» por QR en Config | 0.5 | ☑ |
-| M25+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M25 | Recomendar al feed desde el diálogo de compartir | 0.5 | ☑ |
+| M26 | Flush de copia de seguridad al cerrar la app | 0.5 | ☑ |
+| M27+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -316,13 +318,15 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M25+)
+### 6.4 Backlog de paridad pendiente (M27+)
 
 Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23.
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M25 | Recomendar al feed desde el diálogo de compartir | Media | 0.5 |
+| M27 | Acceso a la cola solo desde controles (escritorio) | Media | 0.5 |
+| M28 | Quitar QR scanning y mover búsqueda al inicio (escritorio) | Media | 0.5 |
+| M29 | Carrusel de playlists en Home (escritorio) | Baja | 0.5 |
 
 ---
 
@@ -457,7 +461,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M25 — Recomendar al feed desde el diálogo de compartir
+#### M25 — Recomendar al feed desde el diálogo de compartir ☑ (completado)
 **Objetivo:** paridad con `RecommendButton`/`requestRecommendation` de Android: publicar la URL compartida en el feed (grupo general) usando el apodo guardado, sin pasar por la pantalla de Feed.
 **Tareas**
 - Añadir el botón «recomendar» a `QrShareDialog` (solo si hay URL) que llame a `SupabaseClient.postRecommendation` con el `DesktopConfig.userNickname`.
@@ -467,9 +471,11 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Prompt opencode:**
 > Añade al `QrShareDialog` de `:desktop` un botón «recomendar» que publique la URL compartida en el feed (grupo general) con el apodo de `DesktopConfig.userNickname`, reutilizando `postRecommendation` de `FeedController`/`SupabaseClient` y las claves `recommendation_sent`/`recommendation_error`. Verifica con tests.
 
+**Implementado:** `QrShareDialog` recibe un `RecommendationSender` inyectable (`RecommendationSender.kt`, con `SupabaseRecommendationSender` por defecto) y añade `RecommendSection`, que solo aparece si hay URL: al pulsarlo publica la URL compartida en el grupo general del feed con `DesktopConfig.userNickname` (vía `SupabaseClient.getGroups()` + `createRecommendation`, el mismo camino que el `requestRecommendation` de Android) y muestra `recommendation_sent`/`recommendation_error`; sin apodo o sin grupo general falla sin tocar la red. Sin claves nuevas (reutiliza `add_recommendation`, `recommendation_sent` y `recommendation_error`, ya en `:core`). El kdoc del diálogo ya no dice que omita las recomendaciones. Tests: `QrShareDialogTest` (3: publica la URL y avisa de éxito, avisa del error, y sin URL no aparece el botón). Verificación: `:desktop:test` **306** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434.
+
 ---
 
-#### M26 — Flush de copia de seguridad al cerrar la app
+#### M26 — Flush de copia de seguridad al cerrar la app ☑ (completado)
 **Objetivo:** paridad con Android `DataSync.flushOnStop`: no perder la copia pendiente al cerrar.
 **Tareas**
 - Evitar que `DataSync.shutdown()` cancele un flush pendiente sin intentar escribirlo. Añadir un método `flushOnStop()` (o ajustar shutdown) que intente `flush(force=false)` con un timeout corto (p.ej. 3–5s) sin bloquear indefinidamente.
@@ -479,6 +485,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test` + manual (modificar lista, cerrar ventana antes de 30s; verificar `plyr-sync.zip`).
 **Prompt opencode:**
 > Modifica `DataSync.shutdown()` de `:desktop` para, cuando haya un `debounceJob` activo o se haya marcado sucio, intentar `flush(force=false)` con `withTimeout(5000)` antes de cancelar. En `AudioListScreen.onDispose`, llama a este shutdown modificado (o `dataSync.flushOnStop()`). Mantén la lógica de huellas y no rompas los tests existentes.
+
+**Implementado:** `DataSync.flushOnStop(timeoutMs = STOP_TIMEOUT_MS)` (M26, `STOP_TIMEOUT_MS = 5_000`): si hay carpeta configurada y un `debounceJob` activo, lanza `flush(force = false)` en el scope interno y bloquea el hilo que cierra con `withTimeout` como máximo 5 s (escritorio no puede suspender en `onDispose`); si no hay nada pendiente no escribe, y en ambos casos acaba llamando a `shutdown()`. Se conservan `markDirty` y la comparación de huellas (`config.hash`). `AudioListScreen.onDispose` llama a `flushOnStop()` en lugar de `shutdown()`, así que un cambio hecho en los últimos 30 s ya no se pierde al cerrar. Tests: `DataSyncTest.cerrarVuelcaLaCopiaPendiente` (con `debounceMs = 60_000`: el ZIP aparece al cerrar) y `cerrarSinCambiosPendientesNoEscribe`. Verificación: `:desktop:test` **308** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434.
 
 ---
 
@@ -524,7 +532,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio cancela el flush pendiente al cerrar (`DataSync.shutdown()`), mientras que Android espera a escribirlo en `onStop` (comportamiento a corregir en **M26**); **UI escritorio (M27–M29):** acceso a cola solo desde `^` en controles, búsqueda integrada en Home, carrusel de playlists en Home con `>` a listas.
+**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio ahora vuelca el flush pendiente al cerrar (`DataSync.flushOnStop()`, M26), igual que Android en `onStop` (ya no cancela a ciegas); **UI escritorio (M27–M29):** acceso a cola solo desde `^` en controles, búsqueda integrada en Home, carrusel de playlists en Home con `>` a listas.
 
 **A favor del escritorio (no perder):** el feed tiene formulario de publicación + selector de grupo + muestra el `comment` (Android no); Config tiene filas extra de **repetición** y **rutas de datos/caché** (Android no); atajos de teclado, bandeja del sistema (`DesktopTray`) y prueba de sonido por CLI (`SoundCheck`).
 

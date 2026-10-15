@@ -7,8 +7,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -217,6 +220,40 @@ class DataSync(
     }
 
     /**
+     * Vuelca la copia pendiente antes de cerrar y cancela el scope interno (M26).
+     *
+     * [shutdown] cancela a ciegas: si el [debounceMs] aún no había vencido, el
+     * último cambio se perdía. Aquí, si hay un volcado programado, se lanza un
+     * [flush] y se espera como máximo [timeoutMs] para que el `onDispose` de la
+     * app (que no puede suspender) no se quede colgado indefinidamente. Después
+     * cancela igual que [shutdown].
+     *
+     * @return `true` si el volcado pendiente se completó dentro del timeout.
+     */
+    fun flushOnStop(timeoutMs: Long = STOP_TIMEOUT_MS): Boolean {
+        val pending = isConfigured && debounceJob?.isActive == true
+        val written = if (pending) {
+            val job = scope.launch { flush(force = false) }
+            runBlocking {
+                try {
+                    withTimeout(timeoutMs) { job.join() }
+                    true
+                } catch (e: TimeoutCancellationException) {
+                    Logger.w(TAG, "Se agotó el tiempo al volcar la copia pendiente al cerrar")
+                    false
+                } catch (e: Exception) {
+                    Logger.w(TAG, "No se pudo volcar la copia al cerrar: ${e.message}")
+                    false
+                }
+            }
+        } else {
+            false
+        }
+        shutdown()
+        return written
+    }
+
+    /**
      * Lo que entró en el dispositivo desde la copia anterior de la carpeta.
      */
     private class ArchiveMerge(
@@ -304,5 +341,11 @@ class DataSync(
     companion object {
         /** Espera a que se calme la actividad antes de escribir. */
         const val DEBOUNCE_MS = 30_000L
+
+        /**
+         * Tiempo máximo que [flushOnStop] espera a que se escriba la copia
+         * pendiente antes de cancelar el scope (M26).
+         */
+        const val STOP_TIMEOUT_MS = 5_000L
     }
 }

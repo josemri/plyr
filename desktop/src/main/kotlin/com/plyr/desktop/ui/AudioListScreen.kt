@@ -155,11 +155,8 @@ fun AudioListScreen(
 
     // Base de datos persistente bajo la carpeta de datos del SO (`AppPaths`, M9).
     // Se inyecta para que los tests usen una en memoria y no toquen el disco del
-    // usuario, y se cierra al salir de la pantalla.
+    // usuario, y se cierra al salir de la pantalla (después del volcado, abajo).
     val database = remember(openDatabase) { openDatabase() }
-    DisposableEffect(database) {
-        onDispose { database.close() }
-    }
 
     // Repositorio único de la sesión, con tombs persistentes (M10). Se comparte
     // entre la pantalla de listas y la copia de seguridad, y avisa a esta última
@@ -175,11 +172,15 @@ fun AudioListScreen(
         )
     }
     val backupController = remember(dataSync, backupScope) { BackupController(dataSync, backupScope) }
-    DisposableEffect(repository, dataSync) {
+    DisposableEffect(repository, dataSync, database) {
         repository.onChanged = { dataSync.markDirty() }
         onDispose {
             repository.onChanged = null
-            dataSync.shutdown()
+            // Al cerrar, intenta volcar la copia que quedara pendiente (M26) antes
+            // de cerrar la base de datos: si no, se perdería lo cambiado en los
+            // últimos 30 s (debounce de `DataSync`).
+            dataSync.flushOnStop()
+            database.close()
         }
     }
 

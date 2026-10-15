@@ -307,6 +307,45 @@ class DataSyncTest {
         scope.cancel()
     }
 
+    // === FLUSH AL CERRAR (M26) ===
+
+    @Test
+    fun cerrarVuelcaLaCopiaPendiente() {
+        val folder = directory()
+        val tombstones = InMemoryTombstoneStore()
+        val repo = repo(tombstones).apply { savePlaylist(playlist("p1"), emptyList()) }
+        val config = configFor(folder)
+        // Debounce enorme a propósito: sin flushOnStop la copia no se escribiría.
+        val sync = DataSync(
+            exporter(repo, tombstones),
+            importer(repo, tombstones),
+            config,
+            debounceMs = 60_000,
+        )
+
+        sync.markDirty()
+        assertTrue("El cierre debería volcar la copia pendiente", sync.flushOnStop())
+
+        assertTrue(Files.isRegularFile(BackupFolder.backupFile(folder)))
+    }
+
+    @Test
+    fun cerrarSinCambiosPendientesNoEscribe() {
+        val folder = directory()
+        val tombstones = InMemoryTombstoneStore()
+        val repo = repo(tombstones).apply { savePlaylist(playlist("p1"), emptyList()) }
+        val config = configFor(folder)
+        val sync = DataSync(
+            exporter(repo, tombstones),
+            importer(repo, tombstones),
+            config,
+            debounceMs = 60_000,
+        )
+
+        assertFalse("No hay nada pendiente que volcar", sync.flushOnStop())
+        assertFalse(Files.isRegularFile(BackupFolder.backupFile(folder)))
+    }
+
     @Test
     fun importFromBackupFolderLeeLaCopiaDeLaCarpeta() = runBlocking {
         val folder = directory()
