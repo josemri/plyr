@@ -1,9 +1,11 @@
 package com.plyr.desktop.playlists
 
+import com.plyr.database.LikedSongs
 import com.plyr.database.PlaylistRecord
 import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackRecord
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.utils.TrackIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +33,8 @@ data class PlaylistsState(
     val newDescription: String = "",
     val originalTitle: String = "",
     val originalDescription: String = "",
+    /** Claves de [TrackIdentity] de las pistas favoritas (M22). */
+    val likedKeys: Set<String> = emptySet(),
 ) {
     val selectedPlaylist: PlaylistRecord?
         get() = selectedPlaylistId?.let { id -> playlists.find { it.remoteId == id } }
@@ -61,6 +65,11 @@ class PlaylistsController(
         }
         // Ensure liked songs exists
         repository.ensureLikedSongsPlaylist()
+        scope.launch {
+            repository.observeTracks(LikedSongs.ID).collectLatest { tracks ->
+                _state.update { it.copy(likedKeys = tracks.map { track -> TrackIdentity.likedTrackKey(track) }.toSet()) }
+            }
+        }
     }
 
     fun selectPlaylist(playlistId: String) {
@@ -113,12 +122,20 @@ class PlaylistsController(
     }
 
     /**
-     * Da de alta una lista local vacía y la abre. Es el alta que faltaba: el
+     * Da de alta una lista local y la abre. Es el alta que faltaba: el
      * formulario solo cerraba el diálogo, así que no se guardaba nada.
+     *
+     * [tracks] son las pistas elegidas en el buscador de M22; se normalizan aquí
+     * (id y posición únicos) porque [PlaylistRepository.savePlaylist] las inserta
+     * tal cual.
      *
      * @return el `remoteId` de la lista creada, o `null` si el nombre está vacío.
      */
-    fun createPlaylist(title: String, description: String?): String? {
+    fun createPlaylist(
+        title: String,
+        description: String?,
+        tracks: List<TrackRecord> = emptyList(),
+    ): String? {
         val name = title.trim()
         if (name.isEmpty()) return null
         val id = "local_${UUID.randomUUID()}"
@@ -126,13 +143,20 @@ class PlaylistsController(
             remoteId = id,
             name = name,
             description = description?.trim()?.takeIf { it.isNotEmpty() },
-            trackCount = 0,
+            trackCount = tracks.size,
             imageUrl = null,
             lastSyncTime = System.currentTimeMillis(),
             source = PlaylistSource.LOCAL,
             sourceId = null,
         )
-        if (!repository.savePlaylist(record, emptyList())) return null
+        val normalized = tracks.mapIndexed { index, track ->
+            track.copy(
+                id = "${id}_${track.remoteTrackId}_$index",
+                playlistId = id,
+                position = index,
+            )
+        }
+        if (!repository.savePlaylist(record, normalized)) return null
         _state.update { it.copy(showCreate = false) }
         selectPlaylist(id)
         return id
@@ -153,6 +177,25 @@ class PlaylistsController(
         repository.addTrack(playlistId, track)
         if (state.value.selectedPlaylistId == playlistId) refresh()
     }
+
+    /**
+     * Alterna el favorito de una pista (M22, acción "me gusta"); devuelve `true`
+     * si queda marcada. Si la lista abierta es `liked_songs`, la refresca.
+     */
+    fun toggleLike(youtubeVideoId: String?, name: String, artists: String, remoteTrackId: String): Boolean {
+        val nowLiked = repository.toggleLikeTrack(
+            youtubeVideoId = youtubeVideoId.orEmpty(),
+            name = name,
+            artists = artists,
+            remoteTrackId = remoteTrackId,
+        )
+        if (state.value.selectedPlaylistId == LikedSongs.ID) refresh()
+        return nowLiked
+    }
+
+    /** ¿Está esa pista en favoritos? (mismo criterio que la fusión de `liked_songs`). */
+    fun isLiked(youtubeVideoId: String?, name: String, artists: String): Boolean =
+        TrackIdentity.likedTrackKey(youtubeVideoId, name, artists) in state.value.likedKeys
 
     fun enterEditMode() {
         val p = state.value.selectedPlaylist

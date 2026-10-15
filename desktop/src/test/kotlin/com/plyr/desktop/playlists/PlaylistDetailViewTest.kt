@@ -6,7 +6,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import com.plyr.database.LikedSongs
 import com.plyr.database.PlaylistRecord
 import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackRecord
@@ -19,6 +21,7 @@ import com.plyr.desktop.download.AudioDownloader
 import com.plyr.desktop.download.AudioFetcher
 import com.plyr.desktop.download.DownloadController
 import com.plyr.desktop.download.DownloadedAudioStore
+import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.CoroutineScope
@@ -214,5 +217,64 @@ class PlaylistDetailViewTest {
         onNodeWithTag("playlist_random").performClick()
 
         assertTrue(stopped)
+    }
+
+    @Test
+    fun enModoEdicionAnadePistasBuscandoEnYouTube() = runComposeUiTest {
+        seedPlaylist()
+        controller.enterEditMode()
+        val found = PlayerTrack(id = "vid_x", title = "Nueva", artist = "Art", videoId = "vid_x")
+
+        setContent {
+            PlyrTheme {
+                Column {
+                    PlaylistDetailView(
+                        controller = controller,
+                        downloadController = downloadController(),
+                        state = controller.state.value,
+                        onPlayTracks = { _, _ -> },
+                        onBack = {},
+                        searchTracks = { listOf(found) },
+                    )
+                }
+            }
+        }
+
+        onNodeWithTag("playlist_add_search").performTextInput("nueva")
+        onNodeWithTag("playlist_add_search_button").performClick()
+        onNodeWithTag("playlist_add_result_0").performClick()
+
+        val stored = repository.tracksByPlaylist("p1")
+        assertEquals(3, stored.size)
+        assertTrue(stored.any { it.youtubeVideoId == "vid_x" })
+    }
+
+    @Test
+    fun elMenuDeLaPistaOfreceMeGustaYAnadirACola() = runComposeUiTest {
+        seedPlaylist()
+        var queued: TrackRecord? = null
+
+        setContent {
+            PlyrTheme {
+                Column {
+                    PlaylistDetailView(
+                        controller = controller,
+                        downloadController = downloadController(),
+                        state = controller.state.value,
+                        onPlayTracks = { _, _ -> },
+                        onBack = {},
+                        onAddToQueue = { queued = it },
+                    )
+                }
+            }
+        }
+
+        onNodeWithTag("track_menu_r_t1").performClick()
+        onNodeWithTag("track_add_queue", useUnmergedTree = true).performClick()
+        assertEquals("r_t1", queued?.remoteTrackId)
+
+        onNodeWithTag("track_menu_r_t2").performClick()
+        onNodeWithTag("track_like", useUnmergedTree = true).performClick()
+        assertTrue(repository.tracksByPlaylist(LikedSongs.ID).any { it.youtubeVideoId == "vidB" })
     }
 }

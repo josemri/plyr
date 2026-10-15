@@ -44,6 +44,7 @@ import com.plyr.desktop.media.MediaInfo
 import com.plyr.desktop.media.NoopMediaIntegration
 import com.plyr.desktop.media.PlaybackControls
 import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.qr.QrShareDialog
 import com.plyr.desktop.spotify.SpotifyImportController
 import com.plyr.desktop.spotify.SpotifyImportService
 import com.plyr.desktop.sync.BackupConfig
@@ -51,6 +52,7 @@ import com.plyr.desktop.sync.BackupController
 import com.plyr.desktop.sync.DataExporter
 import com.plyr.desktop.sync.DataImporter
 import com.plyr.desktop.sync.DataSync
+import com.plyr.desktop.ui.components.TrackMenuActions
 import com.plyr.desktop.ui.screens.ConfigScreen
 import com.plyr.desktop.ui.screens.HomeScreen
 import com.plyr.desktop.ui.screens.QueueScreen
@@ -60,6 +62,8 @@ import com.plyr.desktop.utils.UpdateChecker
 import com.plyr.network.YouTubeManager
 import com.plyr.network.YouTubePlaylistInfo
 import com.plyr.receivers.MediaCommand
+import com.plyr.ui.components.ShareType
+import com.plyr.ui.components.ShareableItem
 import kotlinx.coroutines.delay
 import java.nio.file.Path
 
@@ -190,6 +194,30 @@ fun AudioListScreen(
     val playlistsController = remember(scope, repository) {
         com.plyr.desktop.playlists.PlaylistsController(scope, repository)
     }
+
+    // Buscador de pistas de YouTube reutilizable (M22): lo usan el alta de listas
+    // (F21) y el modo edición del detalle (F26). Se recuerda para que su
+    // identidad no cambie en cada recomposición (los composables lo `remember`n).
+    val searchTracks: suspend (String) -> List<PlayerTrack> =
+        remember { { query -> searchYouTubeTracks(query) } }
+
+    // Acciones por pista (M22) que comparten búsqueda y cola: me gusta, añadir a
+    // cola y compartir. "Añadir a lista" se resuelve con el repositorio.
+    val isTrackLiked: (PlayerTrack) -> Boolean = { track ->
+        playlistsController.isLiked(track.videoId, track.title, track.artist)
+    }
+    val toggleTrackLike: (PlayerTrack) -> Unit = { track ->
+        playlistsController.toggleLike(track.videoId, track.title, track.artist, track.id)
+    }
+    val addTrackToQueue: (PlayerTrack) -> Unit = { track -> playerController.addToQueue(track) }
+    var sharedTrack by remember { mutableStateOf<PlayerTrack?>(null) }
+    val shareTrack: (PlayerTrack) -> Unit = { track -> sharedTrack = track }
+    val trackMenuActions = TrackMenuActions(
+        isLiked = isTrackLiked,
+        onToggleLike = toggleTrackLike,
+        onAddToQueue = addTrackToQueue,
+        onShare = shareTrack,
+    )
     // Descarga offline (M16 backend, M17 UI): un controlador por sesión que
     // comparten el detalle de lista (bajar/cancelar/borrar) y Ajustes (tamaño y
     // borrar todo). Reutiliza el mismo almacén que el resolutor de reproducción.
@@ -347,6 +375,7 @@ fun AudioListScreen(
                                     selectedYouTubePlaylist = playlist
                                     youtubeDetailController.open(playlist)
                                 },
+                                menuActions = trackMenuActions,
                             )
                         }
                     }
@@ -355,6 +384,11 @@ fun AudioListScreen(
                         onJump = playerController::jumpTo,
                         onMove = playerController::moveQueueItem,
                         onBack = goHome,
+                        playlists = playlistsState.playlists,
+                        onAddToPlaylist = { track, playlistId ->
+                            playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
+                        },
+                        menuActions = trackMenuActions,
                     )
                     Screen.PLAYLISTS -> {
                         com.plyr.desktop.playlists.PlaylistsScreen(
@@ -368,6 +402,10 @@ fun AudioListScreen(
                             isRandomizing = playerState.isRandomizing,
                             onPlayRandom = { tracks -> playerController.startRandomized(tracks.toPlayerTracks()) },
                             onStopRandomize = playerController::stopRandomized,
+                            searchTracks = searchTracks,
+                            onAddToQueue = { track ->
+                                playerController.addToQueue(PlayerTrack.fromTrackRecord(0, track))
+                            },
                         )
                     }
                     Screen.FEED -> FeedScreen(
@@ -396,11 +434,35 @@ fun AudioListScreen(
             )
         }
     }
+
+    // Compartir una pista desde la cola o los resultados (M22): el QR se pinta
+    // aquí, en la raíz, para que sobreviva al cambio de pantalla.
+    sharedTrack?.let { track ->
+        QrShareDialog(
+            item = ShareableItem(
+                remoteId = track.id,
+                shareUrl = null,
+                youtubeId = track.videoId,
+                title = track.title,
+                artist = track.artist,
+                type = ShareType.TRACK,
+            ),
+            onDismiss = { sharedTrack = null },
+        )
+    }
 }
 
 /** Mapea las pistas de una lista local/YouTube a la cola del reproductor. */
 private fun List<com.plyr.database.TrackRecord>.toPlayerTracks(): List<PlayerTrack> =
     mapIndexed { index, track -> PlayerTrack.fromTrackRecord(index, track) }
+
+/**
+ * Busca canciones en YouTube para el buscador de pistas de las listas (M22).
+ * Devuelve solo vídeos (sin listas) y un puñado de resultados, como Android.
+ */
+private suspend fun searchYouTubeTracks(query: String): List<PlayerTrack> =
+    YouTubeManager.searchAll(query, maxVideos = 10, maxPlaylists = 0).videos
+        .mapIndexed { index, item -> PlayerTrack.fromSearchResult(index, item) }
 
 /** Traduce el estado del reproductor al que pinta la barra flotante. */
 private fun PlayerState.toUiState() = PlayerUiState(    title = title,

@@ -12,6 +12,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.plyr.database.TrackRecord
 import com.plyr.desktop.ui.components.ReorderState
+import com.plyr.desktop.ui.components.TrackMenuButton
+import com.plyr.desktop.ui.components.TrackMenuItem
 
 @Composable
 fun PlaylistTrackItem(
@@ -23,7 +25,7 @@ fun PlaylistTrackItem(
     onClick: () -> Unit = {},
     onRemove: () -> Unit = {},
     onMove: (Int, Int) -> Unit = { _, _ -> },
-    onShare: (() -> Unit)? = null,
+    menuItems: List<TrackMenuItem> = emptyList(),
     isDownloaded: Boolean = false,
     downloadProgress: Float? = null,
     onDeleteDownload: (() -> Unit)? = null,
@@ -61,14 +63,9 @@ fun PlaylistTrackItem(
             // Indicador de descarga offline (M17): progreso mientras baja o `↓`
             // si ya está en el almacén, más la acción de borrar la descarga.
             TrackDownloadControls(track.remoteTrackId, isDownloaded, downloadProgress, onDeleteDownload)
-            if (onShare != null) {
-                TextButton(onClick = onShare, modifier = Modifier.testTag("track_share_${track.remoteTrackId}")) {
-                    Text(
-                        text = "⤴",
-                        fontFamily = FontFamily.Monospace,
-                    )
-                }
-            }
+            // Menú de acciones de la pista (M22): me gusta, añadir a cola/lista,
+            // compartir. Solo aparece con acciones cableadas.
+            TrackMenuButton(items = menuItems, menuTag = "track_menu_${track.remoteTrackId}")
         }
     }
 }

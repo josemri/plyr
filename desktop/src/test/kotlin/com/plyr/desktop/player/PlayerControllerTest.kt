@@ -180,6 +180,26 @@ class PlayerControllerTest {
     }
 
     @Test
+    fun addToQueue_appendsTrackWithoutMovingCurrent() {
+        controller.play(listOf(track("a"), track("b")), 0)
+
+        controller.addToQueue(track("c"))
+
+        assertEquals(listOf("a", "b", "c"), state.queue.map { it.id })
+        assertEquals(0, state.currentIndex)
+        assertTrue(player.isPlaying)
+    }
+
+    @Test
+    fun addToQueue_withoutQueueOnlyStoresInList() {
+        controller.addToQueue(track("a"))
+
+        assertEquals(listOf("a"), state.queue.map { it.id })
+        assertEquals(-1, state.currentIndex)
+        assertFalse(player.isPlaying)
+    }
+
+    @Test
     fun unresolvedStartShowsErrorAndStopsLoading() {
         resolver.failFor = { true }
 

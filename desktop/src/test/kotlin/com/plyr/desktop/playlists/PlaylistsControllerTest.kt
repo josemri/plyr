@@ -1,11 +1,13 @@
 package com.plyr.desktop.playlists
 
+import com.plyr.database.LikedSongs
 import com.plyr.database.PlaylistRecord
 import com.plyr.database.PlaylistSource
 import com.plyr.database.TrackRecord
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.InMemoryTombstoneStore
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.utils.TrackIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -88,6 +90,16 @@ class PlaylistsControllerTest {
         withTimeout(5_000) { controller.state.first { state -> state.playlists.any { it.remoteId == id } } }
     }
 
+    /** Espera a que el observer de favoritos publique [key] en el estado. */
+    private fun awaitLiked(key: String) = runBlocking {
+        withTimeout(5_000) { controller.state.first { state -> key in state.likedKeys } }
+    }
+
+    /** Espera a que `liked_songs` quede vacío en el estado. */
+    private fun awaitUnliked() = runBlocking {
+        withTimeout(5_000) { controller.state.first { state -> state.likedKeys.isEmpty() } }
+    }
+
     @Test
     fun createPlaylist_guardaLaListaYLaSelecciona() {
         val id = controller.createPlaylist("Rock", "clásicos")
@@ -120,6 +132,32 @@ class PlaylistsControllerTest {
 
         assertNull(id)
         assertEquals(before, repository.allPlaylists().size)
+    }
+
+    @Test
+    fun createPlaylist_conPistasLasInsertaEnOrden() {
+        val id = controller.createPlaylist("Mix", null, listOf(track("t1"), track("t2")))
+
+        assertNotNull(id)
+        val stored = repository.tracksByPlaylist(id!!)
+        assertEquals(listOf("r_t1", "r_t2"), stored.map { it.remoteTrackId })
+        assertEquals(listOf(0, 1), stored.map { it.position })
+        // El alta abre la lista para que se vean las pistas recién elegidas.
+        assertEquals(id, controller.state.value.selectedPlaylistId)
+        assertEquals(listOf("r_t1", "r_t2"), controller.state.value.tracks.map { it.remoteTrackId })
+    }
+
+    @Test
+    fun toggleLike_marcaYDesmarcaLaPista() {
+        assertTrue(controller.toggleLike("vid_1", "Song", "Artist", "r_1"))
+        awaitLiked(TrackIdentity.likedTrackKey("vid_1", "Song", "Artist"))
+        assertTrue(controller.isLiked("vid_1", "Song", "Artist"))
+        assertEquals(listOf("vid_1"), repository.tracksByPlaylist(LikedSongs.ID).map { it.youtubeVideoId })
+
+        assertFalse(controller.toggleLike("vid_1", "Song", "Artist", "r_1"))
+        awaitUnliked()
+        assertFalse(controller.isLiked("vid_1", "Song", "Artist"))
+        assertTrue(repository.tracksByPlaylist(LikedSongs.ID).isEmpty())
     }
 
     @Test

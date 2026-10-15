@@ -21,6 +21,7 @@ import com.plyr.database.TrackRecord
 import com.plyr.desktop.download.DownloadController
 import com.plyr.desktop.download.DownloadStatusBar
 import com.plyr.desktop.i18n.Translations
+import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
@@ -40,6 +41,8 @@ fun PlaylistsScreen(
     isRandomizing: Boolean = false,
     onPlayRandom: (List<TrackRecord>) -> Unit = {},
     onStopRandomize: () -> Unit = {},
+    searchTracks: suspend (String) -> List<PlayerTrack> = { emptyList() },
+    onAddToQueue: (TrackRecord) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by controller.state.collectAsState()
@@ -60,7 +63,7 @@ fun PlaylistsScreen(
         Titulo(Translations.get("plyr_lists"))
         Spacer(modifier = Modifier.height(PlyrSpacing.small))
         when {
-            state.showCreate -> CreatePlaylistView(controller)
+            state.showCreate -> CreatePlaylistView(controller, searchTracks)
             state.selectedPlaylistId != null ->
                 PlaylistDetailView(
                     controller = controller,
@@ -71,6 +74,9 @@ fun PlaylistsScreen(
                     isRandomizing = isRandomizing,
                     onPlayRandom = onPlayRandom,
                     onStopRandomize = onStopRandomize,
+                    playlists = state.playlists,
+                    searchTracks = searchTracks,
+                    onAddToQueue = onAddToQueue,
                 )
             else -> PlaylistGridView(controller, downloadController, state, onBack)
         }

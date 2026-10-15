@@ -1,8 +1,8 @@
 # Análisis de portabilidad de **plyr** a escritorio (Windows / Linux / macOS)
 
-**Fecha:** 2026-10-09 · **Actualizado:** 2026-10-14
+**Fecha:** 2026-10-09 · **Actualizado:** 2026-10-15
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M21` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M22` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -39,14 +39,14 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F18 | Reproducción aleatoria (`<rnd>`) en playlists | `PlaylistScreen` + `PlaylistViewModel.startRandomizing` | **Presente (M20)**: `Shuffle` puro + `PlayerController.startRandomized`/`stopRandomized`; botón `<rnd>`/`<stop>` en el detalle de lista y `<rnd>` en el detalle de lista de YouTube. MPRIS `Shuffle` sigue siendo de solo lectura | **Alta** |
 | F19 | Historial de búsqueda (no es hueco real) | `SearchViewModel` lo persiste, pero **`getAllSearches()` nunca se llama**: Android tampoco lo muestra | `SearchHistoryRepository` persiste igual; la UI no lo usa en ninguno de los dos | — |
 | F20 | Paginación / «cargar más» en búsqueda | `SearchViewModel.onLoadMore` | **Presente (M21)**: `YouTubeManager.searchAll(page)` + `SearchController.loadMore` van añadiendo páginas; «cargar más» al pie de los vídeos con el umbral de Android (≥10). Android solo re-lanzaba la misma consulta | Media |
-| F21 | Crear playlist buscando en YouTube | `CreatePlaylistScreen` | `CreatePlaylistView` es solo título+descripción | Media |
-| F22 | Acciones por pista (like / añadir a cola / añadir a playlist) | `SongListItem` (menú contextual) | Solo compartir `⤴` | Baja |
+| F21 | Crear playlist buscando en YouTube | `CreatePlaylistScreen` | **Presente (M22)**: `CreatePlaylistView` busca en YouTube y acumula seleccionadas; al guardar nacen ya dentro de la lista | Media |
+| F22 | Acciones por pista (like / añadir a cola / añadir a playlist) | `SongListItem` (menú contextual) | **Presente (M22)**: menú `⋯` por pista en detalle, cola y resultados (me gusta, añadir a cola, añadir a lista y compartir). El `ui/components/SongListItem.kt` de escritorio (muerto, con textos fijos en inglés) se eliminó | Baja |
 | F23 | Metadatos del vídeo en el feed + reproducir desde el feed | `FeedScreen` + `MediaMetadataExtractor` | Feed sin metadatos ni clic-para-reproducir | **Alta** |
 | F24 | «Compartir app» por QR en Config | `ShareAppSection` + `ShareType.APP` | Ausente | Baja |
 | F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
-| F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | El modo edición solo tiene título/descripción/portada y borrar/reordenar | Media |
+| F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | **Presente (M22)**: el modo edición añade un buscador de YouTube (`+`/`x`) junto a las pistas actuales | Media |
 
-> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist` y, desde M17, `storage_*` (almacén offline); `delete_download` y el resto de F22/F24 siguen listos para usarse cuando se implementen M22/M24. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`.
+> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist`, `like`/`liked`, `add_to_queue` y `share` (F22, M22) y, desde M17, `storage_*` (almacén offline); `delete_download` y el resto de F24 siguen listos para usarse cuando se implemente M24. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`; M22, `search_tracks_label`/`tracks_count` y `save`/`cancel`.
 
 > **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 es más barato de lo que sugiere su kdoc (que aún dice «no portado»).
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M21` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M22` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -273,6 +273,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M19 — Playlists de YouTube en búsqueda + detalle:** `YouTubeManager.searchAll`/`getPlaylistInfo`/`getPlaylistVideos` en `:core`; la búsqueda muestra vídeos y listas en dos secciones plegables (`v`/`>`) y `YouTubePlaylistDetailView` abre una lista, la reproduce entera y la guarda como lista local.
 - **M20 — Reproducción aleatoria (`<rnd>`) en playlists:** `Shuffle` puro (semilla inyectable) y `PlayerController.startRandomized`/`stopRandomized` con `isRandomizing` en el estado; botón `<rnd>`/`<stop>` en el detalle de lista local y `<rnd>` en el detalle de lista de YouTube, sin salir de la pantalla (la barra flotante muestra lo que suena).
 - **M21 — Paginación («cargar más») en búsqueda:** `YouTubeManager.searchAll(page)` avanza con `getPage(nextPage)` y expone `hasMore`; `SearchController.loadMore` **añade** la página siguiente (con `isLoadingMore` para no vaciar la lista) y `SearchScreen` muestra «> cargar más» al pie de los vídeos, con el umbral de Android (≥10).
+- **M22 — Crear/editar lista buscando en YouTube + acciones por pista:** alta de lista (F21) y modo edición del detalle (F26) con un buscador de YouTube reutilizable (`TrackSearchController`, `YouTubeManager.searchAll … maxPlaylists = 0`) que acumula seleccionadas (`+`/`x`); al guardar/añadir nacen dentro de la lista. Menú `⋯` por pista común (`ui/components/TrackMenu.kt`, `TrackMenuActions`) en detalle, cola y resultados: me gusta reactivo (`PlaylistsController.likedKeys` observando `liked_songs`), añadir a cola (`PlayerController.addToQueue`) y a lista (`AddToPlaylistDialog`), y compartir (`QrShareDialog`).
 
 ### 6.2 Tabla de seguimiento
 
@@ -300,7 +301,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M19 | Playlists de YouTube en búsqueda + detalle | 1–1.5 | ☑ |
 | M20 | Reproducción aleatoria (`<rnd>`) en playlists | 0.5 | ☑ |
 | M21 | Paginación («cargar más») en búsqueda | 0.5 | ☑ |
-| M22+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M22 | Crear/editar playlist con búsqueda + acciones por pista | 1 | ☑ |
+| M23+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -310,13 +312,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M22+)
+### 6.4 Backlog de paridad pendiente (M23+)
 
 Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F23 del inventario (§1.1).
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M22 | Crear/editar playlist con búsqueda + acciones por pista | Media | 1 |
 | M23 | Feed: metadatos del vídeo y reproducir desde el feed | **Alta** | 0.5 |
 | M24 | «Compartir app» por QR en Config | Baja | 0.5 |
 | M25 | Recomendar al feed desde el diálogo de compartir | Media | 0.5 |
@@ -409,17 +410,19 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M22 — Crear/editar playlist con búsqueda + acciones por pista
+#### M22 — Crear/editar playlist con búsqueda + acciones por pista ☑ (completado)
 **Objetivo:** crear o editar una lista agregando pistas mientras se busca en YouTube, y acciones por pista completas.
 **Tareas**
 - `CreatePlaylistView` con buscador de YouTube y lista de seleccionadas.
 - Modo edición del detalle de lista (F26): buscador de YouTube para **añadir** pistas (`+`) junto a las actuales, además de quitarlas (`x`) y reordenarlas.
 - Menú por pista (detalle, cola y resultados): me gusta (favoritos), añadir a cola (`PlayerController.addToQueue`, hoy ausente) y añadir a playlist, además de compartir.
-- **Nota:** el menú por pista de escritorio (`ui/components/SongListItem.kt`) usa hoy texto fijo en inglés («Play»/«Remove») en vez de `Translations`; hay que pasarlo por el catálogo al añadir las acciones nuevas.
+- **Nota:** el `ui/components/SongListItem.kt` de escritorio estaba muerto (sin referencias) y usaba texto fijo en inglés («Play»/«Remove»); se eliminó al crear el menú nuevo `ui/components/TrackMenu.kt`, que sí usa `Translations`.
 **Definition of Done:** se crea/edita una lista eligiendo pistas desde la búsqueda y las acciones por pista funcionan.
 **Verificación:** `:desktop:test`.
 **Prompt opencode:**
 > Amplía `:desktop` para (1) buscar en YouTube y elegir pistas al crear una lista y (2) añadir pistas a una lista existente desde el modo edición (buscador + `+`, junto a `x`/reordenar). Añade a las pistas (detalle, cola y resultados) un menú con me gusta, añadir a cola (`addToQueue` en `PlayerController`) y añadir a playlist, además de compartir. Verifica con tests.
+
+**Implementado:** buscador de pistas reutilizable en `TrackSearchController` (`playlists/TrackSearchController.kt`) sobre `YouTubeManager.searchAll(…, maxPlaylists = 0)`; lo cablea `AudioListScreen` con una lambda estable. Alta (F21) y edición (F26) comparten el patrón «buscar → marcar → confirmar»: `CreatePlaylistView` guarda con `PlaylistsController.createPlaylist(title, description, tracks)` (normaliza `id`/`playlistId`/`position`) y `PlaylistDetailView` añade con el mismo `PlaylistRepository`; `PlaylistsController` ahora recibe `createPlaylist(…, tracks)` y `addTrackToPlaylist`. Menú común `ui/components/TrackMenu.kt` (`TrackMenuActions` + `itemsFor`) usado en cola (`QueueScreen`), resultados (`SearchScreen`) y detalle (`PlaylistTrackItem`), combinado con `AddToPlaylistDialog` (extraído de `SearchScreen`). Me gusta reactivo: `PlaylistsController.likedKeys` observa `LikedSongs.ID` y usa `TrackIdentity.likedTrackKey` (por `youtubeVideoId`; si falta, `name|artists`). `PlayerController.addToQueue` reemplaza la cola del motor al final (sin tocar el índice), cancela el prefetch y vuelve a `growWindow()`. Compartir por `QrShareDialog` en la raíz de `AudioListScreen`. Verificación: `:desktop:test` 295 (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings (detekt 0), `./run.sh test` 116/116 y `:core:jvmTest`.
 
 ---
 

@@ -6,8 +6,11 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import com.plyr.database.PlaylistRecord
+import com.plyr.database.PlaylistSource
 import com.plyr.desktop.player.PlayerState
 import com.plyr.desktop.player.PlayerTrack
+import com.plyr.desktop.ui.components.TrackMenuActions
 import com.plyr.desktop.ui.theme.PlyrTheme
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -67,5 +70,54 @@ class QueueScreenTest {
         }
 
         onNodeWithTag("queue_empty").assertIsDisplayed()
+    }
+
+    @Test
+    fun elMenuOfreceLasAccionesPorPista() = runComposeUiTest {
+        val liked = mutableListOf<PlayerTrack>()
+        var requestedAdd: PlayerTrack? = null
+        val playlistId = "p1"
+
+        setContent {
+            PlyrTheme {
+                QueueScreen(
+                    state = state(),
+                    onJump = {},
+                    onMove = { _, _ -> },
+                    onBack = {},
+                    playlists = listOf(
+                        PlaylistRecord(
+                            remoteId = playlistId,
+                            name = "Lista",
+                            description = null,
+                            trackCount = 0,
+                            imageUrl = null,
+                            lastSyncTime = 0L,
+                            source = PlaylistSource.LOCAL,
+                            sourceId = null,
+                        )
+                    ),
+                    onAddToPlaylist = { track, _ -> requestedAdd = track },
+                    menuActions = TrackMenuActions(
+                        isLiked = { false },
+                        onToggleLike = { liked += it },
+                        onAddToQueue = {},
+                        onShare = {},
+                    ),
+                )
+            }
+        }
+
+        onNodeWithTag("queue_menu_1").performClick()
+        onNodeWithTag("track_like", useUnmergedTree = true).performClick()
+
+        assertEquals(listOf(track("b")), liked)
+
+        // "Añadir a lista" abre el selector; la acción se dispara al elegir lista.
+        onNodeWithTag("queue_menu_1").performClick()
+        onNodeWithTag("track_add_playlist", useUnmergedTree = true).performClick()
+        onNodeWithTag("add_to_$playlistId", useUnmergedTree = true).performClick()
+
+        assertEquals(track("b"), requestedAdd)
     }
 }

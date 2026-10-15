@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,7 +41,12 @@ import com.plyr.desktop.search.SearchState
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
+import com.plyr.desktop.ui.components.AddToPlaylistDialog
 import com.plyr.desktop.ui.components.Titulo
+import com.plyr.desktop.ui.components.TrackMenuActions
+import com.plyr.desktop.ui.components.TrackMenuButton
+import com.plyr.desktop.ui.components.TrackMenuItem
+import com.plyr.desktop.ui.components.itemsFor
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
 import com.plyr.model.ScanResult
@@ -79,6 +83,7 @@ fun SearchScreen(
     onTogglePlaylists: () -> Unit = {},
     onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)? = null,
     onLoadMore: () -> Unit = {},
+    menuActions: TrackMenuActions = TrackMenuActions(),
     modifier: Modifier = Modifier,
 ) {
     var showScan by remember { mutableStateOf(false) }
@@ -124,6 +129,7 @@ fun SearchScreen(
                     onTogglePlaylists = onTogglePlaylists,
                     onOpenPlaylist = onOpenPlaylist,
                     onLoadMore = onLoadMore,
+                    menuActions = menuActions,
                 )
             }
         }
@@ -154,41 +160,6 @@ fun SearchScreen(
             onDismiss = { pendingAdd = null },
         )
     }
-}
-
-/** Picker de lista destino para "añadir a lista" desde los resultados (M8). */
-@Composable
-private fun AddToPlaylistDialog(
-    playlists: List<PlaylistRecord>,
-    onPick: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(Translations.get("add_to_playlist")) },
-        text = {
-            if (playlists.isEmpty()) {
-                Text(Translations.get("no_playlists"))
-            } else {
-                Column {
-                    playlists.forEach { playlist ->
-                        Text(
-                            text = playlist.name,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onPick(playlist.remoteId) }
-                                .padding(vertical = PlyrSpacing.xs)
-                                .testTag("add_to_${playlist.remoteId}"),
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(Translations.get("close")) }
-        },
-    )
 }
 
 @Composable
@@ -263,9 +234,23 @@ private fun SearchResultsList(
     onTogglePlaylists: () -> Unit,
     onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)?,
     onLoadMore: () -> Unit,
+    menuActions: TrackMenuActions,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        videosSection(state, onPlayResult, onAddToPlaylist, onToggleVideos, onLoadMore)
+        videosSection(
+            state = state,
+            onToggle = onToggleVideos,
+            onLoadMore = onLoadMore,
+            itemContent = { index, track ->
+                ResultRow(
+                    index = index,
+                    track = track,
+                    onPlayResult = onPlayResult,
+                    onAddToPlaylist = onAddToPlaylist,
+                    menuItems = menuActions.itemsFor(track, onAddToPlaylist),
+                )
+            },
+        )
         playlistsSection(state, onTogglePlaylists, onOpenPlaylist)
     }
 }
@@ -273,10 +258,9 @@ private fun SearchResultsList(
 /** Sección de vídeos: cabecera plegable, resultados y «cargar más» (M21). */
 private fun LazyListScope.videosSection(
     state: SearchState,
-    onPlayResult: (Int) -> Unit,
-    onAddToPlaylist: ((PlayerTrack) -> Unit)?,
     onToggle: () -> Unit,
     onLoadMore: () -> Unit,
+    itemContent: @Composable (index: Int, track: PlayerTrack) -> Unit,
 ) {
     if (state.results.isEmpty()) return
     item(key = "search_videos_header") {
@@ -290,7 +274,7 @@ private fun LazyListScope.videosSection(
     }
     if (state.videosExpanded) {
         itemsIndexed(state.results, key = { index, track -> "${track.id}#$index" }) { index, track ->
-            ResultRow(index, track, onPlayResult, onAddToPlaylist)
+            itemContent(index, track)
         }
         when {
             state.isLoadingMore ->
@@ -408,6 +392,7 @@ private fun ResultRow(
     track: PlayerTrack,
     onPlayResult: (Int) -> Unit,
     onAddToPlaylist: ((PlayerTrack) -> Unit)? = null,
+    menuItems: List<TrackMenuItem> = emptyList(),
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -442,6 +427,10 @@ private fun ResultRow(
                 Text(text = "+", fontFamily = FontFamily.Monospace)
             }
         }
+        TrackMenuButton(
+            items = menuItems,
+            menuTag = "search_menu_$index",
+        )
     }
 }
 

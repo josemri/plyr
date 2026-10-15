@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.search.SearchState
+import com.plyr.desktop.ui.components.TrackMenuActions
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.plyr.network.YouTubePlaylistInfo
 import org.junit.Assert.assertEquals
@@ -337,5 +338,58 @@ class SearchScreenTest {
 
         onNodeWithTag("search_loading_more").assertIsDisplayed()
         onNodeWithTag("search_load_more").assertDoesNotExist()
+    }
+
+    // --- M22: menú de acciones por pista ---
+
+    @Test
+    fun elMenuDeUnResultadoOfreceAcciones() = runComposeUiTest {
+        val liked = mutableListOf<PlayerTrack>()
+        var queued: PlayerTrack? = null
+
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(query = "x", results = listOf(track("a"))),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                    menuActions = TrackMenuActions(
+                        isLiked = { false },
+                        onToggleLike = { liked += it },
+                        onAddToQueue = { queued = it },
+                        onShare = {},
+                    ),
+                )
+            }
+        }
+
+        onNodeWithTag("search_menu_0").performClick()
+        onNodeWithTag("track_like", useUnmergedTree = true).performClick()
+
+        assertEquals(listOf(track("a")), liked)
+
+        onNodeWithTag("search_menu_0").performClick()
+        onNodeWithTag("track_add_queue", useUnmergedTree = true).performClick()
+
+        assertEquals(track("a"), queued)
+    }
+
+    @Test
+    fun sinAccionesNoSeMuestraElMenu() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(query = "x", results = listOf(track("a"))),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_menu_0").assertDoesNotExist()
     }
 }

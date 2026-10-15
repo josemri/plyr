@@ -12,28 +12,38 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import com.plyr.database.PlaylistRecord
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.player.PlayerState
 import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
+import com.plyr.desktop.ui.components.AddToPlaylistDialog
 import com.plyr.desktop.ui.components.Titulo
+import com.plyr.desktop.ui.components.TrackMenuActions
+import com.plyr.desktop.ui.components.TrackMenuButton
+import com.plyr.desktop.ui.components.TrackMenuItem
+import com.plyr.desktop.ui.components.itemsFor
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
 
 /**
  * Pantalla de cola de escritorio (M7).
  *
- * Lista la cola del reproductor con la pista actual marcada; pulsar una fila
- * salta a ella y los símbolos `^`/`v` reordenan. Es el equivalente de
- * `com.plyr.ui.QueueScreen`, pero con reordenación por botones en vez de arrastre
- * (el drag & drop "de verdad" llega con las listas en M8).
+ * Equivalente a `com.plyr.ui.AudioListScreen` de Android, pero en vez de pagers
+ * (que no encajan con ratón/teclado) usa un `Screen` explícito que se cambia
+ * desde el menú de inicio. Desde M22 cada fila ofrece el menú `⋯` de acciones
+ * (me gusta, añadir a cola/lista, compartir).
  *
  * Como [SearchScreen], recibe estado y callbacks de fuera para poder testearse
  * sin motor de audio.
@@ -44,8 +54,16 @@ fun QueueScreen(
     onJump: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
     onBack: () -> Unit,
+    playlists: List<PlaylistRecord> = emptyList(),
+    onAddToPlaylist: ((PlayerTrack, String) -> Unit)? = null,
+    menuActions: TrackMenuActions = TrackMenuActions(),
     modifier: Modifier = Modifier,
 ) {
+    // Pista para la que se está eligiendo lista destino (M22); null = sin diálogo.
+    var pendingAdd by remember { mutableStateOf<PlayerTrack?>(null) }
+    val requestAddToPlaylist: ((PlayerTrack) -> Unit)? =
+        if (onAddToPlaylist != null) { track -> pendingAdd = track } else null
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -66,28 +84,49 @@ fun QueueScreen(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                itemsIndexed(state.queue, key = { index, track -> "${track.id}#$index" }) { index, track ->
-                    QueueRow(
-                        index = index,
-                        track = track,
-                        isCurrent = index == state.currentIndex,
-                        onJump = onJump,
-                        onMove = onMove,
-                        isFirst = index == 0,
-                        isLast = index == state.queue.lastIndex,
-                    )
-                }
-            }
+            QueueList(state, onJump, onMove, menuActions, requestAddToPlaylist)
         }
 
         ActionButton(
-            data = ActionButtonData(
-                text = "\u2190 ${Translations.get("close")}",
-                onClick = onBack,
-            ),
+            data = ActionButtonData(text = "\u2190", onClick = onBack),
             modifier = Modifier.testTag("back_from_${Screen.QUEUE.name}"),
         )
+    }
+
+    pendingAdd?.let { track ->
+        AddToPlaylistDialog(
+            playlists = playlists,
+            onPick = { playlistId ->
+                onAddToPlaylist?.invoke(track, playlistId)
+                pendingAdd = null
+            },
+            onDismiss = { pendingAdd = null },
+        )
+    }
+}
+
+/** Listado de la cola con, por fila, el menú de acciones y la reordenación. */
+@Composable
+private fun QueueList(
+    state: PlayerState,
+    onJump: (Int) -> Unit,
+    onMove: (Int, Int) -> Unit,
+    menuActions: TrackMenuActions,
+    requestAddToPlaylist: ((PlayerTrack) -> Unit)?,
+) {
+    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+        itemsIndexed(state.queue, key = { index, track -> "${track.id}#$index" }) { index, track ->
+            QueueRow(
+                index = index,
+                track = track,
+                isCurrent = index == state.currentIndex,
+                onJump = onJump,
+                onMove = onMove,
+                isFirst = index == 0,
+                isLast = index == state.queue.lastIndex,
+                menuItems = menuActions.itemsFor(track, requestAddToPlaylist),
+            )
+        }
     }
 }
 
@@ -100,6 +139,7 @@ private fun QueueRow(
     onMove: (Int, Int) -> Unit,
     isFirst: Boolean,
     isLast: Boolean,
+    menuItems: List<TrackMenuItem>,
 ) {
     Row(
         modifier = Modifier
@@ -116,24 +156,25 @@ private fun QueueRow(
                 color = MaterialTheme.colorScheme.primary,
             ),
         )
-
-        Column(modifier = Modifier.weight(1f).padding(horizontal = PlyrSpacing.small)) {
+        Column(
+            modifier = Modifier.weight(1f),
+        ) {
             Text(
                 text = "${index + 1}. ${track.title}",
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (track.artist.isNotBlank()) {
-                Text(
-                    text = track.artist,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Text(
+                text = listOf(track.artist, track.duration).filter { it.isNotBlank() }
+                    .joinToString("  ·  "),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
+
+        TrackMenuButton(items = menuItems, menuTag = "queue_menu_$index")
 
         MoveButton("^", enabled = !isFirst, tag = "queue_up_$index", onClick = { onMove(index, index - 1) })
         MoveButton("v", enabled = !isLast, tag = "queue_down_$index", onClick = { onMove(index, index + 1) })

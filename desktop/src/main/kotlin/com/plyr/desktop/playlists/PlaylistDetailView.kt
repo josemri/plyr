@@ -10,18 +10,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.plyr.database.PlaylistRecord
 import com.plyr.database.TrackRecord
 import com.plyr.desktop.download.DownloadController
 import com.plyr.desktop.download.DownloadStatusBar
 import com.plyr.desktop.download.OfflineStorageDialog
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.FileDialogs
+import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.qr.QrShareDialog
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
+import com.plyr.desktop.ui.components.AddToPlaylistDialog
 import com.plyr.desktop.ui.components.ReorderState
 import com.plyr.desktop.ui.components.Titulo
+import com.plyr.desktop.ui.components.TrackMenuItem
 import com.plyr.desktop.utils.CoverStore
 import com.plyr.ui.components.PlaylistShare
 import com.plyr.ui.components.ShareType
@@ -42,6 +47,9 @@ fun PlaylistDetailView(
     isRandomizing: Boolean = false,
     onPlayRandom: (List<TrackRecord>) -> Unit = {},
     onStopRandomize: () -> Unit = {},
+    playlists: List<PlaylistRecord> = emptyList(),
+    searchTracks: suspend (String) -> List<PlayerTrack> = { emptyList() },
+    onAddToQueue: (TrackRecord) -> Unit = {},
 ) {
     val playlist = state.selectedPlaylist
     val description = playlist?.description
@@ -50,6 +58,10 @@ fun PlaylistDetailView(
     var shareItem by remember { mutableStateOf<ShareableItem?>(null) }
     var cropSource by remember { mutableStateOf<BufferedImage?>(null) }
     var showStorageDialog by remember { mutableStateOf(false) }
+    // Pista para la que se elige lista destino y buscador de pistas (M22).
+    var pendingAdd by remember { mutableStateOf<TrackRecord?>(null) }
+    val trackSearch = remember(searchTracks) { TrackSearchController(scope, searchTracks) }
+    val trackSearchState by trackSearch.state.collectAsState()
 
     // Estado de descarga offline de la lista abierta (M17): qué pistas ya están
     // en el almacén, si se está bajando esta lista y el progreso de la pista
@@ -181,6 +193,60 @@ fun PlaylistDetailView(
             modifier = Modifier.fillMaxWidth().testTag("playlist_edit_desc")
         )
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Buscador de YouTube para añadir pistas al vuelo (M22, F26).
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = trackSearchState.query,
+                onValueChange = trackSearch::onQueryChange,
+                label = { Text(Translations.get("search_tracks_label")) },
+                modifier = Modifier.weight(1f).testTag("playlist_add_search"),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            ActionButton(
+                data = ActionButtonData(
+                    text = Translations.get("search_title"),
+                    enabled = trackSearchState.query.isNotBlank() && !trackSearchState.isSearching,
+                    onClick = { trackSearch.performSearch() },
+                ),
+                modifier = Modifier.testTag("playlist_add_search_button"),
+            )
+        }
+        if (trackSearchState.isSearching) {
+            Text(
+                text = Translations.get("search_loading"),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.testTag("playlist_add_searching"),
+            )
+        }
+        if (trackSearchState.error != null) {
+            Text(
+                text = trackSearchState.error.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        trackSearchState.results.forEachIndexed { index, result ->
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = listOf(result.title, result.artist).filter { it.isNotBlank() }.joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = { controller.addTrack(result.toTrackRecord(selectedPlaylistId.orEmpty())) },
+                    modifier = Modifier.testTag("playlist_add_result_$index"),
+                ) {
+                    Text("+", fontFamily = FontFamily.Monospace)
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
     } else if (!description.isNullOrBlank()) {
         Text(
             text = description,
@@ -201,7 +267,22 @@ fun PlaylistDetailView(
                 onClick = { onPlayTracks(state.tracks, index) },
                 onRemove = { controller.removeTrack(track.remoteTrackId) },
                 onMove = { from, to -> controller.reorderTracks(from, to) },
-                onShare = track.youtubeVideoId?.let { { shareItem = track.toShareableItem() } },
+                menuItems = buildList {
+                    add(
+                        TrackMenuItem(
+                            label = Translations.get(
+                                if (controller.isLiked(track.youtubeVideoId, track.name, track.artists)) "liked" else "like"
+                            ),
+                            tag = "track_like",
+                            onClick = { controller.toggleLike(track.youtubeVideoId, track.name, track.artists, track.remoteTrackId) },
+                        )
+                    )
+                    add(TrackMenuItem(Translations.get("add_to_queue"), "track_add_queue") { onAddToQueue(track) })
+                    add(TrackMenuItem(Translations.get("add_to_playlist"), "track_add_playlist") { pendingAdd = track })
+                    if (track.youtubeVideoId != null) {
+                        add(TrackMenuItem(Translations.get("share"), "track_share") { shareItem = track.toShareableItem() })
+                    }
+                },
                 isDownloaded = track.youtubeVideoId != null && track.youtubeVideoId in downloadedIds,
                 downloadProgress = if (downloadingThis && track.youtubeVideoId == downloadState.currentVideoId) {
                     downloadState.currentFraction
@@ -278,6 +359,17 @@ fun PlaylistDetailView(
                     cropSource = null
                 }
             },
+        )
+    }
+
+    pendingAdd?.let { track ->
+        AddToPlaylistDialog(
+            playlists = playlists,
+            onPick = { playlistId ->
+                controller.addTrackToPlaylist(playlistId, track)
+                pendingAdd = null
+            },
+            onDismiss = { pendingAdd = null },
         )
     }
 

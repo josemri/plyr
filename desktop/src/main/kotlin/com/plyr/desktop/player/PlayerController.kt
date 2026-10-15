@@ -371,6 +371,26 @@ class PlayerController(
         launchStartAt(newIndex, position)
     }
 
+    /**
+     * Añade [track] al final de la cola (M22), como el "añadir a cola" de
+     * Android.
+     *
+     * Encolar no desplaza ningún índice, así que no invalida una resolución en
+     * vuelo: con algo sonando la pista entra al final y queda preparada por
+     * [growWindow]; sin cola solo queda en la lista hasta que se empiece a
+     * reproducir algo (mismo comportamiento que `PlayerViewModel.addToQueue`).
+     */
+    fun addToQueue(track: PlayerTrack) {
+        val hadQueue = queue.isNotEmpty()
+        engine.replaceQueue(queue + track)
+        publishQueue()
+        if (hadQueue) {
+            prefetchJob?.cancel()
+            prefetchJob = null
+            growWindow()
+        }
+    }
+
     /** Para la reproducción y vacía la cola. */
     fun clear() {
         randomizing = false
