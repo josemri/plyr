@@ -33,6 +33,7 @@ import com.plyr.desktop.download.offlineStorageMessage
 import com.plyr.desktop.download.rememberOfflineSummary
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.qr.QrShareDialog
 import com.plyr.desktop.spotify.SpotifyImportController
 import com.plyr.desktop.spotify.SpotifyImportState
 import com.plyr.desktop.sync.BackupController
@@ -44,6 +45,8 @@ import com.plyr.desktop.ui.components.Titulo
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
 import com.plyr.domain.RepeatMode
+import com.plyr.ui.components.ShareType
+import com.plyr.ui.components.ShareableItem
 
 /**
  * Pantalla de ajustes del escritorio (M9).
@@ -51,7 +54,8 @@ import com.plyr.domain.RepeatMode
  * Puerto de `com.plyr.ui.ConfigScreen` con lo que aplica a escritorio: tema,
  * idioma y modo de repetición, más las rutas de datos y caché del SO. Desde M10
  * incluye la copia de seguridad y desde M11 la importación de listas de Spotify.
- * El compartir por QR vive en la vista de detalle de cada lista.
+ * El compartir por QR de pistas y listas vive en la vista de detalle; desde M24
+ * esta pantalla añade además la sección «compartir app».
  *
  * Todos los valores se leen y escriben en [DesktopConfig], que los persiste entre
  * reinicios; el tema y el idioma cambian la UI al momento porque viven en estado
@@ -132,16 +136,25 @@ fun ConfigScreen(
             OfflineStorageSection(downloadController)
         }
 
-        Spacer(Modifier.height(PlyrSpacing.xxl))
+        // === COMPARTIR APP (M24) ===
+        Spacer(Modifier.height(PlyrSpacing.large))
+        ShareAppSection()
 
-        ActionButton(
-            data = ActionButtonData(
-                text = "\u2190 ${Translations.get("close")}",
-                onClick = onBack,
-            ),
-            modifier = Modifier.testTag("back_from_CONFIG"),
-        )
+        ConfigBackButton(onBack)
     }
+}
+
+/** Botón fijo de «volver» al pie de los ajustes. */
+@Composable
+private fun ConfigBackButton(onBack: () -> Unit) {
+    Spacer(Modifier.height(PlyrSpacing.xxl))
+    ActionButton(
+        data = ActionButtonData(
+            text = "\u2190 ${Translations.get("close")}",
+            onClick = onBack,
+        ),
+        modifier = Modifier.testTag("back_from_CONFIG"),
+    )
 }
 
 /**
@@ -289,6 +302,39 @@ private fun OfflineStorageSection(controller: DownloadController) {
 
     if (showDialog) {
         OfflineStorageDialog(controller = controller, onDismiss = { showDialog = false })
+    }
+}
+
+/**
+ * Sección «compartir app» (M24): paridad con `ShareAppSection` de Android.
+ * Genera el QR y el enlace de descarga de plyr reutilizando [QrShareDialog] con
+ * un [ShareableItem] de tipo [ShareType.APP] (la URL la decide
+ * `ShareUrlPolicy.APP_DOWNLOAD_URL`).
+ */
+@Composable
+private fun ShareAppSection() {
+    var showDialog by remember { mutableStateOf(false) }
+
+    ActionButton(
+        data = ActionButtonData(
+            text = Translations.get("share_me"),
+            onClick = { showDialog = true },
+        ),
+        modifier = Modifier.testTag("share_app_button"),
+    )
+
+    if (showDialog) {
+        QrShareDialog(
+            item = ShareableItem(
+                remoteId = null,
+                shareUrl = null,
+                youtubeId = null,
+                title = "plyr",
+                artist = "",
+                type = ShareType.APP,
+            ),
+            onDismiss = { showDialog = false },
+        )
     }
 }
 

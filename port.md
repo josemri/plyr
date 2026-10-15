@@ -42,11 +42,11 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F21 | Crear playlist buscando en YouTube | `CreatePlaylistScreen` | **Presente (M22)**: `CreatePlaylistView` busca en YouTube y acumula seleccionadas; al guardar nacen ya dentro de la lista | Media |
 | F22 | Acciones por pista (like / añadir a cola / añadir a playlist) | `SongListItem` (menú contextual) | **Presente (M22)**: menú `⋯` por pista en detalle, cola y resultados (me gusta, añadir a cola, añadir a lista y compartir). El `ui/components/SongListItem.kt` de escritorio (muerto, con textos fijos en inglés) se eliminó | Baja |
 | F23 | Metadatos del vídeo en el feed + reproducir desde el feed | `FeedScreen` + `MediaMetadataExtractor` | **Presente (M23)**: `FeedController`/`FeedScreen` enriquecen cada recomendación (título, autor y miniatura) con concurrencia acotada y, al pulsar, reproducen el vídeo o abren la lista | **Alta** |
-| F24 | «Compartir app» por QR en Config | `ShareAppSection` + `ShareType.APP` | Ausente | Baja |
+| F24 | «Compartir app» por QR en Config | `ShareAppSection` + `ShareType.APP` | **Presente (M24)**: sección «compartir app» en `ConfigScreen` que abre `QrShareDialog` con `ShareType.APP` (enlace de descarga) | Baja |
 | F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
 | F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | **Presente (M22)**: el modo edición añade un buscador de YouTube (`+`/`x`) junto a las pistas actuales | Media |
 
-> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist`, `like`/`liked`, `add_to_queue` y `share` (F22, M22) y, desde M17, `storage_*` (almacén offline); `delete_download` y el resto de F24 siguen listos para usarse cuando se implemente M24. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`; M22, `search_tracks_label`/`tracks_count` y `save`/`cancel`.
+> **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist`, `like`/`liked`, `add_to_queue` y `share` (F22, M22), desde M17 `storage_*` (almacén offline) y desde M24 `share_me` (compartir app); `delete_download` sigue listo para F14. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`; M22, `search_tracks_label`/`tracks_count` y `save`/`cancel`.
 
 > **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 fue más barato de lo que sugería su kdoc (ya corregido en M23).
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M23` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M24` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -275,6 +275,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M21 — Paginación («cargar más») en búsqueda:** `YouTubeManager.searchAll(page)` avanza con `getPage(nextPage)` y expone `hasMore`; `SearchController.loadMore` **añade** la página siguiente (con `isLoadingMore` para no vaciar la lista) y `SearchScreen` muestra «> cargar más» al pie de los vídeos, con el umbral de Android (≥10).
 - **M22 — Crear/editar lista buscando en YouTube + acciones por pista:** alta de lista (F21) y modo edición del detalle (F26) con un buscador de YouTube reutilizable (`TrackSearchController`, `YouTubeManager.searchAll … maxPlaylists = 0`) que acumula seleccionadas (`+`/`x`); al guardar/añadir nacen dentro de la lista. Menú `⋯` por pista común (`ui/components/TrackMenu.kt`, `TrackMenuActions`) en detalle, cola y resultados: me gusta reactivo (`PlaylistsController.likedKeys` observando `liked_songs`), añadir a cola (`PlayerController.addToQueue`) y a lista (`AddToPlaylistDialog`), y compartir (`QrShareDialog`).
 - **M23 — Feed: metadatos del vídeo y reproducir desde el feed:** `FeedRemote` agrupa la red del feed (Supabase + `MediaMetadataExtractor`, ya en `:core`) y `FeedController` enriquece cada recomendación con título, autor y miniatura, con concurrencia acotada (`METADATA_CONCURRENCY = 4`) y caché por id. `FeedScreen` pinta la miniatura (Coil) y, al pulsar, reproduce el vídeo (`PlayerController.play`) o abre la lista; el click de playlist reutiliza el mismo camino que un `ScanResult` de QR (`AudioListScreen.openYouTubePlaylist` → `YouTubeManager.getPlaylistInfo` + `YouTubePlaylistDetailController`). Se conserva el formulario de publicación, el selector de grupo y el comentario (propios del escritorio).
+- **M24 — «Compartir app» por QR en Config (F24):** `ConfigScreen` añade `ShareAppSection`, un botón `share_me` (testTag `share_app_button`) que abre `QrShareDialog` con un `ShareableItem` de tipo `ShareType.APP`; la URL la resuelve `ShareUrlPolicy.APP_DOWNLOAD_URL` (enlace de descarga de plyr) y el QR lo pinta `QrCodec`/`QrImages`, con «copiar enlace» y «guardar PNG» ya existentes de M11/M22. Sin claves nuevas: reutiliza `share_me` (ya usada por Android). Se extrajo el botón «volver» de Ajustes a `ConfigBackButton` para no superar el límite de longitud de detekt.
 
 ### 6.2 Tabla de seguimiento
 
@@ -304,7 +305,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M21 | Paginación («cargar más») en búsqueda | 0.5 | ☑ |
 | M22 | Crear/editar playlist con búsqueda + acciones por pista | 1 | ☑ |
 | M23 | Feed: metadatos del vídeo y reproducir desde el feed | 0.5 | ☑ |
-| M24+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M24 | «Compartir app» por QR en Config | 0.5 | ☑ |
+| M25+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -314,13 +316,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M24+)
+### 6.4 Backlog de paridad pendiente (M25+)
 
 Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23.
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M24 | «Compartir app» por QR en Config | Baja | 0.5 |
 | M25 | Recomendar al feed desde el diálogo de compartir | Media | 0.5 |
 
 ---
@@ -443,7 +444,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M24 — «Compartir app» por QR en Config
+#### M24 — «Compartir app» por QR en Config ☑ (completado)
 **Objetivo:** paridad con `ShareAppSection` de Android.
 **Tareas**
 - Añadir a `ConfigScreen` una sección que comparta la app «plyr» (enlace/QR de descarga) reutilizando `QrShareDialog`/`QrCodec`.
@@ -451,6 +452,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test`.
 **Prompt opencode:**
 > Añade a `ConfigScreen` de `:desktop` una sección «compartir app» que genere el QR y el enlace de descarga de plyr, reutilizando `QrShareDialog`/`QrCodec`. Verifica con tests.
+
+**Implementado:** `ConfigScreen` gana `ShareAppSection` (M24): un `ActionButton` con el texto `share_me` (testTag `share_app_button`) que abre el `QrShareDialog` ya existente con un `ShareableItem` de tipo `ShareType.APP`. Como `ShareUrlPolicy` resuelve `ShareType.APP` a `APP_DOWNLOAD_URL`, el diálogo pinta el QR del enlace de descarga de plyr (`QrCodec`/`QrImages`) y ofrece «copiar enlace» y «guardar PNG» (M11/M22). Sin claves nuevas (`share_me` ya estaba en el catálogo por Android); se extrajo el botón «volver» a `ConfigBackButton` para que `ConfigScreen` no superara el `LongMethod` de detekt. Tests: `ConfigScreenTest.comparteLaAppConSuQrDeDescarga` (pulsa el botón y comprueba el enlace de descarga en `qr_url`). Verificación: `:desktop:test` **303** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434.
 
 ---
 

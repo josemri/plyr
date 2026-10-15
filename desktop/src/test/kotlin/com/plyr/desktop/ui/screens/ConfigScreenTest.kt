@@ -25,6 +25,7 @@ import com.plyr.desktop.sync.DataSync
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.plyr.desktop.utils.CoverCache
 import com.plyr.domain.RepeatMode
+import com.plyr.ui.components.ShareUrlPolicy
 import com.plyr.utils.SpotifyImport
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.CoroutineScope
@@ -180,5 +181,18 @@ class ConfigScreenTest {
         } finally {
             scope.cancel()
         }
+    }
+
+    @Test
+    fun comparteLaAppConSuQrDeDescarga() = runComposeUiTest {
+        setContent { PlyrTheme { ConfigScreen(onBack = {}) } }
+
+        // La sección «compartir app» (M24) está siempre y abre el QR de descarga
+        // de plyr (la URL la arma `ShareUrlPolicy.APP_DOWNLOAD_URL`).
+        onNodeWithTag("share_app_button").assertIsDisplayed()
+        onNodeWithTag("share_app_button").performClick()
+
+        onNodeWithTag("qr_url").assertIsDisplayed()
+        onNodeWithText(ShareUrlPolicy.APP_DOWNLOAD_URL).assertIsDisplayed()
     }
 }
