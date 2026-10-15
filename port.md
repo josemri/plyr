@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M26` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M27` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la cola accesible solo desde los controles, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -308,7 +308,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M24 | «Compartir app» por QR en Config | 0.5 | ☑ |
 | M25 | Recomendar al feed desde el diálogo de compartir | 0.5 | ☑ |
 | M26 | Flush de copia de seguridad al cerrar la app | 0.5 | ☑ |
-| M27+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M27 | Acceso a la cola solo desde controles (escritorio) | 0.5 | ☑ |
+| M28+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -318,13 +319,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M27+)
+### 6.4 Backlog de paridad pendiente (M28+)
 
 Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23.
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M27 | Acceso a la cola solo desde controles (escritorio) | Media | 0.5 |
 | M28 | Quitar QR scanning y mover búsqueda al inicio (escritorio) | Media | 0.5 |
 | M29 | Carrusel de playlists en Home (escritorio) | Baja | 0.5 |
 
@@ -490,7 +490,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M27 — Acceso a la cola solo desde controles (escritorio)
+#### M27 — Acceso a la cola solo desde controles (escritorio) ☑ (completado)
 **Objetivo:** cambiar navegación en escritorio para acceder a la cola únicamente desde el indicador `^` del `FloatingMusicControls` (igual que en Android, que no tiene botón de cola en la barra/menu principal). **Solo afecta a UI de escritorio, no tocar Android.**
 **Tareas**
 - Quitar el botón `plyr_queue` del menú/navegación de escritorio (`Screen`, `AudioListScreen`, `MenuBar`/botones según corresponda).
@@ -500,6 +500,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test`, manual (comprueba menús).
 **Prompt opencode:**
 > Solo en `desktop/...` (no toques `app/src/...`), elimina cualquier entrada de navegación/botón que lleve a la cola desde el menú principal. La cola debe seguir abriéndose únicamente al pulsar el botón `^` de `FloatingMusicControls`. Revisa `Screen.kt`, `AudioListScreen.kt`, menús y tests de escritorio afectados. No modifiques nada de Android.
+
+**Implementado:** `HomeScreen` ya no lista `Screen.QUEUE` en el menú de consola, así que la cola no tiene acceso desde la navegación principal; el `^` de `FloatingMusicControls` sigue siendo el único camino (`control_queue` → `onShowQueue` → `Screen.QUEUE`, ya existente). Como Android no navega a la cola al reproducir, se quitó también el `currentScreen = Screen.QUEUE` de `playTracks` en `AudioListScreen`: al pulsar «play all»/una pista, la barra flotante muestra lo que suena y la cola se abre con `^`. `Screen.QUEUE` se mantiene (identifica la pantalla interna y su título `plyr_queue`), solo desaparece del menú. Sin claves nuevas y Android intacto. Tests: `AudioListScreenTest.laColaNoEstaEnElMenu` (sustituye al antiguo «navega a cola desde el menú») y `FloatingMusicControlsTest` (2: el `^` avisa para mostrar la cola y sin reproducción no aparece). Verificación: `:desktop:test` **310** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434.
 
 ---
 
@@ -532,7 +534,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio ahora vuelca el flush pendiente al cerrar (`DataSync.flushOnStop()`, M26), igual que Android en `onStop` (ya no cancela a ciegas); **UI escritorio (M27–M29):** acceso a cola solo desde `^` en controles, búsqueda integrada en Home, carrusel de playlists en Home con `>` a listas.
+**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio ahora vuelca el flush pendiente al cerrar (`DataSync.flushOnStop()`, M26), igual que Android en `onStop` (ya no cancela a ciegas); **UI escritorio (M28–M29):** búsqueda integrada en Home, carrusel de playlists en Home con `>` a listas (la cola ya solo se abre desde `^` en controles, M27).
 
 **A favor del escritorio (no perder):** el feed tiene formulario de publicación + selector de grupo + muestra el `comment` (Android no); Config tiene filas extra de **repetición** y **rutas de datos/caché** (Android no); atajos de teclado, bandeja del sistema (`DesktopTray`) y prueba de sonido por CLI (`SoundCheck`).
 

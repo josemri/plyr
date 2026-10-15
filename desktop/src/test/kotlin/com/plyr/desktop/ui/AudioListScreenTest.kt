@@ -19,8 +19,8 @@ import org.junit.Test
 
 /**
  * Test de UI del esqueleto de M5: comprueba que la app abre en Home, que el
- * menú navega entre pantallas y vuelve, que el botón de cola de los controles
- * flotantes navega, y que cambiar el idioma en Ajustes actualiza las etiquetas.
+ * menú navega entre pantallas y vuelve, que la cola ya no está en el menú (M27)
+ * y que cambiar el idioma en Ajustes actualiza las etiquetas.
  */
 @OptIn(ExperimentalTestApi::class)
 class AudioListScreenTest {
@@ -69,10 +69,11 @@ class AudioListScreenTest {
     }
 
     @Test
-    fun elMenuDeColaNavegaAQueue() = runComposeUiTest {
+    fun laColaNoEstaEnElMenu() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
-        onNodeWithTag("menu_QUEUE").performClick()
-        onNodeWithTag("screen_QUEUE").assertIsDisplayed()
+        onNodeWithTag("screen_HOME").assertIsDisplayed()
+        // M27: como en Android, la cola solo se abre con el `^` de los controles.
+        onNodeWithTag("menu_QUEUE").assertDoesNotExist()
     }
 
     @Test

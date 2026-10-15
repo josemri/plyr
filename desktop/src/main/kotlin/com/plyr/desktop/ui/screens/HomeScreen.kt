@@ -63,6 +63,9 @@ private val HOME_CAROUSEL_ITEM_WIDTH = 140.dp
  * horizontal con las listas visibles ([playlists], ya filtradas por
  * `PlaylistFilters` en `AudioListScreen`) y su portada. Pulsar una lista avisa
  * por [onOpenPlaylist] para que la app abra su detalle.
+ *
+ * M27: el menú ya no ofrece la cola; como en Android, se abre solo con el `^` de
+ * los controles flotantes.
  */
 @Composable
 fun HomeScreen(
@@ -74,7 +77,6 @@ fun HomeScreen(
 ) {
     val options = listOf(
         MenuOption(Screen.SEARCH, Translations.get(Screen.SEARCH.titleKey)),
-        MenuOption(Screen.QUEUE, Translations.get(Screen.QUEUE.titleKey)),
         MenuOption(Screen.PLAYLISTS, Translations.get(Screen.PLAYLISTS.titleKey)),
         MenuOption(Screen.FEED, Translations.get(Screen.FEED.titleKey)),
         MenuOption(Screen.CONFIG, Translations.get(Screen.CONFIG.titleKey)),

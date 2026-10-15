@@ -126,11 +126,11 @@ fun AudioListScreen(
         )
     }
 
-    // Reproduce una lista de pistas y salta a la cola; lo comparten el detalle de
-    // listas locales (M8) y el de listas de YouTube (M19).
+    // Reproduce una lista de pistas; lo comparten el detalle de listas locales
+    // (M8) y el de listas de YouTube (M19). No navega a la cola: la barra flotante
+    // muestra lo que suena y la cola solo se abre con su `^` (M27), como Android.
     val playTracks: (List<com.plyr.database.TrackRecord>, Int) -> Unit = { tracks, index ->
         playerController.play(tracks.toPlayerTracks(), index)
-        currentScreen = Screen.QUEUE
     }
 
     DisposableEffect(playerController) {
