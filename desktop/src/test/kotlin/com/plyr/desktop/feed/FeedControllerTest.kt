@@ -4,15 +4,22 @@ import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.i18n.Translations
 import com.plyr.model.Group
 import com.plyr.model.Recommendation
+import com.plyr.utils.MediaMetadata
+import com.plyr.utils.MediaType
 import com.russhwolf.settings.MapSettings
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Tests de [FeedController] con Supabase inyectado: sin red y con el estado
@@ -57,11 +64,16 @@ class FeedControllerTest {
             },
         initialNickname: String = "",
         persist: (String) -> Unit = {},
+        extractMetadata: suspend (String) -> MediaMetadata =
+            { url -> MediaMetadata(url, null, null, MediaType.UNKNOWN) },
     ) = FeedController(
         scope = scope,
-        loadGroups = { groups },
-        loadRecommendations = { groupId -> recommendations(groupId) },
-        createRecommendation = { groupId, nickname, url, comment -> created(groupId, nickname, url, comment) },
+        remote = FeedRemote(
+            loadGroups = { groups },
+            loadRecommendations = { groupId -> recommendations(groupId) },
+            createRecommendation = { groupId, nickname, url, comment -> created(groupId, nickname, url, comment) },
+            extractMetadata = extractMetadata,
+        ),
         initialNickname = initialNickname,
         persistNickname = persist,
     )
@@ -183,7 +195,7 @@ class FeedControllerTest {
     fun refreshFallidoMuestraError() {
         val controller = FeedController(
             scope = scope,
-            loadGroups = { error("sin red") },
+            remote = FeedRemote(loadGroups = { error("sin red") }),
             persistNickname = {},
         )
 
@@ -193,5 +205,91 @@ class FeedControllerTest {
         assertFalse(state.isLoading)
         assertTrue(state.statusIsError)
         assertEquals(Translations.get("feed_error"), state.statusMessage)
+    }
+
+    // --- M23: metadatos del vídeo ---
+
+    @Test
+    fun refreshEnriqueceCadaRecomendacionConSusMetadatos() {
+        val controller = controller(
+            extractMetadata = { url ->
+                MediaMetadata("Título de $url", "Canal", "https://img/$url", MediaType.YOUTUBE_VIDEO)
+            },
+        )
+
+        controller.refresh()
+
+        val metadata = controller.state.value.metadata["r1"]
+        assertEquals("Título de https://youtu.be/r1", metadata?.title)
+        assertEquals("Canal", metadata?.author)
+        assertEquals(MediaType.YOUTUBE_VIDEO, metadata?.type)
+    }
+
+    @Test
+    fun noReextraeLosMetadatosYaCacheados() {
+        val calls = AtomicInteger(0)
+        val controller = controller(
+            extractMetadata = { url ->
+                calls.incrementAndGet()
+                MediaMetadata(url, null, null, MediaType.YOUTUBE_VIDEO)
+            },
+        )
+
+        controller.refresh()
+        controller.refresh()
+
+        assertEquals(1, calls.get())
+    }
+
+    @Test
+    fun unFalloDeMetadatosDejaLaRecomendacionSinEnriquecer() {
+        val controller = controller(extractMetadata = { error("sin red") })
+
+        controller.refresh()
+
+        val state = controller.state.value
+        assertEquals(1, state.recommendations.size)
+        assertTrue(state.metadata.isEmpty())
+    }
+
+    @Test
+    fun acotaLaConcurrenciaDeLasExtracciones() = runBlocking {
+        val realScope = CoroutineScope(Dispatchers.Default)
+        val recommendations = (1..10).map { recommendation("r$it", general.id) }
+        val active = AtomicInteger(0)
+        val peak = AtomicInteger(0)
+        val started = AtomicInteger(0)
+        val firstBatchStarted = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val controller = FeedController(
+            scope = realScope,
+            remote = FeedRemote(
+                loadGroups = { listOf(general) },
+                loadRecommendations = { recommendations },
+                extractMetadata = { url ->
+                    val now = active.incrementAndGet()
+                    peak.updateAndGet { maxOf(it, now) }
+                    if (started.incrementAndGet() == METADATA_CONCURRENCY) firstBatchStarted.complete(Unit)
+                    release.await()
+                    active.decrementAndGet()
+                    MediaMetadata(url, null, null, MediaType.UNKNOWN)
+                },
+            ),
+            initialNickname = "",
+            persistNickname = {},
+        )
+
+        controller.refresh()
+        withTimeout(5_000) { firstBatchStarted.await() }
+        // Mientras no se libera el primer lote no puede haber más de
+        // METADATA_CONCURRENCY extracciones simultáneas.
+        assertEquals(METADATA_CONCURRENCY, peak.get())
+
+        release.complete(Unit)
+        withTimeout(5_000) {
+            while (controller.state.value.metadata.size < recommendations.size) delay(10)
+        }
+        assertTrue(peak.get() <= METADATA_CONCURRENCY)
+        assertEquals(recommendations.size, controller.state.value.metadata.size)
     }
 }

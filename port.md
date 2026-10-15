@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-15
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M22` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M23` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -41,14 +41,14 @@ Detectadas al comparar `:app` con `:desktop` después del cierre de M15. Las que
 | F20 | Paginación / «cargar más» en búsqueda | `SearchViewModel.onLoadMore` | **Presente (M21)**: `YouTubeManager.searchAll(page)` + `SearchController.loadMore` van añadiendo páginas; «cargar más» al pie de los vídeos con el umbral de Android (≥10). Android solo re-lanzaba la misma consulta | Media |
 | F21 | Crear playlist buscando en YouTube | `CreatePlaylistScreen` | **Presente (M22)**: `CreatePlaylistView` busca en YouTube y acumula seleccionadas; al guardar nacen ya dentro de la lista | Media |
 | F22 | Acciones por pista (like / añadir a cola / añadir a playlist) | `SongListItem` (menú contextual) | **Presente (M22)**: menú `⋯` por pista en detalle, cola y resultados (me gusta, añadir a cola, añadir a lista y compartir). El `ui/components/SongListItem.kt` de escritorio (muerto, con textos fijos en inglés) se eliminó | Baja |
-| F23 | Metadatos del vídeo en el feed + reproducir desde el feed | `FeedScreen` + `MediaMetadataExtractor` | Feed sin metadatos ni clic-para-reproducir | **Alta** |
+| F23 | Metadatos del vídeo en el feed + reproducir desde el feed | `FeedScreen` + `MediaMetadataExtractor` | **Presente (M23)**: `FeedController`/`FeedScreen` enriquecen cada recomendación (título, autor y miniatura) con concurrencia acotada y, al pulsar, reproducen el vídeo o abren la lista | **Alta** |
 | F24 | «Compartir app» por QR en Config | `ShareAppSection` + `ShareType.APP` | Ausente | Baja |
 | F25 | Recomendar al feed desde el diálogo de compartir | `QRDialog.RecommendButton` + `requestRecommendation` | `QrShareDialog` lo omite explícitamente («sin… recomendaciones a grupos») | Media |
 | F26 | Editar una playlist añadiendo pistas buscando en YouTube | `PlaylistScreen` (modo edición: buscador + `+`/`x`) | **Presente (M22)**: el modo edición añade un buscador de YouTube (`+`/`x`) junto a las pistas actuales | Media |
 
 > **Nota:** las claves de traducción de F14/F22/F24 (`storage_*`, `delete_download`, `like`, `add_to_queue`, `share_me`, `add_to_playlist`) ya están en el catálogo compartido `:core` (`TranslationCatalog`). El escritorio ya consume `add_to_playlist`, `like`/`liked`, `add_to_queue` y `share` (F22, M22) y, desde M17, `storage_*` (almacén offline); `delete_download` y el resto de F24 siguen listos para usarse cuando se implemente M24. M17 añadió además las claves `download`, `download_clean`, `download_downloading`, `download_done`, `download_partial`, `download_already` y `download_cancelled`; M19 añadió `youtube_playlists` y `saved`; M22, `search_tracks_label`/`tracks_count` y `save`/`cancel`.
 
-> **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 es más barato de lo que sugiere su kdoc (que aún dice «no portado»).
+> **Nota:** `MediaMetadataExtractor`, `ImportManifest`, `QrCodec`, `SpotifyImport` y `CoverCacheKey` ya viven en `:core` (`jvmSharedMain`), así que F23 fue más barato de lo que sugería su kdoc (ya corregido en M23).
 
 ### 1.2 Lenguaje y stack seleccionados
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M22` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M23` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -274,6 +274,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **M20 — Reproducción aleatoria (`<rnd>`) en playlists:** `Shuffle` puro (semilla inyectable) y `PlayerController.startRandomized`/`stopRandomized` con `isRandomizing` en el estado; botón `<rnd>`/`<stop>` en el detalle de lista local y `<rnd>` en el detalle de lista de YouTube, sin salir de la pantalla (la barra flotante muestra lo que suena).
 - **M21 — Paginación («cargar más») en búsqueda:** `YouTubeManager.searchAll(page)` avanza con `getPage(nextPage)` y expone `hasMore`; `SearchController.loadMore` **añade** la página siguiente (con `isLoadingMore` para no vaciar la lista) y `SearchScreen` muestra «> cargar más» al pie de los vídeos, con el umbral de Android (≥10).
 - **M22 — Crear/editar lista buscando en YouTube + acciones por pista:** alta de lista (F21) y modo edición del detalle (F26) con un buscador de YouTube reutilizable (`TrackSearchController`, `YouTubeManager.searchAll … maxPlaylists = 0`) que acumula seleccionadas (`+`/`x`); al guardar/añadir nacen dentro de la lista. Menú `⋯` por pista común (`ui/components/TrackMenu.kt`, `TrackMenuActions`) en detalle, cola y resultados: me gusta reactivo (`PlaylistsController.likedKeys` observando `liked_songs`), añadir a cola (`PlayerController.addToQueue`) y a lista (`AddToPlaylistDialog`), y compartir (`QrShareDialog`).
+- **M23 — Feed: metadatos del vídeo y reproducir desde el feed:** `FeedRemote` agrupa la red del feed (Supabase + `MediaMetadataExtractor`, ya en `:core`) y `FeedController` enriquece cada recomendación con título, autor y miniatura, con concurrencia acotada (`METADATA_CONCURRENCY = 4`) y caché por id. `FeedScreen` pinta la miniatura (Coil) y, al pulsar, reproduce el vídeo (`PlayerController.play`) o abre la lista; el click de playlist reutiliza el mismo camino que un `ScanResult` de QR (`AudioListScreen.openYouTubePlaylist` → `YouTubeManager.getPlaylistInfo` + `YouTubePlaylistDetailController`). Se conserva el formulario de publicación, el selector de grupo y el comentario (propios del escritorio).
 
 ### 6.2 Tabla de seguimiento
 
@@ -302,7 +303,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M20 | Reproducción aleatoria (`<rnd>`) en playlists | 0.5 | ☑ |
 | M21 | Paginación («cargar más») en búsqueda | 0.5 | ☑ |
 | M22 | Crear/editar playlist con búsqueda + acciones por pista | 1 | ☑ |
-| M23+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M23 | Feed: metadatos del vídeo y reproducir desde el feed | 0.5 | ☑ |
+| M24+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
 
 ### 6.3 Decisiones clave del port
 
@@ -312,13 +314,12 @@ ENTREGABLE: <qué debe quedar en el repo>.
 - **Tests:** el conjunto `:core` + `:app` + `:desktop` cerró en **~723 tests** (los 455 originales + los nuevos de cada capa). `TranslationKeysUsageTest` escanea también `desktop`; detekt aplica `detekt-baseline.xml` por módulo para no fallar por los composables ya portados.
 - **Historial detallado:** el registro de ejecución completo por hito (decisiones, desviaciones y recuentos de tests de M0–M15) vive en el historial de git del repositorio; aquí queda resumido a una línea por hito (§6.1).
 
-### 6.4 Backlog de paridad pendiente (M23+)
+### 6.4 Backlog de paridad pendiente (M24+)
 
-Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» corresponde a F23 del inventario (§1.1).
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23.
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M23 | Feed: metadatos del vídeo y reproducir desde el feed | **Alta** | 0.5 |
 | M24 | «Compartir app» por QR en Config | Baja | 0.5 |
 | M25 | Recomendar al feed desde el diálogo de compartir | Media | 0.5 |
 
@@ -426,7 +427,7 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M23 — Feed: metadatos del vídeo y reproducir desde el feed
+#### M23 — Feed: metadatos del vídeo y reproducir desde el feed ☑ (completado)
 **Objetivo:** mostrar título/autor/miniatura en cada recomendación y reproducirla o abrirla al pulsar.
 **Tareas**
 - Usar `MediaMetadataExtractor` (ya en `:core`) en `FeedController`/`FeedScreen` para enriquecer cada entrada (título, autor y miniatura), con concurrencia acotada como en Android (`METADATA_CONCURRENCY`).
@@ -437,6 +438,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test` + manual con red.
 **Prompt opencode:**
 > Enriquece el feed de `:desktop` con `MediaMetadataExtractor` de `:core` (título, autor y miniatura por recomendación, con concurrencia acotada) y haz que al pulsar una recomendación se comporte como en Android: vídeo de YouTube → reproducir; playlist de YouTube → abrirla en la búsqueda (reutiliza el `ScanResult` del lector de QR); desconocido → extraer el `videoId` y reproducir. Corrige el kdoc que dice que `MediaMetadataExtractor` no está portado. Verifica con tests y manualmente.
+
+**Implementado:** `FeedRemote` (Supabase + `MediaMetadataExtractor`, agrupados para inyectarlos) y `FeedController.enrichMetadata` extrae los metadatos de las recomendaciones nuevas con un `Semaphore(METADATA_CONCURRENCY = 4)` y los cachea por id en `FeedState.metadata`; un fallo de red deja la entrada sin enriquecer. `FeedScreen` pinta miniatura (Coil `AsyncImage`), título y autor (o la URL si no hay metadatos), conservando el comentario, el formulario de publicación y el selector de grupo, y hace la fila pulsable: `handleRecommendationClick` reproduce los vídeos (también los «desconocidos» con `videoId`) y las listas se abren con `AudioListScreen.openYouTubePlaylist` (el mismo camino que un `ScanResult("youtube", "playlist", …)` de QR: `YouTubeManager.getPlaylistInfo` + `YouTubePlaylistDetailController`, con la búsqueda como reserva). Se corrigió el kdoc obsoleto de `FeedScreen.kt`. Verificación: `:desktop:test` 302 (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest`.
 
 ---
 
@@ -503,8 +506,8 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-#### M29 — Carrusel horizontal de playlists en Home (escritorio)
-**Objetivo:** reemplazar el acceso a `plyr_lists` por un carrusel horizontal de portadas a la izquierda, y al final un botón `>` que lleve a `PlaylistsScreen`. **Solo UI de escritorio.**
+#### M29 — Carrusel vertical de playlists en Home (escritorio)
+**Objetivo:** reemplazar el acceso a `plyr_lists` por un carrusel vertical de portadas a la izquierda, y al final un botón `>` que lleve a `PlaylistsScreen`. **Solo UI de escritorio.**
 **Tareas**
 - En `HomeScreen` de escritorio, mostrar un carrusel horizontal (LazyRow) con las portadas de las playlists visibles (reutilizar `PlaylistsController`/repositorio ya existente).
 - Mostrar miniaturas (`PlaylistCover`/Coil) con título opcional; al pulsar una portada, abrir su detalle (`PlaylistDetailView`/navegación ya existente).

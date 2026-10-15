@@ -65,6 +65,7 @@ import com.plyr.receivers.MediaCommand
 import com.plyr.ui.components.ShareType
 import com.plyr.ui.components.ShareableItem
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.nio.file.Path
 
 /** Altura reservada abajo para que los controles flotantes no tapen el contenido. */
@@ -245,6 +246,24 @@ fun AudioListScreen(
     var selectedYouTubePlaylist by remember { mutableStateOf<YouTubePlaylistInfo?>(null) }
     val youtubeDetailState by youtubeDetailController.state.collectAsState()
 
+    // Abrir una lista de YouTube por su id (M23): es el mismo camino que un
+    // `ScanResult("youtube", "playlist", …)` de QR/NFC. Carga la ficha con `:core`
+    // y abre el detalle; si no está disponible, deja la URL en la búsqueda.
+    val openYouTubePlaylist: (String) -> Unit = { playlistId ->
+        currentScreen = Screen.SEARCH
+        scope.launch {
+            val info = YouTubeManager.getPlaylistInfo(playlistId)
+            if (info != null) {
+                selectedYouTubePlaylist = info
+                youtubeDetailController.open(info)
+            } else {
+                val url = "https://www.youtube.com/playlist?list=$playlistId"
+                searchController.onQueryChange(url)
+                searchController.performSearch(url)
+            }
+        }
+    }
+
     // Atajos de teclado (M15): el foco vive en la raíz para que las teclas
     // multimedia y los cursores lleguen aunque no haya nada más enfocado; los
     // campos de texto consumen lo suyo antes (fase de burbujeo).
@@ -362,6 +381,9 @@ fun AudioListScreen(
                                             spotifyController.onUrlChange("spotify:playlist:${result.id}")
                                             currentScreen = Screen.CONFIG
                                         }
+                                        result.source == "youtube" && result.type == "playlist" && result.id.isNotBlank() -> {
+                                            openYouTubePlaylist(result.id)
+                                        }
                                         result.source == "youtube" && result.id.isNotBlank() -> {
                                             val url = "https://www.youtube.com/watch?v=${result.id}"
                                             searchController.onQueryChange(url)
@@ -411,6 +433,22 @@ fun AudioListScreen(
                     Screen.FEED -> FeedScreen(
                         controller = feedController,
                         onBack = goHome,
+                        // M23: los vídeos se reproducen (la barra flotante muestra
+                        // lo que suena) y las listas se abren en la búsqueda.
+                        onPlayVideo = { videoId, title, artist ->
+                            playerController.play(
+                                listOf(
+                                    PlayerTrack(
+                                        id = "feed_$videoId",
+                                        title = title,
+                                        artist = artist,
+                                        videoId = videoId,
+                                    )
+                                ),
+                                0,
+                            )
+                        },
+                        onOpenPlaylist = openYouTubePlaylist,
                     )
                     Screen.CONFIG -> ConfigScreen(
                         onBack = goHome,

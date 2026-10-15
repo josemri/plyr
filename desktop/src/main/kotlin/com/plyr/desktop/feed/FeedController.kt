@@ -5,14 +5,22 @@ import com.plyr.desktop.i18n.Translations
 import com.plyr.model.Group
 import com.plyr.model.Recommendation
 import com.plyr.network.SupabaseClient
+import com.plyr.utils.MediaMetadata
+import com.plyr.utils.MediaMetadataExtractor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+
+/** Extracciones de metadatos simultáneas: acota la concurrencia de red (M23). */
+internal const val METADATA_CONCURRENCY = 4
 
 /**
  * Estado del feed de recomendaciones de escritorio (M12).
@@ -26,6 +34,7 @@ data class FeedState(
     val groups: List<Group> = emptyList(),
     val selectedGroupId: String? = null,
     val recommendations: List<Recommendation> = emptyList(),
+    val metadata: Map<String, MediaMetadata> = emptyMap(),
     val nickname: String = "",
     val url: String = "",
     val comment: String = "",
@@ -43,21 +52,32 @@ data class FeedState(
 }
 
 /**
+ * Operaciones remotas del feed (Supabase para los grupos/recomendaciones y
+ * `MediaMetadataExtractor` para los metadatos de YouTube), agrupadas para
+ * inyectarlas y poder testear el controlador sin red (M12/M23).
+ */
+class FeedRemote(
+    val loadGroups: suspend () -> List<Group> = { SupabaseClient.getGroups() },
+    val loadRecommendations: suspend (groupId: String?) -> List<Recommendation> =
+        { groupId -> SupabaseClient.getRecommendations(groupId) },
+    val createRecommendation:
+        suspend (groupId: String, nickname: String, url: String, comment: String?) -> Recommendation? =
+        { groupId, nickname, url, comment -> SupabaseClient.createRecommendation(groupId, nickname, url, comment) },
+    val extractMetadata: suspend (url: String) -> MediaMetadata =
+        { url -> MediaMetadataExtractor.extractMetadata(url) },
+)
+
+/**
  * Lógica del feed de recomendaciones del escritorio (M12).
  *
  * Port de `FeedScreen`/`FeedConfig` de Android sobre el `SupabaseClient` de
- * `:core`, pero con las dependencias de red inyectadas como funciones para poder
+ * `:core`, pero con las dependencias de red inyectadas ([FeedRemote]) para poder
  * testearlo sin red. El apodo se persiste con el mismo contrato que Android
  * ([DesktopConfig.userNickname] bajo la clave `user_nickname`).
  */
 class FeedController(
     private val scope: CoroutineScope,
-    private val loadGroups: suspend () -> List<Group> = { SupabaseClient.getGroups() },
-    private val loadRecommendations: suspend (groupId: String?) -> List<Recommendation> =
-        { groupId -> SupabaseClient.getRecommendations(groupId) },
-    private val createRecommendation:
-        suspend (groupId: String, nickname: String, url: String, comment: String?) -> Recommendation? =
-        { groupId, nickname, url, comment -> SupabaseClient.createRecommendation(groupId, nickname, url, comment) },
+    private val remote: FeedRemote = FeedRemote(),
     initialNickname: String = DesktopConfig.userNickname,
     private val persistNickname: (String) -> Unit = { DesktopConfig.userNickname = it },
 ) {
@@ -67,6 +87,7 @@ class FeedController(
 
     private var loadJob: Job? = null
     private var postJob: Job? = null
+    private var metadataJob: Job? = null
 
     /**
      * Carga los grupos y las recomendaciones del grupo seleccionado. La primera
@@ -77,9 +98,9 @@ class FeedController(
         _state.update { it.copy(isLoading = true, statusMessage = null, statusIsError = false) }
         loadJob = scope.launch {
             try {
-                val groups = loadGroups()
+                val groups = remote.loadGroups()
                 val selected = resolveGroup(groups, _state.value.selectedGroupId)
-                val recommendations = if (selected != null) loadRecommendations(selected) else emptyList()
+                val recommendations = if (selected != null) remote.loadRecommendations(selected) else emptyList()
                 _state.update {
                     it.copy(
                         isLoading = false,
@@ -88,6 +109,7 @@ class FeedController(
                         recommendations = recommendations,
                     )
                 }
+                enrichMetadata(recommendations)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -107,8 +129,9 @@ class FeedController(
         }
         loadJob = scope.launch {
             try {
-                val recommendations = loadRecommendations(groupId)
+                val recommendations = remote.loadRecommendations(groupId)
                 _state.update { it.copy(isLoading = false, recommendations = recommendations) }
+                enrichMetadata(recommendations)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -153,7 +176,7 @@ class FeedController(
         }
         postJob = scope.launch {
             try {
-                val created = createRecommendation(groupId, nickname, url, comment)
+                val created = remote.createRecommendation(groupId, nickname, url, comment)
                 if (created != null) {
                     _state.update {
                         it.copy(
@@ -165,6 +188,7 @@ class FeedController(
                             statusIsError = false,
                         )
                     }
+                    enrichMetadata(listOf(created))
                 } else {
                     _state.update {
                         it.copy(
@@ -187,6 +211,42 @@ class FeedController(
             }
         }
     }
+
+    /**
+     * Extrae los metadatos de YouTube (título, autor y miniatura) de las
+     * recomendaciones que aún no están en caché, con concurrencia acotada a
+     * [METADATA_CONCURRENCY] como Android. Un fallo de red deja la entrada sin
+     * enriquecer (se pinta con su URL) en vez de tumbar el feed (M23).
+     */
+    private fun enrichMetadata(recommendations: List<Recommendation>) {
+        metadataJob?.cancel()
+        val cached = _state.value.metadata
+        val pending = recommendations.filterNot { cached.containsKey(it.id) }
+        if (pending.isEmpty()) return
+        metadataJob = scope.launch {
+            val semaphore = Semaphore(METADATA_CONCURRENCY)
+            coroutineScope {
+                pending.forEach { recommendation ->
+                    launch {
+                        semaphore.withPermit {
+                            val metadata = extractMetadataOrNull(recommendation.url) ?: return@withPermit
+                            _state.update { it.copy(metadata = it.metadata + (recommendation.id to metadata)) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Como [extractMetadata], pero un fallo (o una respuesta vacía) da `null`. */
+    private suspend fun extractMetadataOrNull(url: String): MediaMetadata? =
+        try {
+            remote.extractMetadata(url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
 
     private fun resolveGroup(groups: List<Group>, current: String?): String? =
         current?.takeIf { id -> groups.any { it.id == id } }

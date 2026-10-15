@@ -13,11 +13,14 @@ import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.plyr.model.Group
 import com.plyr.model.Recommendation
+import com.plyr.utils.MediaMetadata
+import com.plyr.utils.MediaType
 import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -55,11 +58,16 @@ class FeedScreenTest {
             Recommendation(id = "new", groupId = groupId, nickname = nickname, url = url, comment = comment)
         },
         initialNickname: String = "ana",
+        extractMetadata: suspend (String) -> MediaMetadata =
+            { url -> MediaMetadata(url, null, null, MediaType.UNKNOWN) },
     ) = FeedController(
         scope = scope,
-        loadGroups = { groups },
-        loadRecommendations = { recommendations },
-        createRecommendation = { groupId, nickname, url, comment -> created(groupId, nickname, url, comment) },
+        remote = FeedRemote(
+            loadGroups = { groups },
+            loadRecommendations = { recommendations },
+            createRecommendation = { groupId, nickname, url, comment -> created(groupId, nickname, url, comment) },
+            extractMetadata = extractMetadata,
+        ),
         initialNickname = initialNickname,
         persistNickname = {},
     )
@@ -108,4 +116,81 @@ class FeedScreenTest {
 
         assertEquals(true, back)
     }
+
+    // --- M23: metadatos del vídeo y click por tipo ---
+
+    @Test
+    fun muestraElTituloYElAutorExtraidos() = runComposeUiTest {
+        val controller = controller(
+            recommendations = listOf(recommendation()),
+            extractMetadata = { url ->
+                MediaMetadata("Mi vídeo", "Canal de $url", "https://img/$url", MediaType.YOUTUBE_VIDEO)
+            },
+        )
+        setContent { PlyrTheme { FeedScreen(controller = controller, onBack = {}) } }
+
+        onNodeWithText("Mi vídeo").assertIsDisplayed()
+        onNodeWithText("Canal de https://youtu.be/r1").assertIsDisplayed()
+    }
+
+    @Test
+    fun alPulsarUnVideoLoReproduce() = runComposeUiTest {
+        var played: Triple<String, String, String>? = null
+        val controller = controller(
+            recommendations = listOf(recommendation()),
+            extractMetadata = { _ -> MediaMetadata("Mi vídeo", "Canal", null, MediaType.YOUTUBE_VIDEO) },
+        )
+        setContent {
+            PlyrTheme {
+                FeedScreen(
+                    controller = controller,
+                    onBack = {},
+                    onPlayVideo = { videoId, title, artist -> played = Triple(videoId, title, artist) },
+                )
+            }
+        }
+
+        onNodeWithTag("recommendation_r1").performClick()
+
+        assertEquals(Triple("r1", "Mi vídeo", "Canal"), played)
+    }
+
+    @Test
+    fun alPulsarUnaPlaylistLaAbreEnLaBusqueda() = runComposeUiTest {
+        var opened: String? = null
+        var played = false
+        val controller = controller(
+            recommendations = listOf(
+                Recommendation(
+                    id = "r1",
+                    groupId = general.id,
+                    nickname = "ana",
+                    url = "https://www.youtube.com/playlist?list=PL123",
+                ),
+            ),
+            extractMetadata = { _ -> MediaMetadata("Mi lista", "Canal", null, MediaType.YOUTUBE_PLAYLIST) },
+        )
+        setContent {
+            PlyrTheme {
+                FeedScreen(
+                    controller = controller,
+                    onBack = {},
+                    onPlayVideo = { _, _, _ -> played = true },
+                    onOpenPlaylist = { opened = it },
+                )
+            }
+        }
+
+        onNodeWithTag("recommendation_r1").performClick()
+
+        assertEquals("PL123", opened)
+        assertFalse(played)
+    }
+
+    private fun recommendation() = Recommendation(
+        id = "r1",
+        groupId = general.id,
+        nickname = "ana",
+        url = "https://youtu.be/r1",
+    )
 }
