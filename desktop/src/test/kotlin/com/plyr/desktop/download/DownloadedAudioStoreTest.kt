@@ -1,5 +1,8 @@
 package com.plyr.desktop.download
 
+import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.sync.BackupConfig
+import com.russhwolf.settings.MapSettings
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -10,6 +13,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.nio.file.Files
+import java.nio.file.Path
 
 /**
  * Almacén de audio offline sobre `java.nio`. La carpeta se inyecta para no tocar
@@ -34,6 +38,25 @@ class DownloadedAudioStoreTest {
 
         assertTrue(store.isDownloaded("vid"))
         assertTrue(store.localUri("vid")!!.endsWith("/vid.m4a"))
+    }
+
+    @Test
+    fun porDefectoUsaLaSubcarpetaAudioDeLaCarpetaDeSync() {
+        val backup = tmp.newFolder().toPath()
+        val config = BackupConfig(MapSettings()).apply { folder = backup.toString() }
+
+        // Como Android: `<carpeta de sync>/audio`, junto al plyr-sync.zip.
+        assertEquals(backup.resolve("audio"), DownloadedAudioStore(config).directory)
+    }
+
+    @Test
+    fun sinCarpetaDeSyncCaeALaCarpetaDeDatos() {
+        val config = BackupConfig(MapSettings())
+
+        assertEquals(
+            Path.of(AppPaths.directories.dataDir, "audio"),
+            DownloadedAudioStore(config).directory,
+        )
     }
 
     @Test

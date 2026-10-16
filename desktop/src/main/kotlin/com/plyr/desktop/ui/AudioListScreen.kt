@@ -448,10 +448,8 @@ fun AudioListScreen(
                     )
                     Screen.CONFIG -> ConfigScreen(
                         onBack = goHome,
-                        onRepeatModeSelected = playerController::setRepeatMode,
                         backupController = backupController,
                         spotifyImportController = spotifyController,
-                        downloadController = downloadController,
                     )
                 }
             }

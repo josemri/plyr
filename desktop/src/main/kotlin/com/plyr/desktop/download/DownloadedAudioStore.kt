@@ -2,6 +2,7 @@ package com.plyr.desktop.download
 
 import com.plyr.core.util.Logger
 import com.plyr.desktop.platform.AppPaths
+import com.plyr.desktop.sync.BackupConfig
 import kotlinx.coroutines.CancellationException
 import java.io.OutputStream
 import java.nio.file.Files
@@ -11,25 +12,49 @@ import java.nio.file.StandardCopyOption
 /**
  * Almacén de audio descargado para reproducción offline (M16).
  *
- * Es el equivalente de escritorio de `com.plyr.utils.DownloadedAudioStore`: en
- * Android vive dentro de la carpeta SAF de sincronización, y aquí son ficheros
- * sueltos (`<videoId>.m4a`) bajo la carpeta de datos del SO
- * ([AppPaths.directories]`.dataDir/audio`), gestionados con `java.nio`.
+ * Es el equivalente de escritorio de `com.plyr.utils.DownloadedAudioStore`:
+ * ficheros sueltos (`<videoId>.m4a`) en la subcarpeta `audio/` de la **misma
+ * carpeta** que el `plyr-sync.zip` (la elegida en Ajustes), igual que Android los
+ * guarda en la carpeta SAF de sincronización. Si no hay carpeta de copia
+ * configurada, cae a la carpeta de datos del SO (`dataDir/audio`), que es el
+ * respaldo que usa Android (`filesDir/audio`). Todo con `java.nio`.
+ *
+ * La carpeta se resuelve **en cada uso** (no al construir): si el usuario cambia
+ * la carpeta de sync en Ajustes, las siguientes comprobaciones y descargas ya
+ * apuntan a la nueva sin reiniciar. El `Path` se puede inyectar para poder
+ * testear el almacén en un directorio temporal sin tocar los datos del usuario.
  *
  * Igual que en Android, **"ya descargado" = existe el fichero**: no hay tabla
- * nueva ni índice que mantener. La carpeta se inyecta para poder testear el
- * almacén en un directorio temporal sin tocar los datos del usuario.
+ * nueva ni índice que mantener.
  */
-class DownloadedAudioStore(
-    /** Carpeta que contiene los `.m4a` (por defecto, `dataDir/audio`). */
-    val directory: Path = Path.of(AppPaths.directories.dataDir, DIR_NAME),
+class DownloadedAudioStore private constructor(
+    private val directoryProvider: () -> Path,
 ) {
+    /** Carpeta que contiene los `.m4a`; se resuelve al usarla. */
+    val directory: Path get() = directoryProvider()
+
+    /** Almacén en una carpeta fija (tests o rutas ya resueltas). */
+    constructor(directory: Path) : this({ directory })
+
+    /** Almacén que resuelve la carpeta desde [config] (M30). */
+    internal constructor(config: BackupConfig) : this({ resolveDirectory(config.folderPath()) })
+
+    /**
+     * Almacén por defecto: `<carpeta de sync>/audio` si hay copia configurada;
+     * si no, `dataDir/audio` (el respaldo `filesDir/audio` de Android).
+     */
+    constructor() : this(BackupConfig())
 
     private companion object {
         const val DIR_NAME = "audio"
         const val EXTENSION = "m4a"
         const val SUFFIX = ".$EXTENSION"
         const val TAG = "DownloadedAudioStore"
+
+        /** Subcarpeta `audio/` de la carpeta de sync, o el respaldo `dataDir`. */
+        fun resolveDirectory(backupFolder: Path?): Path =
+            backupFolder?.resolve(DIR_NAME)
+                ?: Path.of(AppPaths.directories.dataDir, DIR_NAME)
     }
 
     /** Resumen del audio offline: cuántas pistas y cuántos bytes ocupan. */

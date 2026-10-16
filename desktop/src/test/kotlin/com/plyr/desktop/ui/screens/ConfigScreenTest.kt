@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
@@ -12,9 +13,6 @@ import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.InMemoryTombstoneStore
 import com.plyr.desktop.database.PlaylistRepository
-import com.plyr.desktop.download.AudioDownloader
-import com.plyr.desktop.download.DownloadController
-import com.plyr.desktop.download.DownloadedAudioStore
 import com.plyr.desktop.spotify.SpotifyImportController
 import com.plyr.desktop.spotify.SpotifyImportService
 import com.plyr.desktop.sync.BackupConfig
@@ -24,7 +22,6 @@ import com.plyr.desktop.sync.DataImporter
 import com.plyr.desktop.sync.DataSync
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.plyr.desktop.utils.CoverCache
-import com.plyr.domain.RepeatMode
 import com.plyr.ui.components.ShareUrlPolicy
 import com.plyr.utils.SpotifyImport
 import com.russhwolf.settings.MapSettings
@@ -38,8 +35,8 @@ import org.junit.Test
 import java.nio.file.Files
 
 /**
- * Ajustes del escritorio (M9): tema, idioma, repetición y rutas del SO. El estado
- * se escribe en [DesktopConfig], así que cada test parte de un almacén en memoria.
+ * Ajustes del escritorio (M9): tema, idioma y rutas del SO. El estado se escribe
+ * en [DesktopConfig], así que cada test parte de un almacén en memoria.
  */
 @OptIn(ExperimentalTestApi::class)
 class ConfigScreenTest {
@@ -69,18 +66,6 @@ class ConfigScreenTest {
     }
 
     @Test
-    fun cambiarLaRepeticionAvisaAlReproductor() = runComposeUiTest {
-        var seleccionado: String? = null
-        setContent {
-            PlyrTheme { ConfigScreen(onBack = {}, onRepeatModeSelected = { seleccionado = it }) }
-        }
-
-        onNodeWithTag("repeat_all").performClick()
-
-        assertEquals(RepeatMode.ALL, seleccionado)
-    }
-
-    @Test
     fun elBotonVolverInvocaElCallback() = runComposeUiTest {
         var volvio = false
         setContent { PlyrTheme { ConfigScreen(onBack = { volvio = true }) } }
@@ -96,15 +81,6 @@ class ConfigScreenTest {
 
         onNodeWithTag("path_data").assertIsDisplayed()
         onNodeWithTag("path_cache").assertIsDisplayed()
-    }
-
-    @Test
-    fun sinCallbackEscribeEnElConfig() = runComposeUiTest {
-        // `onRepeatModeSelected` tiene valor por defecto: escribe en DesktopConfig.
-        setContent { PlyrTheme { ConfigScreen(onBack = {}) } }
-
-        onNodeWithTag("repeat_one").performClick()
-        assertEquals(RepeatMode.ONE, DesktopConfig.repeatMode)
     }
 
     @Test
@@ -154,32 +130,13 @@ class ConfigScreenTest {
             setContent { PlyrTheme { ConfigScreen(onBack = {}, spotifyImportController = controller) } }
 
             // Sin `spotifyImportController` la sección no se pinta; con él, el campo
-            // y el botón están, y una URL vacía muestra el aviso de inmediato.
+            // está y pulsar Intro con una URL vacía muestra el aviso de inmediato.
             onNodeWithTag("spotify_url").assertIsDisplayed()
-            onNodeWithTag("spotify_import_button").performClick()
+            onNodeWithTag("spotify_url").performImeAction()
             onNodeWithTag("spotify_status").assertIsDisplayed()
         } finally {
             scope.cancel()
             database.close()
-        }
-    }
-
-    @Test
-    fun muestraLaSeccionDeAlmacenamientoOffline() = runComposeUiTest {
-        val store = DownloadedAudioStore(directory = Files.createTempDirectory("plyr-audio-test"))
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val controller = DownloadController(scope, store, AudioDownloader(store = store))
-
-        try {
-            setContent { PlyrTheme { ConfigScreen(onBack = {}, downloadController = controller) } }
-
-            // Sin `downloadController` la sección no se pinta; con él, el resumen y
-            // el botón que abre el diálogo de borrado están.
-            onNodeWithTag("offline_storage_summary").assertIsDisplayed()
-            onNodeWithTag("offline_storage_button").performClick()
-            onNodeWithTag("storage_dialog").assertIsDisplayed()
-        } finally {
-            scope.cancel()
         }
     }
 

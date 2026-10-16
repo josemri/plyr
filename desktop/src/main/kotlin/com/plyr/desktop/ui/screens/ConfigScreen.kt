@@ -1,5 +1,6 @@
 package com.plyr.desktop.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -23,14 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
-import com.plyr.desktop.download.DownloadController
-import com.plyr.desktop.download.OfflineStorageDialog
-import com.plyr.desktop.download.offlineStorageMessage
-import com.plyr.desktop.download.rememberOfflineSummary
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.AppPaths
 import com.plyr.desktop.qr.QrShareDialog
@@ -40,22 +40,20 @@ import com.plyr.desktop.sync.BackupController
 import com.plyr.desktop.sync.BackupState
 import com.plyr.desktop.ui.components.ActionButton
 import com.plyr.desktop.ui.components.ActionButtonData
-import com.plyr.desktop.ui.components.Subtitulo
 import com.plyr.desktop.ui.components.Titulo
 import com.plyr.desktop.ui.theme.PlyrSpacing
-import com.plyr.desktop.ui.theme.PlyrSymbols
-import com.plyr.domain.RepeatMode
 import com.plyr.ui.components.ShareType
 import com.plyr.ui.components.ShareableItem
 
 /**
  * Pantalla de ajustes del escritorio (M9).
  *
- * Puerto de `com.plyr.ui.ConfigScreen` con lo que aplica a escritorio: tema,
- * idioma y modo de repetición, más las rutas de datos y caché del SO. Desde M10
- * incluye la copia de seguridad y desde M11 la importación de listas de Spotify.
- * El compartir por QR de pistas y listas vive en la vista de detalle; desde M24
- * esta pantalla añade además la sección «compartir app».
+ * Puerto de `com.plyr.ui.ConfigScreen` con lo que aplica a escritorio: tema e
+ * idioma (como tiras `opción / opción / opción`, igual que Android), más las rutas
+ * de datos y caché del SO. Desde M10 incluye la copia de seguridad y desde M11 la
+ * importación de listas de Spotify (sin botón: se lanza con Intro). El compartir
+ * por QR de pistas y listas vive en la vista de detalle; desde M24 esta pantalla
+ * añade además la sección «compartir app».
  *
  * Todos los valores se leen y escriben en [DesktopConfig], que los persiste entre
  * reinicios; el tema y el idioma cambian la UI al momento porque viven en estado
@@ -64,10 +62,8 @@ import com.plyr.ui.components.ShareableItem
 @Composable
 fun ConfigScreen(
     onBack: () -> Unit,
-    onRepeatModeSelected: (String) -> Unit = { DesktopConfig.repeatMode = it },
     backupController: BackupController? = null,
     spotifyImportController: SpotifyImportController? = null,
-    downloadController: DownloadController? = null,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -80,7 +76,7 @@ fun ConfigScreen(
         Titulo(Translations.get("config_title"))
 
         // === TEMA ===
-        OptionSection(
+        ToggleRow(
             title = Translations.get("theme"),
             options = listOf(ThemeMode.SYSTEM, ThemeMode.DARK, ThemeMode.LIGHT, ThemeMode.AUTO),
             selected = DesktopConfig.theme,
@@ -92,25 +88,13 @@ fun ConfigScreen(
         Spacer(Modifier.height(PlyrSpacing.large))
 
         // === IDIOMA ===
-        OptionSection(
+        ToggleRow(
             title = Translations.get("language"),
             options = Language.entries,
             selected = DesktopConfig.language,
             label = { languageLabel(it) },
             tag = { "lang_${it.name.lowercase()}" },
             onSelect = { DesktopConfig.language = it },
-        )
-
-        Spacer(Modifier.height(PlyrSpacing.large))
-
-        // === REPETICIÓN ===
-        OptionSection(
-            title = Translations.get("repeat"),
-            options = listOf(RepeatMode.OFF, RepeatMode.ONE, RepeatMode.ALL),
-            selected = DesktopConfig.repeatMode,
-            label = { repeatLabel(it) },
-            tag = { "repeat_$it" },
-            onSelect = onRepeatModeSelected,
         )
 
         Spacer(Modifier.height(PlyrSpacing.large))
@@ -130,12 +114,6 @@ fun ConfigScreen(
             SpotifyImportSection(spotifyImportController)
         }
 
-        // === ALMACENAMIENTO OFFLINE (M17) ===
-        if (downloadController != null) {
-            Spacer(Modifier.height(PlyrSpacing.large))
-            OfflineStorageSection(downloadController)
-        }
-
         // === COMPARTIR APP (M24) ===
         Spacer(Modifier.height(PlyrSpacing.large))
         ShareAppSection()
@@ -150,7 +128,7 @@ private fun ConfigBackButton(onBack: () -> Unit) {
     Spacer(Modifier.height(PlyrSpacing.xxl))
     ActionButton(
         data = ActionButtonData(
-            text = "\u2190 ${Translations.get("close")}",
+            text = "< ${Translations.get("back")}",
             onClick = onBack,
         ),
         modifier = Modifier.testTag("back_from_CONFIG"),
@@ -162,21 +140,20 @@ private fun ConfigBackButton(onBack: () -> Unit) {
  */
 @Composable
 private fun PathsSection() {
-    Subtitulo(Translations.get("paths_title"))
     PathRow(Translations.get("data_folder"), AppPaths.directories.dataDir, "path_data")
     PathRow(Translations.get("cache_folder"), AppPaths.directories.cacheDir, "path_cache")
 }
 
 /**
- * Sección de copia de seguridad: un botón que elige carpeta o sincroniza, el
- * estado del último intento y la ruta de la carpeta elegida.
+ * Sección de copia de seguridad: un botón que elige carpeta o sincroniza y el
+ * estado del último intento. La carpeta elegida ya se anuncia en la etiqueta del
+ * propio botón (`... w/ <carpeta>`), así que no se repite aparte.
  */
 @Composable
 private fun BackupSection(controller: BackupController) {
     val state by controller.state.collectAsState()
     LaunchedEffect(controller) { controller.refresh() }
 
-    Subtitulo(Translations.get("sync"))
     ActionButton(
         data = ActionButtonData(
             text = if (state.isSyncing) {
@@ -189,10 +166,6 @@ private fun BackupSection(controller: BackupController) {
         modifier = Modifier.testTag("sync_button"),
     )
     BackupStatusMessage(state)
-    state.folderPath?.takeIf { state.isConfigured }?.let { folder ->
-        Spacer(Modifier.height(PlyrSpacing.xxs))
-        PathRow(Translations.get("backup_folder"), folder, "path_backup")
-    }
 }
 
 /** Mensaje del último intento de sincronización, si lo hay. */
@@ -217,34 +190,24 @@ private fun BackupStatusMessage(state: BackupState) {
 }
 
 /**
- * Sección de importación de Spotify: campo de URL/id, botón y estado del último
- * intento. La lista importada aparece sola en la pantalla de listas porque el
- * repositorio emite sus cambios (M11).
+ * Sección de importación de Spotify: campo de URL/id y estado del último intento.
+ * No hay botón: al pulsar Intro (`ImeAction.Go`) se lanza la importación, igual
+ * que en Android. La lista importada aparece sola en la pantalla de listas porque
+ * el repositorio emite sus cambios (M11).
  */
 @Composable
 private fun SpotifyImportSection(controller: SpotifyImportController) {
     val state by controller.state.collectAsState()
 
-    Subtitulo(Translations.get("spotify_import_title"))
     OutlinedTextField(
         value = state.url,
         onValueChange = { controller.onUrlChange(it) },
         label = { Text(Translations.get("spotify_import_hint")) },
         singleLine = true,
+        enabled = !state.isImporting,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+        keyboardActions = KeyboardActions(onGo = { controller.import() }),
         modifier = Modifier.fillMaxWidth().testTag("spotify_url"),
-    )
-    Spacer(Modifier.height(PlyrSpacing.small))
-    ActionButton(
-        data = ActionButtonData(
-            text = if (state.isImporting) {
-                Translations.get("spotify_importing")
-            } else {
-                Translations.get("spotify_import_go")
-            },
-            onClick = { controller.import() },
-            enabled = !state.isImporting,
-        ),
-        modifier = Modifier.testTag("spotify_import_button"),
     )
     SpotifyStatusMessage(state)
 }
@@ -268,41 +231,6 @@ private fun SpotifyStatusMessage(state: SpotifyImportState) {
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth().testTag("spotify_status"),
     )
-}
-
-/**
- * Sección de almacenamiento offline (M17): resume cuántas pistas hay
- * descargadas y cuánto ocupan, y abre el diálogo con el «borrar todo». El
- * resumen se recalcula cuando cambia el almacén (revisión del controlador).
- */
-@Composable
-private fun OfflineStorageSection(controller: DownloadController) {
-    var showDialog by remember { mutableStateOf(false) }
-    val summary = rememberOfflineSummary(controller)
-
-    Subtitulo(Translations.get("storage_title"))
-    Text(
-        text = offlineStorageMessage(summary),
-        style = MaterialTheme.typography.bodySmall.copy(
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.secondary,
-        ),
-        maxLines = 2,
-        overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.fillMaxWidth().testTag("offline_storage_summary"),
-    )
-    Spacer(Modifier.height(PlyrSpacing.small))
-    ActionButton(
-        data = ActionButtonData(
-            text = Translations.get("download_clean"),
-            onClick = { showDialog = true },
-        ),
-        modifier = Modifier.testTag("offline_storage_button"),
-    )
-
-    if (showDialog) {
-        OfflineStorageDialog(controller = controller, onDismiss = { showDialog = false })
-    }
 }
 
 /**
@@ -339,11 +267,13 @@ private fun ShareAppSection() {
 }
 
 /**
- * Una fila de ajuste con un título y una tira de opciones mutuamente excluyentes.
- * La opción activa se marca con el símbolo de "seleccionado".
+ * Una fila de ajuste con el título a la izquierda y las opciones a la derecha
+ * separadas por `/` (como el `MultiToggle` de Android). La opción activa se pinta
+ * en color primario y el resto en secundario. Es controlado: el estado vive en
+ * quien lo invoca ([DesktopConfig]), no aquí.
  */
 @Composable
-private fun <T> OptionSection(
+private fun <T> ToggleRow(
     title: String,
     options: List<T>,
     selected: T,
@@ -363,18 +293,33 @@ private fun <T> OptionSection(
             ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(end = PlyrSpacing.small),
+            modifier = Modifier.weight(1f),
         )
-        options.forEach { option ->
-            val isSelected = option == selected
-            ActionButton(
-                data = ActionButtonData(
-                    text = if (isSelected) "${PlyrSymbols.BULLET} ${label(option)}" else "  ${label(option)}",
-                    color = if (isSelected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.secondary,
-                    onClick = { onSelect(option) },
+        options.forEachIndexed { index, option ->
+            if (index > 0) {
+                Text(
+                    text = "/",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.secondary,
+                    ),
+                    modifier = Modifier.padding(horizontal = PlyrSpacing.small),
+                )
+            }
+            Text(
+                text = label(option),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = if (option == selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.secondary
+                    },
                 ),
-                modifier = Modifier.testTag(tag(option)),
+                modifier = Modifier
+                    .clickable { onSelect(option) }
+                    .padding(PlyrSpacing.small)
+                    .testTag(tag(option)),
             )
         }
     }
@@ -418,10 +363,4 @@ private fun languageLabel(language: Language): String = when (language) {
     Language.ENGLISH -> Translations.get("lang_english")
     Language.CATALAN -> Translations.get("lang_catalan")
     Language.JAPANESE -> Translations.get("lang_japanese")
-}
-
-private fun repeatLabel(mode: String): String = when (mode) {
-    RepeatMode.OFF -> Translations.get("repeat_off")
-    RepeatMode.ONE -> Translations.get("repeat_one")
-    else -> Translations.get("repeat_all")
 }

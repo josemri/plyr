@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-15
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M30` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M31` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M30` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el panel de listas de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la cola accesible solo desde los controles, la búsqueda integrada en la Home (sin escáner QR), el `>` a listas y el engranaje de Ajustes en la Home, la rejilla adaptativa de la pantalla de listas con su botón de volver, la integración MPRIS y el empaquetado ya funcionan en escritorio. No queda backlog de paridad abierto (§6.4).
+Los hitos `M0`–`M31` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el panel de listas de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la cola accesible solo desde los controles, la búsqueda integrada en la Home (sin escáner QR), el `>` a listas y el engranaje de Ajustes en la Home, la rejilla adaptativa de la pantalla de listas con su botón de volver, los Ajustes limpios con el audio descargado junto al `plyr-sync.zip`, la integración MPRIS y el empaquetado ya funcionan en escritorio. No queda backlog de paridad abierto (§6.4).
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -312,6 +312,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M28 | Quitar QR scanning y mover búsqueda al inicio (escritorio) | 0.5 | ☑ |
 | M29 | Home: `>` a listas, engranaje de Ajustes y sin franja inferior (escritorio) | 0.25 | ☑ |
 | M30 | Pantalla de listas: rejilla adaptativa y botón de volver (escritorio) | 0.25 | ☑ |
+| M31 | Ajustes de escritorio: limpieza y audio junto al sync | 0.25 | ☑ |
 | M29+ | Backlog de paridad con Android | — | ✔ sin pendientes |
 
 ### 6.3 Decisiones clave del port
@@ -324,11 +325,11 @@ ENTREGABLE: <qué debe quedar en el repo>.
 
 ### 6.4 Backlog de paridad pendiente (M29+)
 
-Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23. Tras cerrar **M29** (Home de escritorio) y **M30** (rejilla de listas) no queda backlog abierto.
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23. Tras cerrar **M29** (Home), **M30** (rejilla de listas) y **M31** (Ajustes/audio) no queda backlog abierto.
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| —  | Sin pendientes (M29/M30 cerrados) | — | — |
+| —  | Sin pendientes (M29/M30/M31 cerrados) | — | — |
 
 ---
 
@@ -555,9 +556,27 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 
 ---
 
-**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio ahora vuelca el flush pendiente al cerrar (`DataSync.flushOnStop()`, M26), igual que Android en `onStop` (ya no cancela a ciegas); **UI escritorio (M28–M29):** sin escáner QR de escritorio (M28 retiró el lector sin cámara `QrScanDialog`/`QrScan` y sus claves `scan_*`; sigue el botón «compartir app» con QR de M24 y la recomendación de M25), búsqueda en la Home arriba y centrada sin botón (se envía con Intro, con placeholder «buscar música…»), biblioteca de playlists en vertical a la izquierda estilo Spotify, siempre visible y solo con portadas, con un `>` al final que abre la pantalla de listas, y Ajustes como engranaje a la derecha del buscador (menú reducido a `feed`); sin reproducción no se reserva hueco inferior (M28–M29; la cola ya solo se abre desde `^` en controles, M27).
+#### M31 — Ajustes: limpieza de secciones y audio en la carpeta de sync (escritorio) ☑ (completado)
+**Objetivo:** dejar los Ajustes de escritorio más limpios (sin los títulos de sección ni la sección de audio offline) y hacer que el audio descargado viva en la misma carpeta que el `plyr-sync.zip`, como Android. **Solo escritorio.**
+**Tareas**
+- Quitar los títulos de sección (`paths_title`, `sync`, `spotify_import_title`) y la sección completa de audio offline (título, resumen «no downloaded audio» y botón «limpiar»).
+- Cambiar el botón de volver de `← close` a `< back`.
+- Descargar el audio a `<carpeta de sync>/audio` (o `dataDir/audio` si no hay carpeta de copia), como Android.
+- Quitar el botón de importar de Spotify (se lanza con Intro), la fila de la carpeta de copia (ya está en la etiqueta `synced w/ …`) y la sección de **repetición**; pintar tema e idioma como tiras `opción / opción / opción`, igual que Android.
+- No tocar Android.
+**Definition of Done:** Ajustes sin los títulos ni la sección offline, sin botón de importar (Entrar lanza la importación), sin fila de carpeta de copia y sin repetición; tema/idioma como tiras `opción / opción / opción`; botón `< back`; el audio descargado aparece junto al `plyr-sync.zip`. Android sin cambios.
+**Implementado:** en `ConfigScreen` se eliminan los `Subtitulo` de rutas, sync y Spotify (se mantienen botones y campos), la `OfflineStorageSection` completa y su parámetro `downloadController` (ajustado el cableado en `AudioListScreen`), la sección de repetición entera (con su `onRepeatModeSelected`) y la fila `path_backup` (la carpeta ya se anuncia en el botón `synced w/ …`); el botón de volver pasa a `< back`. La importación de Spotify pierde el botón: con `KeyboardOptions(imeAction = ImeAction.Go)`/`KeyboardActions(onGo = …)` se lanza al pulsar Intro, como Android. El antiguo `OptionSection` (botones con `●`) se sustituye por `ToggleRow`: una tira controlada `título` + `opción / opción / opción` con la activa en color primario, igual que el `MultiToggle` de Android. Se borran las claves `paths_title`, `spotify_import_title`, `repeat`, `repeat_off`, `repeat_one`, `repeat_all`, `backup_folder` y `spotify_import_go` de ES/EN/CA/JA (eran sus únicas referencias; `sync`, `storage_title` y `download_clean` siguen usándose en Android y en el detalle de lista). El audio descargado pasa a `<carpeta de sync>/audio` (respaldo `dataDir/audio`): `DownloadedAudioStore` resuelve la carpeta en cada uso leyendo `BackupConfig`, con constructor `internal` que inyecta el `BackupConfig` para los tests; `AudioListScreen` mantiene `DownloadedAudioStore()` por defecto. Tests: `DownloadedAudioStoreTest.porDefectoUsaLaSubcarpetaAudioDeLaCarpetaDeSync`/`sinCarpetaDeSyncCaeALaCarpetaDeDatos`; `ConfigScreenTest` pierde los casos de repetición y el de la sección offline, y el de Spotify pasa a `performImeAction`.
+**Verificación:** `:desktop:test` **311** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434 (1 omitido de red, `NetworkSmokeTest`).
+**Prompt opencode:**
+> En Ajustes elimina el título de storage, el de sync y el de import from spotify, la sección completa de offline audio, el botón de clean y el texto «no downloaded audio»; cambia el botón de close por `< back`. En Android el audio descargado vive en la misma carpeta que el `sync.zip`; haz que en escritorio también. No toques Android.
+>
+> Además, elimina el botón de importar de settings (debe importar al pulsar Intro), quita la fila de backup folder (basta con que salga en el botón `synced w/ …`), cambia tema e idioma para que sean como Android (`opción / opción / opción`) y elimina el repeat.
 
-**A favor del escritorio (no perder):** el feed tiene formulario de publicación + selector de grupo + muestra el `comment` (Android no); Config tiene filas extra de **repetición** y **rutas de datos/caché** (Android no); atajos de teclado, bandeja del sistema (`DesktopTray`) y prueba de sonido por CLI (`SoundCheck`).
+---
+
+**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio ahora vuelca el flush pendiente al cerrar (`DataSync.flushOnStop()`, M26), igual que Android en `onStop` (ya no cancela a ciegas); **UI escritorio (M28–M29):** sin escáner QR de escritorio (M28 retiró el lector sin cámara `QrScanDialog`/`QrScan` y sus claves `scan_*`; sigue el botón «compartir app» con QR de M24 y la recomendación de M25), búsqueda en la Home arriba y centrada sin botón (se envía con Intro, con placeholder «buscar música…»), biblioteca de playlists en vertical a la izquierda estilo Spotify, siempre visible y solo con portadas, con un `>` al final que abre la pantalla de listas, y Ajustes como engranaje a la derecha del buscador (menú reducido a `feed`); sin reproducción no se reserva hueco inferior (M28–M29; la cola ya solo se abre desde `^` en controles, M27); en Ajustes ya no hay títulos de sección ni el panel de audio offline, tema e idioma son tiras `opción / opción / opción` (sin sección de repetición) y el audio descargado se guarda en `<carpeta de sync>/audio` (o `dataDir/audio` como respaldo), como Android (M31).
+
+**A favor del escritorio (no perder):** el feed tiene formulario de publicación + selector de grupo + muestra el `comment` (Android no); Config tiene filas extra de **rutas de datos/caché** (Android no); atajos de teclado, bandeja del sistema (`DesktopTray`) y prueba de sonido por CLI (`SoundCheck`).
 
 **Nota:** `SearchHistoryRepository` de escritorio ya cubre la persistencia del historial de búsqueda con la misma política que el DAO de Android, pero **ninguna de las dos UIs lo muestra** (ver F19).
 
