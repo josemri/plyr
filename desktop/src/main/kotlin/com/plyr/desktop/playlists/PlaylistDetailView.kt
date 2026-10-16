@@ -298,7 +298,7 @@ fun PlaylistDetailView(
 
     ActionButton(
         data = ActionButtonData(
-            text = "\u2190 ${Translations.get("close")}",
+            text = "< ${Translations.get("back")}",
             onClick = {
                 if (state.isEditing && state.hasUnsavedChanges) {
                     controller.cancelEdit()

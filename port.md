@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-15
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M29` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M30` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M29` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el panel de listas de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la cola accesible solo desde los controles, la búsqueda integrada en la Home (sin escáner QR), el `>` a listas y el engranaje de Ajustes en la Home, la integración MPRIS y el empaquetado ya funcionan en escritorio. No queda backlog de paridad abierto (§6.4).
+Los hitos `M0`–`M30` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el panel de listas de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la cola accesible solo desde los controles, la búsqueda integrada en la Home (sin escáner QR), el `>` a listas y el engranaje de Ajustes en la Home, la rejilla adaptativa de la pantalla de listas con su botón de volver, la integración MPRIS y el empaquetado ya funcionan en escritorio. No queda backlog de paridad abierto (§6.4).
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -311,6 +311,7 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M27 | Acceso a la cola solo desde controles (escritorio) | 0.5 | ☑ |
 | M28 | Quitar QR scanning y mover búsqueda al inicio (escritorio) | 0.5 | ☑ |
 | M29 | Home: `>` a listas, engranaje de Ajustes y sin franja inferior (escritorio) | 0.25 | ☑ |
+| M30 | Pantalla de listas: rejilla adaptativa y botón de volver (escritorio) | 0.25 | ☑ |
 | M29+ | Backlog de paridad con Android | — | ✔ sin pendientes |
 
 ### 6.3 Decisiones clave del port
@@ -323,11 +324,11 @@ ENTREGABLE: <qué debe quedar en el repo>.
 
 ### 6.4 Backlog de paridad pendiente (M29+)
 
-Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23. Tras cerrar **M29** (Home de escritorio) no queda backlog abierto.
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23. Tras cerrar **M29** (Home de escritorio) y **M30** (rejilla de listas) no queda backlog abierto.
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| —  | Sin pendientes (M29 cerrado) | — | — |
+| —  | Sin pendientes (M29/M30 cerrados) | — | — |
 
 ---
 
@@ -536,6 +537,21 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Verificación:** `:desktop:test` (308) + manual.
 **Prompt opencode:**
 > Solo en `desktop/...`, modifica `HomeScreen` para mostrar un carrusel horizontal con portadas de playlists (usa datos existentes de PlaylistsController/repositorio). Añade un botón `>` al final que navegue a la pantalla de playlists. Elimina la entrada/navegación a `PLAYLISTS` desde el menú principal de escritorio. No modifiques código de `app/src/...`.
+
+---
+
+#### M30 — Pantalla de listas: rejilla adaptativa y botón de volver (escritorio) ☑ (completado)
+**Objetivo:** que `PlaylistsScreen` de escritorio se parezca al grid de Android —rejilla adaptativa de portadas en vez de listado— y que siempre haya un botón de volver visible. **Solo UI de escritorio.**
+**Tareas**
+- Sustituir el `LazyColumn` de listas por un `LazyVerticalGrid(GridCells.Adaptive(minSize = 150.dp))` con portada + nombre + nº de pistas, como `PlaylistGridView` de Android.
+- Mover el `+` (crear lista) al `trailing` del `Titulo`, como Android, y añadir el estado vacío `no_playlists`.
+- Añadir un botón `< back` visible (el escritorio no tiene back del sistema) que vuelva a la Home.
+- No tocar Android.
+**Definition of Done:** `PlaylistsScreen` muestra las listas en rejilla adaptativa con las portadas y el botón `< back` siempre visible; sin listas muestra `no_playlists`. Android sin cambios.
+**Implementado:** `PlaylistGridView` pasa a ser extensión de `ColumnScope` y pinta su propia cabecera (`Titulo` con `+`, testTag `playlists_create`), la `DownloadStatusBar` y una `LazyVerticalGrid` adaptativa (`GridCells.Adaptive(minSize = 150.dp)`, separación de `PlyrSpacing.large`) con `PlaylistGridItem` (portada de 150 dp con esquinas redondeadas, corazón para favoritos, nombre a dos líneas y `tracks_count`); al final, un `ActionButton` `< back` (testTag `back_from_PLAYLISTS`) que antes quedaba empujado fuera de pantalla por el listado. La cabecera duplicada del `PlaylistsScreen` exterior se retira: cada rama (rejilla, detalle, alta) pinta la suya. El botón de volver del detalle también pasa a `< back` (testTag `back_from_playlist_detail`, antes `← close`). Se añade la clave `back` a los cuatro idiomas (ES/EN/CA/JA) y se quita el `create_playlist` del listado (sigue usándose en el alta). Tests: nuevo `PlaylistsScreenTest` (4): rejilla + botón de volver visibles, el volver avisa, el `+` abre el alta y sin listas aparece `no_playlists`.
+**Verificación:** `:desktop:test` **312** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434.
+**Prompt opencode:**
+> Ahora vamos a pasar a solucionar la `playlist_screen` porque ahora mismo no se parece en nada a la de Android: quiero que sea un grid, no un listado, igual que el de Android, que sea adaptativo, y añade un botón de back que sea algo como `< back`.
 
 ---
 

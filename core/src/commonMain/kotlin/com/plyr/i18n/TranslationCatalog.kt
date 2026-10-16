@@ -74,6 +74,7 @@ object TranslationCatalog {
             "permission_denied" to "Permiso de cámara denegado",
             "retry" to "Reintentar",
             "close" to "Cerrar",
+            "back" to "volver",
 
             // Playlist / Form labels
             "playlist_name" to "Nombre de la playlist",
@@ -281,6 +282,7 @@ object TranslationCatalog {
             "permission_denied" to "Camera permission denied",
             "retry" to "Retry",
             "close" to "Close",
+            "back" to "back",
 
             // Playlist / Form labels
             "playlist_name" to "Playlist name",
@@ -460,6 +462,7 @@ object TranslationCatalog {
             "permission_denied" to "Permís de càmera denegat",
             "retry" to "Reintenta",
             "close" to "Tanca",
+            "back" to "tornar",
 
             // Playlist / Form labels
             "playlist_name" to "Nom de la playlist",
@@ -640,6 +643,7 @@ object TranslationCatalog {
             "permission_denied" to "カメラの許可が拒否されました",
             "retry" to "再試行",
             "close" to "閉じる",
+            "back" to "戻る",
 
             // Playlist / Form labels
             "playlist_name" to "プレイリスト名",

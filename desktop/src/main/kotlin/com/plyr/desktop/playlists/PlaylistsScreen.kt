@@ -1,9 +1,12 @@
 package com.plyr.desktop.playlists
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Card
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -12,9 +15,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.plyr.database.LikedSongs
 import com.plyr.database.PlaylistRecord
 import com.plyr.database.TrackRecord
@@ -31,6 +38,9 @@ import kotlinx.coroutines.delay
 
 /** Cuánto se deja a la vista el resultado de una descarga antes de descartarlo. */
 private const val DOWNLOAD_RESULT_MS = 3000L
+
+/** Lado de la portada de cada lista en la rejilla adaptativa (M30), como Android. */
+private val PLAYLIST_GRID_COVER = 150.dp
 
 @Composable
 fun PlaylistsScreen(
@@ -60,8 +70,8 @@ fun PlaylistsScreen(
     Column(
         modifier = modifier.fillMaxSize().padding(PlyrSpacing.large).testTag("screen_${Screen.PLAYLISTS.name}")
     ) {
-        Titulo(Translations.get("plyr_lists"))
-        Spacer(modifier = Modifier.height(PlyrSpacing.small))
+        // Cada rama pinta su propia cabecera: la rejilla con su `+`, el detalle
+        // con el nombre de la lista y el alta con su título (M30).
         when {
             state.showCreate -> CreatePlaylistView(controller, searchTracks)
             state.selectedPlaylistId != null ->
@@ -84,7 +94,7 @@ fun PlaylistsScreen(
 }
 
 @Composable
-private fun PlaylistGridView(
+private fun ColumnScope.PlaylistGridView(
     controller: PlaylistsController,
     downloadController: DownloadController,
     state: PlaylistsState,
@@ -94,73 +104,110 @@ private fun PlaylistGridView(
     // qué lista se está bajando y se puede cancelar.
     val downloadState by downloadController.state.collectAsState()
 
-    ActionButton(
-        data = ActionButtonData(
-            text = "+ ${Translations.get("create_playlist")}",
-            onClick = { controller.showCreate() },
-        ),
-        modifier = Modifier.testTag("playlists_create")
+    Titulo(
+        titulo = Translations.get("plyr_lists"),
+        trailing = {
+            ActionButton(
+                data = ActionButtonData(text = "+", onClick = { controller.showCreate() }),
+                fontSize = 24.sp,
+                modifier = Modifier.testTag("playlists_create"),
+            )
+        },
     )
-    Spacer(modifier = Modifier.height(PlyrSpacing.medium))
 
     DownloadStatusBar(state = downloadState, controller = downloadController)
 
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        itemsIndexed(state.playlists) { _, playlist ->
-            PlaylistItem(playlist = playlist, onClick = { controller.selectPlaylist(playlist.remoteId) })
+    if (state.playlists.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = Translations.get("no_playlists"),
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            )
+        }
+    } else {
+        // Rejilla adaptativa (M30): las mismas piezas que Android
+        // (`GridCells.Adaptive` de 150 dp) en vez del listado anterior.
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = PLAYLIST_GRID_COVER),
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentPadding = PaddingValues(bottom = PlyrSpacing.large),
+            verticalArrangement = Arrangement.spacedBy(PlyrSpacing.large),
+            horizontalArrangement = Arrangement.spacedBy(PlyrSpacing.large),
+        ) {
+            items(state.playlists, key = { it.remoteId }) { playlist ->
+                PlaylistGridItem(
+                    playlist = playlist,
+                    onClick = { controller.selectPlaylist(playlist.remoteId) },
+                )
+            }
         }
     }
 
+    // Volver a la Home (el escritorio no tiene back del sistema): `< back`.
     ActionButton(
         data = ActionButtonData(
-            text = "\u2190 ${Translations.get("close")}",
+            text = "< ${Translations.get("back")}",
             onClick = onBack,
         ),
-        modifier = Modifier.testTag("back_from_${Screen.PLAYLISTS.name}")
+        modifier = Modifier.testTag("back_from_${Screen.PLAYLISTS.name}"),
     )
 }
 
+/** Portada y nombre de una lista en la rejilla (M30), como el grid de Android. */
 @Composable
-private fun PlaylistItem(playlist: PlaylistRecord, onClick: () -> Unit) {
+private fun PlaylistGridItem(playlist: PlaylistRecord, onClick: () -> Unit) {
     val isLiked = playlist.remoteId == LikedSongs.ID
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .clickable(onClick = onClick)
             .testTag("playlist_item_${playlist.remoteId}"),
-        onClick = onClick,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box {
-                PlaylistCover(url = playlist.imageUrl, size = 60.dp)
-                if (isLiked) {
-                    Text(
-                        text = "♥",
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.error,
-                        ),
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
+        if (isLiked) {
+            Box(
+                modifier = Modifier
+                    .size(PLAYLIST_GRID_COVER)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "♥", fontSize = 48.sp, color = MaterialTheme.colorScheme.error)
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = playlist.name,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Monospace),
-                )
-                Text(
-                    text = String.format(Translations.get("tracks_count"), playlist.trackCount),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.secondary,
-                    ),
-                )
-            }
+        } else {
+            PlaylistCover(
+                url = playlist.imageUrl,
+                size = PLAYLIST_GRID_COVER,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)),
+            )
         }
+        Text(
+            text = playlist.name,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground,
+            ),
+            modifier = Modifier.padding(top = PlyrSpacing.small),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = String.format(Translations.get("tracks_count"), playlist.trackCount),
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
+            modifier = Modifier.padding(top = PlyrSpacing.xxs),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+        )
     }
 }
