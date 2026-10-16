@@ -2,7 +2,7 @@
 
 **Fecha:** 2026-10-09 · **Actualizado:** 2026-10-15
 **Alcance analizado:** `app/src/main/java/com/plyr` (83 archivos Kotlin, ~16.500 líneas de producción) + 35 archivos de test JVM (~5.400 líneas), Gradle, `AndroidManifest.xml`.
-**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M23` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
+**Objetivo del documento:** dejar claro el lenguaje/stack elegido, el **roadmap por hitos** (los `M0`–`M29` ya están completados, §6) y el **backlog de paridad pendiente** con Android (§6.4).
 
 ---
 
@@ -224,7 +224,7 @@ Regla práctica: **~65% del código y el 100% de los tests viajan; ~35% se adapt
 
 ## 6. Roadmap por hitos (ejecutable con opencode)
 
-Los hitos `M0`–`M28` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el carrusel de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la cola accesible solo desde los controles, la búsqueda integrada en la Home (sin escáner QR), la integración MPRIS y el empaquetado ya funcionan en escritorio. Lo que queda son los **huecos de paridad con Android** detectados después del cierre, recogidos como backlog en **§6.4**.
+Los hitos `M0`–`M29` **están completados** (§6.1–§6.2): el andamiaje, la lógica compartida, el motor de audio, la UI, la persistencia, la sincronización, QR/Spotify, el feed, la descarga offline, la UI de almacenamiento, el panel de listas de la Home, la búsqueda de listas de YouTube, la reproducción aleatoria, la paginación de la búsqueda, la creación/edición de listas con acciones por pista, los metadatos y la reproducción desde el feed, el compartir-app por QR en Ajustes, la recomendación al feed desde el diálogo de compartir, el volcado de la copia al cerrar, la cola accesible solo desde los controles, la búsqueda integrada en la Home (sin escáner QR), el `>` a listas y el engranaje de Ajustes en la Home, la integración MPRIS y el empaquetado ya funcionan en escritorio. No queda backlog de paridad abierto (§6.4).
 
 Cada hito se pasa a opencode tal cual con la plantilla de §6.0. La regla de oro es que **al terminar cada hito, `./gradlew build` y los tests deben pasar** tanto en Android como en desktop, y `./run.sh check` debe quedar en verde.
 
@@ -310,7 +310,8 @@ ENTREGABLE: <qué debe quedar en el repo>.
 | M26 | Flush de copia de seguridad al cerrar la app | 0.5 | ☑ |
 | M27 | Acceso a la cola solo desde controles (escritorio) | 0.5 | ☑ |
 | M28 | Quitar QR scanning y mover búsqueda al inicio (escritorio) | 0.5 | ☑ |
-| M29+ | Backlog de paridad con Android | — | ◐ pendiente (§6.4) |
+| M29 | Home: `>` a listas, engranaje de Ajustes y sin franja inferior (escritorio) | 0.25 | ☑ |
+| M29+ | Backlog de paridad con Android | — | ✔ sin pendientes |
 
 ### 6.3 Decisiones clave del port
 
@@ -322,11 +323,11 @@ ENTREGABLE: <qué debe quedar en el repo>.
 
 ### 6.4 Backlog de paridad pendiente (M29+)
 
-Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23.
+Funciones de Android que **no** están en escritorio y **no** entraban en las desviaciones justificadas. Ordenadas por prioridad (impacto funcional). La prioridad «Alta» correspondía a F23 del inventario (§1.1), ya cubierta por M23. Tras cerrar **M29** (Home de escritorio) no queda backlog abierto.
 
 | Hito | Descripción | Prioridad | Semanas est. |
 |---|---|---|---|
-| M29 | Carrusel de playlists en Home (escritorio) | Baja | 0.5 |
+| —  | Sin pendientes (M29 cerrado) | — | — |
 
 ---
 
@@ -517,26 +518,28 @@ Funciones de Android que **no** están en escritorio y **no** entraban en las de
 **Prompt opencode:**
 > Solo en `desktop/...`, mueve la barra de búsqueda a `HomeScreen`. Elimina la UI de escaneo QR de `SearchScreen` (código y botones). Quita la entrada `SEARCH` del enum `Screen` de escritorio y cualquier botón de navegación asociado. Asegúrate de que al enviar búsqueda desde Home se navegue a Search con el texto (o se reutilice la pantalla existente). No toques código Android.
 
-**Implementado:** `SearchScreen` perdió el lector de QR (botón `[ scan_title ]` + `QrScanDialog` + el callback `onScanResult`); con él se borraron `qr/QrScanDialog.kt` y `qr/QrScan.kt` (código muerto), el `decodeImage` de `QrImages` (lado de lectura) y las 6 claves `scan_*` de los cuatro idiomas (ES/EN/CA/JA), además de la entrada del baseline de detekt. Se mantiene el QR de **compartir app** (M24) y la recomendación (M25). En `HomeScreen` la búsqueda ya no es una entrada del menú (`plyr_search`): es una barra `HomeSearchBar` (testTags `home_search_input`/`home_search_button`) que al enviar (Enter o botón) avisa con `onSearch`; `AudioListScreen` la conecta a `searchController.performSearch(query)` + `Screen.SEARCH`, de modo que los resultados siguen viviendo en `SearchScreen`. **Desviación consciente:** el prompt pedía quitar `SEARCH` del enum `Screen`, pero el objetivo/DoD exigen navegar a los resultados; se mantiene `Screen.SEARCH` (identifica `screen_SEARCH` y el destino) y solo desaparece como botón `plyr_search` del menú. Se limpiaron el formulario/estado de escaneo, `QrScan`/`QrScanDialog`, `QrImages.decodeImage`, sus tests y las 6 claves; nada de Android. Tests: `HomeScreenTest.escribirYBuscarAvisaConLaConsulta` (y `menu_SEARCH` ya no existe), `AudioListScreenTest.laBusquedaDeLaHomeAbreLosResultados` (sustituye a «el menú navega a buscar»), `QrImagesTest` sin las pruebas del lector (2: PNG con el tamaño de la matriz y `ImageBitmap`) y `SearchScreenTest` sin las 2 pruebas del lector. Verificación: `:desktop:test` **305** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434.
+**Implementado:** `SearchScreen` perdió el lector de QR (botón `[ scan_title ]` + `QrScanDialog` + el callback `onScanResult`); con él se borraron `qr/QrScanDialog.kt` y `qr/QrScan.kt` (código muerto), el `decodeImage` de `QrImages` (lado de lectura) y las 6 claves `scan_*` de los cuatro idiomas (ES/EN/CA/JA), además de la entrada del baseline de detekt. Se mantiene el QR de **compartir app** (M24) y la recomendación (M25). En `HomeScreen` la búsqueda ya no es una entrada del menú (`plyr_search`): es una barra `HomeSearchBar` (testTag `home_search_input`) **arriba y centrada** que se envía con Intro —sin botón— y muestra el placeholder `search_placeholder` («Buscar música…»); avisa con `onSearch` y `AudioListScreen` la conecta a `searchController.performSearch(query)` + `Screen.SEARCH`, de modo que los resultados siguen viviendo en `SearchScreen`. Además, las listas visibles pasan de un carrusel horizontal a un **panel vertical pegado a la izquierda** (`HomePlaylistRail`, testTag `home_playlists`), siempre visible y con **solo la portada** (sin nombres, para no cargar la Home), al estilo de la biblioteca de Spotify en escritorio: adelanta el grueso de M29 (queda el `>` a la pantalla de listas y quitar `plyr_lists` del menú). **Desviación consciente:** el prompt pedía quitar `SEARCH` del enum `Screen`, pero el objetivo/DoD exigen navegar a los resultados; se mantiene `Screen.SEARCH` (identifica `screen_SEARCH` y el destino) y solo desaparece como botón `plyr_search` del menú. Se limpiaron el formulario/estado de escaneo, `QrScan`/`QrScanDialog`, `QrImages.decodeImage`, sus tests y las 6 claves; nada de Android. Tests: `HomeScreenTest.escribirYBuscarAvisaConLaConsulta` (y `menu_SEARCH` ya no existe), `AudioListScreenTest.laBusquedaDeLaHomeAbreLosResultados` (sustituye a «el menú navega a buscar»), `QrImagesTest` sin las pruebas del lector (2: PNG con el tamaño de la matriz y `ImageBitmap`) y `SearchScreenTest` sin las 2 pruebas del lector. Verificación: `:desktop:test` **305** (4 omitidos: 2 de bandeja AWT sin entorno gráfico y 2 de VLC), `./run.sh check` sin findings, `./run.sh test` 116/116 y `:core:jvmTest` 434.
 
 ---
 
-#### M29 — Carrusel vertical de playlists en Home (escritorio)
-**Objetivo:** reemplazar el acceso a `plyr_lists` por un carrusel vertical de portadas a la izquierda, y al final un botón `>` que lleve a `PlaylistsScreen`. **Solo UI de escritorio.**
+#### M29 — Home de escritorio: `>` a listas, engranaje de Ajustes y sin franja inferior ☑ (completado)
+**Objetivo:** reemplazar el acceso a `plyr_lists` por un panel vertical de portadas a la izquierda con un `>` que lleve a `PlaylistsScreen`, mover Ajustes a un engranaje junto al buscador y no reservar hueco inferior cuando no hay reproducción. **Solo UI de escritorio.**
 **Tareas**
-- En `HomeScreen` de escritorio, mostrar un carrusel horizontal (LazyRow) con las portadas de las playlists visibles (reutilizar `PlaylistsController`/repositorio ya existente).
-- Mostrar miniaturas (`PlaylistCover`/Coil) con título opcional; al pulsar una portada, abrir su detalle (`PlaylistDetailView`/navegación ya existente).
-- Añadir un botón `>` al final del carrusel que navegue a `PlaylistsScreen` (mismo destino que el antiguo botón `plyr_lists`).
-- Quitar el botón `plyr_lists` de la navegación de escritorio. Actualizar `Screen` de escritorio si procede (mantén las demás pantallas).
+- En `HomeScreen` de escritorio, mostrar las portadas de las listas visibles en el panel vertical ya existente (M28).
+- Mostrar miniaturas (Coil) sin nombre; al pulsar una portada, abrir su detalle (`PlaylistDetailView`).
+- Añadir un botón `>` al final del panel que navegue a `PlaylistsScreen` (mismo destino que el antiguo botón `plyr_lists`).
+- Quitar `plyr_lists` (y `config`) del menú de escritorio; los Ajustes pasan a un engranaje `⚙` a la derecha del buscador.
+- Quitar el divisor entre versión y menú y reservar el hueco inferior solo con la barra flotante visible.
 - No tocar Android.
-**Definition of Done:** Home muestra el carrusel de playlists; el `>` lleva a la pantalla de listas; el botón `plyr_lists` ya no aparece en el menú de escritorio. Android sin cambios.
-**Verificación:** `:desktop:test` + manual.
+**Definition of Done:** Home muestra el panel de listas y el `>` lleva a la pantalla de listas; `plyr_lists` y `config` ya no aparecen en el menú; sin reproducción no queda franja inferior. Android sin cambios.
+**Implementado:** el panel `HomePlaylistRail` (M28) recibe `onNavigate` y añade al final un `ActionButton` `>` (testTag `home_more_lists`) que abre `Screen.PLAYLISTS`; el menú queda reducido a `feed`. Ajustes se abre con `HomeConfigButton` (símbolo `PlyrSymbols.GEAR = "⚙"`, testTag `home_config`) alineado a la derecha del buscador en la cabecera. Se elimina el `AsciiArt.DIVIDER` entre la versión (que sigue bajo el logo) y el menú. En `AudioListScreen`, el `padding(bottom = CONTROLS_RESERVED_HEIGHT)` del contenido pasa a aplicarse solo cuando `controlsVisible` (título/carga/error), de modo que sin reproducción no queda franja fija y el panel de listas llega hasta el fondo. Tests: `HomeScreenTest.laFlechaDelPanelAvisaParaAbrirListas`/`elEngranajeAvisaParaAbrirAjustes` y `AudioListScreenTest.laFlechaDelPanelAbreListas`; `menu_CONFIG` → `home_config` y el caso sin listas comprueba el panel visible pero vacío.
+**Verificación:** `:desktop:test` (308) + manual.
 **Prompt opencode:**
 > Solo en `desktop/...`, modifica `HomeScreen` para mostrar un carrusel horizontal con portadas de playlists (usa datos existentes de PlaylistsController/repositorio). Añade un botón `>` al final que navegue a la pantalla de playlists. Elimina la entrada/navegación a `PLAYLISTS` desde el menú principal de escritorio. No modifiques código de `app/src/...`.
 
 ---
 
-**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio ahora vuelca el flush pendiente al cerrar (`DataSync.flushOnStop()`, M26), igual que Android en `onStop` (ya no cancela a ciegas); **UI escritorio (M28–M29):** sin escáner QR de escritorio (M28 retiró el lector sin cámara `QrScanDialog`/`QrScan` y sus claves `scan_*`; sigue el botón «compartir app» con QR de M24 y la recomendación de M25), búsqueda integrada en la Home (M28) y carrusel de playlists en Home con `>` a listas (M29, pendiente; la cola ya solo se abre desde `^` en controles, M27).
+**Diferencias menores / desviaciones conscientes:** el logo ASCII de la Home es fijo en escritorio (Android elige uno aleatorio de `ascii_1..50`); no hay layout apaisado/tablet «side-by-side» (la ventana es redimensionable); compartir usa el portapapeles en vez de la hoja del sistema (`ACTION_SEND`); sin háptica; el reordenado de la **cola** usa botones `^`/`v` (Android arrastra) — el detalle de lista sí admite arrastre; MPRIS publica `Volume`/`LoopStatus`/`Shuffle` como **solo lectura** fijos (el `Set` de `MprisPlayer` lanza `PropertyReadOnly`) y `OpenUri` es un no-op, mientras que `Seek`/`SetPosition` sí funcionan; Android usa `unknown_artist` para pistas sin artista y una etiqueta `loading_tracks` al cargar una lista, escritorio pinta el valor crudo (cosmético); `exit_message` de Android es **código muerto** (`showExitMessage` nunca pasa a `true`); la copia de seguridad automática en escritorio ahora vuelca el flush pendiente al cerrar (`DataSync.flushOnStop()`, M26), igual que Android en `onStop` (ya no cancela a ciegas); **UI escritorio (M28–M29):** sin escáner QR de escritorio (M28 retiró el lector sin cámara `QrScanDialog`/`QrScan` y sus claves `scan_*`; sigue el botón «compartir app» con QR de M24 y la recomendación de M25), búsqueda en la Home arriba y centrada sin botón (se envía con Intro, con placeholder «buscar música…»), biblioteca de playlists en vertical a la izquierda estilo Spotify, siempre visible y solo con portadas, con un `>` al final que abre la pantalla de listas, y Ajustes como engranaje a la derecha del buscador (menú reducido a `feed`); sin reproducción no se reserva hueco inferior (M28–M29; la cola ya solo se abre desde `^` en controles, M27).
 
 **A favor del escritorio (no perder):** el feed tiene formulario de publicación + selector de grupo + muestra el `comment` (Android no); Config tiene filas extra de **repetición** y **rutas de datos/caché** (Android no); atajos de teclado, bandeja del sistema (`DesktopTray`) y prueba de sonido por CLI (`SoundCheck`).
 

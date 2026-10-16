@@ -60,6 +60,7 @@ object PlyrSymbols {
     const val BULLET = "●"
     const val ARROW = "→"
     const val LOADING = "..."
+    const val GEAR = "⚙"
 }
 
 // Dark Color Scheme

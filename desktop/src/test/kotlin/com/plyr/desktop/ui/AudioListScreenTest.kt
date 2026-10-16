@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -58,14 +59,14 @@ class AudioListScreenTest {
     fun laBusquedaDeLaHomeAbreLosResultados() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
         onNodeWithTag("home_search_input").performTextInput("daft punk")
-        onNodeWithTag("home_search_button").performClick()
+        onNodeWithTag("home_search_input").performImeAction()
         onNodeWithTag("screen_SEARCH").assertIsDisplayed()
     }
 
     @Test
     fun elBotonVolverRegresaAHome() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
-        onNodeWithTag("menu_CONFIG").performClick()
+        onNodeWithTag("home_config").performClick()
         onNodeWithTag("screen_CONFIG").assertIsDisplayed()
         onNodeWithTag("back_from_CONFIG").performScrollTo().performClick()
         onNodeWithTag("screen_HOME").assertIsDisplayed()
@@ -82,7 +83,7 @@ class AudioListScreenTest {
     @Test
     fun cambiarIdiomaActualizaLasEtiquetas() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
-        onNodeWithTag("menu_CONFIG").performClick()
+        onNodeWithTag("home_config").performClick()
         // En inglés el título es "plyr_config".
         onNodeWithText("$ plyr_config").assertIsDisplayed()
         // Al pasar a español debe re-traducirse a "plyr_ajustes".
@@ -93,8 +94,16 @@ class AudioListScreenTest {
     @Test
     fun cambiarTemaNoRompeLaPantalla() = runComposeUiTest {
         setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
-        onNodeWithTag("menu_CONFIG").performClick()
+        onNodeWithTag("home_config").performClick()
         onNodeWithTag("theme_light").performClick()
         onNodeWithTag("screen_CONFIG").assertIsDisplayed()
+    }
+
+    @Test
+    fun laFlechaDelPanelAbreListas() = runComposeUiTest {
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
+        // M29: el `>` al final del panel lateral sustituye al botón `plyr_lists`.
+        onNodeWithTag("home_more_lists").performClick()
+        onNodeWithTag("screen_PLAYLISTS").assertIsDisplayed()
     }
 }

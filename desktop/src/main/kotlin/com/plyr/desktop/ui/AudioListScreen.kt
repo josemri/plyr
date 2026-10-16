@@ -68,7 +68,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
 
-/** Altura reservada abajo para que los controles flotantes no tapen el contenido. */
+/** Altura reservada abajo cuando la barra flotante está visible, para no tapar el contenido. */
 private val CONTROLS_RESERVED_HEIGHT = 96.dp
 
 /** Cada cuánto se refresca la posición desde el motor mientras suena algo. */
@@ -280,6 +280,11 @@ fun AudioListScreen(
         }
     }
 
+    // La barra flotante solo se pinta con algo cargando/sonando o con error; el
+    // hueco inferior se reserva solo entonces (M29), para no dejar una franja
+    // vacía y que el contenido (p. ej. el panel de listas) llegue hasta el fondo.
+    val controlsVisible = playerState.title != null || playerState.isLoading || playerState.error != null
+
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(
             Modifier
@@ -327,7 +332,7 @@ fun AudioListScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = CONTROLS_RESERVED_HEIGHT),
+                    .padding(bottom = if (controlsVisible) CONTROLS_RESERVED_HEIGHT else 0.dp),
             ) {
                 when (currentScreen) {
                     Screen.HOME -> HomeScreen(
