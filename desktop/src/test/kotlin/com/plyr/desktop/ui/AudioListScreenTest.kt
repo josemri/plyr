@@ -9,10 +9,14 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
+import com.plyr.database.PlaylistRecord
+import com.plyr.database.PlaylistSource
+import com.plyr.database.TrackRecord
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.database.DesktopDatabase
+import com.plyr.desktop.database.PlaylistRepository
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.russhwolf.settings.MapSettings
 import org.junit.After
@@ -105,5 +109,50 @@ class AudioListScreenTest {
         // M29: el `>` al final del panel lateral sustituye al botón `plyr_lists`.
         onNodeWithTag("home_more_lists").performClick()
         onNodeWithTag("screen_PLAYLISTS").assertIsDisplayed()
+    }
+
+    @Test
+    fun laFlechaDelPanelMuestraLaRejillaTrasAbrirUnaLista() = runComposeUiTest {
+        // M34: abrir una lista desde el panel y volver a la Home no debe dejar la
+        // lista seleccionada; el `>` lleva a la rejilla, no al último detalle.
+        val database = DesktopDatabase.inMemory()
+        PlaylistRepository(database).savePlaylist(
+            PlaylistRecord(
+                remoteId = "local_1",
+                name = "Rock",
+                description = null,
+                trackCount = 1,
+                imageUrl = null,
+                lastSyncTime = 0L,
+                source = PlaylistSource.LOCAL,
+                sourceId = null,
+            ),
+            listOf(
+                TrackRecord(
+                    id = "local_1_t1",
+                    playlistId = "local_1",
+                    remoteTrackId = "t1",
+                    name = "Song",
+                    artists = "Artist",
+                    youtubeVideoId = "vid",
+                    audioUrl = null,
+                    position = 0,
+                    lastSyncTime = 0L,
+                ),
+            ),
+        )
+
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { database }) } }
+
+        onNodeWithTag("home_playlist_local_1").performClick()
+        onNodeWithTag("back_from_playlist_detail").assertIsDisplayed()
+        onNodeWithTag("back_from_playlist_detail").performClick()
+        onNodeWithTag("screen_HOME").assertIsDisplayed()
+
+        onNodeWithTag("home_more_lists").performClick()
+        onNodeWithTag("screen_PLAYLISTS").assertIsDisplayed()
+        // Rejilla (botón de alta visible), no el detalle de la lista anterior.
+        onNodeWithTag("playlists_create").assertIsDisplayed()
+        onNodeWithTag("back_from_playlist_detail").assertDoesNotExist()
     }
 }

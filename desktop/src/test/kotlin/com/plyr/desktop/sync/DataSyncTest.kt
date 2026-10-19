@@ -15,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.rules.TemporaryFolder
 import java.awt.image.BufferedImage
@@ -378,6 +379,57 @@ class DataSyncTest {
         )
 
         assertTrue(sync.importFromBackupFolder().isFailure)
+        sync.shutdown()
+    }
+
+    // === SYNC AL ABRIR (M34) ===
+
+    @Test
+    fun syncAlAbrirTraeLaCopiaDeLaCarpeta() = runBlocking {
+        val folder = directory()
+        val tombstonesA = InMemoryTombstoneStore()
+        val repoA = repo(tombstonesA).apply {
+            savePlaylist(playlist("p1", "Rock"), listOf(track("t1", "p1")))
+        }
+        val syncA = DataSync(exporter(repoA, tombstonesA), importer(repoA, tombstonesA), configFor(folder))
+        syncA.flush(force = true)
+        syncA.shutdown()
+
+        // Instalación nueva, pero con la carpeta de siempre: al abrir debe traer
+        // lo que hay en la copia en vez de esperar al botón de Ajustes.
+        val tombstonesB = InMemoryTombstoneStore()
+        val repoB = repo(tombstonesB).apply { ensureLikedSongsPlaylist() }
+        val syncB = DataSync(exporter(repoB, tombstonesB), importer(repoB, tombstonesB), configFor(folder))
+
+        val summary = syncB.syncOnStartup()
+        assertNotNull(summary)
+        assertEquals(1, summary!!.importedPlaylists)
+        assertEquals("Rock", repoB.playlistById("p1")?.name)
+        syncB.shutdown()
+    }
+
+    @Test
+    fun syncAlAbrirSinCarpetaNoHaceNada() = runBlocking {
+        val tombstones = InMemoryTombstoneStore()
+        val repo = repo(tombstones)
+        val sync = DataSync(
+            exporter(repo, tombstones),
+            importer(repo, tombstones),
+            BackupConfig(MapSettings()),
+        )
+
+        assertNull(sync.syncOnStartup())
+        sync.shutdown()
+    }
+
+    @Test
+    fun syncAlAbrirSinArchivoDeCopiaNoFalla() = runBlocking {
+        val folder = directory()
+        val tombstones = InMemoryTombstoneStore()
+        val repo = repo(tombstones)
+        val sync = DataSync(exporter(repo, tombstones), importer(repo, tombstones), configFor(folder))
+
+        assertNull(sync.syncOnStartup())
         sync.shutdown()
     }
 

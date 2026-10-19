@@ -23,6 +23,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      next_tag: ${{ steps.version.outputs.next_tag }}
+      next_name: ${{ steps.version.outputs.next_name }}
 
     steps:
       - name: Checkout repository
@@ -257,8 +260,12 @@ jobs:
             ---
 
             ### Installation
-            Download `plyr.apk` and install it on your Android device.
-            You may need to enable "Install from unknown sources".
+            **Android:** download `plyr.apk` and install it on your device. You may
+            need to enable "Install from unknown sources".
+            **Desktop:** download the installer for your OS — `.deb` (Debian/Ubuntu),
+            `.rpm` (Fedora/openSUSE), `.AppImage` (universal, works on Arch too),
+            `.msi` (Windows) or `.dmg` (macOS). The desktop version matches Android's.
+            Desktop installers are attached as soon as they finish building.
           files: ${{ steps.find_apk.outputs.apk_path }}
           draft: false
           prerelease: false
@@ -272,6 +279,9 @@ jobs:
             ## plyr (latest)
 
             **Current version:** ${{ steps.version.outputs.next_tag }}
+
+            Android: `plyr.apk`. Desktop: `.deb`/`.rpm`/`.AppImage`, `.msi` or `.dmg`
+            (same version as Android).
             **APK size:** ${{ steps.find_apk.outputs.apk_size }}
             **SHA-256:** `${{ steps.find_apk.outputs.apk_sha256 }}`
             **Commits:** ${{ steps.version.outputs.commit_count }}
@@ -291,4 +301,114 @@ jobs:
             echo "- APK size: ${{ steps.find_apk.outputs.apk_size }}"
             echo "- SHA-256: \`${{ steps.find_apk.outputs.apk_sha256 }}\`"
             echo "- Commits: ${{ steps.version.outputs.commit_count }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  desktop:
+    # La versión ya está incrementada y etiquetada: los instalables de escritorio
+    # se compilan desde ese tag y se adjuntan a la misma release (y a `latest`).
+    needs: release
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout (versión incrementada)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.next_tag }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Make gradlew executable
+        shell: bash
+        run: chmod +x ./gradlew
+
+      - name: Install rpm tooling (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - name: Build desktop installers for ${{ matrix.platform }}
+        shell: bash
+        run: |
+          # Empaqueta todos los formatos del SO. Si algún formato opcional falla
+          # (p. ej. `.rpm` sin `rpmbuild`), se reintenta con los esenciales para no
+          # perder toda la release de escritorio por un solo formato.
+          if ! ./gradlew :desktop:packageDistributionForCurrentOS --no-daemon --stacktrace; then
+            echo "::warning::Falló el empaquetado completo; reintentando formatos esenciales"
+            ./gradlew :desktop:packageDeb :desktop:packageMsi :desktop:packageDmg --no-daemon --stacktrace
+          fi
+
+      - name: Build universal AppImage (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # El `TargetFormat.AppImage` de Compose es el `app-image` de jpackage (un
+          # directorio), así que se envuelve en un `.AppImage` real: el binario
+          # universal que funciona en cualquier distro, incluida Arch.
+          ./gradlew :desktop:packageAppImage --no-daemon --stacktrace
+          app_image="$(find desktop/build/compose/binaries/main/app -mindepth 1 -maxdepth 1 -type d | head -n1)"
+          if [ -z "$app_image" ]; then
+            echo "::error::No se encontró el app-image para construir el AppImage"
+            exit 1
+          fi
+          version="$(sed -nE 's/.*versionName *= *"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)"
+          bash desktop/packaging/build-appimage.sh "$app_image" \
+            desktop/build/compose/binaries/main/appimage "$version"
+
+      - name: Locate installers
+        shell: bash
+        run: |
+          # Nota: el target `AppImage` de Compose Desktop es el `app-image` de
+          # jpackage (un directorio descomprimido), no un fichero `.AppImage`; en
+          # Linux los instalables son `.deb` y `.rpm`.
+          : > desktop-installers.txt
+          find desktop/build/compose/binaries -type f \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
+               -o -name '*.msi' -o -name '*.dmg' -o -name '*.exe' \) 2>/dev/null >> desktop-installers.txt || true
+          if [ ! -s desktop-installers.txt ]; then
+            echo "::error::No se encontró ningún instalable de escritorio en ${{ matrix.platform }}"
+            exit 1
+          fi
+          echo "Instalables compilados:"
+          cat desktop-installers.txt
+
+      - name: Upload installers to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ needs.release.outputs.next_tag }}"
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            gh release upload "$TAG" "$file" --clobber
+            gh release upload latest "$file" --clobber
+          done < desktop-installers.txt
+
+      - name: Summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "### Desktop (${{ matrix.platform }})"
+            echo ""
+            echo "Instalables adjuntos a la release y a \`latest\`:"
+            echo ""
+            while IFS= read -r f; do
+              [ -n "$f" ] && echo "- \`$f\`"
+            done < desktop-installers.txt
           } >> "$GITHUB_STEP_SUMMARY"

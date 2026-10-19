@@ -172,6 +172,10 @@ fun AudioListScreen(
         )
     }
     val backupController = remember(dataSync, backupScope) { BackupController(dataSync, backupScope) }
+    // Sincronización al abrir (M34): si hay carpeta de copia, trae lo que falte en
+    // local al arrancar (instalación nueva o cambios de otro equipo) en vez de
+    // esperar a que el usuario pulse «sync» en Ajustes.
+    LaunchedEffect(backupController) { backupController.syncOnStartup() }
     DisposableEffect(repository, dataSync, database) {
         repository.onChanged = { dataSync.markDirty() }
         onDispose {
@@ -336,7 +340,13 @@ fun AudioListScreen(
             ) {
                 when (currentScreen) {
                     Screen.HOME -> HomeScreen(
-                        onNavigate = { currentScreen = it },
+                        // El `>` de la Home abre la pantalla de listas (M34): se
+                        // limpia la selección para mostrar la rejilla y no la
+                        // última lista abierta desde el panel lateral.
+                        onNavigate = { target ->
+                            if (target == Screen.PLAYLISTS) playlistsController.deselectPlaylist()
+                            currentScreen = target
+                        },
                         // Carrusel de listas (M18): mismas listas visibles que la
                         // pantalla de playlists; al pulsar una se abre su detalle.
                         playlists = playlistsState.playlists,

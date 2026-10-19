@@ -107,6 +107,20 @@ class BackupController(
         }
     }
 
+    /**
+     * Sincroniza al abrir la app (M34): trae de la carpeta de copia lo que falte
+     * en local —una instalación nueva, o cambios hechos en otro equipo— sin
+     * esperar a que el usuario entre en Ajustes. Silencioso: no pinta estado ni
+     * errores, solo refresca si la carpeta o el archivo cambian.
+     */
+    fun syncOnStartup() {
+        if (!sync.isConfigured) return
+        scope.launch {
+            sync.syncOnStartup()
+            refresh()
+        }
+    }
+
     /** Etiqueta del botón: `< sync >` sin copia, o `synced w/ <carpeta>`. */
     fun buttonLabel(state: BackupState): String =
         if (state.hasBackupFile) {

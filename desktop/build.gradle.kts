@@ -12,6 +12,40 @@ kotlin {
     jvmToolchain(21)
 }
 
+/**
+ * Versión del paquete de escritorio (M34): la misma que Android. Se lee
+ * `versionName` de `app/build.gradle.kts` —la única fuente de verdad, la que
+ * incrementa el workflow de release— para que los instalables y el comprobador
+ * de actualizaciones no se desincronicen de la app Android.
+ */
+val appVersionName: String = Regex("""versionName\s*=\s*"([^"]+)"""")
+    .find(rootProject.file("app/build.gradle.kts").readText())
+    ?.groupValues?.get(1)
+    ?: error("No se pudo leer versionName de app/build.gradle.kts")
+
+/**
+ * Fuente generado con la versión para el código (M34). `UpdateChecker` lo usa
+ * para comparar con la última release sin duplicar el número a mano.
+ */
+val generateVersionSource by tasks.registering {
+    val version = appVersionName
+    val outputDir = layout.buildDirectory.dir("generated/plyr-version/kotlin")
+    inputs.property("version", version)
+    outputs.dir(outputDir)
+    doLast {
+        val file = outputDir.get().asFile.resolve("com/plyr/desktop/Version.kt")
+        file.parentFile.mkdirs()
+        file.writeText(
+            "// Generado por Gradle desde versionName de :app (M34). No editar.\n" +
+                "package com.plyr.desktop\n\n" +
+                "/** Versión del paquete de escritorio, sincronizada con Android. */\n" +
+                "const val PLYR_VERSION: String = \"$version\"\n",
+        )
+    }
+}
+
+kotlin.sourceSets["main"].kotlin.srcDir(generateVersionSource)
+
 // Análisis de código muerto/estructura (M15): misma config que `:app`.
 detekt {
     buildUponDefaultConfig = true
@@ -149,7 +183,8 @@ compose.desktop {
                 TargetFormat.Dmg,
             )
             packageName = "plyr"
-            packageVersion = "1.3.0"
+            // Misma versión que Android (M34), leída de `app/build.gradle.kts`.
+            packageVersion = appVersionName
             description = "Reproductor de música minimalista (YouTube + listas locales)."
             vendor = "josemri"
             copyright = "© 2026 josemri — GPL-3.0-or-later"

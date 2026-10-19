@@ -1,6 +1,7 @@
 package com.plyr.desktop.utils
 
 import com.plyr.core.util.Logger
+import com.plyr.desktop.PLYR_VERSION
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -24,8 +25,8 @@ object UpdateChecker {
 
     private const val TAG = "UpdateChecker"
 
-    /** Versión del paquete de escritorio (`packageVersion` de `:desktop`). */
-    const val CURRENT_VERSION = "1.3.0"
+    /** Versión del paquete de escritorio, generada desde `versionName` de `:app` (M34). */
+    const val CURRENT_VERSION = PLYR_VERSION
 
     private const val GITHUB_API_URL = "https://api.github.com/repos/josemri/plyr/releases/latest"
 

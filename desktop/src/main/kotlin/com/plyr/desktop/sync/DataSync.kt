@@ -198,6 +198,25 @@ class DataSync(
     }
 
     /**
+     * Sincronización al abrir la app (M34). Si hay carpeta de copia, lee su
+     * archivo y fusiona en local lo que falte —una instalación nueva, o cambios
+     * hechos en otro equipo— sin esperar a que el usuario entre en Ajustes. Sin
+     * este paso, arrancar con la base local vacía (pero con la carpeta ya
+     * configurada) dejaba el contenido sin aparecer hasta pulsar «sync`.
+     *
+     * No escribe la copia: si la fusión trae algo, el volcado normal (debounce de
+     * [markDirty]) la pondrá al día. Silencioso a propósito: es una sincronización
+     * de fondo al abrir la app, no una acción con confirmación del usuario.
+     *
+     * @return el resumen de lo importado, o `null` si no hay carpeta o no había
+     *   nada que traer.
+     */
+    suspend fun syncOnStartup(): ImportSummary? {
+        if (!isConfigured) return null
+        return importFromBackupFolder().getOrNull()
+    }
+
+    /**
      * Importa la copia de la carpeta, la misma que la copia automática mantiene.
      * No muestra ningún selector: si hay carpeta, el archivo está ahí.
      */
