@@ -3,6 +3,7 @@ package com.plyr.desktop.playlists
 import androidx.compose.foundation.layout.Column
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -119,6 +120,29 @@ class PlaylistDetailViewTest {
         controller.selectPlaylist("p1")
     }
 
+    /**
+     * Lista de Spotify (compartible) con descripción, para comprobar las
+     * etiquetas de la botonera y la línea de descripción que pide la paridad con
+     * Android (M33).
+     */
+    private fun seedShareablePlaylist() {
+        val spotifyId = "0123456789abcdefghijkl"
+        repository.savePlaylist(
+            PlaylistRecord(
+                remoteId = "p1",
+                name = "Lista",
+                description = "Imported from Spotify",
+                trackCount = 2,
+                imageUrl = null,
+                lastSyncTime = BASE_TIME,
+                source = PlaylistSource.SPOTIFY,
+                sourceId = spotifyId,
+            ),
+            listOf(track("t1", 0, "vidA"), track("t2", 1, "vidB")),
+        )
+        controller.selectPlaylist("p1")
+    }
+
     @Test
     fun descargaLaListaYMuestraElIndicadorPorPista() = runComposeUiTest {
         seedPlaylist()
@@ -151,7 +175,7 @@ class PlaylistDetailViewTest {
         assertTrue(downloadStore.isDownloaded("vidA"))
         assertTrue(downloadStore.isDownloaded("vidB"))
 
-        // El botón de la lista pasa a ofrecer "limpiar" (ya está todo offline).
+        // El botón de la lista pasa a ofrecer `<clr>` (ya está todo offline).
         waitUntil(timeoutMillis = 5_000) {
             onAllNodesWithTag("playlist_download").fetchSemanticsNodes().isNotEmpty()
         }
@@ -276,5 +300,57 @@ class PlaylistDetailViewTest {
         onNodeWithTag("track_menu_r_t2").performClick()
         onNodeWithTag("track_like", useUnmergedTree = true).performClick()
         assertTrue(repository.tracksByPlaylist(LikedSongs.ID).any { it.youtubeVideoId == "vidB" })
+    }
+
+    @Test
+    fun laBotoneraUsaLasEtiquetasDeAndroidYSinPlayAll() = runComposeUiTest {
+        seedShareablePlaylist()
+
+        setContent {
+            PlyrTheme {
+                Column {
+                    PlaylistDetailView(
+                        controller = controller,
+                        downloadController = downloadController(),
+                        state = controller.state.value,
+                        onPlayTracks = { _, _ -> },
+                        onBack = {},
+                    )
+                }
+            }
+        }
+
+        // El atrás va a la izquierda del `rnd` (M33) y el play all desaparece.
+        onNodeWithTag("back_from_playlist_detail").assertIsDisplayed()
+        onNodeWithTag("playlist_random").assertIsDisplayed()
+        assertTrue(onAllNodesWithTag("playlist_play_all").fetchSemanticsNodes().isEmpty())
+
+        // Las etiquetas son las mismas que las de Android.
+        onNodeWithTag("playlist_share").assertTextEquals("<shr>")
+        onNodeWithTag("playlist_download").assertTextEquals("<dwn>")
+        onNodeWithTag("playlist_edit").assertTextEquals("<edt>")
+    }
+
+    @Test
+    fun laDescripcionSaleBajoElTituloConTilde() = runComposeUiTest {
+        seedShareablePlaylist()
+
+        setContent {
+            PlyrTheme {
+                Column {
+                    PlaylistDetailView(
+                        controller = controller,
+                        downloadController = downloadController(),
+                        state = controller.state.value,
+                        onPlayTracks = { _, _ -> },
+                        onBack = {},
+                    )
+                }
+            }
+        }
+
+        // `~` delante y en su propio nodo, para colgarla del título en Android.
+        onNodeWithTag("playlist_description").assertIsDisplayed()
+        onNodeWithTag("playlist_description").assertTextEquals("~Imported from Spotify")
     }
 }

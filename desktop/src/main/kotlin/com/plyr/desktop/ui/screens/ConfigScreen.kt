@@ -1,6 +1,7 @@
 package com.plyr.desktop.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -102,16 +103,16 @@ fun ConfigScreen(
         // === ALMACENAMIENTO (rutas por SO) ===
         PathsSection()
 
-        // === COPIA DE SEGURIDAD (M10) ===
-        if (backupController != null) {
-            Spacer(Modifier.height(PlyrSpacing.large))
-            BackupSection(backupController)
-        }
-
         // === IMPORTAR DE SPOTIFY (M11) ===
         if (spotifyImportController != null) {
             Spacer(Modifier.height(PlyrSpacing.large))
             SpotifyImportSection(spotifyImportController)
+        }
+
+        // === COPIA DE SEGURIDAD (M10) ===
+        if (backupController != null) {
+            Spacer(Modifier.height(PlyrSpacing.large))
+            BackupSection(backupController)
         }
 
         // === COMPARTIR APP (M24) ===
@@ -154,17 +155,22 @@ private fun BackupSection(controller: BackupController) {
     val state by controller.state.collectAsState()
     LaunchedEffect(controller) { controller.refresh() }
 
-    ActionButton(
-        data = ActionButtonData(
-            text = if (state.isSyncing) {
-                Translations.get("sync_working")
-            } else {
-                controller.buttonLabel(state)
-            },
-            onClick = { controller.onSyncPressed() },
-        ),
-        modifier = Modifier.testTag("sync_button"),
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        ActionButton(
+            data = ActionButtonData(
+                text = if (state.isSyncing) {
+                    Translations.get("sync_working")
+                } else {
+                    controller.buttonLabel(state)
+                },
+                onClick = { controller.onSyncPressed() },
+            ),
+            modifier = Modifier.testTag("sync_button"),
+        )
+    }
     BackupStatusMessage(state)
 }
 
@@ -202,7 +208,7 @@ private fun SpotifyImportSection(controller: SpotifyImportController) {
     OutlinedTextField(
         value = state.url,
         onValueChange = { controller.onUrlChange(it) },
-        label = { Text(Translations.get("spotify_import_hint")) },
+        placeholder = { Text(Translations.get("spotify_import_hint")) },
         singleLine = true,
         enabled = !state.isImporting,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
@@ -243,13 +249,18 @@ private fun SpotifyStatusMessage(state: SpotifyImportState) {
 private fun ShareAppSection() {
     var showDialog by remember { mutableStateOf(false) }
 
-    ActionButton(
-        data = ActionButtonData(
-            text = Translations.get("share_me"),
-            onClick = { showDialog = true },
-        ),
-        modifier = Modifier.testTag("share_app_button"),
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        ActionButton(
+            data = ActionButtonData(
+                text = Translations.get("share_me"),
+                onClick = { showDialog = true },
+            ),
+            modifier = Modifier.testTag("share_app_button"),
+        )
+    }
 
     if (showDialog) {
         QrShareDialog(

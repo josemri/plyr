@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.plyr.database.PlaylistRecord
@@ -36,6 +37,29 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.awt.image.BufferedImage
 
+
+/**
+ * Descripción de la lista (M33): justo debajo del título, pegada a la derecha y
+ * con `~` delante (p. ej. `~Imported from Spotify`), como el
+ * `PlaylistDescription` de Android. Se pinta solo si hay texto.
+ */
+@Composable
+private fun PlaylistDescription(description: String?) {
+    val shown = description?.takeIf { it.isNotBlank() } ?: return
+    Text(
+        text = "~$shown",
+        style = MaterialTheme.typography.bodySmall.copy(
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+        textAlign = TextAlign.End,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("playlist_description"),
+    )
+}
 
 @Composable
 fun PlaylistDetailView(
@@ -83,10 +107,28 @@ fun PlaylistDetailView(
         Titulo(playlist?.name ?: Translations.get("plyr_lists"))
     }
 
+    // Descripción (M33): justo debajo del título, pegada a la derecha y con `~`,
+    // como el `PlaylistDescription` de Android. Solo en modo normal: al editar ya
+    // hay un campo para cambiarla.
+    if (!state.isEditing) {
+        PlaylistDescription(description)
+    }
+
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // Volver (M33): a la izquierda de `rnd`, como el atrás de Android. Si hay
+        // cambios sin guardar, el primer toque los descarta (igual que antes).
         ActionButton(
-            data = ActionButtonData(text = Translations.get("play_all"), onClick = { if (state.tracks.isNotEmpty()) onPlayTracks(state.tracks, 0) }),
-            modifier = Modifier.testTag("playlist_play_all")
+            data = ActionButtonData(
+                text = "< ${Translations.get("back")}",
+                onClick = {
+                    if (state.isEditing && state.hasUnsavedChanges) {
+                        controller.cancelEdit()
+                    } else {
+                        onBack()
+                    }
+                },
+            ),
+            modifier = Modifier.testTag("back_from_playlist_detail")
         )
         // Reproducción aleatoria (M20): `<rnd>` baraja y arranca; mientras dura,
         // el mismo botón pasa a `<stop>` (como el `playbackRandomButton` de
@@ -103,7 +145,7 @@ fun PlaylistDetailView(
         }
         if (playlist != null && PlaylistShare.isShareable(playlist.remoteId, playlist.description, playlist.source, playlist.sourceId)) {
             ActionButton(
-                data = ActionButtonData(text = Translations.get("share"), onClick = { shareItem = playlist.toShareableItem() }),
+                data = ActionButtonData(text = "<shr>", onClick = { shareItem = playlist.toShareableItem() }),
                 modifier = Modifier.testTag("playlist_share")
             )
         }
@@ -114,9 +156,9 @@ fun PlaylistDetailView(
             ActionButton(
                 data = ActionButtonData(
                     text = when {
-                        downloadingThis -> Translations.get("cancel")
-                        allDownloaded -> Translations.get("download_clean")
-                        else -> Translations.get("download")
+                        downloadingThis -> "<stop>"
+                        allDownloaded -> "<clr>"
+                        else -> "<dwn>"
                     },
                     color = if (downloadingThis) MaterialTheme.colorScheme.error else Color.Unspecified,
                     onClick = {
@@ -136,7 +178,7 @@ fun PlaylistDetailView(
         }
         if (!state.isEditing && playlist?.remoteId != "liked_songs") {
             ActionButton(
-                data = ActionButtonData(text = Translations.get("edit"), onClick = { controller.enterEditMode() }),
+                data = ActionButtonData(text = "<edt>", onClick = { controller.enterEditMode() }),
                 modifier = Modifier.testTag("playlist_edit")
             )
         }
@@ -247,13 +289,6 @@ fun PlaylistDetailView(
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-    } else if (!description.isNullOrBlank()) {
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace
-        )
-        Spacer(modifier = Modifier.height(8.dp))
     }
 
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
@@ -295,20 +330,6 @@ fun PlaylistDetailView(
             )
         }
     }
-
-    ActionButton(
-        data = ActionButtonData(
-            text = "< ${Translations.get("back")}",
-            onClick = {
-                if (state.isEditing && state.hasUnsavedChanges) {
-                    controller.cancelEdit()
-                } else {
-                    onBack()
-                }
-            }
-        ),
-        modifier = Modifier.testTag("back_from_playlist_detail")
-    )
 
     if (state.showDeleteDialog) {
         AlertDialog(

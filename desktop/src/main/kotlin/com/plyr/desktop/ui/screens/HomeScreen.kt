@@ -1,5 +1,6 @@
 package com.plyr.desktop.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -7,9 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -31,12 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -61,6 +65,10 @@ private val APP_VERSION = "v${UpdateChecker.CURRENT_VERSION}"
 private val HOME_RAIL_WIDTH = 88.dp
 private val HOME_RAIL_COVER = 64.dp
 
+/** Tamaño máximo del logo ASCII de la Home (M32), como el `imageMax*` de Android. */
+private val LOGO_MAX_WIDTH = 280.dp
+private val LOGO_MAX_HEIGHT = 220.dp
+
 /**
  * Pantalla de inicio del escritorio.
  *
@@ -84,11 +92,16 @@ fun HomeScreen(
     onOpenPlaylist: (String) -> Unit = {},
     onSearch: (String) -> Unit = {},
     checkForUpdate: (suspend () -> UpdateChecker.UpdateInfo?)? = null,
+    logoIndex: Int? = null,
     modifier: Modifier = Modifier,
 ) {
     val options = listOf(
         MenuOption(Screen.FEED, Translations.get(Screen.FEED.titleKey)),
     )
+
+    // Logo ASCII aleatorio (M32): como Android, se elige una vez por composición.
+    // Los tests pueden fijarlo con [logoIndex] para ser deterministas.
+    val selectedLogo = remember(logoIndex) { logoIndex ?: AsciiArt.randomIndex() }
 
     // Aviso de actualización (M15): solo si la app inyecta el comprobador; así los
     // tests no tocan la red. El clic abre el instalable (o la página de releases).
@@ -116,6 +129,7 @@ fun HomeScreen(
         HomeMainContent(
             options = options,
             update = update,
+            logoIndex = selectedLogo,
             onSearch = onSearch,
             onNavigate = onNavigate,
             modifier = Modifier.weight(1f),
@@ -132,6 +146,7 @@ fun HomeScreen(
 private fun HomeMainContent(
     options: List<MenuOption>,
     update: UpdateChecker.UpdateInfo?,
+    logoIndex: Int,
     onSearch: (String) -> Unit,
     onNavigate: (Screen) -> Unit,
     modifier: Modifier = Modifier,
@@ -158,18 +173,7 @@ private fun HomeMainContent(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                text = AsciiArt.LOGO,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
-                    lineHeight = 13.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                ),
-                textAlign = TextAlign.Center,
-            )
-
-            HomeVersion(update)
+            HomeLogo(update = update, index = logoIndex)
 
             Column(
                 modifier = Modifier.widthIn(min = 220.dp),
@@ -320,6 +324,34 @@ private fun HomePlaylistRailItem(
             name = playlist.name,
             size = HOME_RAIL_COVER,
         )
+    }
+}
+
+/**
+ * Logo ASCII de la Home (M32): el mismo PNG que Android (`ascii_1..50`), teñido
+ * con el color primario del tema. La columna alinea al final (derecha), así que la
+ * versión ([HomeVersion]) queda **debajo del logo, pegada a su derecha**, igual
+ * que en Android.
+ */
+@Composable
+private fun HomeLogo(update: UpdateChecker.UpdateInfo?, index: Int) {
+    val bitmap = remember(index) { AsciiArt.load(index) } ?: return
+    val painter = remember(bitmap) { BitmapPainter(bitmap) }
+    val intrinsic = painter.intrinsicSize
+
+    Column(horizontalAlignment = Alignment.End) {
+        Image(
+            painter = painter,
+            contentDescription = Translations.get("app_logo"),
+            contentScale = ContentScale.Fit,
+            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+            modifier = Modifier
+                .widthIn(max = LOGO_MAX_WIDTH)
+                .heightIn(max = LOGO_MAX_HEIGHT)
+                .aspectRatio(intrinsic.width / intrinsic.height)
+                .testTag("home_logo"),
+        )
+        HomeVersion(update)
     }
 }
 

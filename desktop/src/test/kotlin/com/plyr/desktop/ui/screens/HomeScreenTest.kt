@@ -2,6 +2,7 @@ package com.plyr.desktop.ui.screens
 
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -14,8 +15,10 @@ import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.russhwolf.settings.MapSettings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import kotlin.math.abs
 
 /**
  * Home del escritorio (M18/M28/M29): panel vertical de listas visibles con su
@@ -123,5 +126,25 @@ class HomeScreenTest {
         onNodeWithTag("home_playlist_p1").performClick()
 
         assertEquals("p1", abierta)
+    }
+
+    @Test
+    fun elLogoAsciiSeVeConSuVersionDebajoYAlineadaALaDerecha() = runComposeUiTest {
+        // `logoIndex` fija el logo para que el test sea determinista (M32).
+        setContent { PlyrTheme { HomeScreen(onNavigate = {}, logoIndex = 1) } }
+
+        val logo = onNodeWithTag("home_logo").assertIsDisplayed().getBoundsInRoot()
+        val version = onNodeWithTag("home_version").assertIsDisplayed().getBoundsInRoot()
+
+        // La versión queda justo debajo del logo...
+        assertTrue(
+            "La versión (top=${version.top.value}) debería ir bajo el logo (bottom=${logo.bottom.value})",
+            version.top.value >= logo.bottom.value,
+        )
+        // ...y pegada a su borde derecho.
+        assertTrue(
+            "La versión (right=${version.right.value}) debería alinearse con el logo (right=${logo.right.value})",
+            abs((version.right - logo.right).value) <= 1f,
+        )
     }
 }
