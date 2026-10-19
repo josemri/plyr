@@ -312,16 +312,32 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # jpackage no compila en cruzado, así que cada arquitectura necesita su
+          # propio runner. macOS va por duplicado: Apple Silicon e Intel.
           - os: ubuntu-latest
-            platform: linux
+            platform: Linux x64
           - os: windows-latest
-            platform: windows
-          - os: macos-latest
-            platform: macos
+            platform: Windows x64
+          - os: macos-14
+            platform: macOS Apple Silicon
+          - os: macos-15-intel
+            platform: macOS Intel
+    # Secretos de firma. Si un secreto no existe llega vacío y el paso de firma
+    # correspondiente se salta; la release se publica igual, sin firmar.
+    #   macOS:   MACOS_SIGN_IDENTITY, MACOS_CERTIFICATE,
+    #            MACOS_CERTIFICATE_PASSWORD, MACOS_KEYCHAIN_PASSWORD,
+    #            APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID
+    #   Windows: WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD
+    env:
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout (versión incrementada)
+      - name: Checkout version (release tag)
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.release.outputs.next_tag }}
@@ -336,6 +352,37 @@ jobs:
       - name: Make gradlew executable
         shell: bash
         run: chmod +x ./gradlew
+
+      - name: Import macOS signing certificate
+        # Solo si hay certificado: en caso contrario el `.dmg` se genera sin
+        # firmar (firma ad-hoc en Apple Silicon) y la release sale igual.
+        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != ''
+        shell: bash
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cert_path="$RUNNER_TEMP/plyr-signing.p12"
+          keychain_path="$RUNNER_TEMP/plyr-signing.keychain-db"
+          keychain_password="${MACOS_KEYCHAIN_PASSWORD:-$(openssl rand -hex 16)}"
+
+          printf '%s' "$MACOS_CERTIFICATE" | tr -d '\n\r' | openssl base64 -d -A > "$cert_path"
+
+          security create-keychain -p "$keychain_password" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$keychain_password" "$keychain_path"
+          security import "$cert_path" -k "$keychain_path" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$keychain_password" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path" \
+            $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning "$keychain_path"
+
+          echo "MACOS_SIGN_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
+          rm -f "$cert_path"
 
       - name: Install rpm tooling (Linux)
         if: runner.os == 'Linux'
@@ -370,20 +417,79 @@ jobs:
           bash desktop/packaging/build-appimage.sh "$app_image" \
             desktop/build/compose/binaries/main/appimage "$version"
 
+      - name: Notarize macOS app
+        # Requiere el certificado de firma y las credenciales de Apple; si falta
+        # algo, el `.dmg` se publica sin notarizar (aviso de Gatekeeper al abrir).
+        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != '' && env.APPLE_ID != ''
+        shell: bash
+        run: ./gradlew :desktop:notarizeDmg --no-daemon --stacktrace
+
+      - name: Sign Windows installer
+        # jpackage no firma en Windows, así que se firma el `.msi` a posteriori
+        # con `signtool` (Authenticode + sellado de tiempo).
+        if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE != ''
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $certPath = Join-Path $env:RUNNER_TEMP 'plyr-signing.pfx'
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+
+          $signtool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" `
+            -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -Last 1
+          if (-not $signtool) { throw 'No se encontró signtool.exe (Windows SDK)' }
+
+          $installers = @(Get-ChildItem -Path 'desktop/build/compose/binaries' -Recurse -File -Include '*.msi')
+          if ($installers.Count -eq 0) { throw 'No se encontró ningún .msi para firmar' }
+
+          foreach ($installer in $installers) {
+            & $signtool.FullName sign /fd SHA256 /f $certPath /p $env:WINDOWS_CERTIFICATE_PASSWORD `
+              /tr http://timestamp.digicert.com /td SHA256 $installer.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Falló la firma de $($installer.FullName)" }
+            & $signtool.FullName verify /pa $installer.FullName
+          }
+
+          Remove-Item $certPath -Force
+
       - name: Locate installers
         shell: bash
         run: |
           # Nota: el target `AppImage` de Compose Desktop es el `app-image` de
           # jpackage (un directorio descomprimido), no un fichero `.AppImage`; en
           # Linux los instalables son `.deb` y `.rpm`.
-          : > desktop-installers.txt
           find desktop/build/compose/binaries -type f \
             \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
-               -o -name '*.msi' -o -name '*.dmg' -o -name '*.exe' \) 2>/dev/null >> desktop-installers.txt || true
+               -o -name '*.msi' -o -name '*.dmg' -o -name '*.exe' \) 2>/dev/null > desktop-installers-raw.txt || true
+
+          arch="$(uname -m)"
+          : > desktop-installers.txt
+          # macOS: el `.dmg` de Intel y el de Apple Silicon salen con el mismo
+          # nombre, así que se les añade la arquitectura para no pisarse.
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            if [ "${file##*.}" = "dmg" ] && [ "$RUNNER_OS" = "macOS" ]; then
+              renamed="${file%.dmg}-${arch}.dmg"
+              mv "$file" "$renamed"
+              file="$renamed"
+            fi
+            echo "$file" >> desktop-installers.txt
+          done < desktop-installers-raw.txt
+          rm -f desktop-installers-raw.txt
           if [ ! -s desktop-installers.txt ]; then
             echo "::error::No se encontró ningún instalable de escritorio en ${{ matrix.platform }}"
             exit 1
           fi
+
+          # Checksums por plataforma, adjuntos a la release para poder verificar
+          # la descarga (en Windows/Git Bash también existe `sha256sum`).
+          checksums="desktop-installers-${RUNNER_OS}-${arch}.sha256"
+          : > "$checksums"
+          while IFS= read -r file; do
+            [ -n "$file" ] || continue
+            echo "$(sha256sum "$file" | awk '{print $1}')  $(basename "$file")" >> "$checksums"
+          done < desktop-installers.txt
+          echo "desktop/$checksums" >> desktop-installers.txt
+
           echo "Instalables compilados:"
           cat desktop-installers.txt
 

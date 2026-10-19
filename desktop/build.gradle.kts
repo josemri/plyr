@@ -167,6 +167,17 @@ tasks.register<JavaExec>("soundCheck") {
     classpath = sourceSets["main"].runtimeClasspath
 }
 
+/**
+ * Firma y notarización de macOS (M34). Se leen del entorno porque en CI vienen
+ * de secretos; en local no están y el `.dmg` se empaqueta igual. `MACOS_SIGN_*`
+ * activan la firma (Developer ID Application); `APPLE_*` la notarización.
+ */
+val macIdentity: String? = providers.environmentVariable("MACOS_SIGN_IDENTITY").orNull
+val macKeychain: String? = providers.environmentVariable("MACOS_SIGN_KEYCHAIN").orNull
+val appleId: String? = providers.environmentVariable("APPLE_ID").orNull
+val applePassword: String? = providers.environmentVariable("APPLE_APP_PASSWORD").orNull
+val appleTeamId: String? = providers.environmentVariable("APPLE_TEAM_ID").orNull
+
 compose.desktop {
     application {
         mainClass = "com.plyr.desktop.MainKt"
@@ -198,6 +209,28 @@ compose.desktop {
                 menuGroup = "Audio"
                 debMaintainer = "josemri@users.noreply.github.com"
                 rpmLicenseType = "GPL-3.0-or-later"
+            }
+            macOS {
+                // Identificador inverso-DNS del bundle (M34): es el
+                // `CFBundleIdentifier` del `.app` y lo exige la firma.
+                bundleID = "io.github.josemri.plyr"
+                // Firma y notarización opcionales (M34): solo se activan si el
+                // entorno trae los datos (en CI, desde secretos). En local no se
+                // firma y el `.dmg` se genera igual (firma ad-hoc en Apple Silicon).
+                if (macIdentity != null) {
+                    signing {
+                        sign.set(true)
+                        identity.set(macIdentity)
+                        macKeychain?.let { keychain.set(it) }
+                    }
+                }
+                if (appleId != null && applePassword != null && appleTeamId != null) {
+                    notarization {
+                        appleID.set(appleId)
+                        password.set(applePassword)
+                        teamID.set(appleTeamId)
+                    }
+                }
             }
         }
     }
