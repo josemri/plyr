@@ -38,8 +38,8 @@ android {
         applicationId = "io.github.josemri.plyr"
         minSdk = 24
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.4.0"
+        versionCode = 12
+        versionName = "1.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
