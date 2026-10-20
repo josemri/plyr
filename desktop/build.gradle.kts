@@ -168,7 +168,7 @@ tasks.register<JavaExec>("soundCheck") {
 }
 
 /**
- * Firma y notarización de macOS (M34). Se leen del entorno porque en CI vienen
+ * Firma y notarización de macOS (M35). Se leen del entorno porque en CI vienen
  * de secretos; en local no están y el `.dmg` se empaqueta igual. `MACOS_SIGN_*`
  * activan la firma (Developer ID Application); `APPLE_*` la notarización.
  */
@@ -211,10 +211,10 @@ compose.desktop {
                 rpmLicenseType = "GPL-3.0-or-later"
             }
             macOS {
-                // Identificador inverso-DNS del bundle (M34): es el
+                // Identificador inverso-DNS del bundle (M35): es el
                 // `CFBundleIdentifier` del `.app` y lo exige la firma.
                 bundleID = "io.github.josemri.plyr"
-                // Firma y notarización opcionales (M34): solo se activan si el
+                // Firma y notarización opcionales (M35): solo se activan si el
                 // entorno trae los datos (en CI, desde secretos). En local no se
                 // firma y el `.dmg` se genera igual (firma ad-hoc en Apple Silicon).
                 if (macIdentity != null) {
