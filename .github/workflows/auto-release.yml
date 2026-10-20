@@ -592,6 +592,16 @@ jobs:
           # Necesario al final para empujar el commit de versión a `main`.
           fetch-depth: 0
 
+      - name: Bump version in build.gradle.kts
+        # El checkout trae la versión sin incrementar; sin este paso el `git
+        # commit` de más abajo no tendría nada que commitear. Es el mismo bump
+        # que aplicaron `release` (a su APK) y cada job de escritorio (a sus
+        # instaladores), solo en local.
+        run: |
+          sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ needs.release.outputs.next_code }}/" app/build.gradle.kts
+          sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ needs.release.outputs.next_name }}\"/" app/build.gradle.kts
+          grep -E "versionCode|versionName" app/build.gradle.kts
+
       - name: Download release assets
         # `latest` lleva los mismos ficheros que la release versionada: se bajan
         # de ahí —todavía en borrador— para volver a subirlos. Se hace **antes**
