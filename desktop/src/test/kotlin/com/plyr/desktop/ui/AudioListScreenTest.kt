@@ -155,4 +155,32 @@ class AudioListScreenTest {
         onNodeWithTag("playlists_create").assertIsDisplayed()
         onNodeWithTag("back_from_playlist_detail").assertDoesNotExist()
     }
+
+    @Test
+    fun elPanelDeListasEstaVisibleEnCualquierPantalla() = runComposeUiTest {
+        // M36: el panel deja de ser exclusivo de la Home y pasa a componerse en el
+        // contenedor, así que sigue visible al cambiar de sección.
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
+
+        onNodeWithTag("home_config").performClick()
+        onNodeWithTag("screen_CONFIG").assertIsDisplayed()
+
+        onNodeWithTag("home_playlists").assertIsDisplayed()
+        onNodeWithTag("home_more_lists").assertIsDisplayed()
+    }
+
+    @Test
+    fun elBotonLogoDelPanelVuelveAlInicioDesdeOtraPantalla() = runComposeUiTest {
+        // M36: el logo es el botón de vuelta al inicio, siempre visible.
+        setContent { PlyrTheme { AudioListScreen(openDatabase = { DesktopDatabase.inMemory() }) } }
+
+        onNodeWithTag("home_search_input").performTextInput("daft punk")
+        onNodeWithTag("home_search_input").performImeAction()
+        onNodeWithTag("screen_SEARCH").assertIsDisplayed()
+
+        onNodeWithTag("app_logo_home").assertIsDisplayed()
+        onNodeWithTag("app_logo_home").performClick()
+
+        onNodeWithTag("screen_HOME").assertIsDisplayed()
+    }
 }

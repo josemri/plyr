@@ -203,6 +203,10 @@ compose.desktop {
             // por reflexión y JNI, así que jlink no puede deducirlas: se incluyen
             // todos los módulos del JDK para que la app arranque sin Java instalado.
             includeAllModules = true
+            // Icono de la app (M36): el mismo `ic_launcher` de Android en las tres
+            // plataformas. jpackage exige un formato distinto por SO —PNG en Linux,
+            // `.icns` en macOS y `.ico` en Windows— y los tres se regeneran desde
+            // `app/src/main/ic_launcher-playstore.png` con `packaging/make-icons.sh`.
             linux {
                 iconFile.set(project.file("packaging/icon.png"))
                 appCategory = "Audio"
@@ -211,6 +215,8 @@ compose.desktop {
                 rpmLicenseType = "GPL-3.0-or-later"
             }
             macOS {
+                // Icono del `.app` y del `.dmg` (M36).
+                iconFile.set(project.file("packaging/icon.icns"))
                 // Identificador inverso-DNS del bundle (M35): es el
                 // `CFBundleIdentifier` del `.app` y lo exige la firma.
                 bundleID = "io.github.josemri.plyr"
@@ -231,6 +237,10 @@ compose.desktop {
                         teamID.set(appleTeamId)
                     }
                 }
+            }
+            windows {
+                // Icono del `.msi` y del acceso directo (M36).
+                iconFile.set(project.file("packaging/icon.ico"))
             }
         }
     }

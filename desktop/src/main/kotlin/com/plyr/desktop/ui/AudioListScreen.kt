@@ -2,6 +2,8 @@ package com.plyr.desktop.ui
 
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +54,7 @@ import com.plyr.desktop.sync.BackupController
 import com.plyr.desktop.sync.DataExporter
 import com.plyr.desktop.sync.DataImporter
 import com.plyr.desktop.sync.DataSync
+import com.plyr.desktop.ui.components.AppPlaylistRail
 import com.plyr.desktop.ui.components.TrackMenuActions
 import com.plyr.desktop.ui.screens.ConfigScreen
 import com.plyr.desktop.ui.screens.HomeScreen
@@ -338,129 +341,143 @@ fun AudioListScreen(
                     .fillMaxSize()
                     .padding(bottom = if (controlsVisible) CONTROLS_RESERVED_HEIGHT else 0.dp),
             ) {
-                when (currentScreen) {
-                    Screen.HOME -> HomeScreen(
-                        // El `>` de la Home abre la pantalla de listas (M34): se
-                        // limpia la selección para mostrar la rejilla y no la
-                        // última lista abierta desde el panel lateral.
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Panel lateral de listas (M36): se compone aquí, fuera del
+                    // `when`, para que siga visible al cambiar de pantalla. Su
+                    // botón-logo es la vía de vuelta al inicio, siempre visible.
+                    AppPlaylistRail(
+                        onHome = goHome,
                         onNavigate = { target ->
+                            // El `>` del panel abre la rejilla de listas (M34):
+                            // se limpia la selección para no reabrir el detalle.
                             if (target == Screen.PLAYLISTS) playlistsController.deselectPlaylist()
                             currentScreen = target
                         },
-                        // Carrusel de listas (M18): mismas listas visibles que la
-                        // pantalla de playlists; al pulsar una se abre su detalle.
                         playlists = playlistsState.playlists,
                         onOpenPlaylist = { id ->
                             playlistsController.selectPlaylist(id)
                             currentScreen = Screen.PLAYLISTS
                         },
-                        // Búsqueda en la Home (M28): lanza la consulta y abre los
-                        // resultados; sustituye al antiguo botón `plyr_search`.
-                        onSearch = { query ->
-                            searchController.performSearch(query)
-                            currentScreen = Screen.SEARCH
-                        },
-                        checkForUpdate = checkForUpdate,
                     )
-                    Screen.SEARCH -> {
-                        val openPlaylist = selectedYouTubePlaylist
-                        if (openPlaylist != null) {
-                            // Detalle de la lista de YouTube abierta (M19): sus
-                            // pistas, reproducir todo y guardarla como lista local.
-                            YouTubePlaylistDetailView(
-                                state = youtubeDetailState,
-                                onPlayTracks = playTracks,
-                                onToggleSave = youtubeDetailController::toggleSave,
-                                onShuffle = {
-                                    // Aleatorio (M20): misma idea que Android; no
-                                    // navega, la barra flotante muestra lo que suena.
-                                    playerController.startRandomized(youtubeDetailState.tracks.toPlayerTracks())
+
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        when (currentScreen) {
+                            Screen.HOME -> HomeScreen(
+                                // El menú de consola (`feed`) y el engranaje de
+                                // Ajustes siguen viviendo en la Home (M29).
+                                onNavigate = { target ->
+                                    if (target == Screen.PLAYLISTS) playlistsController.deselectPlaylist()
+                                    currentScreen = target
                                 },
-                                onBack = {
-                                    youtubeDetailController.close()
-                                    selectedYouTubePlaylist = null
+                                // Búsqueda en la Home (M28): lanza la consulta y abre
+                                // los resultados; sustituye al antiguo `plyr_search`.
+                                onSearch = { query ->
+                                    searchController.performSearch(query)
+                                    currentScreen = Screen.SEARCH
                                 },
+                                checkForUpdate = checkForUpdate,
                             )
-                        } else {
-                            SearchScreen(
-                                state = searchState,
-                                onQueryChange = searchController::onQueryChange,
-                                onSearch = { searchController.performSearch(it) },
-                                onPlayResult = { index ->
-                                    if (index in searchState.results.indices) {
-                                        playerController.play(searchState.results, index)
-                                    }
-                                },
+                            Screen.SEARCH -> {
+                                val openPlaylist = selectedYouTubePlaylist
+                                if (openPlaylist != null) {
+                                    // Detalle de la lista de YouTube abierta (M19): sus
+                                    // pistas, reproducir todo y guardarla como lista local.
+                                    YouTubePlaylistDetailView(
+                                        state = youtubeDetailState,
+                                        onPlayTracks = playTracks,
+                                        onToggleSave = youtubeDetailController::toggleSave,
+                                        onShuffle = {
+                                            // Aleatorio (M20): misma idea que Android; no
+                                            // navega, la barra flotante muestra lo que suena.
+                                            playerController.startRandomized(youtubeDetailState.tracks.toPlayerTracks())
+                                        },
+                                        onBack = {
+                                            youtubeDetailController.close()
+                                            selectedYouTubePlaylist = null
+                                        },
+                                    )
+                                } else {
+                                    SearchScreen(
+                                        state = searchState,
+                                        onQueryChange = searchController::onQueryChange,
+                                        onSearch = { searchController.performSearch(it) },
+                                        onPlayResult = { index ->
+                                            if (index in searchState.results.indices) {
+                                                playerController.play(searchState.results, index)
+                                            }
+                                        },
+                                        onBack = goHome,
+                                        playlists = playlistsState.playlists,
+                                        onLoadMore = searchController::loadMore,
+                                        onAddToPlaylist = { track, playlistId ->
+                                            playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
+                                        },
+                                        onToggleVideos = searchController::toggleVideos,
+                                        onTogglePlaylists = searchController::togglePlaylists,
+                                        onOpenPlaylist = { playlist ->
+                                            selectedYouTubePlaylist = playlist
+                                            youtubeDetailController.open(playlist)
+                                        },
+                                        menuActions = trackMenuActions,
+                                    )
+                                }
+                            }
+                            Screen.QUEUE -> QueueScreen(
+                                state = playerState,
+                                onJump = playerController::jumpTo,
+                                onMove = playerController::moveQueueItem,
                                 onBack = goHome,
                                 playlists = playlistsState.playlists,
-                                onLoadMore = searchController::loadMore,
                                 onAddToPlaylist = { track, playlistId ->
                                     playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
                                 },
-                                onToggleVideos = searchController::toggleVideos,
-                                onTogglePlaylists = searchController::togglePlaylists,
-                                onOpenPlaylist = { playlist ->
-                                    selectedYouTubePlaylist = playlist
-                                    youtubeDetailController.open(playlist)
-                                },
                                 menuActions = trackMenuActions,
+                            )
+                            Screen.PLAYLISTS -> {
+                                com.plyr.desktop.playlists.PlaylistsScreen(
+                                    controller = playlistsController,
+                                    downloadController = downloadController,
+                                    onBack = goHome,
+                                    onPlayTracks = playTracks,
+                                    // Aleatorio (M20): baraja la lista abierta y arranca.
+                                    // No navega a la cola: así el botón sigue a la vista
+                                    // para poder parar con `<stop>`.
+                                    isRandomizing = playerState.isRandomizing,
+                                    onPlayRandom = { tracks -> playerController.startRandomized(tracks.toPlayerTracks()) },
+                                    onStopRandomize = playerController::stopRandomized,
+                                    searchTracks = searchTracks,
+                                    onAddToQueue = { track ->
+                                        playerController.addToQueue(PlayerTrack.fromTrackRecord(0, track))
+                                    },
+                                )
+                            }
+                            Screen.FEED -> FeedScreen(
+                                controller = feedController,
+                                onBack = goHome,
+                                // M23: los vídeos se reproducen (la barra flotante muestra
+                                // lo que suena) y las listas se abren en la búsqueda.
+                                onPlayVideo = { videoId, title, artist ->
+                                    playerController.play(
+                                        listOf(
+                                            PlayerTrack(
+                                                id = "feed_$videoId",
+                                                title = title,
+                                                artist = artist,
+                                                videoId = videoId,
+                                            )
+                                        ),
+                                        0,
+                                    )
+                                },
+                                onOpenPlaylist = openYouTubePlaylist,
+                            )
+                            Screen.CONFIG -> ConfigScreen(
+                                onBack = goHome,
+                                backupController = backupController,
+                                spotifyImportController = spotifyController,
                             )
                         }
                     }
-                    Screen.QUEUE -> QueueScreen(
-                        state = playerState,
-                        onJump = playerController::jumpTo,
-                        onMove = playerController::moveQueueItem,
-                        onBack = goHome,
-                        playlists = playlistsState.playlists,
-                        onAddToPlaylist = { track, playlistId ->
-                            playlistsController.addTrackToPlaylist(playlistId, track.toTrackRecord(playlistId))
-                        },
-                        menuActions = trackMenuActions,
-                    )
-                    Screen.PLAYLISTS -> {
-                        com.plyr.desktop.playlists.PlaylistsScreen(
-                            controller = playlistsController,
-                            downloadController = downloadController,
-                            onBack = goHome,
-                            onPlayTracks = playTracks,
-                            // Aleatorio (M20): baraja la lista abierta y arranca.
-                            // No navega a la cola: así el botón sigue a la vista
-                            // para poder parar con `<stop>`.
-                            isRandomizing = playerState.isRandomizing,
-                            onPlayRandom = { tracks -> playerController.startRandomized(tracks.toPlayerTracks()) },
-                            onStopRandomize = playerController::stopRandomized,
-                            searchTracks = searchTracks,
-                            onAddToQueue = { track ->
-                                playerController.addToQueue(PlayerTrack.fromTrackRecord(0, track))
-                            },
-                        )
-                    }
-                    Screen.FEED -> FeedScreen(
-                        controller = feedController,
-                        onBack = goHome,
-                        // M23: los vídeos se reproducen (la barra flotante muestra
-                        // lo que suena) y las listas se abren en la búsqueda.
-                        onPlayVideo = { videoId, title, artist ->
-                            playerController.play(
-                                listOf(
-                                    PlayerTrack(
-                                        id = "feed_$videoId",
-                                        title = title,
-                                        artist = artist,
-                                        videoId = videoId,
-                                    )
-                                ),
-                                0,
-                            )
-                        },
-                        onOpenPlaylist = openYouTubePlaylist,
-                    )
-                    Screen.CONFIG -> ConfigScreen(
-                        onBack = goHome,
-                        backupController = backupController,
-                        spotifyImportController = spotifyController,
-                    )
                 }
             }
 

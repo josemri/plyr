@@ -3,6 +3,7 @@ package com.plyr.desktop.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -107,14 +108,17 @@ fun QueueScreen(
 
 /** Listado de la cola con, por fila, el menú de acciones y la reordenación. */
 @Composable
-private fun QueueList(
+private fun ColumnScope.QueueList(
     state: PlayerState,
     onJump: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
     menuActions: TrackMenuActions,
     requestAddToPlaylist: ((PlayerTrack) -> Unit)?,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+    // `weight(1f)`: sin él la lista se lleva todo el alto que quede y el botón
+    // `←` del final de la pantalla queda fuera de pantalla (M36). Por eso esta
+    // función es extensión de `ColumnScope`.
+    LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
         itemsIndexed(state.queue, key = { index, track -> "${track.id}#$index" }) { index, track ->
             QueueRow(
                 index = index,

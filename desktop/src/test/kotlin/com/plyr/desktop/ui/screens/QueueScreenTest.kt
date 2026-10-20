@@ -120,4 +120,27 @@ class QueueScreenTest {
 
         assertEquals(track("b"), requestedAdd)
     }
+
+    @Test
+    fun elBotonVolverSigueVisibleConUnaColaLarga() = runComposeUiTest {
+        // M36: el `LazyColumn` de la cola se llevaba todo el alto que quedaba y
+        // empujaba el `←` fuera de la ventana; solo se veía con la cola vacía.
+        var volvido = false
+        val larga = PlayerState(
+            queue = (1..80).map { track("t$it") },
+            currentIndex = 0,
+            title = "Track t1 - Artist t1",
+        )
+
+        setContent {
+            PlyrTheme {
+                QueueScreen(state = larga, onJump = {}, onMove = { _, _ -> }, onBack = { volvido = true })
+            }
+        }
+
+        onNodeWithTag("back_from_QUEUE").assertIsDisplayed()
+        onNodeWithTag("back_from_QUEUE").performClick()
+
+        assertEquals(true, volvido)
+    }
 }

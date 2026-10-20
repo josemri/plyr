@@ -7,6 +7,9 @@
 [![Desktop](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](https://github.com/josemri/plyr/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
 
+
+stram any song, build playlists, share 'em with qr, sync across devices. terminal inspired, runs on android, windows, linux and macOS. Open source, no ads, no telemetry.
+
 ## features
 
 - **YouTube streaming** — search and play any song (NewPipe Extractor).
@@ -58,6 +61,10 @@ CAMERA                    # QR code scanning (optional hardware)
   - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; `MusicService` is rewritten for desktop anyway)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
+- [ ] **Search Carrusel** reimplemente carrusel for album results
+- [ ] **Queue back** add back button to queue in desktop
+- [ ] **Home button** add home button for desktop version
+- [ ] **Playlist carrusel** carrusel will allways be visible in desktop
 
 ## license
 

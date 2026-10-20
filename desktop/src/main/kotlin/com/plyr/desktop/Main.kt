@@ -15,6 +15,7 @@ import com.plyr.desktop.media.trayActions
 import com.plyr.desktop.platform.AppPaths
 import com.plyr.desktop.player.PlayerController
 import com.plyr.desktop.ui.AudioListScreen
+import com.plyr.desktop.ui.theme.AppIcon
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.plyr.desktop.utils.UpdateChecker
 
@@ -59,7 +60,12 @@ fun main() = application {
         }
     }
 
-    Window(onCloseRequest = ::exitApplication, title = "plyr") {
+    // Icono de la app (M36): el mismo `ic_launcher` de Android, para la ventana,
+    // la barra de tareas y el conmutador de aplicaciones. Se recuerda porque no
+    // cambia y volver a cargarlo en cada recomposición sería un despilfarro.
+    val appIcon = remember { AppIcon.painter() }
+
+    Window(onCloseRequest = ::exitApplication, title = "plyr", icon = appIcon) {
         val dark = DesktopConfig.isDark(isSystemInDarkTheme())
         PlyrTheme(darkTheme = dark) {
             AudioListScreen(

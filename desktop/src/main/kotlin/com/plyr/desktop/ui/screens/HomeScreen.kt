@@ -1,12 +1,10 @@
 package com.plyr.desktop.ui.screens
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -14,12 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,7 +26,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -41,12 +33,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
-import com.plyr.database.LikedSongs
-import com.plyr.database.PlaylistRecord
 import com.plyr.desktop.i18n.Translations
 import com.plyr.desktop.platform.Browser
 import com.plyr.desktop.ui.MenuOption
@@ -57,13 +45,8 @@ import com.plyr.desktop.ui.theme.AsciiArt
 import com.plyr.desktop.ui.theme.PlyrSpacing
 import com.plyr.desktop.ui.theme.PlyrSymbols
 import com.plyr.desktop.utils.UpdateChecker
-import com.plyr.utils.UrlParser
 
 private val APP_VERSION = "v${UpdateChecker.CURRENT_VERSION}"
-
-/** Ancho del panel lateral de listas y tamaño de su portada (M28). */
-private val HOME_RAIL_WIDTH = 88.dp
-private val HOME_RAIL_COVER = 64.dp
 
 /** Tamaño máximo del logo ASCII de la Home (M32), como el `imageMax*` de Android. */
 private val LOGO_MAX_WIDTH = 280.dp
@@ -73,23 +56,22 @@ private val LOGO_MAX_HEIGHT = 220.dp
  * Pantalla de inicio del escritorio.
  *
  * Porta `com.plyr.ui.HomeScreen`, reorganizada en M28: la búsqueda está arriba
- * centrada (se envía con Enter, ya sin botón `plyr_search`) y las listas visibles
- * ([playlists], ya filtradas por `PlaylistFilters` en `AudioListScreen`) viven en
- * un panel **vertical pegado a la izquierda**, al estilo de la biblioteca de
- * Spotify en escritorio: solo la portada (sin nombre), siempre visible; pulsar
- * una avisa por [onOpenPlaylist] para abrir su detalle.
+ * centrada (se envía con Enter, ya sin botón `plyr_search`) y, debajo, el logo,
+ * la versión y el menú de consola.
+ *
+ * M36: el panel lateral de listas dejó de ser parte de esta pantalla —pasa a
+ * [com.plyr.desktop.ui.components.AppPlaylistRail], compuesto por el contenedor
+ * para estar visible en todas las secciones.
  *
  * M27: el menú ya no ofrece la cola; como en Android, se abre solo con el `^` de
  * los controles flotantes.
  *
- * M29: el menú se reduce a `feed`; las listas se abren con un `>` al final del
- * panel lateral y los ajustes con un engranaje a la derecha del buscador.
+ * M29: el menú se reduce a `feed` y los ajustes viven en un engranaje junto al
+ * buscador.
  */
 @Composable
 fun HomeScreen(
     onNavigate: (Screen) -> Unit,
-    playlists: List<PlaylistRecord> = emptyList(),
-    onOpenPlaylist: (String) -> Unit = {},
     onSearch: (String) -> Unit = {},
     checkForUpdate: (suspend () -> UpdateChecker.UpdateInfo?)? = null,
     logoIndex: Int? = null,
@@ -110,31 +92,16 @@ fun HomeScreen(
         LaunchedEffect(checkForUpdate) { update = checkForUpdate() }
     }
 
-    Row(
+    HomeMainContent(
+        options = options,
+        update = update,
+        logoIndex = selectedLogo,
+        onSearch = onSearch,
+        onNavigate = onNavigate,
         modifier = modifier
             .fillMaxSize()
             .testTag("screen_HOME"),
-    ) {
-        // Panel de listas lateral (M28): vertical y pegado a la izquierda, visible
-        // siempre (aunque no haya listas) para que la Home conserve el layout.
-        HomePlaylistRail(
-            playlists = playlists,
-            onOpenPlaylist = onOpenPlaylist,
-            onNavigate = onNavigate,
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(HOME_RAIL_WIDTH),
-        )
-
-        HomeMainContent(
-            options = options,
-            update = update,
-            logoIndex = selectedLogo,
-            onSearch = onSearch,
-            onNavigate = onNavigate,
-            modifier = Modifier.weight(1f),
-        )
-    }
+    )
 }
 
 /**
@@ -265,69 +232,6 @@ private fun HomeSearchBar(onSearch: (String) -> Unit, modifier: Modifier = Modif
 }
 
 /**
- * Panel lateral de listas (M28/M29): columna vertical con la portada de cada
- * lista, pegada al borde izquierdo como la biblioteca de Spotify, y un `>` al
- * final que lleva a la pantalla de listas. Se muestra siempre (aunque no haya
- * listas) y cada portada avisa por [onOpenPlaylist] para abrir el detalle.
- */
-@Composable
-private fun HomePlaylistRail(
-    playlists: List<PlaylistRecord>,
-    onOpenPlaylist: (String) -> Unit,
-    onNavigate: (Screen) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LazyColumn(
-        modifier = modifier
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .testTag("home_playlists"),
-        contentPadding = PaddingValues(PlyrSpacing.small),
-        verticalArrangement = Arrangement.spacedBy(PlyrSpacing.small),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        items(playlists, key = { it.remoteId }) { playlist ->
-            HomePlaylistRailItem(playlist = playlist, onOpenPlaylist = onOpenPlaylist)
-        }
-
-        // Atajo a la pantalla de listas (M29), al final del panel; sustituye al
-        // antiguo botón `plyr_lists` del menú.
-        item(key = "home_more_lists") {
-            ActionButton(
-                data = ActionButtonData(text = ">", onClick = { onNavigate(Screen.PLAYLISTS) }),
-                fontSize = 22.sp,
-                modifier = Modifier
-                    .padding(top = PlyrSpacing.medium)
-                    .testTag("home_more_lists"),
-            )
-        }
-    }
-}
-
-/** Portada de una lista en el panel lateral; al pulsarla se abre el detalle. */
-@Composable
-private fun HomePlaylistRailItem(
-    playlist: PlaylistRecord,
-    onOpenPlaylist: (String) -> Unit,
-) {
-    val isLiked = playlist.remoteId == LikedSongs.ID
-    val coverUrl = if (isLiked) null else UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable { onOpenPlaylist(playlist.remoteId) }
-            .testTag("home_playlist_${playlist.remoteId}"),
-    ) {
-        HomePlaylistCover(
-            isLiked = isLiked,
-            coverUrl = coverUrl,
-            name = playlist.name,
-            size = HOME_RAIL_COVER,
-        )
-    }
-}
-
-/**
  * Logo ASCII de la Home (M32): el mismo PNG que Android (`ascii_1..50`), teñido
  * con el color primario del tema. La columna alinea al final (derecha), así que la
  * versión ([HomeVersion]) queda **debajo del logo, pegada a su derecha**, igual
@@ -378,42 +282,4 @@ private fun HomeVersion(update: UpdateChecker.UpdateInfo?) {
             .testTag("home_version")
             .clickable(enabled = latest != null) { Browser.open(latest?.downloadUrl ?: UpdateChecker.RELEASES_URL) },
     )
-}
-
-/** Portada de una fila del panel lateral: imagen, corazón (me gusta) o inicial. */
-@Composable
-private fun HomePlaylistCover(isLiked: Boolean, coverUrl: String?, name: String, size: Dp) {
-    val shape = RoundedCornerShape(8.dp)
-    when {
-        isLiked -> Box(
-            modifier = Modifier
-                .size(size)
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text = "♥", fontSize = 20.sp, color = MaterialTheme.colorScheme.error)
-        }
-        !coverUrl.isNullOrBlank() -> AsyncImage(
-            model = coverUrl,
-            contentDescription = name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(size)
-                .clip(shape),
-        )
-        else -> Box(
-            modifier = Modifier
-                .size(size)
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = name.take(1).uppercase(),
-                style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
 }

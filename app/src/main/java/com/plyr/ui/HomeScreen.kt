@@ -3,7 +3,6 @@ package com.plyr.ui
 import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.*
@@ -25,13 +24,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
 import com.plyr.database.PlaylistEntity
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.ui.components.*
@@ -338,79 +335,15 @@ private fun HomePlaylistItem(
     val haptic = LocalHapticFeedback.current
     val isLiked = playlist.remoteId == "liked_songs"
     val coverUrl = if (isLiked) null else UrlParser.normalizeYoutubeThumb(playlist.imageUrl)
-    Column(
-        modifier = Modifier
-            .width(140.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onOpenPlaylist(playlist.remoteId)
-            },
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        HomePlaylistCover(
-            isLiked = isLiked,
-            coverUrl = coverUrl,
-            name = playlist.name
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = playlist.name,
-            style = MaterialTheme.typography.bodySmall,
-            color = if (isLiked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-private fun HomePlaylistCover(
-    isLiked: Boolean,
-    coverUrl: String?,
-    name: String
-) {
-    when {
-        isLiked -> {
-            Box(
-                modifier = Modifier
-                    .size(140.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "♥",
-                    fontSize = 48.sp,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-        coverUrl != null -> {
-            AsyncImage(
-                model = coverUrl,
-                contentDescription = name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(140.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            )
-        }
-        else -> {
-            Box(
-                modifier = Modifier
-                    .size(140.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = name.take(1),
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
+    // La tarjeta es el componente compartido (M36): la misma que usan los
+    // carruseles de resultados de la búsqueda.
+    PlaylistCoverCard(
+        coverUrl = coverUrl,
+        title = playlist.name,
+        isLiked = isLiked,
+        onClick = {
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            onOpenPlaylist(playlist.remoteId)
+        },
+    )
 }

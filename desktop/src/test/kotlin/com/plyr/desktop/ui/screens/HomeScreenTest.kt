@@ -8,8 +8,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
-import com.plyr.database.PlaylistRecord
-import com.plyr.database.PlaylistSource
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.ui.Screen
 import com.plyr.desktop.ui.theme.PlyrTheme
@@ -21,10 +19,11 @@ import org.junit.Test
 import kotlin.math.abs
 
 /**
- * Home del escritorio (M18/M28/M29): panel vertical de listas visibles con su
- * portada y un `>` que abre la pantalla de listas; el menú se reduce a `feed` y
- * los ajustes pasan a un engranaje junto al buscador. Pulsar una lista avisa para
- * abrir su detalle; sin listas, el panel sigue visible pero vacío.
+ * Home del escritorio (M18/M28/M29/M36): el menú se reduce a `feed`, los ajustes
+ * viven en un engranaje junto al buscador y el logo va debajo con su versión.
+ *
+ * M36: el panel lateral de listas ya no es parte de esta pantalla —se compone en
+ * el contenedor— y se testea en `AppPlaylistRailTest`.
  */
 @OptIn(ExperimentalTestApi::class)
 class HomeScreenTest {
@@ -34,42 +33,10 @@ class HomeScreenTest {
         DesktopConfig.installSettings(MapSettings())
     }
 
-    private fun playlist(remoteId: String, name: String, imageUrl: String? = null) = PlaylistRecord(
-        remoteId = remoteId,
-        name = name,
-        description = null,
-        trackCount = 3,
-        imageUrl = imageUrl,
-        lastSyncTime = 0L,
-        source = PlaylistSource.LOCAL,
-        sourceId = null,
-    )
-
     @Test
-    fun muestraElCarruselConLasListasVisibles() = runComposeUiTest {
-        setContent {
-            PlyrTheme {
-                HomeScreen(
-                    onNavigate = {},
-                    playlists = listOf(playlist("p1", "Rock"), playlist("p2", "Jazz")),
-                )
-            }
-        }
-
-        onNodeWithTag("home_playlists").assertIsDisplayed()
-        onNodeWithTag("home_playlist_p1").assertIsDisplayed()
-        onNodeWithTag("home_playlist_p2").assertIsDisplayed()
-        // El `>` de la pantalla de listas cierra el panel (M29).
-        onNodeWithTag("home_more_lists").assertIsDisplayed()
-    }
-
-    @Test
-    fun sinListasElPanelSigueVisiblePeroVacio() = runComposeUiTest {
+    fun elMenuSeReduceAFeedYTodoLoDemasViveEnLaHome() = runComposeUiTest {
         setContent { PlyrTheme { HomeScreen(onNavigate = {}) } }
 
-        // El panel lateral está siempre visible, aunque no haya listas que mostrar.
-        onNodeWithTag("home_playlists").assertIsDisplayed()
-        onNodeWithTag("home_playlist_p1").assertDoesNotExist()
         // El menú de consola se reduce a `feed`; búsqueda y ajustes viven en la Home.
         onNodeWithTag("menu_FEED").assertIsDisplayed()
         onNodeWithTag("home_search_input").assertIsDisplayed()
@@ -77,16 +44,6 @@ class HomeScreenTest {
         onNodeWithTag("menu_PLAYLISTS").assertDoesNotExist()
         onNodeWithTag("menu_CONFIG").assertDoesNotExist()
         onNodeWithTag("menu_SEARCH").assertDoesNotExist()
-    }
-
-    @Test
-    fun laFlechaDelPanelAvisaParaAbrirListas() = runComposeUiTest {
-        var destino: Screen? = null
-        setContent { PlyrTheme { HomeScreen(onNavigate = { destino = it }) } }
-
-        onNodeWithTag("home_more_lists").performClick()
-
-        assertEquals(Screen.PLAYLISTS, destino)
     }
 
     @Test
@@ -108,24 +65,6 @@ class HomeScreenTest {
         onNodeWithTag("home_search_input").performImeAction()
 
         assertEquals("daft punk", consulta)
-    }
-
-    @Test
-    fun pulsarUnaListaAvisaParaAbrirSuDetalle() = runComposeUiTest {
-        var abierta: String? = null
-        setContent {
-            PlyrTheme {
-                HomeScreen(
-                    onNavigate = {},
-                    playlists = listOf(playlist("p1", "Rock")),
-                    onOpenPlaylist = { abierta = it },
-                )
-            }
-        }
-
-        onNodeWithTag("home_playlist_p1").performClick()
-
-        assertEquals("p1", abierta)
     }
 
     @Test

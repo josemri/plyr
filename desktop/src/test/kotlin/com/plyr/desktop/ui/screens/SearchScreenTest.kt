@@ -353,4 +353,57 @@ class SearchScreenTest {
 
         onNodeWithTag("search_menu_0").assertDoesNotExist()
     }
+
+    // --- M36: los resultados van en carruseles ---
+
+    @Test
+    fun lasCancionesSeAgrupanEnPaquetesDeCinco() = runComposeUiTest {
+        // Siete pistas: dos paquetes —el segundo con solo dos— y numeración global.
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(query = "x", results = (1..7).map { track("t$it") }),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_pack_0").assertIsDisplayed()
+        onNodeWithTag("search_pack_1").assertIsDisplayed()
+        onNodeWithTag("search_pack_2").assertDoesNotExist()
+
+        // La numeración es la global de la búsqueda, no la del paquete.
+        onNodeWithText("1. Track t1").assertIsDisplayed()
+        onNodeWithText("6. Track t6").assertIsDisplayed()
+        onNodeWithText("7. Track t7").assertIsDisplayed()
+    }
+
+    @Test
+    fun elCarruselDeListasMuestraTarjetasConSuTitulo() = runComposeUiTest {
+        setContent {
+            PlyrTheme {
+                SearchScreen(
+                    state = SearchState(
+                        query = "mix",
+                        playlists = listOf(
+                            YouTubePlaylistInfo("PL1", "Mix", "DJ", 3, null),
+                            YouTubePlaylistInfo("PL2", "Otra", "Alguien", 9, null),
+                        ),
+                    ),
+                    onQueryChange = {},
+                    onSearch = {},
+                    onPlayResult = {},
+                    onBack = {},
+                    onOpenPlaylist = {},
+                )
+            }
+        }
+
+        onNodeWithTag("search_playlists_carousel").assertIsDisplayed()
+        onNodeWithText("Mix").assertIsDisplayed()
+        onNodeWithText("Otra").assertIsDisplayed()
+    }
 }

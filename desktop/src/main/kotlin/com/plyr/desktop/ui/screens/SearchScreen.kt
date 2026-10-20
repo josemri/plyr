@@ -1,8 +1,10 @@
 package com.plyr.desktop.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,24 +14,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.plyr.database.PlaylistRecord
@@ -199,9 +207,24 @@ private fun SearchBar(
     }
 }
 
+/** Tamaño de cada paquete de canciones del carrusel (M36). */
+private const val SONG_PACK_SIZE = 5
+
+/** Ancho de un paquete de canciones y de una tarjeta de lista. */
+private val SONG_PACK_WIDTH = 300.dp
+private val PLAYLIST_CARD_WIDTH = 140.dp
+private val PLAYLIST_CARD_COVER = 140.dp
+
+/** Separación común de los dos carruseles de resultados. */
+private val CAROUSEL_SPACING = 12.dp
+
 /**
- * Resultados de una búsqueda (M19): una sola `LazyColumn` con la sección de
- * vídeos y la de listas, ambas plegables —el mismo `v`/`>` que Android.
+ * Resultados de una búsqueda (M36): dos carruseles horizontales en una sola
+ * `LazyColumn` — arriba las listas, como tarjetas iguales a las del carrusel de
+ * la Home de Android, y debajo las canciones agrupadas en paquetes de cinco.
+ *
+ * Sustituyen a las dos listas verticales plegables de M19; las cabeceras
+ * siguen siendo las mismas (`v`/`>`) y siguen plegando su carrusel.
  */
 @Composable
 private fun SearchResultsList(
@@ -214,7 +237,11 @@ private fun SearchResultsList(
     onLoadMore: () -> Unit,
     menuActions: TrackMenuActions,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize()) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(PlyrSpacing.xs),
+    ) {
+        playlistsSection(state, onTogglePlaylists, onOpenPlaylist)
         videosSection(
             state = state,
             onToggle = onToggleVideos,
@@ -224,16 +251,145 @@ private fun SearchResultsList(
                     index = index,
                     track = track,
                     onPlayResult = onPlayResult,
-                    onAddToPlaylist = onAddToPlaylist,
                     menuItems = menuActions.itemsFor(track, onAddToPlaylist),
                 )
             },
         )
-        playlistsSection(state, onTogglePlaylists, onOpenPlaylist)
     }
 }
 
-/** Sección de vídeos: cabecera plegable, resultados y «cargar más» (M21). */
+/**
+ * ¿Toca pedir la página siguiente del carrusel? Solo cuando el último paso está
+ * a la vista **tras haber desplazado**: si todo cabe en pantalla, el final ya se
+ * ve sin mover el ratón y no debe cargar por su cuenta.
+ */
+private fun debePedirMas(
+    scrolled: Boolean,
+    lastVisible: Int?,
+    packCount: Int,
+    trailerCount: Int,
+    canLoadMore: Boolean,
+): Boolean {
+    val lastItem = packCount + trailerCount - 1
+    return scrolled && lastItem >= 0 && lastVisible == lastItem && canLoadMore
+}
+
+/** Carrusel de canciones (M36): paquetes de [SONG_PACK_SIZE] apilados en columna. */
+@Composable
+private fun SongPacksCarousel(
+    tracks: List<PlayerTrack>,
+    isLoadingMore: Boolean,
+    canLoadMore: Boolean,
+    onLoadMore: () -> Unit,
+    itemContent: @Composable (index: Int, track: PlayerTrack) -> Unit,
+) {
+    val listState = rememberLazyListState()
+    val packCount = (tracks.size + SONG_PACK_SIZE - 1) / SONG_PACK_SIZE
+    val trailerCount = if (isLoadingMore || canLoadMore) 1 else 0
+
+    // Al desplazarse hasta el final se pide la página siguiente (M21), igual que
+    // el «cargar más» del último paso. Solo se dispara tras desplazar: si todo
+    // cabe en pantalla el final ya se ve sin mover el ratón y no debe cargar solo.
+    // `canLoadMore` baja al empezar la carga, así que no se dispara dos veces.
+    val scrolled by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0 } }
+    val lastVisible by remember { derivedStateOf { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index } }
+    LaunchedEffect(scrolled, lastVisible, packCount, trailerCount, canLoadMore) {
+        if (debePedirMas(scrolled, lastVisible, packCount, trailerCount, canLoadMore)) onLoadMore()
+    }
+
+    LazyRow(
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(CAROUSEL_SPACING),
+        contentPadding = PaddingValues(horizontal = PlyrSpacing.xs),
+        modifier = Modifier.fillMaxWidth().testTag("search_songs_carousel"),
+    ) {
+        items(packCount, key = { pack -> "search_pack_$pack" }) { pack ->
+            val start = pack * SONG_PACK_SIZE
+            Column(
+                modifier = Modifier
+                    .width(SONG_PACK_WIDTH)
+                    .testTag("search_pack_$pack"),
+                verticalArrangement = Arrangement.spacedBy(PlyrSpacing.xs),
+            ) {
+                tracks.subList(start, minOf(start + SONG_PACK_SIZE, tracks.size))
+                    .forEachIndexed { offset, track -> itemContent(start + offset, track) }
+            }
+        }
+
+        if (isLoadingMore) {
+            item(key = "search_loading_more") {
+                Box(modifier = Modifier.width(SONG_PACK_WIDTH)) {
+                    StatusText(Translations.get("search_loading"), "search_loading_more")
+                }
+            }
+        } else if (canLoadMore) {
+            item(key = "search_load_more") {
+                Box(modifier = Modifier.width(SONG_PACK_WIDTH)) { LoadMoreRow(onLoadMore) }
+            }
+        }
+    }
+}
+
+/** Carrusel de listas (M36): tarjetas iguales a las de la Home de Android. */
+@Composable
+private fun PlaylistCarousel(
+    playlists: List<YouTubePlaylistInfo>,
+    onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)?,
+) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(CAROUSEL_SPACING),
+        contentPadding = PaddingValues(horizontal = PlyrSpacing.xs),
+        modifier = Modifier.fillMaxWidth().testTag("search_playlists_carousel"),
+    ) {
+        items(playlists, key = { it.playlistId }) { playlist ->
+            PlaylistCard(playlist = playlist, onClick = onOpenPlaylist)
+        }
+    }
+}
+
+/** Tarjeta de una lista en el carrusel: portada cuadrada con el título debajo. */
+@Composable
+private fun PlaylistCard(
+    playlist: YouTubePlaylistInfo,
+    onClick: ((YouTubePlaylistInfo) -> Unit)?,
+) {
+    Column(
+        modifier = Modifier
+            .width(PLAYLIST_CARD_WIDTH)
+            .testTag("search_playlist_${playlist.playlistId}")
+            .clickable(enabled = onClick != null) { onClick?.invoke(playlist) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        PlaylistCover(
+            url = playlist.thumbnailUrl,
+            size = PLAYLIST_CARD_COVER,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)),
+        )
+        Spacer(Modifier.height(PlyrSpacing.xs))
+        Text(
+            text = playlist.title,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = listOf(
+                playlist.uploader,
+                String.format(Locale.ROOT, Translations.get("tracks_count"), playlist.videoCount),
+            ).filter { it.isNotBlank() }.joinToString("  ·  "),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/** Sección de canciones: cabecera plegable y su carrusel de paquetes (M36). */
 private fun LazyListScope.videosSection(
     state: SearchState,
     onToggle: () -> Unit,
@@ -251,21 +407,19 @@ private fun LazyListScope.videosSection(
         )
     }
     if (state.videosExpanded) {
-        itemsIndexed(state.results, key = { index, track -> "${track.id}#$index" }) { index, track ->
-            itemContent(index, track)
-        }
-        when {
-            state.isLoadingMore ->
-                item(key = "search_loading_more") {
-                    StatusText(Translations.get("search_loading"), "search_loading_more")
-                }
-            state.canLoadMore ->
-                item(key = "search_load_more") { LoadMoreRow(onLoadMore) }
+        item(key = "search_songs_carousel") {
+            SongPacksCarousel(
+                tracks = state.results,
+                isLoadingMore = state.isLoadingMore,
+                canLoadMore = state.canLoadMore,
+                onLoadMore = onLoadMore,
+                itemContent = itemContent,
+            )
         }
     }
 }
 
-/** Fila «> cargar más» al pie de los vídeos (M21), igual que en Android. */
+/** Fila «> cargar más» al final del carrusel de canciones (M21). */
 @Composable
 private fun LoadMoreRow(onLoadMore: () -> Unit) {
     Text(
@@ -282,7 +436,7 @@ private fun LoadMoreRow(onLoadMore: () -> Unit) {
     )
 }
 
-/** Sección de listas: cabecera plegable y, si está abierta, cada lista. */
+/** Sección de listas: cabecera plegable y, si está abierta, su carrusel. */
 private fun LazyListScope.playlistsSection(
     state: SearchState,
     onToggle: () -> Unit,
@@ -299,8 +453,8 @@ private fun LazyListScope.playlistsSection(
         )
     }
     if (state.playlistsExpanded) {
-        itemsIndexed(state.playlists, key = { _, playlist -> playlist.playlistId }) { _, playlist ->
-            PlaylistResultRow(playlist, onOpenPlaylist)
+        item(key = "search_playlists_carousel") {
+            PlaylistCarousel(playlists = state.playlists, onOpenPlaylist = onOpenPlaylist)
         }
     }
 }
@@ -328,48 +482,15 @@ private fun SectionHeader(
     )
 }
 
-/** Fila de una lista en los resultados: portada, título y datos (M19). */
-@Composable
-private fun PlaylistResultRow(
-    playlist: YouTubePlaylistInfo,
-    onOpenPlaylist: ((YouTubePlaylistInfo) -> Unit)?,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("search_playlist_${playlist.playlistId}")
-            .clickable(enabled = onOpenPlaylist != null) { onOpenPlaylist?.invoke(playlist) }
-            .padding(vertical = PlyrSpacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        PlaylistCover(url = playlist.thumbnailUrl, size = 40.dp)
-        Spacer(Modifier.width(PlyrSpacing.small))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist.title,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = listOf(
-                    playlist.uploader,
-                    String.format(Locale.ROOT, Translations.get("tracks_count"), playlist.videoCount),
-                ).filter { it.isNotBlank() }.joinToString("  ·  "),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
+/**
+ * Fila de una canción dentro de un paquete (M36): solo título y artista, con el
+ * menú `⋯` al final. El número es el global de la búsqueda, no el del paquete.
+ */
 @Composable
 private fun ResultRow(
     index: Int,
     track: PlayerTrack,
     onPlayResult: (Int) -> Unit,
-    onAddToPlaylist: ((PlayerTrack) -> Unit)? = null,
     menuItems: List<TrackMenuItem> = emptyList(),
 ) {
     Row(
@@ -390,20 +511,12 @@ private fun ResultRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = listOf(track.artist, track.duration).filter { it.isNotBlank() }
-                    .joinToString("  ·  "),
+                text = track.artist,
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        if (onAddToPlaylist != null) {
-            TextButton(
-                onClick = { onAddToPlaylist(track) },
-                modifier = Modifier.testTag("search_add_$index"),
-            ) {
-                Text(text = "+", fontFamily = FontFamily.Monospace)
-            }
         }
         TrackMenuButton(
             items = menuItems,

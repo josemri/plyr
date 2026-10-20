@@ -151,7 +151,8 @@ fun SongListItem(
     customButtonAction: (() -> Unit)? = null, // Nueva: Acción personalizada para el botón
     isDownloaded: Boolean = false, // El audio de esta pista está en el almacén offline
     downloadProgress: Float? = null, // 0..1 si esta pista se está bajando ahora (null si no)
-    onDeleteDownload: (() -> Unit)? = null // Borrar el audio offline de esta pista
+    onDeleteDownload: (() -> Unit)? = null, // Borrar el audio offline de esta pista
+    swipeEnabled: Boolean = true // Falso dentro de un carrusel horizontal (M36)
 ) {
     SongListItemContent(
         song = song,
@@ -167,7 +168,8 @@ fun SongListItem(
         customButtonAction = customButtonAction,
         isDownloaded = isDownloaded,
         downloadProgress = downloadProgress,
-        onDeleteDownload = onDeleteDownload
+        onDeleteDownload = onDeleteDownload,
+        swipeEnabled = swipeEnabled
     )
 }
 
@@ -186,7 +188,8 @@ private fun SongListItemContent(
     customButtonAction: (() -> Unit)?,
     isDownloaded: Boolean,
     downloadProgress: Float?,
-    onDeleteDownload: (() -> Unit)?
+    onDeleteDownload: (() -> Unit)?,
+    swipeEnabled: Boolean
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -220,7 +223,8 @@ private fun SongListItemContent(
         swipeState = swipeState,
         visuals = visuals,
         haptic = haptic,
-        onOpenPopup = { showPopup = true }
+        onOpenPopup = { showPopup = true },
+        swipeEnabled = swipeEnabled
     )
 
     SongListItemDialogs(
@@ -250,17 +254,22 @@ private fun SongSwipeContainer(
     swipeState: SongSwipeState,
     visuals: SwipeVisuals,
     haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
-    onOpenPopup: () -> Unit
+    onOpenPopup: () -> Unit,
+    swipeEnabled: Boolean
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 40.dp)
     ) {
-        SwipeBackgrounds(
-            dragOffset = swipeState.dragOffset.floatValue,
-            visuals = visuals
-        )
+        // Sin swipe no hay fondos: el gesto horizontal lo necesita el contenedor
+        // (p. ej. el carrusel de la búsqueda, M36).
+        if (swipeEnabled) {
+            SwipeBackgrounds(
+                dragOffset = swipeState.dragOffset.floatValue,
+                visuals = visuals
+            )
+        }
         SongRowContent(
             actionContext = actionContext,
             isSelected = isSelected,
@@ -271,7 +280,8 @@ private fun SongSwipeContainer(
             customButtonAction = customButtonAction,
             swipeState = swipeState,
             haptic = haptic,
-            onOpenPopup = onOpenPopup
+            onOpenPopup = onOpenPopup,
+            swipeEnabled = swipeEnabled
         )
     }
 }
@@ -331,7 +341,8 @@ private fun SongRowContent(
     customButtonAction: (() -> Unit)?,
     swipeState: SongSwipeState,
     haptic: androidx.compose.ui.hapticfeedback.HapticFeedback,
-    onOpenPopup: () -> Unit
+    onOpenPopup: () -> Unit,
+    swipeEnabled: Boolean
 ) {
     val song = actionContext.song
     val dragOffset = swipeState.dragOffset.floatValue
@@ -339,15 +350,23 @@ private fun SongRowContent(
     Row(
         modifier = Modifier
             .offset { IntOffset(dragOffset.roundToInt(), 0) }
-            .pointerInput(song.youtubeId, actionContext.index, actionContext.trackEntities) {
-                detectHorizontalDragGestures(
-                    onDragStart = { swipeState.cancelSettle() },
-                    onDragEnd = {
-                        handleSwipeEnd(swipeState.dragOffset.floatValue, swipeState, haptic, actionContext)
-                    },
-                    onHorizontalDrag = { _, dragAmount -> swipeState.dragBy(dragAmount) }
-                )
-            }
+            .then(
+                // El gesto horizontal solo se instala si el swipe está activo: dentro
+                // de un carrusel se comería el desplazamiento del contenedor (M36).
+                if (swipeEnabled) {
+                    Modifier.pointerInput(song.youtubeId, actionContext.index, actionContext.trackEntities) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { swipeState.cancelSettle() },
+                            onDragEnd = {
+                                handleSwipeEnd(swipeState.dragOffset.floatValue, swipeState, haptic, actionContext)
+                            },
+                            onHorizontalDrag = { _, dragAmount -> swipeState.dragBy(dragAmount) }
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .clickable {
                 handleSongClick(swipeState.dragOffset.floatValue, haptic, actionContext, swipeState)
             }
