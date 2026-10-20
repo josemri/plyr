@@ -119,6 +119,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Bump version in build.gradle.kts
+        # `shell: bash` explícito por coherencia con el mismo paso del job
+        # `desktop`, que sí corre en Windows.
+        shell: bash
         run: |
           sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ steps.version.outputs.next_code }}/" app/build.gradle.kts
           sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ steps.version.outputs.next_name }}\"/" app/build.gradle.kts
@@ -339,6 +342,11 @@ jobs:
         # Mismo bump que aplicó el job `release` a su APK, solo en local: así el
         # instalador lleva la versión que se está publicando y `jpackage` nombra
         # los ficheros con ella.
+        #
+        # `shell: bash` es OBLIGATORIO aquí: este job corre también en Windows,
+        # cuyo shell por defecto es PowerShell, y PowerShell se come las comillas
+        # escapadas del sed y lo convierte en una expresión de índice de array.
+        shell: bash
         run: |
           sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ needs.release.outputs.next_code }}/" app/build.gradle.kts
           sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ needs.release.outputs.next_name }}\"/" app/build.gradle.kts
