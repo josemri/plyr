@@ -1,12 +1,11 @@
 <img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" width="192" align="left" style="margin-right:16px;"/>
 
-**A minimalist, terminal-inspired music player for Android**
+**A minimalist, terminal-inspired music player**
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green.svg)](https://www.android.com)
+[![Desktop](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](https://github.com/josemri/plyr/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
-
-Built this music player because I wanted something simple with a terminal aesthetic. Streams audio from YouTube (via NewPipe Extractor, no API key required), manages local playlists, and has swipe actions for quick operations. The UI is ASCII-inspired with monospace fonts everywhere.
 
 ## features
 
@@ -14,13 +13,11 @@ Built this music player because I wanted something simple with a terminal aesthe
 - **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL**
 - **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
 - **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own .
-- **Swipe actions** — configurable left/right swipe on a song: queue, like, playlist or share. 
-- **Auto theme** by ambient light via the device light sensor. 
+- **Multiplatform** — compiled for android, windows, linux(debian && arch based) and macOS.
+- **run.sh** — bash script to compile, test, check all project.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase. 
-- **Background playback** — Media3 (ExoPlayer) foreground service with media notification controls.
-- **Media buttons** — play/pause, next, previous and 10 s skip from wireless headsets, Bluetooth and the notification.
 
-## screenshots
+## android
 
 <div align="center">
   <img src="screenshots/home_screen.jpeg" width="270" />
@@ -28,81 +25,15 @@ Built this music player because I wanted something simple with a terminal aesthe
   <img src="screenshots/search_screen.jpeg" width="270" />
 </div>
 
-## build from source
-
-There is a bash script in case you want to build from source; take a look at `./run.sh help` for all available commands.
-```bash
-git clone https://github.com/josemri/plyr.git
-cd plyr
-./run.sh build        # builds the debug APK
-./run.sh run          # compiles, installs and launches the app on the device
-./run.sh test         # runs the unit tests
-./run.sh check        # code analysis: detekt (dead code/structure), lint and test coverage
-```
-
-The script mounts its own environment (Java, Android SDK) under `/tmp`, so nothing is written to your home directory. Run `./run.sh clean` to wipe everything it generates.
-
-## project structure
-
-```
-plyr/
-├── app/src/main/java/com/plyr/
-│   ├── database/      # Room entities, DAOs & migrations
-│   ├── model/         # Pure data models (ScanResult, AppTrack, Recommendation...)
-│   ├── network/       # SupabaseClient, YouTubeManager, SimpleDownloader
-│   ├── receivers/     # MediaButtonReceiver, MediaButtonCommand
-│   ├── service/       # MusicService, YouTubeSearchManager, YouTubePlaylistCreator
-│   ├── ui/            # Compose screens & components
-│   ├── utils/         # Config, UrlParser, Translations, NfcReader, SpotifyImporter, DataSync, BackupFolder, CoverCache
-│   └── viewmodel/     # PlayerViewModel, SearchViewModel, ConfigViewModel, PlaylistViewModel
-├── gradle/            # Dependencies (libs.versions.toml)
-└── run.sh             # Build/install/test script
-```
-
 ## desktop
 
-There is a Compose Desktop port under [`desktop/`](desktop/), reusing the shared Kotlin logic from [`core/`](core/). The milestone plan and progress live in [`port.md`](port.md).
+<div align="center">
+  <img src="screenshots/home_screen_desktop.jpeg" width="270" />
+  <img src="screenshots/playlist_screen_desktop.jpeg" width="270" />
+  <img src="screenshots/search_screen_desktop.jpeg" width="270" />
+</div>
 
-```bash
-./gradlew :desktop:run          # run from source
-./gradlew :desktop:packageDeb   # Linux .deb (bundles its own Java runtime)
-```
-
-The packaged build ships its own Java runtime, so it starts **without Java installed**, but it still needs **VLC** at runtime (playback goes through [VLCJ](https://github.com/caprica/vlcj)):
-
-```bash
-sudo apt install libvlc5 vlc-plugin-base   # Debian/Ubuntu; the .deb declares it
-```
-
-Installers are built with `jpackage` through the Compose plugin:
-
-| OS      | Command                                            | Output                                        |
-|---------|----------------------------------------------------|-----------------------------------------------|
-| Linux   | `./gradlew :desktop:packageDeb`                    | `desktop/build/compose/binaries/main/deb/`    |
-| Linux   | `./gradlew :desktop:packageRpm`                    | needs the `rpm-build` package                 |
-| Windows | `./gradlew :desktop:packageMsi`                    | `.msi` (Windows only)                         |
-| macOS   | `./gradlew :desktop:packageDmg`                    | `.dmg` (macOS only)                           |
-
-`./gradlew :desktop:packageDistributionForCurrentOS` builds every format compatible with the host (on Linux: the `.deb` plus a portable app image). A single-file AppImage or a Flatpak is not generated here: jpackage only produces the portable `app-image`, and a real AppImage/Flatpak would need `appimagetool`/`flatpak-builder`. The packaging assets (icon, AppStream metadata and the `.deb` patch that declares `libvlc`) live in [`desktop/packaging/`](desktop/packaging/).
-
-### keyboard shortcuts
-
-The desktop build reuses the same `MediaCommand` vocabulary as the Android media buttons, so the keyboard, the tray icon and MPRIS (Linux) drive the same player:
-
-| Keys                          | Action                |
-|-------------------------------|-----------------------|
-| `Space`                       | play / pause          |
-| `→` / `←`                     | seek ±10 s            |
-| `Ctrl`/`Cmd` + `→` / `←`      | next / previous track |
-| media play, pause, next, previous, fast-forward, rewind | their action |
-
-Text fields keep priority: the shortcuts bubble up only when nothing else consumes the key.
-
-### updates
-
-Once a day the desktop build asks the GitHub releases API (same repo as Android) whether a newer version exists and, if so, shows it on the home screen next to the current version. The click opens the installer for the current OS (`.deb`/`.rpm`/`.AppImage`, `.msi` or `.dmg`) or, failing that, the releases page; actually upgrading is left to your package manager.
-
-## permissions
+## android permissions
 
 ```xml
 NFC                       # Tag scanning / sharing of playlists
@@ -112,8 +43,6 @@ FOREGROUND_SERVICE_MEDIA_PLAYBACK
 POST_NOTIFICATIONS        # Playback controls
 CAMERA                    # QR code scanning (optional hardware)
 ```
-
-`chmod 600 local.properties` and keep your keystore out of the repo — no secrets are tracked. See [`local.properties.example`](local.properties.example) for the optional overrides.
 
 ## roadmap
 
@@ -126,7 +55,7 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Split `PlaylistScreen.kt` into a `PlaylistViewModel` + Compose state
   - [x] Split `SearchScreen.kt` into a `SearchViewModel` + Compose state
   - [x] Split `ConfigScreen.kt` into a `ConfigViewModel` + Compose state
-  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; `MusicService` is rewritten for desktop anyway per `port.md`)
+  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; `MusicService` is rewritten for desktop anyway)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
 
