@@ -26,6 +26,12 @@ jobs:
     outputs:
       next_tag: ${{ steps.version.outputs.next_tag }}
       next_name: ${{ steps.version.outputs.next_name }}
+      # El job `publish` reconstruye con estos el cuerpo de la release `latest`,
+      # que aquí ya no se toca: solo se actualiza cuando todo ha salido bien.
+      apk_size: ${{ steps.find_apk.outputs.apk_size }}
+      apk_sha256: ${{ steps.find_apk.outputs.apk_sha256 }}
+      commit_count: ${{ steps.version.outputs.commit_count }}
+      changelog: ${{ steps.version.outputs.changelog }}
 
     steps:
       - name: Checkout repository
@@ -242,7 +248,11 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
           git push origin "${{ steps.version.outputs.next_tag }}"
 
-      - name: Create versioned release
+      - name: Create versioned release (draft)
+        # Se crea **en borrador**, invisible para los usuarios, mientras los cuatro
+        # runners de escritorio empaquetan y adjuntan sus instalables. Solo el job
+        # `publish`, si todo ha ido bien, la hace pública; si algo falla, el job
+        # `cleanup` la borra junto con el tag. Así nunca queda una release a medias.
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.next_tag }}
@@ -265,47 +275,29 @@ jobs:
             **Desktop:** download the installer for your OS — `.deb` (Debian/Ubuntu),
             `.rpm` (Fedora/openSUSE), `.AppImage` (universal, works on Arch too),
             `.msi` (Windows) or `.dmg` (macOS). The desktop version matches Android's.
-            Desktop installers are attached as soon as they finish building.
+            Every platform ships with its own `.sha256` file to verify the download.
           files: ${{ steps.find_apk.outputs.apk_path }}
-          draft: false
-          prerelease: false
-
-      - name: Update 'latest' release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: latest
-          name: ${{ steps.version.outputs.next_tag }}
-          body: |
-            ## plyr (latest)
-
-            **Current version:** ${{ steps.version.outputs.next_tag }}
-
-            Android: `plyr.apk`. Desktop: `.deb`/`.rpm`/`.AppImage`, `.msi` or `.dmg`
-            (same version as Android).
-            **APK size:** ${{ steps.find_apk.outputs.apk_size }}
-            **SHA-256:** `${{ steps.find_apk.outputs.apk_sha256 }}`
-            **Commits:** ${{ steps.version.outputs.commit_count }}
-
-            ### Recent changes
-            ${{ steps.version.outputs.changelog }}
-          files: ${{ steps.find_apk.outputs.apk_path }}
-          draft: false
+          draft: true
           prerelease: false
 
       - name: Summary
         if: success()
         run: |
           {
-            echo "## Release ${{ steps.version.outputs.next_tag }} created"
+            echo "## Release ${{ steps.version.outputs.next_tag }} created (draft)"
             echo ""
             echo "- APK size: ${{ steps.find_apk.outputs.apk_size }}"
             echo "- SHA-256: \`${{ steps.find_apk.outputs.apk_sha256 }}\`"
             echo "- Commits: ${{ steps.version.outputs.commit_count }}"
+            echo ""
+            echo "Sigue en borrador: se publicará al final, si todos los jobs de"
+            echo "escritorio terminan bien."
           } >> "$GITHUB_STEP_SUMMARY"
 
   desktop:
     # La versión ya está incrementada y etiquetada: los instalables de escritorio
-    # se compilan desde ese tag y se adjuntan a la misma release (y a `latest`).
+    # se compilan desde ese tag y se adjuntan a la release, que sigue en **borrador**
+    # hasta que el job `publish` decide publicarla.
     needs: release
     timeout-minutes: 90
     strategy:
@@ -389,6 +381,25 @@ jobs:
         shell: bash
         run: sudo apt-get update && sudo apt-get install -y rpm
 
+      - name: Validate app icon (macOS)
+        # El `.icns` se genera en Linux con `packaging/make-icons.sh` (ImageMagick
+        # no sabe escribirlo, así que lo monta un script en Python) y en local no
+        # hay forma de comprobarlo. Aquí `iconutil` convierte el contenedor a un
+        # `.iconset`, lo que obliga a parsearlo entero: falla en segundos y de
+        # forma clara en vez de publicar un `.dmg` con el icono roto.
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          icon="desktop/packaging/icon.icns"
+          [ -f "$icon" ] || { echo "::error::No existe $icon"; exit 1; }
+          work="$(mktemp -d)"
+          if ! iconutil -c iconset "$icon" -o "$work/app.iconset"; then
+            echo "::error::icon.icns no lo parsea iconutil. Regenera los iconos con ./desktop/packaging/make-icons.sh y revisa el montador en Python de ese script."
+            exit 1
+          fi
+          echo "icon.icns válido: $(ls "$work/app.iconset" | wc -l | tr -d ' ') tamaños"
+
       - name: Build desktop installers for ${{ matrix.platform }}
         shell: bash
         run: |
@@ -457,9 +468,16 @@ jobs:
           # Nota: el target `AppImage` de Compose Desktop es el `app-image` de
           # jpackage (un directorio descomprimido), no un fichero `.AppImage`; en
           # Linux los instalables son `.deb` y `.rpm`.
+          #
+          # El directorio `binaries/main/app/` es el app-image descomprimido: dentro
+          # lleva su propio `plyr.exe` (o `plyr`), que es solo el stub de lanzador y
+          # no sirve sin `lib/` y `runtime/`. Se excluye para no publicarlo como si
+          # fuera un instalador, y por eso el patrón no busca `.exe`. Se usa `!`
+          # y no `-not`, que el `find` de BSD (macOS) no entiende.
           find desktop/build/compose/binaries -type f \
             \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
-               -o -name '*.msi' -o -name '*.dmg' -o -name '*.exe' \) 2>/dev/null > desktop-installers-raw.txt || true
+               -o -name '*.msi' -o -name '*.dmg' \) \
+            ! -path '*/binaries/main/app/*' 2>/dev/null > desktop-installers-raw.txt || true
 
           arch="$(uname -m)"
           : > desktop-installers.txt
@@ -481,19 +499,35 @@ jobs:
           fi
 
           # Checksums por plataforma, adjuntos a la release para poder verificar
-          # la descarga (en Windows/Git Bash también existe `sha256sum`).
-          checksums="desktop-installers-${RUNNER_OS}-${arch}.sha256"
+          # la descarga. `sha256sum` es de GNU y no viene de serie en macOS (el de
+          # Windows sí lo trae Git Bash), así que si no está se usa `shasum -a 256`,
+          # que imprime en el mismo formato.
+          #
+          # El fichero se crea **dentro de `desktop/`** y se anota con esa misma
+          # ruta: `gh release upload` interpreta el argumento como un patrón y si
+          # no encuentra ningún fichero que case aborta con "no matches found".
+          if command -v sha256sum >/dev/null 2>&1; then
+            hash_file() { sha256sum "$1"; }
+          else
+            hash_file() { shasum -a 256 "$1"; }
+          fi
+          checksums="desktop/desktop-installers-${RUNNER_OS}-${arch}.sha256"
           : > "$checksums"
           while IFS= read -r file; do
             [ -n "$file" ] || continue
-            echo "$(sha256sum "$file" | awk '{print $1}')  $(basename "$file")" >> "$checksums"
+            echo "$(hash_file "$file" | awk '{print $1}')  $(basename "$file")" >> "$checksums"
           done < desktop-installers.txt
-          echo "desktop/$checksums" >> desktop-installers.txt
+          echo "$checksums" >> desktop-installers.txt
 
           echo "Instalables compilados:"
           cat desktop-installers.txt
 
-      - name: Upload installers to the release
+      - name: Upload installers to the draft release
+        # Se adjuntan solo a la release versionada, que está **en borrador**; el
+        # puntero `latest` no se toca aquí. Así, si este job falla, `cleanup`
+        # borra el borrador sin haber tocado nada público. Tanto la publicación
+        # como el refresco de `latest` los hace el job `publish`, cuando los
+        # cuatro runners han terminado bien.
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -502,8 +536,8 @@ jobs:
           while IFS= read -r file; do
             [ -n "$file" ] || continue
             gh release upload "$TAG" "$file" --clobber
-            gh release upload latest "$file" --clobber
           done < desktop-installers.txt
+          echo "Instalables adjuntados a $TAG (borrador)"
 
       - name: Summary
         if: success()
@@ -512,9 +546,127 @@ jobs:
           {
             echo "### Desktop (${{ matrix.platform }})"
             echo ""
-            echo "Instalables adjuntos a la release y a \`latest\`:"
+            echo "Instalables adjuntos a la release (borrador):"
             echo ""
             while IFS= read -r f; do
               [ -n "$f" ] && echo "- \`$f\`"
             done < desktop-installers.txt
           } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    # Única fase que toca algo público, y se ejecuta solo si **todo** lo anterior
+    # ha ido bien: se hace pública la release versionada y se refresca el puntero
+    # fijo `latest`. Si cualquier job previo falla, este no corre y `cleanup`
+    # retira el borrador, así que no puede quedar una release a medias.
+    needs: [release, desktop]
+    if: success()
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Download release assets
+        # `latest` lleva los mismos ficheros que la release versionada: se bajan
+        # de ahí —todavía en borrador— para volver a subirlos. Se hace **antes**
+        # de publicar, para que un fallo de red no deje la release pública con el
+        # puntero `latest` sin actualizar.
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          gh release download "${{ needs.release.outputs.next_tag }}" --dir release-assets
+          echo "Descargados $(ls release-assets | wc -l | tr -d ' ') ficheros:"
+          ls -lh release-assets
+
+      - name: Publish versioned release
+        run: gh release edit "${{ needs.release.outputs.next_tag }}" --draft=false
+
+      - name: Refresh 'latest' release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: ${{ needs.release.outputs.next_tag }}
+          body: |
+            ## plyr (latest)
+
+            **Current version:** ${{ needs.release.outputs.next_tag }}
+
+            Android: `plyr.apk`. Desktop: `.deb`/`.rpm`/`.AppImage`, `.msi` or `.dmg`
+            (same version as Android).
+            **APK size:** ${{ needs.release.outputs.apk_size }}
+            **SHA-256:** `${{ needs.release.outputs.apk_sha256 }}`
+            **Commits:** ${{ needs.release.outputs.commit_count }}
+
+            ### Recent changes
+            ${{ needs.release.outputs.changelog }}
+          files: release-assets/*
+          draft: false
+          prerelease: false
+
+      - name: Prune superseded assets from 'latest'
+        # `latest` es un puntero fijo, pero sus ficheros llevan el nombre de la
+        # versión (`plyr-1.4.0.msi`): sin esto se acumularían los de todas las
+        # releases anteriores y quien entrara podría instalarse una versión vieja.
+        # Va al final, cuando ya está todo lo demás hecho, para que un fallo aquí
+        # no deje a `latest` vacío.
+        run: |
+          set -euo pipefail
+          gh release view latest --json assets --jq -r '.assets[].name' > old-assets.txt || true
+          if [ ! -s old-assets.txt ]; then
+            echo "'latest' no tenía assets previos."
+            exit 0
+          fi
+          echo "Comparando con los $(ls release-assets | wc -l | tr -d ' ') ficheros de esta versión:"
+          # Se queda solo con lo que acaba de subirse: `plyr.apk` y los `.sha256`
+          # no llevan la versión en el nombre, así que el criterio es «¿existe en
+          # esta release?» y no «¿contiene el número de versión?».
+          while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            if [ -f "release-assets/$name" ]; then
+              echo "  se queda:  $name"
+            else
+              echo "  se retira: $name"
+              gh release delete-asset latest "$name" --yes
+            fi
+          done < old-assets.txt
+
+      - name: Summary
+        if: success()
+        run: |
+          {
+            echo "## Release ${{ needs.release.outputs.next_tag }} published"
+            echo ""
+            echo "- Release versionada pública con todos los instalables."
+            echo "- \`latest\` apuntando a ella."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    # Red de seguridad: si algo falla (o se cancela la ejecución) en cualquier
+    # punto, se tira todo lo creado —el borrador de la release y su tag— para que
+    # no quede nada a medias ni colgando.
+    #
+    # El commit de incremento de versión **se queda en `main`**: revertirlo
+    # obligaría a hacer force-push sobre la rama principal, que es peor. Como la
+    # versión se lee de `app/build.gradle.kts`, un reintento avanza de número
+    # (p. ej. 1.4.1 -> 1.4.2) y no se reutiliza el fallido.
+    needs: [release, desktop, publish]
+    # `always()` hace que se evalúe aunque algún requisito se haya saltado, y el
+    # filtro de abajo evita que corra cuando todo ha ido bien.
+    if: always() && (failure() || cancelled())
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Delete draft release and tag
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.release.outputs.next_tag }}"
+          if [ -z "$TAG" ]; then
+            echo "El job 'release' falló antes de calcular la versión: no hay nada que borrar."
+            exit 0
+          fi
+          if gh release delete "$TAG" --yes --cleanup-tag; then
+            echo "Release (borrador) $TAG y su tag eliminados. No se ha publicado nada."
+          else
+            echo "::warning::No se pudo borrar la release/tag $TAG. Bórrala a mano con: gh release delete $TAG --yes --cleanup-tag"
+          fi

@@ -223,14 +223,23 @@ compose.desktop {
                 // Firma y notarización opcionales (M35): solo se activan si el
                 // entorno trae los datos (en CI, desde secretos). En local no se
                 // firma y el `.dmg` se genera igual (firma ad-hoc en Apple Silicon).
-                if (macIdentity != null) {
+                //
+                // Ojo con la comprobación: en CI un secreto ausente llega como
+                // variable definida pero **vacía**, y vacío no es nula. Con
+                // `!= null` se activaba la firma con identidad `""` y jpackage
+                // revienta con `Could not find certificate for ''`; por eso aquí
+                // se usa `isNullOrBlank`.
+                if (!macIdentity.isNullOrBlank()) {
                     signing {
                         sign.set(true)
                         identity.set(macIdentity)
-                        macKeychain?.let { keychain.set(it) }
+                        macKeychain?.takeIf { it.isNotBlank() }?.let { keychain.set(it) }
                     }
                 }
-                if (appleId != null && applePassword != null && appleTeamId != null) {
+                if (!appleId.isNullOrBlank() &&
+                    !applePassword.isNullOrBlank() &&
+                    !appleTeamId.isNullOrBlank()
+                ) {
                     notarization {
                         appleID.set(appleId)
                         password.set(applePassword)
