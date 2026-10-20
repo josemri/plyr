@@ -26,6 +26,10 @@ jobs:
     outputs:
       next_tag: ${{ steps.version.outputs.next_tag }}
       next_name: ${{ steps.version.outputs.next_name }}
+      next_code: ${{ steps.version.outputs.next_code }}
+      # Commit exacto del que sale todo: los jobs de escritorio construyen desde
+      # él y aplican el mismo bump, en vez de confiar en que `main` no se ha movido.
+      source_sha: ${{ github.sha }}
       # El job `publish` reconstruye con estos el cuerpo de la release `latest`,
       # que aquí ya no se toca: solo se actualiza cuando todo ha salido bien.
       apk_size: ${{ steps.find_apk.outputs.apk_size }}
@@ -46,10 +50,8 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      # `git config` ya no hace falta: este job no hace commits (ver el aviso más
+      # abajo sobre el bump de versión).
 
       - name: Compute next version and changelog
         id: version
@@ -240,13 +242,10 @@ jobs:
           echo "apk_sha256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "cert_sha256=$CERT_SHA256" >> "$GITHUB_OUTPUT"
 
-      - name: Commit version bump and push tag
-        run: |
-          git add app/build.gradle.kts
-          git commit -m "chore(release): ${{ steps.version.outputs.next_tag }} [skip ci]"
-          git tag -a "${{ steps.version.outputs.next_tag }}" -m "Release ${{ steps.version.outputs.next_tag }}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
-          git push origin "${{ steps.version.outputs.next_tag }}"
+      # ATENCIÓN: aquí NO se hace commit ni se empuja el tag. El bump de versión
+      # es solo local a esta máquina. `main` no se toca hasta el final del job
+      # `publish`, cuando ya está todo construido y verificado: si algo falla en
+      # cualquier punto, la rama principal queda exactamente como estaba.
 
       - name: Create versioned release (draft)
         # Se crea **en borrador**, invisible para los usuarios, mientras los cuatro
@@ -329,10 +328,21 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout version (release tag)
+      - name: Checkout source commit
+        # El mismo commit del que salió el APK. No se usa el tag porque el tag
+        # todavía no existe: hasta el final solo hay un borrador.
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.next_tag }}
+          ref: ${{ needs.release.outputs.source_sha }}
+
+      - name: Bump version in build.gradle.kts
+        # Mismo bump que aplicó el job `release` a su APK, solo en local: así el
+        # instalador lleva la versión que se está publicando y `jpackage` nombra
+        # los ficheros con ella.
+        run: |
+          sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ needs.release.outputs.next_code }}/" app/build.gradle.kts
+          sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ needs.release.outputs.next_name }}\"/" app/build.gradle.kts
+          grep -E "versionCode|versionName" app/build.gradle.kts
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -555,16 +565,33 @@ jobs:
 
   publish:
     # Única fase que toca algo público, y se ejecuta solo si **todo** lo anterior
-    # ha ido bien: se hace pública la release versionada y se refresca el puntero
-    # fijo `latest`. Si cualquier job previo falla, este no corre y `cleanup`
-    # retira el borrador, así que no puede quedar una release a medias.
+    # ha ido bien. El orden de dentro es la clave de la atomicidad:
+    #
+    #   1. se bajan los instalables del borrador   (lo lento y propenso a fallar)
+    #   2. commit del bump + tag + publicar        (aquí ya solo quedan llamadas API)
+    #   3. `latest`
+    #   4. push del commit a `main`                (LO ÚLTIMO, y solo si todo fue bien)
+    #
+    # El tag se empuja antes de publicar para que apunte al commit con la versión
+    # ya incrementada, pero el commit NO se empuja a `main` hasta el final. Si
+    # cualquier paso falla, `cleanup` borra el borrador y el tag y la rama
+    # principal ni se ha enterado: no puede quedar una release a medias ni una
+    # versión modificada sin release asociada.
     needs: [release, desktop]
     if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
+      - name: Checkout source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release.outputs.source_sha }}
+          # Necesario al final para empujar el commit de versión a `main`.
+          fetch-depth: 0
+
       - name: Download release assets
         # `latest` lleva los mismos ficheros que la release versionada: se bajan
         # de ahí —todavía en borrador— para volver a subirlos. Se hace **antes**
@@ -576,6 +603,21 @@ jobs:
           gh release download "${{ needs.release.outputs.next_tag }}" --dir release-assets
           echo "Descargados $(ls release-assets | wc -l | tr -d ' ') ficheros:"
           ls -lh release-assets
+
+      - name: Commit version bump and create tag
+        # Solo el commit local y el tag; `main` sigue intacto. Git permite empujar
+        # un tag cuyo commit aún no está en ninguna rama, así que el tag ya queda
+        # apuntando a la versión incrementada sin haber modificado la principal.
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle.kts
+          git commit -m "chore(release): ${{ needs.release.outputs.next_tag }} [skip ci]"
+          git tag -a "${{ needs.release.outputs.next_tag }}" -m "Release ${{ needs.release.outputs.next_tag }}"
+          git push origin "${{ needs.release.outputs.next_tag }}"
+          echo "Tag ${{ needs.release.outputs.next_tag }} apuntando al commit con la versión"
+          echo "incrementada. 'main' todavía no se ha tocado."
 
       - name: Publish versioned release
         run: gh release edit "${{ needs.release.outputs.next_tag }}" --draft=false
@@ -629,6 +671,17 @@ jobs:
             fi
           done < old-assets.txt
 
+      - name: Push version bump to main
+        # Lo último y lo único que modifica la rama principal. Si la release no ha
+        # llegado hasta aquí, `main` se queda como estaba y la versión no avanza.
+        # Un fallo en este paso (p. ej. si alguien empujó a `main` mientras
+        # corría la workflow) deja todo lo demás publicado pero no versionado en
+        # la rama; se limpia con `gh release delete <tag> --yes --cleanup-tag`.
+        run: |
+          set -euo pipefail
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+          echo "Versión ${{ needs.release.outputs.next_name }} empujada a ${GITHUB_REF_NAME}."
+
       - name: Summary
         if: success()
         run: |
@@ -637,6 +690,7 @@ jobs:
             echo ""
             echo "- Release versionada pública con todos los instalables."
             echo "- \`latest\` apuntando a ella."
+            echo "- Versión ${{ needs.release.outputs.next_name }} empujada a \`main\`."
           } >> "$GITHUB_STEP_SUMMARY"
 
   cleanup:
@@ -644,10 +698,9 @@ jobs:
     # punto, se tira todo lo creado —el borrador de la release y su tag— para que
     # no quede nada a medias ni colgando.
     #
-    # El commit de incremento de versión **se queda en `main`**: revertirlo
-    # obligaría a hacer force-push sobre la rama principal, que es peor. Como la
-    # versión se lee de `app/build.gradle.kts`, un reintento avanza de número
-    # (p. ej. 1.4.1 -> 1.4.2) y no se reutiliza el fallido.
+    # No hace falta revertir nada en `main`: el commit de incremento de versión
+    # solo se empuja al final del job `publish`, así que si se llega hasta aquí la
+    # rama principal no se ha modificado y la versión no ha avanzado.
     needs: [release, desktop, publish]
     # `always()` hace que se evalúe aunque algún requisito se haya saltado, y el
     # filtro de abajo evita que corra cuando todo ha ido bien.
@@ -656,6 +709,10 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
+      # Sin esto `gh` no sabe en qué repositorio está (este job no hace checkout)
+      # y todos los comandos revientan con "not a git repository". Pasó de verdad:
+      # la limpieza del run 39443819677 terminó en verde sin borrar nada.
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Delete draft release and tag
         run: |
@@ -665,8 +722,18 @@ jobs:
             echo "El job 'release' falló antes de calcular la versión: no hay nada que borrar."
             exit 0
           fi
-          if gh release delete "$TAG" --yes --cleanup-tag; then
-            echo "Release (borrador) $TAG y su tag eliminados. No se ha publicado nada."
+          # El borrador puede no tener tag todavía (el tag se crea en el job
+          # `publish`), así que se borra la release y luego, solo si existe, el tag.
+          if gh release delete "$TAG" --yes; then
+            echo "Release (borrador) $TAG eliminada."
           else
-            echo "::warning::No se pudo borrar la release/tag $TAG. Bórrala a mano con: gh release delete $TAG --yes --cleanup-tag"
+            echo "::warning::No se pudo borrar la release $TAG. Bórrala a mano con: gh release delete $TAG --yes --cleanup-tag"
+          fi
+          # OJO: el endpoint de borrado lleva `refs` en PLURAL (`/git/refs/`),
+          # no como el de lectura (`/git/ref/`). Con el singular la API devuelve
+          # 404 y la limpieza fallaría en silencio.
+          if gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag $TAG eliminado."
+          else
+            echo "No había tag $TAG que borrar (es normal si el fallo fue antes de 'publish')."
           fi
