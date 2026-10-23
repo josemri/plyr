@@ -47,6 +47,11 @@ empty-blocks:
 
 performance:
   active: true
+  # El coste es una copia de un array de 3 strings por carga de pista, y la API
+  # de VLCJ (`prepare(uri, vararg options)`) obliga al spread. Desactivado para
+  # no trocear la llamada en variables intermedias por ruido.
+  SpreadOperator:
+    active: false
 
 coroutines:
   active: true

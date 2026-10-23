@@ -61,10 +61,7 @@ CAMERA                    # QR code scanning (optional hardware)
   - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; `MusicService` is rewritten for desktop anyway)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
-- [ ] **Search Carrusel** reimplemente carrusel for album results
-- [ ] **Queue back** add back button to queue in desktop
-- [ ] **Home button** add home button for desktop version
-- [ ] **Playlist carrusel** carrusel will allways be visible in desktop
+- [ ] **rm warning** rm all compiler warnings and update modules and dependencies
 
 ## license
 

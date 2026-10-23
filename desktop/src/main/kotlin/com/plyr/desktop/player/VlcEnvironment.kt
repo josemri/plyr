@@ -44,12 +44,48 @@ object VlcEnvironment {
     }
 
     /**
-     * Argumentos extra para `MediaPlayerFactory` cuando el runtime no está en
-     * una ruta estándar: apunta a los plugins de VLC del propio directorio.
+     * Directorio de plugins de VLC junto a [libraryDir], si existe y tiene
+     * módulos, o `null` si no se encuentran.
+     *
+     * `libvlc` localiza sus plugins en su ruta compilada, que en cualquier
+     * instalación del sistema es la de este directorio; no hace falta
+     * decírselo. Se expone solo para avisar cuando faltan: en Debian
+     * `libvlc5` (la biblioteca) y `vlc-plugin-base` (los módulos de sonido)
+     * son paquetes distintos, y tener el primero sin el segundo significa que
+     * el motor arranca pero no puede reproducir nada.
      */
-    fun factoryArgs(libraryDir: File): List<String> {
-        val pluginDir = File(libraryDir, "vlc/plugins")
-        return if (pluginDir.isDirectory) listOf("--plugin-path=${pluginDir.absolutePath}") else emptyList()
+    fun pluginDirOrNull(libraryDir: File): File? {
+        val os = System.getProperty("os.name").lowercase()
+        val relative = when {
+            os.contains("win") -> listOf("plugins", "vlc/plugins")
+            // `VLC.app/Contents/MacOS/lib` → `VLC.app/Contents/MacOS/plugins`
+            // y, en Homebrew, `<prefix>/lib/vlc/plugins`.
+            os.contains("mac") -> listOf("plugins", "../plugins", "vlc/plugins")
+            else -> listOf("vlc/plugins")
+        }
+        return relative
+            .map { File(libraryDir, it) }
+            .firstOrNull { it.isDirectory && it.listFiles()?.isNotEmpty() == true }
+    }
+
+    /**
+     * Mensaje para cuando `libvlc` sí está, pero su motor no arranca.
+     *
+     * Distingue el caso de los plugins, que en Debian cuesta detectar porque
+     * la biblioteca y los módulos viajan en paquetes distintos y el error que
+     * devuelve VLC por sí solo no lo explica.
+     */
+    fun failureMessage(libraryDir: File): String = buildString {
+        append("No se pudo iniciar el motor de VLC aunque 'libvlc' está instalada.\n")
+        if (pluginDirOrNull(libraryDir) == null) {
+            append("Faltan sus módulos (plugins), que en Linux van en otro paquete:\n")
+            append("  · Debian/Ubuntu:  sudo apt-get install libvlc5 vlc-plugin-base\n")
+            append("  · Fedora:         sudo dnf install vlc\n")
+            append("  · macOS:          brew install --cask vlc\n")
+            append("  · Windows:        https://www.videolan.org/vlc/\n")
+        } else {
+            append(missingMessage())
+        }
     }
 
     /** Rutas de carga para JNA: el directorio de `libvlc` y su subdirectorio `vlc/`. */
@@ -60,7 +96,9 @@ object VlcEnvironment {
     fun missingMessage(): String = buildString {
         append("No se encontró 'libvlc' (el motor nativo de VLC).\n")
         append("Instálalo con tu gestor de paquetes, por ejemplo:\n")
-        append("  · Debian/Ubuntu:  sudo apt-get install vlc\n")
+        // Solo la biblioteca y los módulos: `vlc` añade además la aplicación
+        // gráfica completa, con muchas más dependencias de las necesarias.
+        append("  · Debian/Ubuntu:  sudo apt-get install libvlc5 vlc-plugin-base\n")
         append("  · Fedora:         sudo dnf install vlc\n")
         append("  · macOS:          brew install --cask vlc\n")
         append("  · Windows:        https://www.videolan.org/vlc/\n")

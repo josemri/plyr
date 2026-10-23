@@ -1,4 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.compose.desktop.application.tasks.AbstractJPackageTask
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -130,14 +131,28 @@ sqldelight {
  */
 val vlcDir: String? = (findProperty("vlcDir") as String?) ?: System.getenv("PLYR_VLC_DIR")
 
+/** Variables de entorno para usar un VLC fuera de las rutas del sistema. */
+fun vlcEnvironment(): Map<String, String> {
+    if (vlcDir == null) return emptyMap()
+    return buildMap {
+        put("PLYR_VLC_DIR", vlcDir)
+        put(
+            "LD_LIBRARY_PATH",
+            listOf(vlcDir, "$vlcDir/vlc", System.getenv("LD_LIBRARY_PATH")).filterNotNull().joinToString(":"),
+        )
+        // `libvlc` ya no admite `--plugin-path` (VLC ≥ 3), así que la única
+        // forma de apuntarle unos plugins fuera de su ruta compilada es esta
+        // variable de entorno. Sin ella, `-PvlcDir` localizaría la biblioteca
+        // pero no tendría módulos con los que reproducir.
+        File(vlcDir, "vlc/plugins").takeIf { it.isDirectory }?.let {
+            put("VLC_PLUGIN_PATH", it.absolutePath)
+        }
+    }
+}
+
 /** Propaga el VLC no estándar al JVM que arranque la tarea. */
 fun JavaExec.applyVlcEnv() {
-    if (vlcDir == null) return
-    environment("PLYR_VLC_DIR", vlcDir)
-    environment(
-        "LD_LIBRARY_PATH",
-        listOf(vlcDir, "$vlcDir/vlc", System.getenv("LD_LIBRARY_PATH")).filterNotNull().joinToString(":"),
-    )
+    vlcEnvironment().forEach { (key, value) -> environment(key, value) }
 }
 
 // `run` (Compose), `soundCheck` (CLI) y los tests comparten el mismo entorno.
@@ -152,11 +167,7 @@ tasks.withType<Test>().configureEach {
         layout.buildDirectory.dir("test-prefs").get().asFile.absolutePath,
     )
     if (vlcDir != null) {
-        environment("PLYR_VLC_DIR", vlcDir)
-        environment(
-            "LD_LIBRARY_PATH",
-            listOf(vlcDir, "$vlcDir/vlc", System.getenv("LD_LIBRARY_PATH")).filterNotNull().joinToString(":"),
-        )
+        vlcEnvironment().forEach { (key, value) -> environment(key, value) }
     }
 }
 
@@ -250,6 +261,15 @@ compose.desktop {
             windows {
                 // Icono del `.msi` y del acceso directo (M36).
                 iconFile.set(project.file("packaging/icon.ico"))
+                // Sin estas tres opciones jpackage instala sin preguntar nada
+                // y sin dejar huella: ni acceso directo de escritorio, ni
+                // entrada en el menú de inicio, ni selector de carpeta.
+                // El diálogo con dos casillas para elegir accesos directos
+                // (`--win-shortcut-prompt`) se añade más abajo, porque la DSL
+                // no lo expone.
+                menu = true
+                shortcut = true
+                dirChooser = true
             }
         }
     }
@@ -280,6 +300,26 @@ val patchDeb by tasks.registering(Exec::class) {
 // `packageDeb` lo registra el plugin de Compose de forma perezosa, así que se
 // engancha el parche con `matching` en vez de `named`.
 tasks.matching { it.name == "packageDeb" }.configureEach { finalizedBy(patchDeb) }
+
+/**
+ * Pregunta por los accesos directos en el instalador de Windows (M37).
+ *
+ * `--win-shortcut-prompt` (JDK 17+) añade a la secuencia una pantalla con dos
+ * casillas —«Crear acceso directo en el escritorio» y «Crear acceso directo en
+ * el menú de inicio»— y es el usuario quien decide. Sin ella, `--win-shortcut`
+ * y `--win-menu` (las opciones `shortcut`/`menu` de `nativeDistributions`)
+ * crean los accesos directos sin preguntar.
+ *
+ * La DSL de Compose 1.12.x no expone esta opción ni admite argumentos sueltos
+ * de jpackage; `freeArgs` es la única vía y está sin usar en todo el plugin.
+ * Solo se añade a los formatos de Windows, porque en el resto `--win-*` haría
+ * fallar a jpackage.
+ */
+tasks.withType<AbstractJPackageTask>().configureEach {
+    if (targetFormat == TargetFormat.Msi || targetFormat == TargetFormat.Exe) {
+        freeArgs.add("--win-shortcut-prompt")
+    }
+}
 
 /** ¿Está el ejecutable `name` en el PATH? */
 fun toolOnPath(name: String): Boolean =

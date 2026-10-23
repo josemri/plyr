@@ -1,6 +1,8 @@
 package com.plyr.desktop.player
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -10,8 +12,8 @@ import java.io.File
 /**
  * Tests puros de [VlcEnvironment].
  *
- * No necesitan `libvlc` instalado: verifican la detección, los argumentos que
- * se le pasan a VLCJ y el mensaje de error cuando falta el motor nativo.
+ * No necesitan `libvlc` instalado: verifican la detección, la localización de
+ * los plugins nativos y el mensaje de error cuando falta el motor.
  */
 class VlcEnvironmentTest {
 
@@ -33,14 +35,25 @@ class VlcEnvironmentTest {
     }
 
     @Test
-    fun factoryArgs_apuntaALosPluginsSoloSiExisten() {
+    fun pluginDirOrNull_devuelveNullCuandoNoHayPlugins() {
         val dir = tmp.newFolder()
-        assertTrue(VlcEnvironment.factoryArgs(dir).isEmpty())
+        assertNull(VlcEnvironment.pluginDirOrNull(dir))
 
+        // Un directorio de plugins vacío no sirve: significa que los módulos
+        // no están instalados (Debian reparte `libvlc5` y `vlc-plugin-base`).
         File(dir, "vlc/plugins").mkdirs()
-        val args = VlcEnvironment.factoryArgs(dir)
+        assertNull(VlcEnvironment.pluginDirOrNull(dir))
 
-        assertTrue(args.single().startsWith("--plugin-path="))
+        File(File(dir, "vlc/plugins"), "libmp4_demux_plugin.so").createNewFile()
+        assertNotNull(VlcEnvironment.pluginDirOrNull(dir))
+    }
+
+    @Test
+    fun failureMessage_apuntaAVlcPluginBaseCuandoFaltanLosPlugins() {
+        val dir = tmp.newFolder()
+        val message = VlcEnvironment.failureMessage(dir)
+
+        assertTrue(message.contains("vlc-plugin-base"))
     }
 
     @Test
@@ -57,7 +70,8 @@ class VlcEnvironmentTest {
         val message = VlcEnvironment.missingMessage()
 
         assertTrue(message.contains("libvlc"))
-        assertTrue(message.contains("apt-get install vlc"))
+        // La vía mínima, sin arrastrar la aplicación gráfica de VLC.
+        assertTrue(message.contains("libvlc5 vlc-plugin-base"))
         assertTrue(message.contains(VlcEnvironment.DIR_ENV))
     }
 }

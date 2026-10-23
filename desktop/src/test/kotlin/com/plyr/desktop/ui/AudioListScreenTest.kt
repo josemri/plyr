@@ -1,5 +1,8 @@
 package com.plyr.desktop.ui
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
@@ -17,9 +20,11 @@ import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.desktop.player.PlayerController
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.russhwolf.settings.MapSettings
 import org.junit.After
+import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
 
@@ -182,5 +187,44 @@ class AudioListScreenTest {
         onNodeWithTag("app_logo_home").performClick()
 
         onNodeWithTag("screen_HOME").assertIsDisplayed()
+    }
+
+    @Test
+    fun laRecomposicionNoRecreaElControladorDelReproductor() = runComposeUiTest {
+        // B64: en `Main.kt`, `AudioListScreen` se llama desde dentro de
+        // `application { Window { … } }`, cuyo contenido se recompone (el tema del
+        // sistema, el estado del padre…). Una recomposición de ese padre vuelve a
+        // **invocar** `AudioListScreen` y **reevalúa sus parámetros por defecto**:
+        // `downloadStore = DownloadedAudioStore()` es un objeto nuevo y, como no
+        // define `equals`, `remember(scope, downloadStore)` reconstruía el
+        // `PlayerController`. El `DisposableEffect` viejo ejecutaba `release()`
+        // sobre el VLC que estaba bufferizando y la pista moría antes de sonar.
+        val ready = mutableListOf<PlayerController>()
+        var parentState by mutableIntStateOf(0)
+        setContent {
+            PlyrTheme {
+                // El padre lee estado y lo pasa: al cambiar, el padre se
+                // recompone y vuelve a invocar `AudioListScreen`.
+                val marker = parentState
+                AudioListScreen(
+                    openDatabase = { DesktopDatabase.inMemory() },
+                    checkForUpdate = { null },
+                    onPlayerControllerReady = { ready += it },
+                    onQuit = { marker },
+                )
+            }
+        }
+        waitForIdle()
+
+        val first = ready.last()
+        // Cambio de estado del padre: recompone e invoca de nuevo la pantalla.
+        parentState = parentState + 1
+        waitForIdle()
+
+        assertSame(
+            "Recomponer el padre no debe recrear el PlayerController",
+            first,
+            ready.last(),
+        )
     }
 }

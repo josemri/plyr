@@ -28,13 +28,91 @@ class VlcAudioPlayer(
     libraryDir: File? = VlcEnvironment.findLibraryDir(),
 ) : AudioPlayer {
 
-    private companion object {
-        /** Opciones por media: es un reproductor de audio, no de vídeo. */
-        val MEDIA_OPTIONS = arrayOf(":no-video")
+    internal companion object {
+        /**
+         * Opciones de instancia para [MediaPlayerFactory]: ruido.
+         *
+         * **No poner aquí opciones de red.** La familia `ipv4`/`ipv6` está
+         * eliminada en VLC 3: pasarlas solo deja un «Warning: option --ipv6 no
+         * longer exists» y no cambia nada. Y `libvlc` no lanza excepción ante
+         * una opción muerta —avisa por stderr y sigue—, así que un test que
+         * solo compruebe «no lanzó» las daría por buenas. Ver
+         * [VlcMediaOptionsTest], que valida esto capturando stderr.
+         */
+        val FACTORY_OPTIONS: List<String> = listOf(
+            // Los fallos de red son esperados y ruidosos: se cuentan y se
+            // reintentan, pero no inundan la consola.
+            "--quiet",
+        )
+
+        /**
+         * Tope de espera a una dirección IPv6 antes de caer a IPv4, como
+         * opción **de media**.
+         *
+         * `libvlc` consulta esta opción al abrir cada entrada, así que desde
+         * aquí sí influye aunque su nombre esté en el grupo `ipv4`. Es la vía
+         * que queda: la opción de instancia equivalente está eliminada.
+         */
+        const val IPV4_TIMEOUT_MS = 2_000
+
+        /**
+         * Opciones de red.
+         *
+         * El DNS puede anunciar direcciones IPv6 (`AAAA`) aunque la red no
+         * tenga ninguna ruta IPv6 —habitual en conexiones solo IPv4—. Sin un
+         * tope, `libvlc` puede esperar a la dirección IPv6 antes de probar la
+         * IPv4. Con 2 s se comporta como el *Happy Eyeballs* de un navegador y
+         * cae a IPv4 enseguida.
+         *
+         * El búfer de 1 s acorta la vida útil de la URL: las de `googlevideo`
+         * llevan `expire` y caducan al resolverlas, así que cuanto menos se
+         * guarde, menos pistas fallan por caducidad.
+         */
+        val NETWORK_OPTIONS: Array<String> = arrayOf(
+            ":ipv4-timeout=$IPV4_TIMEOUT_MS",
+            ":network-caching=1000",
+        )
+        /**
+         * Pista de audio descargada (fichero local).
+         *
+         * El MP4 fragmentado (DASH) que se guarda al descargar no es un `.m4a`
+         * contenedor clásico: su primer fragmento puede no empezar en el número
+         * de secuencia 0 y el `mp4 demux` propio de VLC lo acusa («Fragment
+         * sequence discontinuity detected», «mjpeg demux error: cannot peek»).
+         * `avformat` (libavformat) tolera MP4 fragmentado mucho mejor.
+         *
+         * `:no-video` se queda: hay casos en los que VLC elige pese a todo una
+         * pista de imagen y llena la consola de errores de demux.
+         */
+        val LOCAL_OPTIONS: Array<String> = arrayOf(":no-video", ":demux=avformat")
+
+        /**
+         * Audio por red.
+         *
+         * `googlevideo` también sirve MP4 fragmentado, así que lleva el mismo
+         * `:demux=avformat` que los ficheros locales, más los ajustes de red.
+         */
+        val STREAM_OPTIONS: Array<String> = arrayOf(":no-video", ":demux=avformat") + NETWORK_OPTIONS
 
         /** Incremento de avance/retroceso, alineado con el de Android. */
         const val SKIP_MS = 10_000L
+
+        /**
+         * Opciones de instancia para [MediaPlayerFactory]. Se exponen para
+         * poder validarlas contra `libvlc` en los tests.
+         */
+        val instanceOptions: List<String> get() = FACTORY_OPTIONS
+
+        /** Opciones por media para [uri] (`file:` = local; el resto, red). */
+        fun mediaOptionsFor(uri: String): Array<String> =
+            if (uri.startsWith("file:")) LOCAL_OPTIONS else STREAM_OPTIONS
     }
+
+    /**
+     * Opciones de `libvlc` para [uri]: las de fichero local y las de red no son
+     * las mismas, así que se eligen por el esquema.
+     */
+    private fun mediaOptions(uri: String): Array<String> = mediaOptionsFor(uri)
 
     private val stateMachine = VlcPlaybackStateMachine(initialListener)
     private val factory: MediaPlayerFactory
@@ -80,14 +158,24 @@ class VlcAudioPlayer(
         val dir = libraryDir
             ?: throw VlcEnvironment.LibVlcMissingException(VlcEnvironment.missingMessage())
 
-        // JNA necesita saber dónde está libvlc; VLC, dónde están sus plugins.
+        // JNA necesita saber dónde está libvlc. Sus plugins no se le indican:
+        // `libvlc` los busca en su ruta compilada, que es la misma que la de
+        // esta instalación. Antes se le pasaba `--plugin-path`, opción que
+        // VLC ≥ 3 eliminó y que solo dejaba un «Warning: option --plugin-path
+        // no longer exists» por cada carga de pista.
         System.setProperty("jna.library.path", VlcEnvironment.librarySearchPath(dir))
 
         factory = try {
-            MediaPlayerFactory(VlcEnvironment.factoryArgs(dir))
+            MediaPlayerFactory(FACTORY_OPTIONS)
         } catch (t: Throwable) {
+            // La causa se propaga en el mensaje: sin ella, cualquier fallo de
+            // inicialización (faltan plugins, conflicto de JNA, versión
+            // incompatible) aparecía como «No se encontró libvlc», que es
+            // mentira y había llevado a instalar VLC sin resultado.
             throw VlcEnvironment.LibVlcMissingException(
-                VlcEnvironment.missingMessage() + "\nDirectorio probado: ${dir.absolutePath}",
+                VlcEnvironment.failureMessage(dir) +
+                    "\nDirectorio probado: ${dir.absolutePath}" +
+                    "\nCausa: ${t.javaClass.name}: ${t.message}",
                 t,
             )
         }
@@ -142,7 +230,7 @@ class VlcAudioPlayer(
     override fun prepare() {
         val track = items.getOrNull(currentIndex) ?: return
         if (loadedMediaId == track.mediaId) return
-        player.media().prepare(track.uri, *MEDIA_OPTIONS)
+        player.media().prepare(track.uri, *mediaOptions(track.uri))
         loadedMediaId = track.mediaId
     }
 
@@ -152,7 +240,7 @@ class VlcAudioPlayer(
         if (loadedMediaId == track.mediaId) {
             player.controls().play()
         } else {
-            player.media().play(track.uri, *MEDIA_OPTIONS)
+            player.media().play(track.uri, *mediaOptions(track.uri))
             loadedMediaId = track.mediaId
         }
     }
@@ -230,7 +318,7 @@ class VlcAudioPlayer(
     @Synchronized
     private fun restartCurrent() {
         val track = items.getOrNull(currentIndex) ?: return
-        player.media().play(track.uri, *MEDIA_OPTIONS)
+        player.media().play(track.uri, *mediaOptions(track.uri))
         loadedMediaId = track.mediaId
     }
 

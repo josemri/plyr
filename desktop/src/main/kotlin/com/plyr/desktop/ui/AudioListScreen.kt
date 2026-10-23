@@ -102,11 +102,29 @@ fun AudioListScreen(
     val goHome = { currentScreen = Screen.HOME }
     val scope = rememberCoroutineScope()
 
-    val playerController = remember(scope, downloadStore) {
+    // Estabilidad de las dependencias por defecto (B64).
+    //
+    // `Main.kt` llama a esta pantalla desde dentro de `application { Window { … } }`:
+    // cada recomposición de ese padre vuelve a invocarla y **reevalúa los
+    // parámetros por defecto**. `downloadStore = DownloadedAudioStore()` es un
+    // objeto nuevo cada vez y, como no define `equals`, su identidad cambia.
+    // Usada como clave de `remember`, reconstruía el `PlayerController` en mitad
+    // de una reproducción: el `DisposableEffect` viejo ejecutaba `release()` sobre
+    // el VLC que estaba bufferizando y la pista moría antes de sonar (se veía
+    // «cargando» y desaparecía). Con `--quiet` o sin él, daba igual: no era audio
+    // ni red, era el ciclo de vida de Compose.
+    //
+    // Se fijan una sola vez con `remember`. Es correcto aunque la carpeta de
+    // descargas cambie: `DownloadedAudioStore` resuelve su directorio en cada uso,
+    // no al construirse, así que el objeto no necesita reemplazarse.
+    val stableDownloadStore = remember { downloadStore }
+    val stableOpenDatabase = remember { openDatabase }
+
+    val playerController = remember(scope, stableDownloadStore) {
         PlayerController(
             scope = scope,
             openPlayer = { VlcAudioPlayer() },
-            sourceResolver = YouTubeTrackSourceResolver(store = downloadStore),
+            sourceResolver = YouTubeTrackSourceResolver(store = stableDownloadStore),
             initialRepeatMode = DesktopConfig.repeatMode,
             onRepeatModeChanged = { DesktopConfig.repeatMode = it },
         )
@@ -159,7 +177,7 @@ fun AudioListScreen(
     // Base de datos persistente bajo la carpeta de datos del SO (`AppPaths`, M9).
     // Se inyecta para que los tests usen una en memoria y no toquen el disco del
     // usuario, y se cierra al salir de la pantalla (después del volcado, abajo).
-    val database = remember(openDatabase) { openDatabase() }
+    val database = remember(stableOpenDatabase) { stableOpenDatabase() }
 
     // Repositorio único de la sesión, con tombs persistentes (M10). Se comparte
     // entre la pantalla de listas y la copia de seguridad, y avisa a esta última
@@ -230,11 +248,11 @@ fun AudioListScreen(
     // Descarga offline (M16 backend, M17 UI): un controlador por sesión que
     // comparten el detalle de lista (bajar/cancelar/borrar) y Ajustes (tamaño y
     // borrar todo). Reutiliza el mismo almacén que el resolutor de reproducción.
-    val downloadController = remember(scope, downloadStore) {
+    val downloadController = remember(scope, stableDownloadStore) {
         DownloadController(
             scope = scope,
-            store = downloadStore,
-            downloader = AudioDownloader(store = downloadStore),
+            store = stableDownloadStore,
+            downloader = AudioDownloader(store = stableDownloadStore),
         )
     }
     val playerState by playerController.state.collectAsState()
