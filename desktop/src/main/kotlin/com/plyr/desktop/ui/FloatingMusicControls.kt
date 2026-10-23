@@ -92,7 +92,9 @@ fun FloatingMusicControls(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            // Mismo margen abajo que a los lados (16 dp): antes eran 4 dp y la
+            // barra quedaba pegada al borde inferior de la ventana.
+            .padding(start = 16.dp, top = 4.dp, end = 16.dp, bottom = 16.dp)
             .testTag("floating_controls"),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),

@@ -5,8 +5,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
@@ -20,13 +22,19 @@ import com.plyr.desktop.config.Language
 import com.plyr.desktop.config.ThemeMode
 import com.plyr.desktop.database.DesktopDatabase
 import com.plyr.desktop.database.PlaylistRepository
+import com.plyr.desktop.download.DownloadedAudioStore
+import com.plyr.desktop.player.FakeAudioPlayer
 import com.plyr.desktop.player.PlayerController
+import com.plyr.desktop.player.PlayerTrack
 import com.plyr.desktop.ui.theme.PlyrTheme
 import com.russhwolf.settings.MapSettings
 import org.junit.After
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.nio.file.Files
+import kotlin.math.abs
 
 /**
  * Test de UI del esqueleto de M5: comprueba que la app abre en Home, que el menú
@@ -226,5 +234,74 @@ class AudioListScreenTest {
             first,
             ready.last(),
         )
+    }
+
+    @Test
+    fun laBarraFlotanteNoTapaElPanelDeListas() = runComposeUiTest {
+        // B65: el panel de listas debe ocupar todo el lateral izquierdo (de
+        // arriba a abajo) y la barra flotante vivir solo en la columna de
+        // contenido, adaptándose al ancho que le queda a su derecha. Antes la
+        // barra se pintaba sobre todo el ancho y tapaba el final del panel.
+        val audioDir = Files.createTempDirectory("plyr-rail-test")
+        try {
+            Files.createFile(audioDir.resolve("railTestVideo.m4a"))
+            val ready = mutableListOf<PlayerController>()
+            setContent {
+                PlyrTheme {
+                    AudioListScreen(
+                        openDatabase = { DesktopDatabase.inMemory() },
+                        downloadStore = DownloadedAudioStore(audioDir),
+                        openPlayer = { FakeAudioPlayer() },
+                        onPlayerControllerReady = { ready += it },
+                    )
+                }
+            }
+            waitForIdle()
+
+            ready.last().play(
+                listOf(
+                    PlayerTrack(
+                        id = "rail-test",
+                        title = "Canción",
+                        artist = "Artista",
+                        videoId = "railTestVideo",
+                    ),
+                ),
+                0,
+            )
+            waitForIdle()
+
+            val root = onRoot().getBoundsInRoot()
+            val rail = onNodeWithTag("playlist_rail")
+                .assertIsDisplayed()
+                .getBoundsInRoot()
+            val controls = onNodeWithTag("floating_controls")
+                .assertIsDisplayed()
+                .getBoundsInRoot()
+
+            // El panel llega hasta el borde inferior de la ventana...
+            assertTrue(
+                "El panel de listas debería ocupar todo el alto " +
+                    "(bottom=${rail.bottom.value}, ventana=${root.bottom.value})",
+                rail.bottom.value >= root.bottom.value - 1f,
+            )
+            // ...y la barra empieza a su derecha, sin pintarse encima.
+            assertTrue(
+                "La barra (left=${controls.left.value}) no debe tapar el panel " +
+                    "(right=${rail.right.value})",
+                controls.left.value >= rail.right.value - 1f,
+            )
+            // El margen inferior debe ser el mismo que deja a los lados: antes
+            // eran 4 dp abajo frente a 16 dp laterales y quedaba pegada al borde.
+            val sideInset = controls.left.value - rail.right.value
+            val bottomInset = root.bottom.value - controls.bottom.value
+            assertTrue(
+                "La barra debe dejar abajo el mismo margen que a los lados " +
+                    "(abajo=$bottomInset, lateral=$sideInset)",
+                abs(bottomInset - sideInset) <= 1f,
+            )
+        } finally {
+            audioDir.toFile().deleteRecursively()
+        }
     }
 }

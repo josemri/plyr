@@ -22,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.plyr.desktop.config.DesktopConfig
 import com.plyr.desktop.download.AudioDownloader
@@ -55,6 +57,7 @@ import com.plyr.desktop.sync.DataExporter
 import com.plyr.desktop.sync.DataImporter
 import com.plyr.desktop.sync.DataSync
 import com.plyr.desktop.ui.components.AppPlaylistRail
+import com.plyr.desktop.ui.components.PLAYLIST_RAIL_WIDTH
 import com.plyr.desktop.ui.components.TrackMenuActions
 import com.plyr.desktop.ui.screens.ConfigScreen
 import com.plyr.desktop.ui.screens.HomeScreen
@@ -64,6 +67,7 @@ import com.plyr.desktop.utils.CoverCache
 import com.plyr.desktop.utils.UpdateChecker
 import com.plyr.network.YouTubeManager
 import com.plyr.network.YouTubePlaylistInfo
+import com.plyr.player.AudioPlayer
 import com.plyr.receivers.MediaCommand
 import com.plyr.ui.components.ShareType
 import com.plyr.ui.components.ShareableItem
@@ -71,8 +75,15 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.nio.file.Path
 
-/** Altura reservada abajo cuando la barra flotante está visible, para no tapar el contenido. */
-private val CONTROLS_RESERVED_HEIGHT = 96.dp
+/**
+ * Estimación inicial del alto de la barra flotante (primer fotograma).
+ *
+ * El hueco real se mide en cada composición ([onSizeChanged]): la barra mide más
+ * de 96 dp en cuanto aparecen las dos líneas de estado y la cola, y el sobrante
+ * tapaba el final del panel de listas. Este valor solo evita un salto en el
+ * primer fotograma, antes de la primera medición.
+ */
+private val CONTROLS_HEIGHT_ESTIMATE = 96.dp
 
 /** Cada cuánto se refresca la posición desde el motor mientras suena algo. */
 private const val PROGRESS_POLL_MS = 500L
@@ -95,6 +106,7 @@ fun AudioListScreen(
     mediaIntegration: DesktopMediaIntegration = NoopMediaIntegration(),
     checkForUpdate: (suspend () -> UpdateChecker.UpdateInfo?)? = null,
     downloadStore: DownloadedAudioStore = DownloadedAudioStore(),
+    openPlayer: () -> AudioPlayer = { VlcAudioPlayer() },
     onPlayerControllerReady: (PlayerController) -> Unit = {},
     onQuit: () -> Unit = {},
 ) {
@@ -119,11 +131,14 @@ fun AudioListScreen(
     // no al construirse, así que el objeto no necesita reemplazarse.
     val stableDownloadStore = remember { downloadStore }
     val stableOpenDatabase = remember { openDatabase }
+    // `openPlayer` también es un parámetro por defecto: sin fijarlo, entraba en
+    // la clave de `remember` como una lambda nueva y recreaba el controlador.
+    val stableOpenPlayer = remember { openPlayer }
 
-    val playerController = remember(scope, stableDownloadStore) {
+    val playerController = remember(scope, stableDownloadStore, stableOpenPlayer) {
         PlayerController(
             scope = scope,
-            openPlayer = { VlcAudioPlayer() },
+            openPlayer = { stableOpenPlayer() },
             sourceResolver = YouTubeTrackSourceResolver(store = stableDownloadStore),
             initialRepeatMode = DesktopConfig.repeatMode,
             onRepeatModeChanged = { DesktopConfig.repeatMode = it },
@@ -307,8 +322,15 @@ fun AudioListScreen(
 
     // La barra flotante solo se pinta con algo cargando/sonando o con error; el
     // hueco inferior se reserva solo entonces (M29), para no dejar una franja
-    // vacía y que el contenido (p. ej. el panel de listas) llegue hasta el fondo.
+    // vacía cuando no hay reproducción.
     val controlsVisible = playerState.title != null || playerState.isLoading || playerState.error != null
+
+    // Alto real de la barra flotante (B65). Se mide en vez de asumir un valor
+    // fijo: cuando aparece la fila de estado con dos líneas (posición + cola),
+    // la barra pasa de 96 dp y su parte de arriba tapaba el final del contenido.
+    // Con el alto medido, la columna de contenido termina justo donde empieza.
+    var controlsHeight by remember { mutableStateOf(CONTROLS_HEIGHT_ESTIMATE) }
+    val density = LocalDensity.current
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(
@@ -354,11 +376,7 @@ fun AudioListScreen(
                     }
                 },
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = if (controlsVisible) CONTROLS_RESERVED_HEIGHT else 0.dp),
-            ) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 Row(modifier = Modifier.fillMaxSize()) {
                     // Panel lateral de listas (M36): se compone aquí, fuera del
                     // `when`, para que siga visible al cambiar de pantalla. Su
@@ -378,7 +396,14 @@ fun AudioListScreen(
                         },
                     )
 
-                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            // Solo el contenido reserva el hueco de la barra; el
+                            // panel lateral queda fuera y llega hasta abajo.
+                            .padding(bottom = if (controlsVisible) controlsHeight else 0.dp),
+                    ) {
                         when (currentScreen) {
                             Screen.HOME -> HomeScreen(
                                 // El menú de consola (`feed`) y el engranaje de
@@ -507,7 +532,19 @@ fun AudioListScreen(
                 onRepeat = playerController::cycleRepeat,
                 onSeek = playerController::seekTo,
                 onShowQueue = { currentScreen = Screen.QUEUE },
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    // La barra vive solo sobre la columna de contenido: el panel
+                    // de listas ocupa todo el lateral izquierdo y la barra se
+                    // adapta al ancho que le queda a su derecha.
+                    .padding(start = PLAYLIST_RAIL_WIDTH)
+                    // Se mide el alto pintado (incluye su propio padding) y se
+                    // reserva ese hueco abajo para que no tape el contenido. Con
+                    // 0 no se actualiza: al ocultarse la barra conserva la última
+                    // altura buena y al volver no hay un fotograma de solape.
+                    .onSizeChanged { size ->
+                        if (size.height > 0) controlsHeight = with(density) { size.height.toDp() }
+                    },
             )
         }
     }

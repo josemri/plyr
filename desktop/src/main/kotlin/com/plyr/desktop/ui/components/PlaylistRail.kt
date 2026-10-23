@@ -68,7 +68,8 @@ fun AppPlaylistRail(
         modifier = modifier
             .fillMaxHeight()
             .width(PLAYLIST_RAIL_WIDTH)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            .testTag("playlist_rail"),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         AppLogoButton(onClick = onHome)
@@ -100,40 +101,19 @@ fun AppPlaylistRail(
 }
 
 /**
- * Botón-logo (M36): el mismo `ic_launcher` de Android que llevan el instalador y
- * la ventana, sin teñir —el icono ya trae sus colores—. Si el recurso no cargara
- * se sustituye por el texto, para que el botón nunca desaparezca: es la única
- * vía de vuelta al inicio y tiene que estar visible siempre.
+ * Botón minimalista de vuelta al inicio: texto plano, sin icono ni fondo.
  */
 @Composable
 private fun AppLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val bitmap = remember { AppIcon.load() }
-
-    Box(
+    Text(
+        text = "<plyr>",
+        style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
         modifier = modifier
-            .padding(PlyrSpacing.small)
-            .size(width = LOGO_BUTTON_WIDTH, height = LOGO_BUTTON_HEIGHT)
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(onClick = onClick)
+            .padding(horizontal = PlyrSpacing.medium, vertical = PlyrSpacing.small)
             .testTag("app_logo_home"),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (bitmap != null) {
-            Image(
-                painter = remember(bitmap) { BitmapPainter(bitmap) },
-                contentDescription = Translations.get("app_logo"),
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.padding(PlyrSpacing.xxs),
-            )
-        } else {
-            Text(
-                text = "plyr",
-                style = MaterialTheme.typography.titleSmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-    }
+    )
 }
 
 /** Portada de una lista en el panel lateral; al pulsarla se abre el detalle. */
