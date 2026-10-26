@@ -30,7 +30,7 @@ bloquea a los anteriores.
 ## 1. Reglas invariables (NO romper)
 
 Estas reglas son más importantes que cualquier otra cosa de este documento. El
-proyecto tiene **103 ficheros de test** y una estructura deliberadamente limpia:
+proyecto tiene **105 ficheros de test** y una estructura deliberadamente limpia:
 el valor de este port está en **reutilizar el código, no en reescribirlo**.
 
 ### 1.1 Estructura del proyecto
@@ -129,7 +129,7 @@ existente, no inventes uno nuevo.**
 |---|---|---|---|
 | `:app` | Android | `android` | 16.482 (`app/src/main/java/com/plyr/`) |
 | `:core` | KMP | `android`, `jvm` | 2.553 (`commonMain`) + 2.489 (`jvmSharedMain`) |
-| `:desktop` | **JVM puro** (`kotlin.jvm`) | — | 12.347 (73 ficheros) |
+| `:desktop` | **JVM puro** (`kotlin.jvm`) | — | 12.415 (73 ficheros) |
 | `:shared` | — | — | **no existe** |
 | `:web` | — | — | **no existe** |
 | `:server` | — | — | **no existe** |
@@ -634,7 +634,7 @@ ui/theme/AsciiArt.kt
 - `./gradlew :shared:jvmTest` verde (incluye los tests de `PlayerController`
   movidos).
 - `./gradlew :desktop:test` verde y con **el mismo número de tests** que antes
-  (49 ficheros en `desktop/src/test` → los que se movieron a `:shared` ya no
+  (51 ficheros en `desktop/src/test` → los que se movieron a `:shared` ya no
   cuentan aquí, pero **ninguno se pierde**).
 - `./gradlew :desktop:build` produce `.deb`, `.rpm` y `.AppImage` **igual que
   antes** (comparar nombres y tamaños con el build previo).

@@ -7,18 +7,30 @@
 [![Desktop](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](https://github.com/josemri/plyr/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
 
-
-stram any song, build playlists, share 'em with qr, sync across devices. terminal inspired, runs on android, windows, linux and macOS. Open source, no ads, no telemetry.
+Stream any song, build playlists, share them with a QR code, sync across devices. Terminal-inspired, runs on Android, Windows, Linux and macOS. Open source, no ads, no telemetry.
 
 ## features
 
 - **YouTube streaming** — search and play any song (NewPipe Extractor).
-- **Local playlists** — create, edit and reorder playlists; import a playlist from a **Spotify URL**
-- **Scan & share** — share a playing track/playlist as QR or NFC tag; scan to open it.
-- **Backup** — pick a folder once and a `plyr-sync.zip` inside it keeps itself up to date on its own .
-- **Multiplatform** — compiled for android, windows, linux(debian && arch based) and macOS.
-- **run.sh** — bash script to compile, test, check all project.
-- **Recommendations feed** — community playlist recommendations synchronized via Supabase. 
+- **Local playlists** — create, edit and reorder them; import a playlist from a **Spotify URL**.
+- **Offline downloads** — download tracks and play them without a connection.
+- **Scan & share** — share a track or playlist as a QR code or NFC tag. On Android, QR codes can be scanned with the camera and NFC tags written.
+- **Backup** — choose a folder once and the `plyr-sync.zip` inside keeps itself up to date; the same ZIP moves between Android and desktop.
+- **Desktop integration** — tray icon, MPRIS on Linux, keyboard shortcuts and update checker.
+- **Recommendations feed** — community playlist recommendations synchronized via Supabase.
+- **Multiplatform** — Android 7.0+, Windows, Linux (`.deb`, `.rpm`, `.AppImage`) and macOS (`.dmg`).
+- **run.sh** — one script to build, test, package and analyze the whole project.
+
+## install
+
+Download the installers from the [latest release](https://github.com/josemri/plyr/releases/latest):
+
+- **Android** — `plyr.apk` (Android 7.0+). Enable "Install from unknown sources" if needed.
+- **Windows** — `.msi`.
+- **macOS** — `.dmg` (Intel and Apple Silicon).
+- **Linux** — `.deb` (Debian/Ubuntu), `.rpm` (Fedora/openSUSE) or `.AppImage` (any distro, including Arch).
+
+Desktop installers bundle their own Java runtime. On Linux, playback uses the system `libvlc`; the `.deb` already declares that dependency.
 
 ## android
 
@@ -36,6 +48,27 @@ stram any song, build playlists, share 'em with qr, sync across devices. termina
   <img src="screenshots/search_screen_desktop.jpeg" width="270" />
 </div>
 
+## web
+
+Not available yet. The plan for the browser port — a Ktor server for YouTube extraction and audio proxying plus a Compose/Wasm client with browser storage — is specified in [web-port.md](web-port.md). Milestones H0–H7 are all pending.
+
+## build from source
+
+`run.sh` needs JDK 21 (it downloads its own copy) and sets up the Android SDK and Gradle caches under `/tmp/plyr-android`:
+
+```bash
+./run.sh setup                  # instala el entorno en /tmp
+./run.sh build                  # APK debug de Android
+./run.sh build release          # APK release
+./run.sh run desktop            # compila y abre el escritorio
+./run.sh test                   # tests unitarios de Android
+./run.sh test desktop           # tests de escritorio
+./run.sh test device            # tests instrumentados (requiere un móvil)
+./run.sh check                  # detekt + lint + cobertura
+```
+
+Desktop builds additionally need `libvlc`; `.rpm` packaging needs `rpmbuild`.
+
 ## android permissions
 
 ```xml
@@ -49,6 +82,7 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
+- [ ] **Web port** — browser client with the server-side extractor and audio proxy described in [web-port.md](web-port.md).
 - [ ] **Android Auto** — support for the Android Auto interface
   - [ ] Declare `automotive_app_desc.xml` and the automotive permissions
   - [ ] Expose the library (playlists, queue) through the Media3 `MediaSession`
@@ -58,10 +92,10 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Split `PlaylistScreen.kt` into a `PlaylistViewModel` + Compose state
   - [x] Split `SearchScreen.kt` into a `SearchViewModel` + Compose state
   - [x] Split `ConfigScreen.kt` into a `ConfigViewModel` + Compose state
-  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; `MusicService` is rewritten for desktop anyway)
+  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; lower priority than the web port)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
-- [ ] **rm warning** rm all compiler warnings and update modules and dependencies
+- [ ] **Build hygiene** — remove compiler warnings and migrate deprecated Gradle, AGP and Kotlin plugin APIs; keep modules and dependencies up to date
 
 ## license
 
