@@ -116,6 +116,10 @@ class MusicService : Service() {
                 )
             )
             .setCallback(object : MediaSession.Callback {
+                // Media3 marca este callback como obsoleto, pero sigue siendo
+                // la vía para decidir el comando desde la cola completa. La
+                // anotación evita el warning hasta migrar al reemplazo.
+                @Suppress("OVERRIDE_DEPRECATION")
                 override fun onPlayerCommandRequest(
                     session: MediaSession,
                     controller: MediaSession.ControllerInfo,

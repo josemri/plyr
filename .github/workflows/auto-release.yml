@@ -154,6 +154,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Instalar Android SDK 37
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
+
       - name: Build signed release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 

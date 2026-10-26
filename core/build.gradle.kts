@@ -26,8 +26,11 @@ tasks.withType<dev.detekt.gradle.DetektCreateBaselineTask>().configureEach {
 kotlin {
     android {
         namespace = "com.plyr.core"
-        compileSdk = 36
+        compileSdk = 37
         minSdk = 24
+        // Tests de host (JVM) del target Android: comparten commonTest con
+        // :core:jvmTest, pero validan también la compilación Android.
+        withHostTest {}
     }
     jvm {
         compilerOptions {
@@ -50,6 +53,12 @@ kotlin {
 
         jvmMain.dependsOn(jvmSharedMain)
         getByName("androidMain").dependsOn(jvmSharedMain)
+
+        // El proyecto usa una jerarquía explícita (jvmSharedMain no encaja en
+        // la plantilla por defecto JVM+Android), así que las aristas de test
+        // también se declaran a mano (ver gradle.properties).
+        jvmTest.dependsOn(commonTest)
+        getByName("androidHostTest").dependsOn(commonTest)
 
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)

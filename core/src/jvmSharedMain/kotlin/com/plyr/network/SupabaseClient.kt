@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
 import java.text.ParsePosition
@@ -25,11 +26,18 @@ object SupabaseClient {
     private const val GROUP_MEMBERS_TABLE = "group_members"
     private const val RECOMMENDATIONS_TABLE = "recommendations"
 
+    /**
+     * `URL(String)` está deprecado desde Java 20. `URI(...).toURL()` es la vía
+     * recomendada; valida la sintaxis antes de crear la URL y los callers ya
+     * capturan `Exception`, así que el manejo de errores no cambia.
+     */
+    private fun parseUrl(spec: String): URL = URI(spec).toURL()
+
     // Groups operations
     suspend fun getGroups(): List<Group> = withContext(Dispatchers.IO) {
         try {
             Logger.d(TAG, "🔄 Fetching groups from Supabase...")
-            val url = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE?select=*")
+            val url = parseUrl("$SUPABASE_URL/rest/v1/$GROUPS_TABLE?select=*")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
@@ -76,7 +84,7 @@ object SupabaseClient {
     suspend fun createGroup(name: String, groupType: String, inviteCode: String? = null): Group? = withContext(Dispatchers.IO) {
         try {
             Logger.d(TAG, "🆕 Creating group: ${redact(name)} (type: $groupType, code: ${redact(inviteCode)})")
-            val url = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE")
+            val url = parseUrl("$SUPABASE_URL/rest/v1/$GROUPS_TABLE")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
@@ -138,7 +146,7 @@ object SupabaseClient {
             // First, find the group by invite code (B33: el código se URL-encodea
             // para no romper la semántica del filtro si lleva &, # o ,)
             val encodedInvite = URLEncoder.encode(inviteCode, "UTF-8")
-            val groupUrl = URL("$SUPABASE_URL/rest/v1/$GROUPS_TABLE?invite_code=eq.$encodedInvite&select=id")
+            val groupUrl = parseUrl("$SUPABASE_URL/rest/v1/$GROUPS_TABLE?invite_code=eq.$encodedInvite&select=id")
             val groupConnection = groupUrl.openConnection() as HttpURLConnection
             groupConnection.requestMethod = "GET"
             groupConnection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
@@ -158,7 +166,7 @@ object SupabaseClient {
             Logger.d(TAG, "✅ Found group ID: ${redact(groupId)}")
 
             // Then add the member
-            val url = URL("$SUPABASE_URL/rest/v1/$GROUP_MEMBERS_TABLE")
+            val url = parseUrl("$SUPABASE_URL/rest/v1/$GROUP_MEMBERS_TABLE")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
@@ -223,7 +231,7 @@ object SupabaseClient {
             // URL además contiene el `group_id` en el query string.
             Logger.d(TAG, "🔄 Fetching recommendations for group: ${groupId?.let { redact(it) } ?: "ALL"}")
 
-            val url = URL(urlString)
+            val url = parseUrl(urlString)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
@@ -274,7 +282,7 @@ object SupabaseClient {
             Logger.d(TAG, "   URL: ${redact(url)}")
             Logger.d(TAG, "   Comment: ${redact(comment)}")
 
-            val urlObj = URL("$SUPABASE_URL/rest/v1/$RECOMMENDATIONS_TABLE")
+            val urlObj = parseUrl("$SUPABASE_URL/rest/v1/$RECOMMENDATIONS_TABLE")
             val connection = urlObj.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("apikey", SUPABASE_ANON_KEY)
@@ -360,9 +368,9 @@ object SupabaseClient {
         return stream?.bufferedReader()?.use { it.readText() } ?: ""
     }
 
-    /** `optString(k, null)` devuelve la cadena "null" si el JSON es null (B33). */
+    /** `optString` devuelve la cadena "null" si el JSON es null (B33). */
     private fun JSONObject.optNullableString(key: String): String? =
-        if (isNull(key)) null else optString(key, null)
+        if (isNull(key)) null else optString(key)
 
     // Formatos ISO 8601 que emite Supabase (timestamptz). Un `ThreadLocal` por
     // hilo: SimpleDateFormat no es thread-safe y estos métodos se llaman desde
@@ -388,7 +396,7 @@ object SupabaseClient {
      */
     private fun parseTimestamp(timestamp: String): Long {
         if (timestamp.isBlank()) return 0L
-        for (format in timestampFormats.get()) {
+        for (format in timestampFormats.get().orEmpty()) {
             val pos = ParsePosition(0)
             val date = format.parse(timestamp, pos) ?: continue
             if (pos.index == timestamp.length) return date.time
