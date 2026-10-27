@@ -67,7 +67,7 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
         playlistOrigin = item.playlistOrigin,
     )
 
-    val dialogState = rememberShareDialogState(context)
+    val dialogState = rememberShareDialogState()
 
     ShareDialogContent(
         context = context,
@@ -78,7 +78,7 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun rememberShareDialogState(context: Context): ShareDialogState {
+private fun rememberShareDialogState(): ShareDialogState {
     val groups = remember { mutableStateOf<List<Group>>(emptyList()) }
     val recommendationState = remember { mutableStateOf<RecommendationState>(RecommendationState.IDLE) }
 

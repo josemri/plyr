@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.plyr.database.TrackEntity
 import com.plyr.model.Recommendation
-import com.plyr.model.ScanResult
 import com.plyr.network.SupabaseClient
 import com.plyr.ui.components.Titulo
 import com.plyr.ui.utils.ResponsiveDimensions
