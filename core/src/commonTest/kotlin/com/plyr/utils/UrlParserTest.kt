@@ -11,7 +11,7 @@ import org.junit.Test
 /**
  * Tests del parseo centralizado de URLs (UrlParser), que sustituye a los
  * extractores privados de FeedScreen, YouTubeSearchManager, QrScannerDialog,
- * NfcReader y YouTubeManager.
+ * YouTubeManager.
  */
 class UrlParserTest {
 

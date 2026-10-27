@@ -36,6 +36,8 @@ object TranslationCatalog {
             // Feed Screen
             "feed_title" to "plyr_feed",
             "add_recommendation" to "añadir recomendación",
+            "share_qr" to "Compartir QR",
+            "no_url_to_share" to "No hay URL para compartir",
             "loading" to "cargando...",
             "no_recommendations" to "no hay recomendaciones",
             "your_nickname" to "tu apodo",
@@ -92,7 +94,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "audio offline",
@@ -230,6 +231,8 @@ object TranslationCatalog {
             // Feed Screen
             "feed_title" to "plyr_feed",
             "add_recommendation" to "add recommendation",
+            "share_qr" to "Share QR",
+            "no_url_to_share" to "No URL to share",
             "loading" to "loading...",
             "no_recommendations" to "no recommendations",
             "your_nickname" to "your nickname",
@@ -285,7 +288,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "offline audio",
@@ -399,6 +401,8 @@ object TranslationCatalog {
             // Feed Screen
             "feed_title" to "plyr_feed",
             "add_recommendation" to "afegir recomanació",
+            "share_qr" to "Compartir QR",
+            "no_url_to_share" to "No hi ha URL per compartir",
             "loading" to "carregant...",
             "no_recommendations" to "no hi ha recomanacions",
             "your_nickname" to "el teu àlies",
@@ -455,7 +459,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "àudio offline",
@@ -569,6 +572,8 @@ object TranslationCatalog {
             // Feed Screen
             "feed_title" to "plyr_feed",
             "add_recommendation" to "おすすめを追加",
+            "share_qr" to "QRを共有",
+            "no_url_to_share" to "共有するURLがありません",
             "loading" to "読み込み中...",
             "no_recommendations" to "おすすめはありません",
             "nickname_description" to "あなたのニックネームはグループやおすすめに使用されます",
@@ -625,7 +630,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "オフライン音声",

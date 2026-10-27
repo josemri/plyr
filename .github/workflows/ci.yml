@@ -40,6 +40,9 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Instalar Android SDK 37
         shell: bash
         run: |
@@ -91,6 +94,9 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Instalar Android SDK 37
         shell: bash
         run: |
@@ -140,6 +146,9 @@ jobs:
       - name: Make gradlew executable
         shell: bash
         run: chmod +x ./gradlew
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Instalar Android SDK 37
         shell: bash

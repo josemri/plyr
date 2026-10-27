@@ -29,7 +29,6 @@ import com.plyr.ui.utils.calculateResponsiveDimensionsFallback
 import com.plyr.utils.MediaMetadata
 import com.plyr.utils.MediaMetadataExtractor
 import com.plyr.utils.MediaType
-import com.plyr.utils.NfcScanEvent
 import com.plyr.utils.Translations
 import com.plyr.utils.UrlParser
 import com.plyr.utils.formatTimestamp
@@ -172,7 +171,6 @@ private suspend fun extractRecommendationMetadata(
 /**
  * Maneja el click en una recomendación según su tipo de contenido.
  * - YouTube Videos: Reproduce directamente
- * - YouTube Playlists: Navega a SearchScreen reutilizando NfcScanEvent
  */
 private fun handleRecommendationClick(
     recommendation: Recommendation,
@@ -190,7 +188,6 @@ private fun handleRecommendationClick(
         MediaType.YOUTUBE_PLAYLIST -> {
             val playlistId = UrlParser.extractYoutubePlaylistId(url)
             if (playlistId != null) {
-                NfcScanEvent.onNfcScanned(ScanResult("youtube", "playlist", playlistId))
                 onNavigateToSearch()
             }
         }

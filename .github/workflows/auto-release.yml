@@ -20,38 +20,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  prepare:
+    name: Preparar release (versión + borrador)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 15
     outputs:
       next_tag: ${{ steps.version.outputs.next_tag }}
       next_name: ${{ steps.version.outputs.next_name }}
       next_code: ${{ steps.version.outputs.next_code }}
-      # Commit exacto del que sale todo: los jobs de escritorio construyen desde
-      # él y aplican el mismo bump, en vez de confiar en que `main` no se ha movido.
       source_sha: ${{ github.sha }}
-      # El job `publish` reconstruye con estos el cuerpo de la release `latest`,
-      # que aquí ya no se toca: solo se actualiza cuando todo ha salido bien.
-      apk_size: ${{ steps.find_apk.outputs.apk_size }}
-      apk_sha256: ${{ steps.find_apk.outputs.apk_sha256 }}
+      prev_tag: ${{ steps.version.outputs.prev_tag }}
       commit_count: ${{ steps.version.outputs.commit_count }}
       changelog: ${{ steps.version.outputs.changelog }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-          cache: 'gradle'
-
-      # `git config` ya no hace falta: este job no hace commits (ver el aviso más
-      # abajo sobre el bump de versión).
 
       - name: Compute next version and changelog
         id: version
@@ -105,7 +90,6 @@ jobs:
 
           echo "Versión actual: ${CURRENT_NAME} (code ${CURRENT_CODE})"
           echo "Nueva versión:  ${NEXT_NAME} (code ${NEXT_CODE}) -> ${NEXT_TAG}"
-          echo "Tag anterior:   ${PREV_TAG:-<ninguno>}"
 
           {
             echo "next_tag=${NEXT_TAG}"
@@ -119,13 +103,62 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Bump version in build.gradle.kts
-        # `shell: bash` explícito por coherencia con el mismo paso del job
-        # `desktop`, que sí corre en Windows.
         shell: bash
         run: |
           sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ steps.version.outputs.next_code }}/" app/build.gradle.kts
           sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ steps.version.outputs.next_name }}\"/" app/build.gradle.kts
           grep -E "versionCode|versionName" app/build.gradle.kts
+
+      - name: Upload bumped sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: bumped-sources
+          path: app/build.gradle.kts
+          if-no-files-found: error
+
+      - name: Create empty draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.next_tag }}
+          name: ${{ steps.version.outputs.next_tag }}
+          body: |
+            ## plyr ${{ steps.version.outputs.next_tag }}
+
+            **Commits:** ${{ steps.version.outputs.commit_count }}
+
+            ### Changelog
+            ${{ steps.version.outputs.changelog }}
+          draft: true
+          prerelease: false
+
+  android:
+    name: Android APK (release firmado)
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      apk_size: ${{ steps.find_apk.outputs.apk_size }}
+      apk_sha256: ${{ steps.find_apk.outputs.apk_sha256 }}
+      cert_sha256: ${{ steps.find_apk.outputs.cert_sha256 }}
+    steps:
+      - name: Checkout source commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Download bumped sources
+        uses: actions/download-artifact@v4
+        with:
+          name: bumped-sources
+          path: .
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
 
       - name: Check signing secrets
         env:
@@ -154,6 +187,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Instalar Android SDK 37
         shell: bash
         run: |
@@ -165,9 +201,6 @@ jobs:
 
       - name: Extract R8 usage report (código eliminado)
         run: |
-          # AGP genera el informe de lo que R8 descarta por no alcanzable en
-          # app/build/outputs/mapping/release/usage.txt. Se separa lo del
-          # paquete de la app (candidato real a borrar) y se publica.
           USAGE="app/build/outputs/mapping/release/usage.txt"
           if [ -f "$USAGE" ]; then
             grep '^com\.plyr' "$USAGE" > r8-usage-plyr.txt || true
@@ -251,69 +284,22 @@ jobs:
           echo "apk_sha256=$(sha256sum "$APK_PATH" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "cert_sha256=$CERT_SHA256" >> "$GITHUB_OUTPUT"
 
-      # ATENCIÓN: aquí NO se hace commit ni se empuja el tag. El bump de versión
-      # es solo local a esta máquina. `main` no se toca hasta el final del job
-      # `publish`, cuando ya está todo construido y verificado: si algo falla en
-      # cualquier punto, la rama principal queda exactamente como estaba.
-
-      - name: Create versioned release (draft)
-        # Se crea **en borrador**, invisible para los usuarios, mientras los cuatro
-        # runners de escritorio empaquetan y adjuntan sus instalables. Solo el job
-        # `publish`, si todo ha ido bien, la hace pública; si algo falla, el job
-        # `cleanup` la borra junto con el tag. Así nunca queda una release a medias.
+      - name: Upload APK to release draft
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.next_tag }}
-          name: ${{ steps.version.outputs.next_tag }}
-          body: |
-            ## plyr ${{ steps.version.outputs.next_tag }}
-
-            **APK size:** ${{ steps.find_apk.outputs.apk_size }}
-            **SHA-256:** `${{ steps.find_apk.outputs.apk_sha256 }}`
-            **Commits:** ${{ steps.version.outputs.commit_count }}
-
-            ### Changelog
-            ${{ steps.version.outputs.changelog }}
-
-            ---
-
-            ### Installation
-            **Android:** download `plyr.apk` and install it on your device. You may
-            need to enable "Install from unknown sources".
-            **Desktop:** download the installer for your OS — `.deb` (Debian/Ubuntu),
-            `.rpm` (Fedora/openSUSE), `.AppImage` (universal, works on Arch too),
-            `.msi` (Windows) or `.dmg` (macOS). The desktop version matches Android's.
-            Every platform ships with its own `.sha256` file to verify the download.
+          tag_name: ${{ needs.prepare.outputs.next_tag }}
           files: ${{ steps.find_apk.outputs.apk_path }}
           draft: true
           prerelease: false
 
-      - name: Summary
-        if: success()
-        run: |
-          {
-            echo "## Release ${{ steps.version.outputs.next_tag }} created (draft)"
-            echo ""
-            echo "- APK size: ${{ steps.find_apk.outputs.apk_size }}"
-            echo "- SHA-256: \`${{ steps.find_apk.outputs.apk_sha256 }}\`"
-            echo "- Commits: ${{ steps.version.outputs.commit_count }}"
-            echo ""
-            echo "Sigue en borrador: se publicará al final, si todos los jobs de"
-            echo "escritorio terminan bien."
-          } >> "$GITHUB_STEP_SUMMARY"
-
   desktop:
-    # La versión ya está incrementada y etiquetada: los instalables de escritorio
-    # se compilan desde ese tag y se adjuntan a la release, que sigue en **borrador**
-    # hasta que el job `publish` decide publicarla.
-    needs: release
+    name: Escritorio (${{ matrix.platform }})
+    needs: prepare
     timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         include:
-          # jpackage no compila en cruzado, así que cada arquitectura necesita su
-          # propio runner. macOS va por duplicado: Apple Silicon e Intel.
           - os: ubuntu-latest
             platform: Linux x64
           - os: windows-latest
@@ -322,12 +308,6 @@ jobs:
             platform: macOS Apple Silicon
           - os: macos-15-intel
             platform: macOS Intel
-    # Secretos de firma. Si un secreto no existe llega vacío y el paso de firma
-    # correspondiente se salta; la release se publica igual, sin firmar.
-    #   macOS:   MACOS_SIGN_IDENTITY, MACOS_CERTIFICATE,
-    #            MACOS_CERTIFICATE_PASSWORD, MACOS_KEYCHAIN_PASSWORD,
-    #            APPLE_ID, APPLE_APP_PASSWORD, APPLE_TEAM_ID
-    #   Windows: WINDOWS_CERTIFICATE, WINDOWS_CERTIFICATE_PASSWORD
     env:
       MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
@@ -338,25 +318,15 @@ jobs:
 
     steps:
       - name: Checkout source commit
-        # El mismo commit del que salió el APK. No se usa el tag porque el tag
-        # todavía no existe: hasta el final solo hay un borrador.
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.source_sha }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
 
-      - name: Bump version in build.gradle.kts
-        # Mismo bump que aplicó el job `release` a su APK, solo en local: así el
-        # instalador lleva la versión que se está publicando y `jpackage` nombra
-        # los ficheros con ella.
-        #
-        # `shell: bash` es OBLIGATORIO aquí: este job corre también en Windows,
-        # cuyo shell por defecto es PowerShell, y PowerShell se come las comillas
-        # escapadas del sed y lo convierte en una expresión de índice de array.
-        shell: bash
-        run: |
-          sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ needs.release.outputs.next_code }}/" app/build.gradle.kts
-          sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ needs.release.outputs.next_name }}\"/" app/build.gradle.kts
-          grep -E "versionCode|versionName" app/build.gradle.kts
+      - name: Download bumped sources
+        uses: actions/download-artifact@v4
+        with:
+          name: bumped-sources
+          path: .
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -366,207 +336,85 @@ jobs:
           cache: 'gradle'
 
       - name: Make gradlew executable
+        if: runner.os != 'Windows'
         shell: bash
         run: chmod +x ./gradlew
 
-      - name: Import macOS signing certificate
-        # Solo si hay certificado: en caso contrario el `.dmg` se genera sin
-        # firmar (firma ad-hoc en Apple Silicon) y la release sale igual.
-        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != ''
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android SDK 37
+        if: runner.os != 'Windows'
         shell: bash
-        env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          MACOS_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_KEYCHAIN_PASSWORD }}
         run: |
-          set -euo pipefail
-          cert_path="$RUNNER_TEMP/plyr-signing.p12"
-          keychain_path="$RUNNER_TEMP/plyr-signing.keychain-db"
-          keychain_password="${MACOS_KEYCHAIN_PASSWORD:-$(openssl rand -hex 16)}"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
-          printf '%s' "$MACOS_CERTIFICATE" | tr -d '\n\r' | openssl base64 -d -A > "$cert_path"
+      - name: Instalar Android SDK 37 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $sdkman = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
+          if (-not (Test-Path $sdkman)) { $sdkman = "sdkmanager" }
+          echo "y" | & $sdkman --licenses 2>&1 | Out-Null
+          & $sdkman "platforms;android-37.0" "build-tools;37.0.0"
 
-          security create-keychain -p "$keychain_password" "$keychain_path"
-          security set-keychain-settings -lut 21600 "$keychain_path"
-          security unlock-keychain -p "$keychain_password" "$keychain_path"
-          security import "$cert_path" -k "$keychain_path" \
-            -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$keychain_password" "$keychain_path"
-          security list-keychains -d user -s "$keychain_path" \
-            $(security list-keychains -d user | tr -d '"')
-          security find-identity -v -p codesigning "$keychain_path"
-
-          echo "MACOS_SIGN_KEYCHAIN=$keychain_path" >> "$GITHUB_ENV"
-          rm -f "$cert_path"
-
-      - name: Install rpm tooling (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: sudo apt-get update && sudo apt-get install -y rpm
-
-      - name: Validate app icon (macOS)
-        # El `.icns` se genera en Linux con `packaging/make-icons.sh` (ImageMagick
-        # no sabe escribirlo, así que lo monta un script en Python) y en local no
-        # hay forma de comprobarlo. Aquí `iconutil` convierte el contenedor a un
-        # `.iconset`, lo que obliga a parsearlo entero: falla en segundos y de
-        # forma clara en vez de publicar un `.dmg` con el icono roto.
+      - name: Preparar entorno macOS
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          set -euo pipefail
-          icon="desktop/packaging/icon.icns"
-          [ -f "$icon" ] || { echo "::error::No existe $icon"; exit 1; }
-          work="$(mktemp -d)"
-          if ! iconutil -c iconset "$icon" -o "$work/app.iconset"; then
-            echo "::error::icon.icns no lo parsea iconutil. Regenera los iconos con ./desktop/packaging/make-icons.sh y revisa el montador en Python de ese script."
-            exit 1
-          fi
-          echo "icon.icns válido: $(ls "$work/app.iconset" | wc -l | tr -d ' ') tamaños"
+          brew install create-dmg 2>&1 | tail -5 || true
+          echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
 
-      - name: Build desktop installers for ${{ matrix.platform }}
-        shell: bash
+      - name: Preparar entorno Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          # Empaqueta todos los formatos del SO. Si algún formato opcional falla
-          # (p. ej. `.rpm` sin `rpmbuild`), se reintenta con los esenciales para no
-          # perder toda la release de escritorio por un solo formato.
-          if ! ./gradlew :desktop:packageDistributionForCurrentOS --no-daemon --stacktrace; then
-            echo "::warning::Falló el empaquetado completo; reintentando formatos esenciales"
-            ./gradlew :desktop:packageDeb :desktop:packageMsi :desktop:packageDmg --no-daemon --stacktrace
-          fi
+          choco install wixtoolset --version 3.14.1 --allow-downgrade --no-progress -y 2>&1 | tail -3
+          echo "$env:WIX\bin" >> $env:GITHUB_PATH
 
-      - name: Build universal AppImage (Linux)
+      - name: Preparar entorno Linux
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          # El `TargetFormat.AppImage` de Compose es el `app-image` de jpackage (un
-          # directorio), así que se envuelve en un `.AppImage` real: el binario
-          # universal que funciona en cualquier distro, incluida Arch.
-          ./gradlew :desktop:packageAppImage --no-daemon --stacktrace
-          app_image="$(find desktop/build/compose/binaries/main/app -mindepth 1 -maxdepth 1 -type d | head -n1)"
-          if [ -z "$app_image" ]; then
-            echo "::error::No se encontró el app-image para construir el AppImage"
-            exit 1
-          fi
-          version="$(sed -nE 's/.*versionName *= *"([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)"
-          bash desktop/packaging/build-appimage.sh "$app_image" \
-            desktop/build/compose/binaries/main/appimage "$version"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fakeroot dpkg-dev rpm 2>&1 | tail -3
 
-      - name: Notarize macOS app
-        # Requiere el certificado de firma y las credenciales de Apple; si falta
-        # algo, el `.dmg` se publica sin notarizar (aviso de Gatekeeper al abrir).
-        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != '' && env.APPLE_ID != ''
+      - name: Build desktop installers
         shell: bash
-        run: ./gradlew :desktop:notarizeDmg --no-daemon --stacktrace
+        run: ./gradlew :desktop:packageDistributionForCurrentOS --no-daemon --stacktrace
 
-      - name: Sign Windows installer
-        # jpackage no firma en Windows, así que se firma el `.msi` a posteriori
-        # con `signtool` (Authenticode + sellado de tiempo).
-        if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE != ''
-        shell: pwsh
-        env:
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-        run: |
-          $certPath = Join-Path $env:RUNNER_TEMP 'plyr-signing.pfx'
-          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
-
-          $signtool = Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" `
-            -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -Last 1
-          if (-not $signtool) { throw 'No se encontró signtool.exe (Windows SDK)' }
-
-          $installers = @(Get-ChildItem -Path 'desktop/build/compose/binaries' -Recurse -File -Include '*.msi')
-          if ($installers.Count -eq 0) { throw 'No se encontró ningún .msi para firmar' }
-
-          foreach ($installer in $installers) {
-            & $signtool.FullName sign /fd SHA256 /f $certPath /p $env:WINDOWS_CERTIFICATE_PASSWORD `
-              /tr http://timestamp.digicert.com /td SHA256 $installer.FullName
-            if ($LASTEXITCODE -ne 0) { throw "Falló la firma de $($installer.FullName)" }
-            & $signtool.FullName verify /pa $installer.FullName
-          }
-
-          Remove-Item $certPath -Force
-
-      - name: Locate installers
-        shell: bash
-        run: |
-          # Nota: el target `AppImage` de Compose Desktop es el `app-image` de
-          # jpackage (un directorio descomprimido), no un fichero `.AppImage`; en
-          # Linux los instalables son `.deb` y `.rpm`.
-          #
-          # El directorio `binaries/main/app/` es el app-image descomprimido: dentro
-          # lleva su propio `plyr.exe` (o `plyr`), que es solo el stub de lanzador y
-          # no sirve sin `lib/` y `runtime/`. Se excluye para no publicarlo como si
-          # fuera un instalador, y por eso el patrón no busca `.exe`. Se usa `!`
-          # y no `-not`, que el `find` de BSD (macOS) no entiende.
-          find desktop/build/compose/binaries -type f \
-            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \
-               -o -name '*.msi' -o -name '*.dmg' \) \
-            ! -path '*/binaries/main/app/*' 2>/dev/null > desktop-installers-raw.txt || true
-
-          arch="$(uname -m)"
-          : > desktop-installers.txt
-          # macOS: el `.dmg` de Intel y el de Apple Silicon salen con el mismo
-          # nombre, así que se les añade la arquitectura para no pisarse.
-          while IFS= read -r file; do
-            [ -n "$file" ] || continue
-            if [ "${file##*.}" = "dmg" ] && [ "$RUNNER_OS" = "macOS" ]; then
-              renamed="${file%.dmg}-${arch}.dmg"
-              mv "$file" "$renamed"
-              file="$renamed"
-            fi
-            echo "$file" >> desktop-installers.txt
-          done < desktop-installers-raw.txt
-          rm -f desktop-installers-raw.txt
-          if [ ! -s desktop-installers.txt ]; then
-            echo "::error::No se encontró ningún instalable de escritorio en ${{ matrix.platform }}"
-            exit 1
-          fi
-
-          # Checksums por plataforma, adjuntos a la release para poder verificar
-          # la descarga. `sha256sum` es de GNU y no viene de serie en macOS (el de
-          # Windows sí lo trae Git Bash), así que si no está se usa `shasum -a 256`,
-          # que imprime en el mismo formato.
-          #
-          # El fichero se crea **dentro de `desktop/`** y se anota con esa misma
-          # ruta: `gh release upload` interpreta el argumento como un patrón y si
-          # no encuentra ningún fichero que case aborta con "no matches found".
-          if command -v sha256sum >/dev/null 2>&1; then
-            hash_file() { sha256sum "$1"; }
-          else
-            hash_file() { shasum -a 256 "$1"; }
-          fi
-          checksums="desktop/desktop-installers-${RUNNER_OS}-${arch}.sha256"
-          : > "$checksums"
-          while IFS= read -r file; do
-            [ -n "$file" ] || continue
-            echo "$(hash_file "$file" | awk '{print $1}')  $(basename "$file")" >> "$checksums"
-          done < desktop-installers.txt
-          echo "$checksums" >> desktop-installers.txt
-
-          echo "Instalables compilados:"
-          cat desktop-installers.txt
-
-      - name: Upload installers to the draft release
-        # Se adjuntan solo a la release versionada, que está **en borrador**; el
-        # puntero `latest` no se toca aquí. Así, si este job falla, `cleanup`
-        # borra el borrador sin haber tocado nada público. Tanto la publicación
-        # como el refresco de `latest` los hace el job `publish`, cuando los
-        # cuatro runners han terminado bien.
+      - name: Collect and upload installers
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${{ needs.release.outputs.next_tag }}"
-          while IFS= read -r file; do
-            [ -n "$file" ] || continue
-            gh release upload "$TAG" "$file" --clobber
-          done < desktop-installers.txt
-          echo "Instalables adjuntados a $TAG (borrador)"
-
-      - name: Summary
-        if: success()
-        shell: bash
-        run: |
+          set -euo pipefail
+          TAG="${{ needs.prepare.outputs.next_tag }}"
+          OUTDIR="desktop-out"
+          mkdir -p "$OUTDIR"
+          
+          # Collect installers
+          find desktop/build/compose/binaries -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.dmg" -o -name "*.exe" \) -exec cp {} "$OUTDIR"/ \; 2>&1 | tail -10
+          find desktop/build/jpackage -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.msi" -o -name "*.dmg" \) -exec cp {} "$OUTDIR"/ \; 2>&1 | tail -10
+          
+          ls -lh "$OUTDIR"
+          
+          if [ -z "$(ls -A $OUTDIR)" ]; then
+            echo "::error::No se encontraron instaladores para este sistema"
+            exit 1
+          fi
+          
+          # Generate checksums
+          for f in "$OUTDIR"/*; do
+            [ -f "$f" ] && sha256sum "$f" > "$f.sha256"
+          done
+          
+          # Upload to draft release
+          gh release upload "$TAG" "$OUTDIR"/* --clobber
+          
+          ls "$OUTDIR" > desktop-installers.txt
+          
           {
             echo "### Desktop (${{ matrix.platform }})"
             echo ""
@@ -578,20 +426,8 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
-    # Única fase que toca algo público, y se ejecuta solo si **todo** lo anterior
-    # ha ido bien. El orden de dentro es la clave de la atomicidad:
-    #
-    #   1. se bajan los instalables del borrador   (lo lento y propenso a fallar)
-    #   2. commit del bump + tag + publicar        (aquí ya solo quedan llamadas API)
-    #   3. `latest`
-    #   4. push del commit a `main`                (LO ÚLTIMO, y solo si todo fue bien)
-    #
-    # El tag se empuja antes de publicar para que apunte al commit con la versión
-    # ya incrementada, pero el commit NO se empuja a `main` hasta el final. Si
-    # cualquier paso falla, `cleanup` borra el borrador y el tag y la rama
-    # principal ni se ha enterado: no puede quedar una release a medias ni una
-    # versión modificada sin release asociada.
-    needs: [release, desktop]
+    name: Publicar release
+    needs: [prepare, android, desktop]
     if: success()
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -602,162 +438,93 @@ jobs:
       - name: Checkout source commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release.outputs.source_sha }}
-          # Necesario al final para empujar el commit de versión a `main`.
+          ref: ${{ needs.prepare.outputs.source_sha }}
           fetch-depth: 0
 
-      - name: Bump version in build.gradle.kts
-        # El checkout trae la versión sin incrementar; sin este paso el `git
-        # commit` de más abajo no tendría nada que commitear. Es el mismo bump
-        # que aplicaron `release` (a su APK) y cada job de escritorio (a sus
-        # instaladores), solo en local.
-        run: |
-          sed -i -E "s/versionCode *= *[0-9]+/versionCode = ${{ needs.release.outputs.next_code }}/" app/build.gradle.kts
-          sed -i -E "s/versionName *= *\"[^\"]+\"/versionName = \"${{ needs.release.outputs.next_name }}\"/" app/build.gradle.kts
-          grep -E "versionCode|versionName" app/build.gradle.kts
+      - name: Download bumped sources
+        uses: actions/download-artifact@v4
+        with:
+          name: bumped-sources
+          path: .
 
       - name: Download release assets
-        # `latest` lleva los mismos ficheros que la release versionada: se bajan
-        # de ahí —todavía en borrador— para volver a subirlos. Se hace **antes**
-        # de publicar, para que un fallo de red no deje la release pública con el
-        # puntero `latest` sin actualizar.
         run: |
           set -euo pipefail
           mkdir -p release-assets
-          gh release download "${{ needs.release.outputs.next_tag }}" --dir release-assets
+          gh release download "${{ needs.prepare.outputs.next_tag }}" --dir release-assets
           echo "Descargados $(ls release-assets | wc -l | tr -d ' ') ficheros:"
           ls -lh release-assets
 
       - name: Commit version bump and create tag
-        # Solo el commit local y el tag; `main` sigue intacto. Git permite empujar
-        # un tag cuyo commit aún no está en ninguna rama, así que el tag ya queda
-        # apuntando a la versión incrementada sin haber modificado la principal.
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/build.gradle.kts
-          git commit -m "chore(release): ${{ needs.release.outputs.next_tag }} [skip ci]"
-          git tag -a "${{ needs.release.outputs.next_tag }}" -m "Release ${{ needs.release.outputs.next_tag }}"
-          git push origin "${{ needs.release.outputs.next_tag }}"
-          echo "Tag ${{ needs.release.outputs.next_tag }} apuntando al commit con la versión"
-          echo "incrementada. 'main' todavía no se ha tocado."
+          git commit -m "chore(release): ${{ needs.prepare.outputs.next_tag }} [skip ci]"
+          git tag -a "${{ needs.prepare.outputs.next_tag }}" -m "Release ${{ needs.prepare.outputs.next_tag }}"
+          git push origin "${{ needs.prepare.outputs.next_tag }}"
 
       - name: Publish versioned release
-        run: gh release edit "${{ needs.release.outputs.next_tag }}" --draft=false
+        run: gh release edit "${{ needs.prepare.outputs.next_tag }}" --draft=false
 
       - name: Refresh 'latest' release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
-          name: ${{ needs.release.outputs.next_tag }}
+          name: ${{ needs.prepare.outputs.next_tag }}
           body: |
             ## plyr (latest)
 
-            **Current version:** ${{ needs.release.outputs.next_tag }}
+            **Current version:** ${{ needs.prepare.outputs.next_tag }}
 
             Android: `plyr.apk`. Desktop: `.deb`/`.rpm`/`.AppImage`, `.msi` or `.dmg`
-            (same version as Android).
-            **APK size:** ${{ needs.release.outputs.apk_size }}
-            **SHA-256:** `${{ needs.release.outputs.apk_sha256 }}`
-            **Commits:** ${{ needs.release.outputs.commit_count }}
+            **APK size:** ${{ needs.android.outputs.apk_size }}
+            **SHA-256:** `${{ needs.android.outputs.apk_sha256 }}`
 
             ### Recent changes
-            ${{ needs.release.outputs.changelog }}
+            ${{ needs.prepare.outputs.changelog }}
           files: release-assets/*
           draft: false
           prerelease: false
 
       - name: Prune superseded assets from 'latest'
-        # `latest` es un puntero fijo, pero sus ficheros llevan el nombre de la
-        # versión (`plyr-1.4.0.msi`): sin esto se acumularían los de todas las
-        # releases anteriores y quien entrara podría instalarse una versión vieja.
-        # Va al final, cuando ya está todo lo demás hecho, para que un fallo aquí
-        # no deje a `latest` vacío.
         run: |
           set -euo pipefail
           gh release view latest --json assets --jq -r '.assets[].name' > old-assets.txt || true
           if [ ! -s old-assets.txt ]; then
-            echo "'latest' no tenía assets previos."
             exit 0
           fi
-          echo "Comparando con los $(ls release-assets | wc -l | tr -d ' ') ficheros de esta versión:"
-          # Se queda solo con lo que acaba de subirse: `plyr.apk` y los `.sha256`
-          # no llevan la versión en el nombre, así que el criterio es «¿existe en
-          # esta release?» y no «¿contiene el número de versión?».
           while IFS= read -r name; do
             [ -n "$name" ] || continue
             if [ -f "release-assets/$name" ]; then
               echo "  se queda:  $name"
             else
               echo "  se retira: $name"
-              gh release delete-asset latest "$name" --yes
+              gh release delete-asset latest "$name" --yes || true
             fi
           done < old-assets.txt
 
       - name: Push version bump to main
-        # Lo último y lo único que modifica la rama principal. Si la release no ha
-        # llegado hasta aquí, `main` se queda como estaba y la versión no avanza.
-        # Un fallo en este paso (p. ej. si alguien empujó a `main` mientras
-        # corría la workflow) deja todo lo demás publicado pero no versionado en
-        # la rama; se limpia con `gh release delete <tag> --yes --cleanup-tag`.
         run: |
           set -euo pipefail
           git push origin "HEAD:${GITHUB_REF_NAME}"
-          echo "Versión ${{ needs.release.outputs.next_name }} empujada a ${GITHUB_REF_NAME}."
-
-      - name: Summary
-        if: success()
-        run: |
-          {
-            echo "## Release ${{ needs.release.outputs.next_tag }} published"
-            echo ""
-            echo "- Release versionada pública con todos los instalables."
-            echo "- \`latest\` apuntando a ella."
-            echo "- Versión ${{ needs.release.outputs.next_name }} empujada a \`main\`."
-          } >> "$GITHUB_STEP_SUMMARY"
 
   cleanup:
-    # Red de seguridad: si algo falla (o se cancela la ejecución) en cualquier
-    # punto, se tira todo lo creado —el borrador de la release y su tag— para que
-    # no quede nada a medias ni colgando.
-    #
-    # No hace falta revertir nada en `main`: el commit de incremento de versión
-    # solo se empuja al final del job `publish`, así que si se llega hasta aquí la
-    # rama principal no se ha modificado y la versión no ha avanzado.
-    needs: [release, desktop, publish]
-    # `always()` hace que se evalúe aunque algún requisito se haya saltado, y el
-    # filtro de abajo evita que corra cuando todo ha ido bien.
+    needs: [prepare, android, desktop, publish]
     if: always() && (failure() || cancelled())
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
-      # Sin esto `gh` no sabe en qué repositorio está (este job no hace checkout)
-      # y todos los comandos revientan con "not a git repository". Pasó de verdad:
-      # la limpieza del run 39443819677 terminó en verde sin borrar nada.
       GH_REPO: ${{ github.repository }}
     steps:
       - name: Delete draft release and tag
         run: |
           set -euo pipefail
-          TAG="${{ needs.release.outputs.next_tag }}"
+          TAG="${{ needs.prepare.outputs.next_tag }}"
           if [ -z "$TAG" ]; then
-            echo "El job 'release' falló antes de calcular la versión: no hay nada que borrar."
             exit 0
           fi
-          # El borrador puede no tener tag todavía (el tag se crea en el job
-          # `publish`), así que se borra la release y luego, solo si existe, el tag.
-          if gh release delete "$TAG" --yes; then
-            echo "Release (borrador) $TAG eliminada."
-          else
-            echo "::warning::No se pudo borrar la release $TAG. Bórrala a mano con: gh release delete $TAG --yes --cleanup-tag"
-          fi
-          # OJO: el endpoint de borrado lleva `refs` en PLURAL (`/git/refs/`),
-          # no como el de lectura (`/git/ref/`). Con el singular la API devuelve
-          # 404 y la limpieza fallaría en silencio.
-          if gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "Tag $TAG eliminado."
-          else
-            echo "No había tag $TAG que borrar (es normal si el fallo fue antes de 'publish')."
-          fi
+          gh release delete "$TAG" --yes || true
+          gh api -X DELETE "repos/${GH_REPO}/git/refs/tags/${TAG}" >/dev/null 2>&1 || true
