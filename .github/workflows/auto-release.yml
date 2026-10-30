@@ -196,7 +196,7 @@ jobs:
           export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" || true
+          sdkmanager "platforms;android-37" "build-tools;37.0.0" || sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
 
       - name: Build signed release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
@@ -350,7 +350,7 @@ jobs:
           export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" || true
+          sdkmanager "platforms;android-37" "build-tools;37.0.0" || sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
 
       - name: Instalar Android SDK 37 (Windows)
         if: runner.os == 'Windows'
@@ -359,7 +359,8 @@ jobs:
           $sdkman = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
           if (-not (Test-Path $sdkman)) { $sdkman = "sdkmanager" }
           echo "y" | & $sdkman --licenses 2>&1 | Out-Null
-          & $sdkman "platforms;android-37" "build-tools;37.0.0"
+          & $sdkman "platforms;android-37" "build-tools;37.0.0" 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 0) { & $sdkman "platforms;android-36" "build-tools;36.0.0" }
 
       - name: Preparar entorno macOS
         if: runner.os == 'macOS'
