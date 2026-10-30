@@ -40,8 +40,6 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Accept licenses and install packages
         shell: bash
@@ -94,8 +92,6 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Accept licenses and install packages
         shell: bash
@@ -147,8 +143,6 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Accept licenses and install packages
         shell: bash
