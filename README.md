@@ -7,15 +7,16 @@
 [![Desktop](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](https://github.com/josemri/plyr/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
 
-stream any song, build playlists, share, sync across devices. Terminal-inspired, runs on Android, Windows, Linux and macOS. Open source, no ads, no telemetry.
+Stream any song, build playlists, share them with a QR code, sync across devices. Terminal-inspired, runs on Android, Windows, Linux and macOS. Open source, no ads, no telemetry.
 
 ## features
 
 - **YouTube streaming** — search and play any song (NewPipe Extractor).
 - **Local playlists** — create, edit and reorder them; import a playlist from a **Spotify URL**.
 - **Offline downloads** — download tracks and play them without a connection.
-- **Scan & share** — share a track or playlist.
-- **Backup** — choose a folder once and the `plyr-sync.zip` inside keeps itself up to date.
+- **Scan & share** — share a track or playlist as a QR code or NFC tag. On Android, QR codes can be scanned with the camera and NFC tags written.
+- **Backup** — choose a folder once and the `plyr-sync.zip` inside keeps itself up to date; the same ZIP moves between Android and desktop.
+- **Desktop integration** — tray icon, MPRIS on Linux, keyboard shortcuts and update checker.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase.
 - **Multiplatform** — Android 7.0+, Windows, Linux (`.deb`, `.rpm`, `.AppImage`) and macOS (`.dmg`).
 - **run.sh** — one script to build, test, package and analyze the whole project.
@@ -24,12 +25,12 @@ stream any song, build playlists, share, sync across devices. Terminal-inspired,
 
 Download the installers from the [latest release](https://github.com/josemri/plyr/releases/latest):
 
-- **Android** — `plyr.apk` (Android 7.0+).
+- **Android** — `plyr.apk` (Android 7.0+). Enable "Install from unknown sources" if needed.
 - **Windows** — `.msi`.
 - **macOS** — `.dmg` (Intel and Apple Silicon).
 - **Linux** — `.deb` (Debian/Ubuntu), `.rpm` (Fedora/openSUSE) or `.AppImage` (any distro, including Arch).
 
-Desktop installers bundle their own Java runtime. On Linux, playback uses the system `libvlc`
+Desktop installers bundle their own Java runtime. On Linux, playback uses the system `libvlc`; the `.deb` already declares that dependency.
 
 ## android
 
@@ -66,6 +67,8 @@ Not available yet. The plan for the browser port — a Ktor server for YouTube e
 ./run.sh check                  # detekt + lint + cobertura
 ```
 
+Desktop builds additionally need `libvlc`; `.rpm` packaging needs `rpmbuild`.
+
 ## android permissions
 
 ```xml
@@ -93,10 +96,6 @@ CAMERA                    # QR code scanning (optional hardware)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
 - [ ] **Build hygiene** — remove compiler warnings and migrate deprecated Gradle, AGP and Kotlin plugin APIs; keep modules and dependencies up to date
-- [x] **rm NFC** — remove all NFC functionality
-- [ ] **fix/clean share**
-- [ ] **album/playlist** create a separate carrusel for albums and playlists (ANDORID)
-- [ ] **clean names** clean song names (for example rm all content after - since it tends to be the artist name)
 
 ## license
 
