@@ -187,11 +187,16 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+
       - name: Accept licenses and install packages
         shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" || true
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
       - name: Build signed release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
@@ -337,12 +342,17 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+
       - name: Accept licenses and install packages
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0" || true
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
       - name: Instalar Android SDK 37 (Windows)
         if: runner.os == 'Windows'
