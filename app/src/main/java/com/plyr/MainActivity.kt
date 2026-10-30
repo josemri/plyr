@@ -34,6 +34,7 @@ import com.plyr.ui.theme.PlyrTheme
 import com.plyr.utils.Config
 import com.plyr.utils.DataSync
 import com.plyr.utils.LightSensorDetector
+import com.plyr.utils.UrlParser
 
 
 
