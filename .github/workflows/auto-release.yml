@@ -189,12 +189,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Accept licenses and install packages
         shell: bash
         run: |
-          export ANDROID_HOME=/usr/local/lib/android/sdk
-          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-37" "build-tools;37.0.0" || true
 
@@ -342,13 +342,13 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Accept licenses and install packages
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          export ANDROID_HOME=/usr/local/lib/android/sdk
-          export ANDROID_SDK_ROOT=/usr/local/lib/android/sdk
-          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
           yes | sdkmanager --licenses || true
           sdkmanager "platforms;android-37" "build-tools;37.0.0" || true
 
