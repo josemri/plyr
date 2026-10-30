@@ -10,16 +10,6 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
-    plugins {
-        id("org.jetbrains.compose.hot-reload") version "1.2.0" apply false
-    }
-    resolutionStrategy {
-        eachPlugin {
-            if (requested.id.id == "org.jetbrains.compose.hot-reload") {
-                useVersion("1.2.0")
-            }
-        }
-    }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
