@@ -232,7 +232,7 @@ internal fun describeHeaders(headers: Map<String, List<String>>): String =
         .sortedBy { it.key.lowercase() }
         .joinToString("\n") { (name, values) ->
             val shown = if (name.lowercase() in SENSITIVE_HEADERS) {
-                "$REDACTED (${values.sumOf { it.length }} chars)"
+                "$REDACTED (${values.sumBy { it.length }} chars)"
             } else {
                 values.joinToString(", ")
             }

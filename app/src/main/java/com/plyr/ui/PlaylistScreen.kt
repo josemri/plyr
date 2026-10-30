@@ -174,12 +174,12 @@ private data class PlaylistDownloadValues(
 private fun rememberPlaylistDownloadValues(viewModel: DownloadViewModel?): PlaylistDownloadValues {
     val playlistId by viewModel?.playlistId?.collectAsStateWithLifecycle() ?: remember { mutableStateOf<String?>(null) }
     val isDownloading by viewModel?.isDownloading?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(false) }
-    val progress by viewModel?.progress?.collectAsStateWithLifecycle() ?: remember { mutableFloatStateOf(0f) }
+    val progress by viewModel?.progress?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(0f) }
     val message by viewModel?.message?.collectAsStateWithLifecycle() ?: remember { mutableStateOf("") }
     val result by viewModel?.resultMessage?.collectAsStateWithLifecycle() ?: remember { mutableStateOf<String?>(null) }
     val currentVideoId by viewModel?.currentVideoId?.collectAsStateWithLifecycle() ?: remember { mutableStateOf<String?>(null) }
-    val currentFraction by viewModel?.currentFraction?.collectAsStateWithLifecycle() ?: remember { mutableFloatStateOf(0f) }
-    val revision by viewModel?.revision?.collectAsStateWithLifecycle() ?: remember { mutableIntStateOf(0) }
+    val currentFraction by viewModel?.currentFraction?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(0f) }
+    val revision by viewModel?.revision?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(0) }
     return PlaylistDownloadValues(
         viewModel = viewModel,
         playlistId = playlistId,
@@ -1189,9 +1189,6 @@ private fun PlaylistTrackRow(
     val isPlaying = currentPlayingTrack?.remoteTrackId == track.id
     val videoId = track.youtubeVideoId
     val isDownloaded = videoId != null && videoId in state.downloadedVideoIds
-    // `isDownloaded` ya implica que hay `videoId`; se guarda aparte para que el
-    // compilador no tenga que adivinar el smart cast al construir el borrado.
-    val downloadableVideoId = videoId.takeIf { isDownloaded }
     val trackProgress = if (download.isDownloading && videoId != null && videoId == download.currentVideoId) {
         download.currentFraction
     } else null
@@ -1214,9 +1211,9 @@ private fun PlaylistTrackRow(
             onLikedStatusChanged = { state.tracksRevision++ },
             isDownloaded = isDownloaded,
             downloadProgress = trackProgress,
-            onDeleteDownload = downloadableVideoId?.let { id ->
-                { download.viewModel?.removeDownload(id) }
-            }
+            onDeleteDownload = if (isDownloaded && videoId != null) {
+                { download.viewModel?.removeDownload(videoId) }
+            } else null
         )
     }
 }

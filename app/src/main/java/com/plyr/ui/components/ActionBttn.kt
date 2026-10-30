@@ -74,12 +74,7 @@ fun ActionButton(
  *
  * Ejemplo mínimo:
  *     ActionButtonsGroup(buttons = myButtons)
- *
- * El `Modifier` por defecto ya trae el ancho completo y el margen inferior: es
- * el aspecto que usa la app salvo en Home, que pasa uno propio. Mantener ese
- * valor por defecto (en vez de `Modifier`) es intencionado.
  */
-@Suppress("ModifierParameter")
 @Composable
 fun ActionButtonsGroup(
     buttons: List<ActionButtonData>,

@@ -1,13 +1,11 @@
 package com.plyr.ui.utils
 
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.roundToInt
 
 /**
  * Clases de utilidad para manejar layouts responsivos según el tamaño de pantalla.
@@ -46,29 +44,19 @@ data class ResponsiveDimensions(
 )
 
 /**
- * Calcula las dimensiones responsivas a partir del tamaño de la ventana.
- *
- * Usa `LocalWindowInfo.containerSize` (en píxeles) en lugar de
- * `LocalConfiguration.screenWidthDp/HeightDp`, que Lint marca como obsoleto en
- * favor del tamaño real disponible para la app.
+ * Calcula las dimensiones responsivas basadas en LocalConfiguration.
+ * Funciona en todas las versiones de Android y no requiere dependencias adicionales.
+ * 
+ * Esta función implementa la lógica equivalente a WindowSizeClass:
+ * - Compact: width < 600dp
+ * - Medium: width 600-839dp
+ * - Expanded: width >= 840dp
  */
 @Composable
 fun calculateResponsiveDimensionsFallback(): ResponsiveDimensions {
-    val density = LocalDensity.current
-    val containerSize = LocalWindowInfo.current.containerSize
-    val screenWidthDp = with(density) { containerSize.width.toDp().value }.roundToInt()
-    val screenHeightDp = with(density) { containerSize.height.toDp().value }.roundToInt()
-    return calculateResponsiveDimensions(screenWidthDp, screenHeightDp)
-}
-
-/**
- * Lógica pura de [calculateResponsiveDimensionsFallback], separada de Compose
- * para poder cubrirla con tests JVM.
- */
-internal fun calculateResponsiveDimensions(
-    screenWidthDp: Int,
-    screenHeightDp: Int,
-): ResponsiveDimensions {
+    val configuration = LocalConfiguration.current
+    val screenWidthDp = configuration.screenWidthDp
+    val screenHeightDp = configuration.screenHeightDp
     val isLandscape = screenWidthDp > screenHeightDp
 
     // Clasificación similar a WindowSizeClass

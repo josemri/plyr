@@ -2,10 +2,11 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kover)
     alias(libs.plugins.detekt)
-    alias(libs.plugins.ksp)
+    id("kotlin-kapt")
 }
 
 val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -31,15 +32,11 @@ fun configValue(name: String, default: String): String =
 
 android {
     namespace = "com.plyr"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.github.josemri.plyr"
         minSdk = 24
-        // compileSdk 37 lo exigen las librerías actuales (core-ktx 1.19+,
-        // Compose 1.12). El salto de targetSdk a 37 cambia comportamiento en
-        // runtime (audio en segundo plano, NFC...) y necesita pruebas en
-        // dispositivo, así que se hará en un hito aparte.
         targetSdk = 36
         versionCode = 13
         versionName = "1.4.2"
@@ -79,9 +76,6 @@ android {
             // B41: R8 activo; antes los proguardFiles eran inertes y los
             // Log.d/e con datos sensibles (B32/B33) llegaban al APK publicado.
             isMinifyEnabled = true
-            // Los `ascii_*` que se resuelven por nombre están protegidos en
-            // res/raw/keep.xml, así que se puede activar el shrink completo.
-            isShrinkResources = true
             if (hasReleaseKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -101,15 +95,11 @@ android {
         compose = true
         buildConfig = true
     }
+}
 
-    lint {
-        // Los iconos nativos de Android se mantienen intactos a propósito: el
-        // redondeo de esta tanda solo afecta a los ejecutables de escritorio.
-        // Añadir <monochrome> cambiaría el icono, así que se silencia solo
-        // este aviso (no se desactiva ninguna otra comprobación).
-        disable += "MonochromeLauncherIcon"
-        // Ver la nota de targetSdk: es una decisión consciente, no un olvido.
-        disable += "OldTargetApi"
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -118,25 +108,15 @@ detekt {
     config.setFrom(rootProject.file("detekt.yml"))
 }
 
-// Room genera Kotlin con KSP en `build/generated`: se analiza el código del
-// proyecto, no el generado (mismo filtro que en `:core` y `:desktop`).
-tasks.withType<dev.detekt.gradle.Detekt>().configureEach {
-    exclude { it.file.invariantSeparatorsPath.contains("/generated/") }
-}
-tasks.withType<dev.detekt.gradle.DetektCreateBaselineTask>().configureEach {
-    exclude { it.file.invariantSeparatorsPath.contains("/generated/") }
-}
-
-// AGP 9.4 expone `VariantOutput.outputFileName` en la API pública; la API
-// antigua (`applicationVariants`/`BaseVariantOutputImpl`) ya está obsoleta.
-androidComponents {
-    onVariants { variant ->
-        val fileName = when (variant.buildType) {
-            "release" -> "plyr.apk"
-            "debug" -> "plyr-debug.apk"
-            else -> "plyr-${variant.buildType}.apk"
-        }
-        variant.outputs.forEach { output -> output.outputFileName.set(fileName) }
+android.applicationVariants.all {
+    outputs.all {
+        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+            when (buildType.name) {
+                "release" -> "plyr.apk"
+                "debug" -> "plyr-debug.apk"
+                else -> "plyr-${buildType.name}.apk"
+            }
+        true
     }
 }
 
@@ -179,7 +159,7 @@ dependencies {
     implementation(libs.okhttp)
 
     // NewPipe Extractor
-    implementation(libs.newpipe.extractor)
+    implementation("com.github.teamnewpipe:NewPipeExtractor:v0.26.3")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
@@ -187,7 +167,7 @@ dependencies {
     // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
+    kapt(libs.androidx.room.compiler)
 
     // Coil for image loading
     implementation(libs.coil.compose)

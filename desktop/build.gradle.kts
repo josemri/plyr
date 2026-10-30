@@ -28,7 +28,7 @@ val appVersionName: String = Regex("""versionName\s*=\s*"([^"]+)"""")
  * Fuente generado con la versión para el código (M34). `UpdateChecker` lo usa
  * para comparar con la última release sin duplicar el número a mano.
  */
-val generateVersionSource = tasks.register("generateVersionSource") {
+val generateVersionSource by tasks.registering {
     val version = appVersionName
     val outputDir = layout.buildDirectory.dir("generated/plyr-version/kotlin")
     inputs.property("version", version)
@@ -72,7 +72,7 @@ tasks.withType<dev.detekt.gradle.DetektCreateBaselineTask>().configureEach {
 dependencies {
     implementation(project(":core"))
     implementation(compose.desktop.currentOs)
-    implementation(libs.compose.material3)
+    implementation(compose.material3)
     implementation(libs.kotlinx.coroutines.core)
     // Motor de audio de escritorio (M4). Requiere `libvlc` instalado en el sistema.
     implementation(libs.vlcj)
@@ -92,7 +92,7 @@ dependencies {
     // `MapSettings` para aislar las preferencias en los tests (M9).
     testImplementation(libs.multiplatform.settings.test)
     // Test de UI de Compose (runComposeUiTest) para la navegación de M5.
-    testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(compose.desktop.uiTestJUnit4)
     // Coil 3 para carga de portadas (M8)
     implementation(libs.coil3.compose)
     implementation(libs.coil3.network.okhttp)
@@ -281,7 +281,7 @@ compose.desktop {
  * después de `packageDeb`, de forma que `./gradlew :desktop:packageDeb` (o
  * `packageDistributionForCurrentOS`) deja el instalable final.
  */
-val patchDeb = tasks.register<Exec>("patchDeb") {
+val patchDeb by tasks.registering(Exec::class) {
     group = "distribution"
     description = "Inyecta la ficha AppStream y la dependencia de libvlc en el .deb generado."
     dependsOn("packageDeb")

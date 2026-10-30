@@ -40,12 +40,6 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
-      - name: Instalar Android SDK 37
-        shell: bash
-        run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
-
       - name: detekt (app + desktop + core)
         # `detektMain` usa type resolution: sin ella no corren las reglas de
         # código muerto (`Unused*`), que son las que más valor aportan aquí.
@@ -91,20 +85,11 @@ jobs:
         shell: bash
         run: chmod +x ./gradlew
 
-      - name: Instalar Android SDK 37
-        shell: bash
-        run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
-
       - name: Tests unitarios Android (app)
         run: ./gradlew :app:testDebugUnitTest --stacktrace
 
       - name: Tests de core (KMP jvmTest)
         run: ./gradlew :core:jvmTest --stacktrace
-
-      - name: Tests de core (host Android)
-        run: ./gradlew :core:testAndroidHostTest --stacktrace
 
       - name: Tests de escritorio
         run: ./gradlew :desktop:test --stacktrace
@@ -118,7 +103,6 @@ jobs:
           path: |
             app/build/reports/tests/testDebugUnitTest
             core/build/reports/tests/jvmTest
-            core/build/reports/tests/testAndroidHostTest
             desktop/build/reports/tests/test
 
   build:
@@ -140,12 +124,6 @@ jobs:
       - name: Make gradlew executable
         shell: bash
         run: chmod +x ./gradlew
-
-      - name: Instalar Android SDK 37
-        shell: bash
-        run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
       - name: APK de depuración (Android)
         run: ./gradlew :app:assembleDebug --stacktrace
