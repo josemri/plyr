@@ -42,12 +42,14 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
 
       - name: Accept licenses and install packages
         shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" || true
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-37" "build-tools;37.0.0"
 
       - name: detekt (app + desktop + core)
         # `detektMain` usa type resolution: sin ella no corren las reglas de
@@ -96,12 +98,14 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
 
       - name: Accept licenses and install packages
         shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" || true
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-37" "build-tools;37.0.0"
 
       - name: Tests unitarios Android (app)
         run: ./gradlew :app:testDebugUnitTest --stacktrace
@@ -149,12 +153,14 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
 
       - name: Accept licenses and install packages
         shell: bash
         run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" || true
+          yes | sdkmanager --licenses
+          sdkmanager "platforms;android-37" "build-tools;37.0.0"
 
       - name: APK de depuración (Android)
         run: ./gradlew :app:assembleDebug --stacktrace
