@@ -189,13 +189,11 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11076708
 
-      - name: Accept licenses and install packages
+      - name: Instalar Android SDK 37
         shell: bash
         run: |
-          yes | sdkmanager --licenses
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
       - name: Build signed release APK
@@ -344,14 +342,12 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11076708
 
-      - name: Accept licenses and install packages
+      - name: Instalar Android SDK 37
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          yes | sdkmanager --licenses
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
 
       - name: Instalar Android SDK 37 (Windows)
