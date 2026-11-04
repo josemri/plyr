@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- black se queda: lo usan los drawables del launcher (ic_launcher_background*.xml) -->
-    <color name="black">#FF000000</color>
-</resources>

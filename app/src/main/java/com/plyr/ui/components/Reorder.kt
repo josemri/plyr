@@ -63,7 +63,11 @@ class ReorderState {
      * (para el cálculo de destino) y arranca el arrastre tras una pulsación
      * larga. [index] entra en la clave del `pointerInput`: si la fila cambia de
      * posición entre gestos, el bloque se recrea con el índice nuevo.
+     *
+     * Es una función miembro (no una extensión de `Modifier`) porque necesita
+     * el estado del arrastre; el aviso de Lint es un falso positivo aquí.
      */
+    @Suppress("ModifierFactoryExtensionFunction")
     fun itemModifier(
         id: String,
         index: Int,

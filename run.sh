@@ -24,8 +24,8 @@ XDG_CONFIG_HOME="$TMP_ROOT/xdg/config"
 CMD_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
 JDK_RELEASES_API="https://api.github.com/repos/adoptium/temurin21-binaries/releases/latest"
 JDK_URL_FALLBACK="https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12.1%2B1/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12.1_1.tar.gz"
-PLATFORM="platforms;android-36"
-BUILD_TOOLS="build-tools;36.0.0"
+PLATFORM="platforms;android-37.0"
+BUILD_TOOLS="build-tools;37.0.0"
 
 # --- Estado (defaults) ---
 COMMAND=""
@@ -124,8 +124,8 @@ env_installed() {
     [[ -x "$JAVA_HOME/bin/java" ]] \
         && [[ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]] \
         && [[ -x "$ANDROID_HOME/platform-tools/adb" ]] \
-        && [[ -d "$ANDROID_HOME/platforms/android-36" ]] \
-        && [[ -d "$ANDROID_HOME/build-tools/36.0.0" ]]
+        && [[ -d "$ANDROID_HOME/platforms/android-37.0" ]] \
+        && [[ -d "$ANDROID_HOME/build-tools/37.0.0" ]]
 }
 
 fix_stale_gradle_daemons() {
@@ -206,12 +206,12 @@ setup_env() {
     fi
 
     # 3/4 SDK (platform, build-tools, platform-tools)
-    if [[ -d "$ANDROID_HOME/platforms/android-36" ]] \
-        && [[ -d "$ANDROID_HOME/build-tools/36.0.0" ]] \
+    if [[ -d "$ANDROID_HOME/platforms/android-37.0" ]] \
+        && [[ -d "$ANDROID_HOME/build-tools/37.0.0" ]] \
         && [[ -x "$ANDROID_HOME/platform-tools/adb" ]]; then
         echo "[3/4] SDK de Android listo"
     else
-        echo "[3/4] Instalando SDK (platform-36, build-tools, platform-tools) ..."
+        echo "[3/4] Instalando SDK (platform-37.0, build-tools, platform-tools) ..."
         yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
             --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
         "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
@@ -365,15 +365,16 @@ cmd_install() {
 }
 
 cmd_test() {
-    local task results_dir gradle_rc=0
+    local -a task
+    local results_dir gradle_rc=0
 
     if [[ "${BUILD_TYPE:-}" == "desktop" ]]; then
         echo "=============================================================="
         echo "  TESTS ESCRITORIO"
         echo "=============================================================="
-        task=":desktop:test"
+        task=(:desktop:test)
         results_dir="$SCRIPT_DIR/desktop/build/test-results/test"
-        run_gradle "$task" || gradle_rc=$?
+        run_gradle "${task[@]}" || gradle_rc=$?
         echo ""
         echo "=============================================================="
         echo "  RESULTADOS ESCRITORIO"
@@ -390,25 +391,33 @@ cmd_test() {
         echo "=============================================================="
         echo "  TESTS EN EL MÓVIL"
         echo "=============================================================="
-        task="connectedDebugAndroidTest"
+        task=(connectedDebugAndroidTest)
         results_dir="$SCRIPT_DIR/app/build/outputs/androidTest-results/connected"
         list_test_files "$SCRIPT_DIR/app/src/androidTest"
     else
         echo "=============================================================="
         echo "  TESTS UNITARIOS"
         echo "=============================================================="
-        task="testDebugUnitTest"
-        results_dir="$SCRIPT_DIR/app/build/test-results/$task"
+        task=(:app:testDebugUnitTest :core:testAndroidHostTest)
+        results_dir="$SCRIPT_DIR/app/build/test-results/testDebugUnitTest"
         list_test_files "$SCRIPT_DIR/app/src/test"
     fi
 
-    run_gradle "$task" || gradle_rc=$?
+    run_gradle "${task[@]}" || gradle_rc=$?
 
     echo ""
     echo "=============================================================="
     echo "  RESULTADOS"
     echo "=============================================================="
     print_test_summary "$results_dir"
+
+    if [[ "$TEST_DEVICE" != "true" ]]; then
+        echo ""
+        echo "=============================================================="
+        echo "  RESULTADOS CORE (host Android)"
+        echo "=============================================================="
+        print_test_summary "$SCRIPT_DIR/core/build/test-results/testAndroidHostTest"
+    fi
 
     [[ "$gradle_rc" -ne 0 ]] && die "Tests con fallos (código $gradle_rc)."
     echo ""

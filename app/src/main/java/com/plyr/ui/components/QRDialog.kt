@@ -9,6 +9,7 @@ import android.nfc.*
 import android.nfc.tech.Ndef
 import android.nfc.tech.NdefFormatable
 import android.os.Build
+import androidx.core.graphics.createBitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -84,7 +85,7 @@ private fun writeNdefMessageToTag(tag: Tag, message: NdefMessage): Boolean {
  */
 fun generateQrBitmap(content: String): Bitmap? {
     val matrix = QrCodec.generate(content) ?: return null
-    val bmp = Bitmap.createBitmap(matrix.width, matrix.height, Bitmap.Config.ARGB_8888)
+    val bmp = createBitmap(matrix.width, matrix.height, Bitmap.Config.ARGB_8888)
     bmp.setPixels(QrCodec.toArgb(matrix), 0, matrix.width, 0, 0, matrix.width, matrix.height)
     return bmp
 }

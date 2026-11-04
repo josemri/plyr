@@ -5,7 +5,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Android](https://img.shields.io/badge/Platform-Android%207.0%2B-green.svg)](https://www.android.com)
 [![Desktop](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](https://github.com/josemri/plyr/releases)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-purple.svg)](https://kotlinlang.org)
 
 Stream any song, build playlists, share them with a QR code, sync across devices. Terminal-inspired, runs on Android, Windows, Linux and macOS. Open source, no ads, no telemetry.
 
@@ -61,7 +61,7 @@ Not available yet. The plan for the browser port — a Ktor server for YouTube e
 ./run.sh build                  # APK debug de Android
 ./run.sh build release          # APK release
 ./run.sh run desktop            # compila y abre el escritorio
-./run.sh test                   # tests unitarios de Android
+./run.sh test                   # tests unitarios de Android + core
 ./run.sh test desktop           # tests de escritorio
 ./run.sh test device            # tests instrumentados (requiere un móvil)
 ./run.sh check                  # detekt + lint + cobertura

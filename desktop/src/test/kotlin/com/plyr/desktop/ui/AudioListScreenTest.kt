@@ -218,7 +218,9 @@ class AudioListScreenTest {
                     openDatabase = { DesktopDatabase.inMemory() },
                     checkForUpdate = { null },
                     onPlayerControllerReady = { ready += it },
-                    onQuit = { marker },
+                    // El valor no se usa; `let` devuelve Unit y mantiene viva
+                    // la lectura de `parentState` que fuerza la recomposición.
+                    onQuit = { marker.let { } },
                 )
             }
         }
