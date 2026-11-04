@@ -20,6 +20,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  config:
+    name: Configuración de Gradle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Make gradlew executable
+        shell: bash
+        run: chmod +x ./gradlew
+
+      - name: Validar resolución de plugins y configuración
+        # `help` configura todos los proyectos sin compilar ni necesitar el SDK.
+        # Si se rompe la resolución de plugins (p. ej. una migración a built-in
+        # Kotlin a medias), esto falla en segundos con el error real, en vez de
+        # descubrirlo en la release o detrás de un fallo de SDK.
+        #
+        # Si se sube `compileSdk` y hay que instalar la plataforma, el paquete
+        # de API 37 es `platforms;android-37.0` (no `android-37`).
+        run: ./gradlew help --no-daemon --stacktrace
+
   analysis:
     name: Análisis (detekt + lint)
     runs-on: ubuntu-latest

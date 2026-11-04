@@ -23,6 +23,15 @@ import kotlinx.coroutines.flow.asStateFlow
 object NfcReader {
     private const val TAG = "NfcReader"
 
+    /**
+     * `NfcAdapter.ACTION_TAG_DISCOVERED` está deprecado en API 37. Se conserva
+     * como último filtro del foreground dispatch para no cambiar el
+     * comportamiento de lectura; si se migra a `ACTION_TECH_DISCOVERED` con
+     * todas las tecnologías, este es el único punto que hay que tocar.
+     */
+    @Suppress("DEPRECATION")
+    val tagDiscoveredAction: String = NfcAdapter.ACTION_TAG_DISCOVERED
+
     private val _isReading = MutableStateFlow(false)
     val isReading: StateFlow<Boolean> = _isReading.asStateFlow()
 
@@ -76,7 +85,7 @@ object NfcReader {
         }
 
         val techFilter = IntentFilter(NfcAdapter.ACTION_TECH_DISCOVERED)
-        val tagFilter = IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)
+        val tagFilter = IntentFilter(tagDiscoveredAction)
 
         val filters = arrayOf(ndefFilter, techFilter, tagFilter)
         val techLists = arrayOf(arrayOf(Ndef::class.java.name))
@@ -114,7 +123,7 @@ object NfcReader {
 
         if (action != NfcAdapter.ACTION_NDEF_DISCOVERED &&
             action != NfcAdapter.ACTION_TECH_DISCOVERED &&
-            action != NfcAdapter.ACTION_TAG_DISCOVERED) {
+            action != tagDiscoveredAction) {
             return null
         }
 

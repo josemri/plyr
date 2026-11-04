@@ -262,7 +262,8 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         prefetchJob = null
         _player?.release()
         _player = null
-        super.onCleared()
+        // No se llama a super.onCleared(): la implementación base está vacía
+        // (lint EmptySuperCall) y aquí no queda nada que liberar en el padre.
     }
 
     // ------------------------------------------------------------------ //

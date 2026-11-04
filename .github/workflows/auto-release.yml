@@ -50,6 +50,16 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
+      - name: Validate Gradle configuration
+        # Preflight barato: configura todos los proyectos sin compilar ni tocar
+        # el SDK. Si la resolución de plugins está rota (p. ej. una migración a
+        # built-in Kotlin a medias), falla aquí en segundos con el error real,
+        # antes de comprobar secretos, decodificar el keystore o lanzar los
+        # cinco builds de la release.
+        run: |
+          chmod +x ./gradlew
+          ./gradlew help --no-daemon --stacktrace
+
       # `git config` ya no hace falta: este job no hace commits (ver el aviso más
       # abajo sobre el bump de versión).
 

@@ -263,7 +263,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleNfcIntent(intent: Intent?) {
         if (intent?.action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
-            intent?.action == NfcAdapter.ACTION_TAG_DISCOVERED ||
+            intent?.action == NfcReader.tagDiscoveredAction ||
             intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
 
             val tag: Tag? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
