@@ -50,7 +50,7 @@ Desktop installers bundle their own Java runtime. On Linux, playback uses the sy
 
 ## web
 
-Not available yet. The plan for the browser port — a Ktor server for YouTube extraction and audio proxying plus a Compose/Wasm client with browser storage — is specified in [web-port.md](web-port.md). Milestones H0–H7 are all pending.
+Not available yet. The plan for the browser port — a Ktor server for YouTube extraction and audio proxying plus a Compose/Wasm client with browser storage — is specified in [okf/proposals/web-port.md](okf/proposals/web-port.md). Milestones H0–H7 are all pending. It is a **proposal**, not current architecture.
 
 ## build from source
 
@@ -69,6 +69,39 @@ Not available yet. The plan for the browser port — a Ktor server for YouTube e
 
 Desktop builds additionally need `libvlc`; `.rpm` packaging needs `rpmbuild`.
 
+## development with AI agents
+
+The repository is set up for agent-assisted work without duplicating context:
+
+- [`AGENTS.md`](AGENTS.md) — the executable contract: module boundaries,
+  invariants, test rules and definition of done. Module-specific files live in
+  [`app/AGENTS.md`](app/AGENTS.md), [`core/AGENTS.md`](core/AGENTS.md) and
+  [`desktop/AGENTS.md`](desktop/AGENTS.md).
+- [`okf/`](okf/index.md) — a curated OKF v0.2 knowledge bundle: systems, domain
+  concepts, decisions, playbooks and a generated repository map. Start at
+  [`okf/index.md`](okf/index.md).
+- [`.opencode/`](.opencode) — OpenCode commands (`/context`, `/verify`,
+  `/review`) and read-only `verifier`/`reviewer` subagents.
+- [`scripts/ai/`](scripts/ai/README.md) — the scripts behind the commands.
+
+Useful commands:
+
+```bash
+./run.sh doctor                 # JDK, SDK, adb, libvlc, Python, git
+./run.sh context domain/sync-format
+./run.sh verify fast            # configuration + affected module compile
+./run.sh verify unit            # all JVM/host tests
+./run.sh verify analysis        # detekt + lint
+./run.sh verify full            # replica of CI
+./run.sh guards                 # static repo rules
+./run.sh okf-check             # OKF bundle + generated map
+./run.sh map                    # regenerate okf/maps/repo-map.md
+```
+
+If `okf/` and the code disagree, **the code wins** and the concept must be
+updated in the same change. `okf/proposals/web-port.md` is a future proposal,
+not current architecture.
+
 ## android permissions
 
 ```xml
@@ -82,7 +115,7 @@ CAMERA                    # QR code scanning (optional hardware)
 
 ## roadmap
 
-- [ ] **Web port** — browser client with the server-side extractor and audio proxy described in [web-port.md](web-port.md).
+- [ ] **Web port** — browser client with the server-side extractor and audio proxy described in [okf/proposals/web-port.md](okf/proposals/web-port.md).
 - [ ] **Android Auto** — support for the Android Auto interface
   - [ ] Declare `automotive_app_desc.xml` and the automotive permissions
   - [ ] Expose the library (playlists, queue) through the Media3 `MediaSession`

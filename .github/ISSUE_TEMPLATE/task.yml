@@ -1,0 +1,63 @@
+name: Tarea
+description: Cambio, bug o deuda con contexto suficiente para un agente o una persona.
+title: "[tarea] "
+labels: []
+body:
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: Objetivo
+      description: Qué debe cambiar y cómo se sabrá que está hecho.
+      placeholder: "Ej.: al pulsar '>>' con repeat=all desde la última pista, debe volver a la primera."
+    validations:
+      required: true
+
+  - type: textarea
+    id: contexto
+    attributes:
+      label: Contexto
+      description: Ficheros, conceptos OKF, bugs relacionados o decisiones previas.
+      placeholder: |
+        - Concepto: okf/domain/queue-and-window.md
+        - Ficheros: core/.../QueueIndex.kt, PlayerViewModel.kt, PlayerController.kt
+        - Bug relacionado: B57
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: plataformas
+    attributes:
+      label: Plataformas afectadas
+      options:
+        - label: Android (`:app`)
+        - label: Escritorio (`:desktop`)
+        - label: Compartido (`:core`)
+        - label: Solo documentación / tooling
+
+  - type: checkboxes
+    id: contratos
+    attributes:
+      label: Contratos persistidos
+      options:
+        - label: Room (migración y versión)
+        - label: SQLDelight
+        - label: Formato de sync (`FORMAT_VERSION`)
+        - label: Identidad de pista / tombstones
+        - label: Ninguno
+
+  - type: textarea
+    id: verificacion
+    attributes:
+      label: Verificación esperada
+      description: Qué comando debe pasar y qué tests deben añadirse.
+      placeholder: |
+        ./run.sh verify unit
+        Test que falla antes del arreglo: QueueIndexTest...
+    validations:
+      required: true
+
+  - type: textarea
+    id: riesgos
+    attributes:
+      label: Riesgos y notas
+      description: Datos publicados, compatibilidad, paridad, dependencias externas.

@@ -1,3 +1,21 @@
+---
+type: Proposal
+title: "Port de plyr a navegador"
+description: "Plan futuro para un MVP web con :shared, :web y :server. NO implementado; no describe la arquitectura actual del repo."
+resource: repo://okf/proposals/web-port.md
+tags: [web, propuesta, futuro, no-implementado]
+module: repo
+generated: { by: human:josep, at: 2026-11-05T00:00:00Z }
+status: draft
+stale_after: 2027-05-05
+---
+
+> ⚠️ **Propuesta, no arquitectura actual.** Hoy no existen `:shared`, `:web` ni
+> `:server`. Este documento describe un plan futuro y puede contener versiones o
+> hitos desactualizados. Para el estado real, usa
+> [`okf/index.md`](../index.md) y el código. Ver
+> [decisión 0005](../decisions/0005-web-port-deferred.md).
+
 # plyr → Web · Plan de port a navegador
 
 > Documento de trabajo para la migración de **plyr** a navegador.

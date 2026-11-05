@@ -29,3 +29,7 @@ app/release/
 .plyr_android_env
 plyr-sync.zip
 audio
+
+# Python (scripts/ai)
+__pycache__/
+*.py[cod]

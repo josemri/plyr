@@ -36,6 +36,8 @@ SHOW_LOGS=false
 TMUX_SPLIT=""
 LOG_TAGS=""
 APK_PATH=""
+VERIFY_MODE="fast"
+CONTEXT_ID=""
 
 # ==============================================================
 #   AYUDA
@@ -61,6 +63,13 @@ Comandos:
   desktop-package [fmt]       Empaquetar escritorio (deb|rpm|appimage|msi|dmg|all).
   desktop-dist                Todos los formatos del host.
   check                       detekt (app+desktop+core), lint, cobertura.
+  doctor                      Comprueba JDK, SDK, adb, VLC, Python y git.
+  verify [fast|unit|analysis|full|changed]
+                              Verificación por modos (réplica de CI).
+  guards                      Reglas estáticas: imports, prints, baselines.
+  okf-check                   Valida okf/ y que el mapa esté actualizado.
+  map                         Regenera okf/maps/repo-map.md.
+  context <concepto>          Muestra concepto + ficheros + tests + enlaces.
   env                         eval "$(./run.sh env)"
   setup                       Monta entorno en /tmp.
   log [-tags...] [-split...]  Logs Android.
@@ -83,6 +92,11 @@ Ejemplos:
   ./run.sh desktop-package deb     # paquete .deb
   ./run.sh desktop-dist            # empaquetar para SO actual
   ./run.sh check                  # análisis
+  ./run.sh doctor                 # diagnóstico del entorno
+  ./run.sh verify full            # réplica de CI
+  ./run.sh guards                 # reglas del repo
+  ./run.sh okf-check              # bundle OKF + mapa
+  ./run.sh context domain/sync-format
   ./run.sh clean                  # limpiar todo
 EOF
 }
@@ -742,6 +756,44 @@ PY
 }
 
 # ==============================================================
+#   AGENTES / OKF
+# ==============================================================
+
+cmd_doctor() {
+    ANDROID_HOME="$ANDROID_HOME" \
+    JAVA_HOME="$JAVA_HOME" \
+    PLYR_VLC_DIR="${PLYR_VLC_DIR:-}" \
+        "$SCRIPT_DIR/scripts/ai/doctor.sh"
+}
+
+cmd_verify() {
+    ensure_env
+    GRADLE_PROJECT_CACHE="$GRADLE_PROJECT_CACHE" \
+        "$SCRIPT_DIR/scripts/ai/verify.sh" "$VERIFY_MODE"
+}
+
+cmd_guards() {
+    "$SCRIPT_DIR/scripts/ai/guards.sh"
+}
+
+cmd_okf_check() {
+    cd "$SCRIPT_DIR"
+    python3 scripts/ai/okf_check.py
+    python3 scripts/ai/okf_map.py --check
+}
+
+cmd_map() {
+    cd "$SCRIPT_DIR"
+    python3 scripts/ai/okf_map.py
+}
+
+cmd_context() {
+    [[ -n "$CONTEXT_ID" ]] || die "Usá: ./run.sh context <concepto>  (ej. domain/sync-format)"
+    cd "$SCRIPT_DIR"
+    python3 scripts/ai/context.py "$CONTEXT_ID" --body
+}
+
+# ==============================================================
 #   PUNTO DE ENTRADA
 # ==============================================================
 
@@ -750,7 +802,7 @@ parse_args() {
     COMMAND="$1"; shift
 
     case "$COMMAND" in
-        build|run|install|test|check|log|env|setup|stop|clean|desktop-build|desktop-run|desktop-test|desktop-package|desktop-dist) ;;
+        build|run|install|test|check|log|env|setup|stop|clean|desktop-build|desktop-run|desktop-test|desktop-package|desktop-dist|doctor|verify|guards|okf-check|map|context) ;;
         help|-h|--help)  COMMAND="help" ;;
         reiniciar)       COMMAND="clean" ;;
         -stop)           COMMAND="stop" ;;
@@ -799,7 +851,16 @@ parse_args() {
                 DESKTOP_FMT="$1"; shift
                 ;;
             *)
-                die "Opción desconocida para '$COMMAND': '$1' (usa ./run.sh help)"
+                if [[ "$COMMAND" == "verify" && -z "${VERIFY_MODE_SET:-}" ]]; then
+                    case "$1" in
+                        fast|unit|analysis|full|changed) VERIFY_MODE="$1"; VERIFY_MODE_SET=true; shift ;;
+                        *) die "Modo desconocido para verify: '$1' (fast|unit|analysis|full|changed)" ;;
+                    esac
+                elif [[ "$COMMAND" == "context" && -z "$CONTEXT_ID" ]]; then
+                    CONTEXT_ID="$1"; shift
+                else
+                    die "Opción desconocida para '$COMMAND': '$1' (usa ./run.sh help)"
+                fi
                 ;;
         esac
     done
@@ -830,4 +891,10 @@ case "$COMMAND" in
     install) ensure_env; cmd_install ;;
     log)     ensure_env; cmd_log ;;
     stop)    ensure_env; cmd_stop ;;
+    doctor)  cmd_doctor ;;
+    verify)  cmd_verify ;;
+    guards)  cmd_guards ;;
+    okf-check) cmd_okf_check ;;
+    map)     cmd_map ;;
+    context) cmd_context ;;
 esac
