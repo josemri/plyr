@@ -84,13 +84,13 @@ código manda y el mapa se regenera.
 
 | Tipo | Conceptos |
 |---|---|
-| Constraint | 2 |
+| Constraint | 3 |
 | Data Format | 1 |
 | Decision | 5 |
 | Domain Concept | 6 |
 | Map | 1 |
 | Playbook | 4 |
-| Proposal | 1 |
+| Proposal | 2 |
 | Reference | 1 |
 | System | 5 |
 

@@ -11,6 +11,7 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 ## Restricciones (leer siempre)
 
 * [Contrato del agente](constraints/agent-contract.md) — qué puede y qué no puede hacer un agente en este repo.
+* [Política de ramas y pushes](constraints/branch-policy.md) — `main` es producción; rama por tarea, commits locales y push solo del usuario.
 * [Verificación](constraints/verification.md) — qué comando prueba qué y cuándo un cambio está terminado.
 
 ## Sistemas
@@ -54,3 +55,4 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 ## Propuestas (no implementadas)
 
 * [Port a navegador](proposals/web-port.md) — plan futuro; **no** es arquitectura actual.
+* [Auto-release al mergear en `main`](proposals/auto-release-on-merge.md) — disparo por etiqueta; hoy la release sigue siendo manual.

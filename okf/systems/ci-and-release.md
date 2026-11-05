@@ -34,7 +34,10 @@ lectura y concurrencia cancelable.
 
 # Release (`auto-release.yml`)
 
-Manual (`workflow_dispatch`) con `bump: patch|minor|major`. Jobs:
+Manual (`workflow_dispatch`) con `bump: patch|minor|major`. La propuesta para
+dispararlo automáticamente al mergear un PR y elegir el salto con etiquetas está
+en [auto-release al mergear](../proposals/auto-release-on-merge.md); **no está
+implementada**. Jobs:
 
 1. **release**: calcula versión y changelog, hace bump en
    `app/build.gradle.kts`, decodifica el keystore, compila APK firmado, extrae
@@ -54,6 +57,9 @@ Manual (`workflow_dispatch`) con `bump: patch|minor|major`. Jobs:
 
 # Reglas para agentes
 
+- La política de ramas y pushes está en
+  [branch-policy](../constraints/branch-policy.md): `main` solo lo toca el
+  usuario; el agente commitea en su rama y no hace push.
 - No edites workflows de release sin pedir permiso explícito.
 - No añadas secretos ni los imprimas.
 - Un job nuevo debe ser barato y no duplicar lo que ya hace `verify`.

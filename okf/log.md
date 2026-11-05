@@ -16,3 +16,8 @@ entradas antiguas: el historial sirve para saber si un concepto sigue vigente.
   en el job de tests; plantillas de pull request e issue.
 * **Corregido**: el validador OKF acepta las fechas que PyYAML resuelve a
   `date`/`datetime`, y las notas al pie de los source sets de `:core`.
+* **Añadido**: restricción de ramas y pushes. `main` es producción y solo la
+  toca el usuario; cada implementación o fix va en una rama propia, con commits
+  locales y sin push del agente. No hay rama `develop`.
+* **Propuesta**: disparar `auto-release.yml` al mergear un PR en `main`, con el
+  salto `patch`/`minor`/`major` elegido por etiqueta. No implementada.
