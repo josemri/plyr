@@ -121,6 +121,11 @@ jobs:
       - name: Tests de core (KMP jvmTest)
         run: ./gradlew :core:jvmTest --stacktrace
 
+      - name: Tests de core (host Android)
+        # Comprueba que `commonMain` y `commonTest` también compilan y pasan
+        # para el target Android, sin emulador.
+        run: ./gradlew :core:testAndroidHostTest --stacktrace
+
       - name: Tests de escritorio
         run: ./gradlew :desktop:test --stacktrace
 
@@ -133,7 +138,38 @@ jobs:
           path: |
             app/build/reports/tests/testDebugUnitTest
             core/build/reports/tests/jvmTest
+            core/build/reports/tests/testAndroidHostTest
             desktop/build/reports/tests/test
+
+  guardrails:
+    name: Guardarraíles (repo + OKF)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependencias del bundle OKF
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+          python3 -m pip install --disable-pip-version-check pyyaml
+
+      - name: Reglas estáticas del repo
+        # Imports prohibidos, prints, baselines, módulos fantasma, versión y
+        # ficheros nuevos sin test. No necesita JDK ni SDK.
+        run: ./scripts/ai/guards.sh
+
+      - name: Validar bundle OKF y mapa generado
+        run: |
+          python3 scripts/ai/okf_check.py
+          python3 scripts/ai/okf_map.py --check
 
   build:
     name: Compilar (APK + escritorio)

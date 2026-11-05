@@ -1,0 +1,18 @@
+{
+  // Configuración de OpenCode para plyr.
+  // El contrato del repo vive en AGENTS.md; el conocimiento, en okf/.
+  "$schema": "https://opencode.ai/config.json",
+
+  // Carpetas que no deben generar ruido en el watcher.
+  "watcher": {
+    "ignore": [
+      "build/**",
+      ".gradle/**",
+      ".kotlin/**",
+      "**/build/**",
+      "**/.gradle/**",
+      "**/.kotlin/**",
+      "okf/maps/**",
+    ],
+  },
+}
