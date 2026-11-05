@@ -34,10 +34,10 @@ lectura y concurrencia cancelable.
 
 # Release (`auto-release.yml`)
 
-Manual (`workflow_dispatch`) con `bump: patch|minor|major`. La propuesta para
-dispararlo automáticamente al mergear un PR y elegir el salto con etiquetas está
-en [auto-release al mergear](../proposals/auto-release-on-merge.md); **no está
-implementada**. Jobs:
+Se dispara al mergear un PR en `main` mediante
+[release-on-merge](release-on-merge.md), que elige `patch`/`minor`/`major` con
+las etiquetas `release:*`. También se puede lanzar a mano
+(`workflow_dispatch`) con `bump: patch|minor|major`. Jobs:
 
 1. **release**: calcula versión y changelog, hace bump en
    `app/build.gradle.kts`, decodifica el keystore, compila APK firmado, extrae

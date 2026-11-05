@@ -130,6 +130,7 @@ dentro del repo. `./run.sh clean` lo borra.
 - [ ] Tests nuevos o actualizados; los omitidos, justificados.
 - [ ] `./run.sh guards` y `./run.sh okf-check` verdes.
 - [ ] Si cambió un contrato de dominio: concepto OKF + `okf/log.md` actualizados.
+- [ ] El PR lleva una etiqueta `release:*` (o `release:skip`) para el auto-release.
 - [ ] Sin baselines ampliados, sin ficheros generados, sin secretos.
 - [ ] `web-port.md` no se usa como fuente de arquitectura actual.
 

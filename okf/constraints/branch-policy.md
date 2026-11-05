@@ -63,6 +63,7 @@ pregunta**. No uses `git stash` para esconder trabajo ajeno.
 
 # Auto-release
 
-El disparo automático del release al mergear un PR está descrito, **sin
-implementar**, en [auto-release al mergear](../proposals/auto-release-on-merge.md).
-Hasta que se apruebe, `auto-release.yml` sigue siendo manual.
+Al mergear un PR en `main` se dispara el release automáticamente. El salto se
+elige con la etiqueta `release:patch`, `release:minor`, `release:major` o
+`release:skip`; sin etiqueta se usa `patch`. Detalle en
+[auto-release al mergear](../systems/release-on-merge.md).

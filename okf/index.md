@@ -21,6 +21,7 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 * [App de escritorio (:desktop)](systems/desktop-app.md) — Compose Desktop, VLCJ, SQLDelight, MPRIS.
 * [Entorno de build](systems/build-and-env.md) — `run.sh`, `/tmp/plyr-android`, JDK, SDK, VLC.
 * [CI y releases](systems/ci-and-release.md) — workflows, matriz de tests, versionado y firma.
+* [Auto-release al mergear en main](systems/release-on-merge.md) — disparo por etiqueta `release:*` y salto `patch`/`minor`/`major`.
 
 ## Dominio
 
@@ -55,4 +56,3 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 ## Propuestas (no implementadas)
 
 * [Port a navegador](proposals/web-port.md) — plan futuro; **no** es arquitectura actual.
-* [Auto-release al mergear en `main`](proposals/auto-release-on-merge.md) — disparo por etiqueta; hoy la release sigue siendo manual.

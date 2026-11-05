@@ -146,6 +146,15 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
     fi
 fi
 
+section "Lógica del auto-release"
+if ! command -v python3 >/dev/null 2>&1; then
+    warn "python3 no disponible; no se prueba release_bump.py"
+elif output="$(python3 scripts/ai/test_release_bump.py 2>&1)"; then
+    ok "resolución de release:patch/minor/major/skip"
+else
+    fail "fallaron los tests de release_bump.py" "$output"
+fi
+
 echo ""
 if [[ "$FAIL" -ne 0 ]]; then
     echo "guards: FALLÓ ($WARN avisos)"

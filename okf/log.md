@@ -19,5 +19,8 @@ entradas antiguas: el historial sirve para saber si un concepto sigue vigente.
 * **Añadido**: restricción de ramas y pushes. `main` es producción y solo la
   toca el usuario; cada implementación o fix va en una rama propia, con commits
   locales y sin push del agente. No hay rama `develop`.
-* **Propuesta**: disparar `auto-release.yml` al mergear un PR en `main`, con el
-  salto `patch`/`minor`/`major` elegido por etiqueta. No implementada.
+* **Implementado**: `.github/workflows/release-on-merge.yml` dispara
+  `auto-release.yml` al mergear un PR en `main`. El salto
+  `patch`/`minor`/`major` sale de las etiquetas `release:*` y se resuelve en
+  `scripts/ai/release_bump.py`, con tests en `scripts/ai/test_release_bump.py`.
+  Sin etiqueta se usa `patch`; `release:skip` no publica.

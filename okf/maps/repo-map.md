@@ -90,9 +90,9 @@ código manda y el mapa se regenera.
 | Domain Concept | 6 |
 | Map | 1 |
 | Playbook | 4 |
-| Proposal | 2 |
+| Proposal | 1 |
 | Reference | 1 |
-| System | 5 |
+| System | 6 |
 
 # Comandos de verificación
 
