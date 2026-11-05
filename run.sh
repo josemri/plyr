@@ -412,7 +412,7 @@ cmd_test() {
         echo "=============================================================="
         echo "  TESTS UNITARIOS"
         echo "=============================================================="
-        task=(:app:testDebugUnitTest :core:testAndroidHostTest)
+        task=(:app:testDebugUnitTest :core:jvmTest :core:testAndroidHostTest)
         results_dir="$SCRIPT_DIR/app/build/test-results/testDebugUnitTest"
         list_test_files "$SCRIPT_DIR/app/src/test"
     fi
@@ -426,6 +426,11 @@ cmd_test() {
     print_test_summary "$results_dir"
 
     if [[ "$TEST_DEVICE" != "true" ]]; then
+        echo ""
+        echo "=============================================================="
+        echo "  RESULTADOS CORE (JVM)"
+        echo "=============================================================="
+        print_test_summary "$SCRIPT_DIR/core/build/test-results/jvmTest"
         echo ""
         echo "=============================================================="
         echo "  RESULTADOS CORE (host Android)"
