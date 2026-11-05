@@ -11,7 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import com.plyr.viewmodel.ImportViewModel
 import com.plyr.viewmodel.PlayerViewModel
-import com.plyr.utils.NfcScanEvent
+import com.plyr.utils.ScanEvent
 import kotlinx.coroutines.launch
 
 // Estados para navegación
@@ -41,7 +41,7 @@ fun AudioListScreen(
 
     var playlistToOpenId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
+    val nfcScanResult by ScanEvent.scanResult.collectAsState()
 
     LaunchedEffect(nfcScanResult) {
         if (nfcScanResult != null) {

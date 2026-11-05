@@ -24,3 +24,11 @@ entradas antiguas: el historial sirve para saber si un concepto sigue vigente.
   `patch`/`minor`/`major` sale de las etiquetas `release:*` y se resuelve en
   `scripts/ai/release_bump.py`, con tests en `scripts/ai/test_release_bump.py`.
   Sin etiqueta se usa `patch`; `release:skip` no publica.
+
+## 2026-11-05
+
+* **Eliminado**: todo el código NFC (NfcReader, NfcTagEvent, NfcPulse, NfcScanEvent
+  y el flujo de escritura NFC en QRDialog). Se conserva la navegación de listas
+  mediante `ScanEvent` (movido a `app/src/main/java/com/plyr/utils/ScanEvent.kt`).
+* **Actualizado**: `okf/domain/qr-nfc.md` y `okf/systems/android-app.md` para
+  reflejar la eliminación de NFC.

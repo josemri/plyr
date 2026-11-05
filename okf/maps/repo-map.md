@@ -24,11 +24,11 @@ código manda y el mapa se regenera.
 
 | Área | Ficheros `.kt` | Líneas |
 |---|---|---|
-| `app/src/main` | 76 | 16521 |
+| `app/src/main` | 75 | 15910 |
 | `app/src/test` | 13 | 1571 |
-| `core/src/commonMain` | 32 | 2553 |
-| `core/src/jvmSharedMain` | 16 | 2497 |
-| `core/src/commonTest` | 24 | 2704 |
+| `core/src/commonMain` | 31 | 2496 |
+| `core/src/jvmSharedMain` | 15 | 2465 |
+| `core/src/commonTest` | 23 | 2602 |
 | `core/src/jvmTest` | 14 | 2602 |
 | `desktop/src/main` | 73 | 12406 |
 | `desktop/src/test` | 51 | 7750 |
@@ -38,8 +38,8 @@ código manda y el mapa se regenera.
 | Área | Ruta | Ficheros | `@Test` |
 |---|---|---|---|
 | Android host | `app/src/test` | 13 | 121 |
-| Android instrumentado | `app/src/androidTest` | 4 | 10 |
-| core commonTest | `core/src/commonTest` | 24 | 256 |
+| Android instrumentado | `app/src/androidTest` | 3 | 5 |
+| core commonTest | `core/src/commonTest` | 23 | 245 |
 | core jvmTest | `core/src/jvmTest` | 14 | 178 |
 | escritorio | `desktop/src/test` | 51 | 337 |
 
@@ -56,12 +56,12 @@ código manda y el mapa se regenera.
 | `app/src/main/java/com/plyr/ui/SearchScreen.kt` | 595 |
 | `app/src/main/java/com/plyr/ui/ConfigScreen.kt` | 575 |
 | `desktop/src/main/kotlin/com/plyr/desktop/ui/screens/SearchScreen.kt` | 540 |
-| `app/src/main/java/com/plyr/ui/components/QRDialog.kt` | 525 |
 | `app/src/main/java/com/plyr/service/YouTubeSearchManager.kt` | 422 |
 | `desktop/src/main/kotlin/com/plyr/desktop/playlists/PlaylistDetailView.kt` | 421 |
 | `desktop/src/main/kotlin/com/plyr/desktop/ui/FloatingMusicControls.kt` | 413 |
 | `app/src/main/java/com/plyr/utils/DataSync.kt` | 399 |
 | `desktop/src/main/kotlin/com/plyr/desktop/database/PlaylistRepository.kt` | 391 |
+| `desktop/src/main/kotlin/com/plyr/desktop/ui/screens/ConfigScreen.kt` | 377 |
 
 # Versiones y contratos
 

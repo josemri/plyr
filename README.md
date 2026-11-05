@@ -14,7 +14,7 @@ Stream any song, build playlists, share them with a QR code, sync across devices
 - **YouTube streaming** — search and play any song (NewPipe Extractor).
 - **Local playlists** — create, edit and reorder them; import a playlist from a **Spotify URL**.
 - **Offline downloads** — download tracks and play them without a connection.
-- **Scan & share** — share a track or playlist as a QR code or NFC tag. On Android, QR codes can be scanned with the camera and NFC tags written.
+- **Scan & share** — share a track or playlist as a QR code. On Android, QR codes can be scanned with the camera.
 - **Backup** — choose a folder once and the `plyr-sync.zip` inside keeps itself up to date; the same ZIP moves between Android and desktop.
 - **Desktop integration** — tray icon, MPRIS on Linux, keyboard shortcuts and update checker.
 - **Recommendations feed** — community playlist recommendations synchronized via Supabase.
@@ -105,7 +105,6 @@ not current architecture.
 ## android permissions
 
 ```xml
-NFC                       # Tag scanning / sharing of playlists
 INTERNET                  # Stream music and fetch metadata
 FOREGROUND_SERVICE        # Background playback
 FOREGROUND_SERVICE_MEDIA_PLAYBACK
@@ -127,7 +126,7 @@ CAMERA                    # QR code scanning (optional hardware)
   - [x] Split `ConfigScreen.kt` into a `ConfigViewModel` + Compose state
   - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; lower priority than the web port)
 - [ ] **Tests**
-  - [ ] Run the instrumented tests on a device (`./run.sh test device`): NfcReader, QrCode, DataImporter
+  - [ ] Run the instrumented tests on a device (`./run.sh test device`): QrCode, DataImporter
 - [ ] **Build hygiene** — remove compiler warnings and migrate deprecated Gradle, AGP and Kotlin plugin APIs; keep modules and dependencies up to date
 
 ## license

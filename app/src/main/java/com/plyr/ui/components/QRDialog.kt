@@ -1,14 +1,8 @@
 package com.plyr.ui.components
 
-import android.app.Activity
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.nfc.*
-import android.nfc.tech.Ndef
-import android.nfc.tech.NdefFormatable
-import android.os.Build
 import androidx.core.graphics.createBitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -31,51 +25,17 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.plyr.model.Group
 import com.plyr.network.SupabaseClient
-import com.plyr.utils.NfcReader
-import com.plyr.utils.NfcTagEvent
 import com.plyr.utils.QrCodec
 import com.plyr.utils.Translations
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class NfcWriteState {
-    IDLE,
-    WAITING,
-    SUCCESS,
-    ERROR
-}
-
 enum class RecommendationState {
     IDLE,
     ADDING,
     SUCCESS,
     ERROR
-}
-
-// Helper functions defined before usage
-private fun writeNdefMessageToTag(tag: Tag, message: NdefMessage): Boolean {
-    return try {
-        val ndef = Ndef.get(tag)
-        if (ndef != null) {
-            ndef.connect()
-            if (!ndef.isWritable || ndef.maxSize < message.toByteArray().size) {
-                ndef.close()
-                return false
-            }
-            ndef.writeNdefMessage(message)
-            ndef.close()
-            true
-        } else {
-            val format = NdefFormatable.get(tag) ?: return false
-            format.connect()
-            format.format(message)
-            format.close()
-            true
-        }
-    } catch (_: Exception) {
-        false
-    }
 }
 
 /**
@@ -91,8 +51,6 @@ fun generateQrBitmap(content: String): Bitmap? {
 }
 
 private data class ShareDialogState(
-    val nfcState: MutableState<NfcWriteState>,
-    val nfcAdapter: MutableState<NfcAdapter?>,
     val groups: MutableState<List<Group>>,
     val recommendationState: MutableState<RecommendationState>,
 )
@@ -111,7 +69,7 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
         playlistOrigin = item.playlistOrigin,
     )
 
-    val dialogState = rememberShareDialogState(context, shareUrl)
+    val dialogState = rememberShareDialogState()
 
     ShareDialogContent(
         context = context,
@@ -122,33 +80,13 @@ fun ShareDialog(item: ShareableItem, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun rememberShareDialogState(context: Context, shareUrl: String?): ShareDialogState {
-    val nfcState = remember { mutableStateOf(NfcWriteState.IDLE) }
-    val nfcAdapter = remember { mutableStateOf<NfcAdapter?>(null) }
+private fun rememberShareDialogState(): ShareDialogState {
     val groups = remember { mutableStateOf<List<Group>>(emptyList()) }
     val recommendationState = remember { mutableStateOf<RecommendationState>(RecommendationState.IDLE) }
 
     // Load groups on start
     LaunchedEffect(Unit) {
         groups.value = SupabaseClient.getGroups()
-    }
-
-    // Procesar el tag cuando se detecte
-    ShareDialogTagProcessor(shareUrl, nfcState)
-
-    // Inicializar NFC adapter
-    LaunchedEffect(Unit) {
-        nfcAdapter.value = NfcAdapter.getDefaultAdapter(context)
-    }
-
-    ShareDialogForegroundDispatch(context, nfcState.value, nfcAdapter.value)
-
-    // Resetear estado después de éxito/error
-    LaunchedEffect(nfcState.value) {
-        if (nfcState.value == NfcWriteState.SUCCESS || nfcState.value == NfcWriteState.ERROR) {
-            delay(2000)
-            nfcState.value = NfcWriteState.IDLE
-        }
     }
 
     // Resetear estado de recomendación después de éxito/error
@@ -159,72 +97,7 @@ private fun rememberShareDialogState(context: Context, shareUrl: String?): Share
         }
     }
 
-    return ShareDialogState(nfcState, nfcAdapter, groups, recommendationState)
-}
-
-// Procesar el tag cuando se detecte
-@Composable
-private fun ShareDialogTagProcessor(
-    shareUrl: String?,
-    nfcState: MutableState<NfcWriteState>,
-) {
-    val detectedTag by NfcTagEvent.detectedTag.collectAsState()
-    LaunchedEffect(detectedTag) {
-        val tag = detectedTag
-        if (tag != null && nfcState.value == NfcWriteState.WAITING && shareUrl != null) {
-            val fullUrl = if (!shareUrl.startsWith("http://") && !shareUrl.startsWith("https://")) {
-                "https://$shareUrl"
-            } else {
-                shareUrl
-            }
-            val message = NdefMessage(arrayOf(NdefRecord.createUri(fullUrl)))
-            val success = writeNdefMessageToTag(tag, message)
-            nfcState.value = if (success) NfcWriteState.SUCCESS else NfcWriteState.ERROR
-            NfcTagEvent.clear()
-        }
-    }
-}
-
-// Manejar el foreground dispatch para NFC
-// `nfcAdapter` es clave también: se asigna en LaunchedEffect(Unit), así que
-// si solo dependiera del estado, el primer frame (adapter == null) dejaría
-// el dispatch sin activar nunca (B19).
-@Composable
-private fun ShareDialogForegroundDispatch(
-    context: Context,
-    nfcState: NfcWriteState,
-    nfcAdapter: NfcAdapter?,
-) {
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-
-    DisposableEffect(lifecycleOwner, nfcState, nfcAdapter) {
-        val activity = context as? Activity
-        val adapter = nfcAdapter
-
-        if (activity != null && adapter != null && nfcState == NfcWriteState.WAITING) {
-            // Detener NfcReader para evitar conflictos de foreground dispatch
-            NfcReader.stopReading(activity)
-
-            val intent = Intent(context, activity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-            else PendingIntent.FLAG_UPDATE_CURRENT
-            val pendingIntent = PendingIntent.getActivity(context, 0, intent, flags)
-            try {
-                adapter.enableForegroundDispatch(activity, pendingIntent, null, null)
-            } catch (_: Exception) {}
-        }
-
-        onDispose {
-            if (activity != null && adapter != null) {
-                try {
-                    adapter.disableForegroundDispatch(activity)
-                } catch (_: Exception) {}
-                // Reactivar NfcReader cuando salimos del modo escritura
-                NfcReader.startReading(activity)
-            }
-        }
-    }
+    return ShareDialogState(groups, recommendationState)
 }
 
 @Composable
@@ -260,7 +133,7 @@ private fun ShareDialogContent(
                         NoShareUrlSection(context, onDismiss)
                     }
                     if (shareUrl != null) {
-                        ShareLinksRow(context, shareUrl, state)
+                        ShareLinksRow(context, shareUrl)
                     }
                 }
 
@@ -332,7 +205,7 @@ private fun NoShareUrlSection(context: Context, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun ShareLinksRow(context: Context, shareUrl: String, state: ShareDialogState) {
+private fun ShareLinksRow(context: Context, shareUrl: String) {
     Text(
         text = Translations.get(context, "btn_share"),
         style = MaterialTheme.typography.bodyLarge.copy(
@@ -354,26 +227,6 @@ private fun ShareLinksRow(context: Context, shareUrl: String, state: ShareDialog
             .padding(8.dp)
     )
 
-    Spacer(modifier = Modifier.width(16.dp))
-
-    NfcButton(
-        state = state.nfcState.value,
-        onToggle = {
-            state.nfcState.value = nextNfcState(state.nfcState.value, state.nfcAdapter.value)
-        }
-    )
-}
-
-private fun nextNfcState(current: NfcWriteState, adapter: NfcAdapter?): NfcWriteState {
-    return when (current) {
-        NfcWriteState.IDLE -> if (adapter == null || !adapter.isEnabled) {
-            NfcWriteState.ERROR
-        } else {
-            NfcWriteState.WAITING
-        }
-        NfcWriteState.WAITING -> NfcWriteState.IDLE
-        else -> current
-    }
 }
 
 @Composable
@@ -430,65 +283,6 @@ private fun requestRecommendation(
             state.recommendationState.value = RecommendationState.ERROR
         }
     }
-}
-
-@Composable
-fun NfcButton(
-    state: NfcWriteState,
-    onToggle: () -> Unit
-) {
-    val context = LocalContext.current
-    var frame by remember { mutableIntStateOf(0) }
-
-    // Activar/desactivar modo escritura global cuando cambia el estado
-    LaunchedEffect(state) {
-        NfcTagEvent.setWriteMode(state == NfcWriteState.WAITING)
-    }
-
-    // Asegurar que se desactiva el modo escritura cuando el componente se desmonta
-    DisposableEffect(Unit) {
-        onDispose {
-            NfcTagEvent.setWriteMode(false)
-        }
-    }
-
-    // Un solo Int como estado de animación: antes se mutaba una
-    // SnapshotStateList por frame, lo que invalidaba el texto hasta 5 veces por
-    // segundo y además depended de un delay fijo (resto de B20). Ahora el frame
-    // lo marca el vsync y el dibujo sale de una función pura.
-    LaunchedEffect(state) {
-        frame = 0
-        if (state == NfcWriteState.WAITING) {
-            while (true) {
-                withFrameNanos { }
-                frame = (frame + 1) % (NfcPulse.FRAME_CYCLE)
-            }
-        }
-    }
-
-    val displayText = when (state) {
-        NfcWriteState.IDLE, NfcWriteState.SUCCESS, NfcWriteState.ERROR -> Translations.get(context, "btn_nfc")
-        NfcWriteState.WAITING -> NfcPulse.textAt(frame)
-    }
-
-    val textColor = when (state) {
-        NfcWriteState.IDLE -> MaterialTheme.colorScheme.secondary
-        NfcWriteState.WAITING -> MaterialTheme.colorScheme.primary
-        NfcWriteState.SUCCESS -> Color(0xFF4CAF50)
-        NfcWriteState.ERROR -> Color(0xFFFF5252)
-    }
-
-    Text(
-        text = displayText,
-        style = MaterialTheme.typography.bodyLarge.copy(
-            fontFamily = FontFamily.Monospace,
-            fontSize = 16.sp,
-            color = textColor
-        ),
-        modifier = Modifier
-            .clickable(enabled = state != NfcWriteState.SUCCESS && state != NfcWriteState.ERROR) { onToggle() }
-            .padding(8.dp)
-    )
 }
 
 @Composable

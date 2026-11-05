@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.plyr.model.AudioItem
 import com.plyr.model.ScanResult
 import com.plyr.utils.Translations
-import com.plyr.utils.NfcScanEvent
+import com.plyr.utils.ScanEvent
 import com.plyr.database.TrackEntity
 import com.plyr.database.PlaylistDatabase
 import com.plyr.viewmodel.PlayerViewModel
@@ -62,7 +62,7 @@ fun SearchScreen(
         )
     }
 
-    val nfcScanResult by NfcScanEvent.scanResult.collectAsState()
+    val nfcScanResult by ScanEvent.scanResult.collectAsState()
 
     LaunchedEffect(Unit) {
         val query = initialQuery
@@ -73,7 +73,7 @@ fun SearchScreen(
 
     LaunchedEffect(nfcScanResult) {
         val result = nfcScanResult ?: return@LaunchedEffect
-        NfcScanEvent.consumeResult()
+        ScanEvent.consumeResult()
         state.processScan(result)
     }
 

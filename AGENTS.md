@@ -105,7 +105,7 @@ dentro del repo. `./run.sh clean` lo borra.
 | Listas / tracks | `database/*`, `ui/PlaylistScreen.kt` | `database/*`, `playlists/*` | `core/.../database/` |
 | Import/export ZIP | `utils/DataExporter.kt`, `DataImporter.kt` | `sync/DataExporter.kt`, `DataImporter.kt` | `core/.../utils/ExportManifest.kt`, `ImportManifest.kt` |
 | YouTube | `service/YouTubeSearchManager.kt` | `search/*`, `player/YouTubeTrackSourceResolver.kt` | `core/.../network/YouTubeManager.kt` |
-| QR / NFC / share | `ui/components/QRDialog.kt`, `utils/NfcReader.kt` | `qr/*` | `core/.../utils/QrCodec.kt`, `ui/components/ShareUrlPolicy.kt` |
+| QR / share | `ui/components/QRDialog.kt` | `qr/*` | `core/.../utils/QrCodec.kt`, `ui/components/ShareUrlPolicy.kt` |
 | Ajustes / config | `utils/Config*.kt`, `ui/ConfigScreen.kt` | `config/*`, `ui/screens/ConfigScreen.kt` | — |
 | Sincronización | `utils/DataSync.kt` | `sync/DataSync.kt` | `core/.../utils/ExportDigest.kt` |
 | i18n | `utils/Translations.kt` | `i18n/Translations.kt` | `core/.../i18n/TranslationCatalog.kt` |
