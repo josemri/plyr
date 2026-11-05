@@ -61,7 +61,7 @@ Not available yet. The plan for the browser port — a Ktor server for YouTube e
 ./run.sh build                  # APK debug de Android
 ./run.sh build release          # APK release
 ./run.sh run desktop            # compila y abre el escritorio
-./run.sh test                   # tests unitarios de Android + core
+./run.sh test                   # tests unitarios de Android + core (JVM + host Android)
 ./run.sh test desktop           # tests de escritorio
 ./run.sh test device            # tests instrumentados (requiere un móvil)
 ./run.sh check                  # detekt + lint + cobertura
