@@ -1,0 +1,66 @@
+name: Release on merge
+
+# Dispara `auto-release.yml` cuando un PR se mergea en `main`. El salto de
+# versión sale de las etiquetas del PR:
+#
+#   release:patch  -> 1.2.X
+#   release:minor  -> 1.X.0
+#   release:major  -> X.0.0
+#   release:skip   -> no publicar
+#
+# Sin etiqueta se usa `patch`. Si hay varias, gana la mayor.
+#
+# Se usa `pull_request_target` (no `pull_request`) porque el token de un PR
+# desde un fork es de solo lectura; aquí no se ejecuta código del PR, solo se
+# lee su payload y se hace checkout de `main`.
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    name: Disparar Auto Release
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Resolver el bump
+        id: bump
+        run: |
+          set -euo pipefail
+          BUMP="$(python3 scripts/ai/release_bump.py --event "$GITHUB_EVENT_PATH")"
+          echo "bump=${BUMP}" >> "$GITHUB_OUTPUT"
+          echo "Bump de release: ${BUMP}"
+
+      - name: Resumen
+        run: |
+          {
+            echo "### Release on merge"
+            echo ""
+            echo "- PR: #${{ github.event.pull_request.number }}"
+            echo "- Merge commit: \`${{ github.event.pull_request.merge_commit_sha }}\`"
+            echo "- Bump: \`${{ steps.bump.outputs.bump }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Lanzar Auto Release
+        if: steps.bump.outputs.bump != 'skip'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run auto-release.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f bump="${{ steps.bump.outputs.bump }}"

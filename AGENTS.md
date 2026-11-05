@@ -8,6 +8,32 @@
 Este fichero es el **contrato**. El conocimiento detallado vive en el bundle
 OKF [`okf/index.md`](okf/index.md). No dupliques aquí lo que ya está allí.
 
+## Nombre corto: «el kit»
+
+Cuando el usuario diga **«el kit»** o **«plyr-kit»**, se refiere al gobierno de
+agentes de este repo: `AGENTS.md`, el bundle `okf/`, `scripts/ai/` y
+`.opencode/`. No incluye el código de producto.
+
+## Política de ramas y pushes
+
+`main` es **producción** y la única rama de integración. No hay `develop`,
+`staging` ni ramas de entorno: cada tarea va en su rama y se mergea directamente
+en `main`.
+
+- **Toda implementación nueva** sale de `main` en una rama nueva.
+- **Todo fix** va en una rama propia; nunca se corrige directamente en `main`.
+- En la rama de trabajo el agente **puede hacer commits**.
+- En la rama de trabajo el agente **nunca hace push**, ni crea el PR, ni hace
+  merge. El push y el PR son del usuario.
+- En `main` el agente **nunca** hace `git stash`, `git commit`, `git merge` ni
+  `git push`. De `main` se ocupa el usuario.
+- Cambiar a `main` para leer o comprobar estado sí está permitido, con el árbol
+  limpio y sin modificar nada.
+
+Nombres: `feat/<slug>`, `fix/<slug>`, `docs/<slug>`, `ci/<slug>`,
+`chore/<slug>`, `refactor/<slug>`. Un PR = una rama = un cambio coherente.
+Detalle completo en [`okf/constraints/branch-policy.md`](okf/constraints/branch-policy.md).
+
 ## Qué es el proyecto
 
 Reproductor de música minimalista: streaming de YouTube (NewPipe Extractor),
@@ -97,11 +123,14 @@ dentro del repo. `./run.sh clean` lo borra.
 
 ## Definition of Done
 
+- [ ] El trabajo está en una rama propia (nunca en `main`), con commits locales
+      y **sin push**.
 - [ ] El cambio está en **todas** las plataformas afectadas.
 - [ ] `./run.sh verify fast` verde (o `full` si tocaste contratos).
 - [ ] Tests nuevos o actualizados; los omitidos, justificados.
 - [ ] `./run.sh guards` y `./run.sh okf-check` verdes.
 - [ ] Si cambió un contrato de dominio: concepto OKF + `okf/log.md` actualizados.
+- [ ] El PR lleva una etiqueta `release:*` (o `release:skip`) para el auto-release.
 - [ ] Sin baselines ampliados, sin ficheros generados, sin secretos.
 - [ ] `web-port.md` no se usa como fuente de arquitectura actual.
 

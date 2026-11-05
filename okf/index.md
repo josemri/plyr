@@ -11,6 +11,7 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 ## Restricciones (leer siempre)
 
 * [Contrato del agente](constraints/agent-contract.md) — qué puede y qué no puede hacer un agente en este repo.
+* [Política de ramas y pushes](constraints/branch-policy.md) — `main` es producción; rama por tarea, commits locales y push solo del usuario.
 * [Verificación](constraints/verification.md) — qué comando prueba qué y cuándo un cambio está terminado.
 
 ## Sistemas
@@ -20,6 +21,7 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 * [App de escritorio (:desktop)](systems/desktop-app.md) — Compose Desktop, VLCJ, SQLDelight, MPRIS.
 * [Entorno de build](systems/build-and-env.md) — `run.sh`, `/tmp/plyr-android`, JDK, SDK, VLC.
 * [CI y releases](systems/ci-and-release.md) — workflows, matriz de tests, versionado y firma.
+* [Auto-release al mergear en main](systems/release-on-merge.md) — disparo por etiqueta `release:*` y salto `patch`/`minor`/`major`.
 
 ## Dominio
 

@@ -25,6 +25,16 @@ hace falta la otra.
 - [ ] `TrackIdentity` / tombstones.
 - [ ] Concepto OKF y `okf/log.md` actualizados.
 
+## Release
+
+Añade **una** etiqueta al PR. Si no hay ninguna, el release automático usará
+`patch`. Si hay varias, gana la mayor (`major` > `minor` > `patch`).
+
+- [ ] `release:patch` — fix, docs, tests o refactor interno; sin cambio de contrato.
+- [ ] `release:minor` — funcionalidad nueva compatible.
+- [ ] `release:major` — cambio rompedor o de contrato persistido.
+- [ ] `release:skip` — no publicar (solo docs/chore).
+
 ## Verificación
 
 Comandos ejecutados (marca los que pasan de verdad):

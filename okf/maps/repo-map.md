@@ -84,7 +84,7 @@ código manda y el mapa se regenera.
 
 | Tipo | Conceptos |
 |---|---|
-| Constraint | 2 |
+| Constraint | 3 |
 | Data Format | 1 |
 | Decision | 5 |
 | Domain Concept | 6 |
@@ -92,7 +92,7 @@ código manda y el mapa se regenera.
 | Playbook | 4 |
 | Proposal | 1 |
 | Reference | 1 |
-| System | 5 |
+| System | 6 |
 
 # Comandos de verificación
 

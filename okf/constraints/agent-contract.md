@@ -16,6 +16,13 @@ Este repo **no es Godot**. Cualquier instrucción global sobre Godot, GDScript o
 escenas se ignora. El contrato raíz es [`AGENTS.md`](../../AGENTS.md); este
 concepto lo resume para que un agente pueda cargarlo junto al resto del bundle.
 
+# Ramas y pushes
+
+Antes de tocar nada, aplica la
+[política de ramas y pushes](branch-policy.md): `main` es producción y solo la
+toca el usuario. Toda implementación o fix va en una rama nueva; el agente puede
+commitear ahí, pero **nunca** hace push, PR ni merge.
+
 # Reglas duras
 
 1. `commonMain` solo importa `kotlin*`, `kotlinx*`, `com.plyr*`.
@@ -36,9 +43,11 @@ concepto lo resume para que un agente pueda cargarlo junto al resto del bundle.
 # Antes de editar
 
 1. Lee `AGENTS.md`.
-2. Lee este bundle por el [índice](../index.md).
-3. Abre los `resource:` del concepto afectado y sus tests.
-4. Si el concepto contradice al código, **manda el código** y actualiza el
+2. Comprueba que estás en una rama de tarea; si estás en `main`, crea una antes
+   de editar.
+3. Lee este bundle por el [índice](../index.md).
+4. Abre los `resource:` del concepto afectado y sus tests.
+5. Si el concepto contradice al código, **manda el código** y actualiza el
    concepto en el mismo cambio.
 
 # Parada obligatoria
