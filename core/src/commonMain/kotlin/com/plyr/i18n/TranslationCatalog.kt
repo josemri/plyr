@@ -92,7 +92,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "audio offline",
@@ -285,7 +284,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "offline audio",
@@ -455,7 +453,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "àudio offline",
@@ -625,7 +622,6 @@ object TranslationCatalog {
 
             // Playlist actions and dialogs
             "btn_share" to "<shr>",
-            "btn_nfc" to "<nfc>",
 
             // Offline storage
             "storage_title" to "オフライン音声",

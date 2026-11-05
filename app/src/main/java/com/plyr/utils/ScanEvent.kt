@@ -7,15 +7,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Evento global para comunicar resultados de escaneo NFC
- * Permite que cualquier componente observe cuando se escanea un NFC
+ * Evento global para comunicar resultados de escaneo (QR/NFC) entre componentes.
+ * Sustituye al antiguo NfcScanEvent.
  */
-object NfcScanEvent {
+object ScanEvent {
     private val _scanResult = MutableStateFlow<ScanResult?>(null)
     val scanResult: StateFlow<ScanResult?> = _scanResult.asStateFlow()
 
-    fun onNfcScanned(result: ScanResult) {
-        Logger.d("NfcScanEvent", "🏷️ NFC Scanned - source: ${result.source}, type: ${result.type}, id: ${result.id}")
+    fun onScanned(result: ScanResult) {
+        Logger.d("ScanEvent", "🏷️ Scanned - source: ${result.source}, type: ${result.type}, id: ${result.id}")
         _scanResult.value = result
     }
 
@@ -29,4 +29,3 @@ object NfcScanEvent {
         _scanResult.value = null
     }
 }
-

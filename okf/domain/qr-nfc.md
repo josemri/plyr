@@ -39,17 +39,16 @@ Errores históricos: B52 (se compartía
 compartía como vídeo). Por eso `ShareableItem.playlistOrigin` es obligatorio en
 la práctica para listas.
 
-# NFC
+# ScanEvent
 
-El tag NFC lleva el mismo payload que el QR (una URL). `NfcScanEvent` y
-`NfcPulse` son compartidos; la lectura real vive en `utils/NfcReader.kt`
-(Android). Un tag con `plyr_spotify:`/`plyr_youtube:` legacy se parsea con
-`UrlParser.parseScanText`.
+La comunicación entre el escaneo de QR y las pantallas se hace mediante
+`ScanEvent` (en `app/src/main/java/com/plyr/utils/ScanEvent.kt`), que expone
+`onScanned(result)`, `consumeResult()` y `clear()`. Un resultado de escaneo
+(`ScanResult`) se parsea con `UrlParser.parseScanText`.
 
 # Plataformas
 
-- Android: `ui/components/QRDialog.kt` (generar), `QrScannerDialog.kt` (leer),
-  `utils/NfcReader.kt`.
+- Android: `ui/components/QRDialog.kt` (generar), `QrScannerDialog.kt` (leer).
 - Escritorio: `qr/QrImages.kt`, `qr/QrShareDialog.kt`,
   `qr/RecommendationSender.kt`.
 

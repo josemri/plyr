@@ -5,8 +5,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.nfc.NfcAdapter
-import android.nfc.Tag
+
 import android.os.Bundle
 import android.os.IBinder
 import android.os.Build
@@ -35,13 +34,8 @@ import com.plyr.ui.FloatingMusicControls
 import com.plyr.ui.theme.PlyrTheme
 import com.plyr.utils.Config
 import com.plyr.utils.DataSync
-import com.plyr.utils.NfcTagEvent
-import com.plyr.utils.NfcReader
+
 import com.plyr.utils.LightSensorDetector
-import com.plyr.utils.UrlParser
-
-
-
 class MainActivity : ComponentActivity() {
     private var musicService: MusicService? = null
     private var lightSensorDetector: LightSensorDetector? = null
@@ -196,7 +190,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        NfcReader.startReading(this)
         if (Config.getTheme(this) == "auto") {
             lightSensorDetector?.start()
         }
@@ -204,7 +197,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
-        NfcReader.stopReading(this)
         lightSensorDetector?.stop()
     }
 
@@ -219,66 +211,4 @@ class MainActivity : ComponentActivity() {
         DataSync.flushOnStop(this)
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-
-        // Manejar NFC tag (existente)
-        handleNfcIntent(intent)
-
-        // Manejar NFC tag para lectura de URLs
-        handleNfcUrlRead(intent)
-    }
-
-    private fun handleNfcUrlRead(intent: Intent?) {
-        if (intent == null) return
-
-        // Si estamos en modo escritura, no procesar la lectura para navegación
-        // (pero el intent ya fue capturado, así que no se abrirá en el navegador)
-        if (NfcTagEvent.isInWriteMode()) {
-            android.util.Log.d("MainActivity", "🏷️ NFC Read skipped - Write mode active (tag captured for writing)")
-            return
-        }
-
-        val url = NfcReader.processNfcIntent(intent)
-        if (url != null) {
-            val urlType = UrlParser.getUrlType(url)
-            android.util.Log.d("MainActivity", "═══════════════════════════════════════")
-            android.util.Log.d("MainActivity", "🏷️ NFC URL READ SUCCESS!")
-            android.util.Log.d("MainActivity", "📍 URL: $url")
-            android.util.Log.d("MainActivity", "🎵 Type: $urlType")
-            android.util.Log.d("MainActivity", "═══════════════════════════════════════")
-
-            // Detener el modo de lectura después de leer exitosamente
-            NfcReader.stopReading(this)
-
-            // Obtener el resultado parseado y enviarlo al evento global
-            val scanResult = NfcReader.consumeScanResult()
-            if (scanResult != null) {
-                android.util.Log.d("MainActivity", "📤 Sending NFC result to SearchScreen - source: ${scanResult.source}, type: ${scanResult.type}, id: ${scanResult.id}")
-                com.plyr.utils.NfcScanEvent.onNfcScanned(scanResult)
-            }
-        }
-    }
-
-    private fun handleNfcIntent(intent: Intent?) {
-        if (intent?.action == NfcAdapter.ACTION_NDEF_DISCOVERED ||
-            intent?.action == NfcReader.tagDiscoveredAction ||
-            intent?.action == NfcAdapter.ACTION_TECH_DISCOVERED) {
-
-            val tag: Tag? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, Tag::class.java)
-            } else {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
-            }
-
-            if (tag != null) {
-                android.util.Log.d("MainActivity", "🏷️ NFC Tag detected in onNewIntent: $tag")
-                NfcTagEvent.onTagDetected(tag)
-            } else {
-                android.util.Log.w("MainActivity", "⚠️ NFC intent received but tag is null")
-            }
-        }
-    }
 }

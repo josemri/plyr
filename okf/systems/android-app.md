@@ -1,9 +1,9 @@
 ---
 type: System
 title: "App Android (:app)"
-description: "App Android de plyr. Compose, Room v8, Media3/ExoPlayer, SAF, NFC, CameraX y un servicio en primer plano. No importar nada de :desktop."
+description: "App Android de plyr. Compose, Room v8, Media3/ExoPlayer, SAF, CameraX y un servicio en primer plano. No importar nada de :desktop."
 resource: repo://app/src/main/java/com/plyr
-tags: [android, compose, room, media3, saf, nfc]
+tags: [android, compose, room, media3, saf]
 module: app
 generated: { by: human:josep, at: 2026-11-05T00:00:00Z }
 status: stable
@@ -21,7 +21,7 @@ sources:
 # Responsabilidades
 
 Todo lo específico de Android: UI Compose, persistencia Room, reproducción con
-Media3, servicio en primer plano, notificaciones, SAF, NFC y cámara para QR.
+Media3, servicio en primer plano, notificaciones, SAF y cámara para QR.
 
 # Configuración
 
@@ -40,7 +40,7 @@ Media3, servicio en primer plano, notificaciones, SAF, NFC y cámara para QR.
 | `receivers/` | Botones multimedia |
 | `ui/` | Pantallas Compose y componentes (Playlist, Search, Queue, Config, Home) |
 | `viewmodel/` | `PlayerViewModel`, `PlaylistViewModel`, `SearchViewModel`… |
-| `utils/` | SAF, NFC, backup, sync, config, i18n, descargas, update checker |
+| `utils/` | SAF, backup, sync, config, i18n, descargas, update checker |
 
 # Persistencia
 
@@ -63,7 +63,7 @@ La UI no crea reproductores. `PlaybackRequester` / `MusicService` mandan, y
 - No meter `android.*` en `:core`.
 - No leer preferencias desde la UI: usar `Config*`.
 - Los `Log.*` con URLs firmadas, cookies o rutas de usuario son un fallo.
-- Los tests de cámara/NFC/SAF van a `androidTest`, no a `test`.
+- Los tests de cámara/SAF van a `androidTest`, no a `test`.
 
 # Tests
 
