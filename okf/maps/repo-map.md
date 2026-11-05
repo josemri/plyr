@@ -75,8 +75,8 @@ código manda y el mapa se regenera.
 | compileSdk | `37` |
 | targetSdk | `36` |
 | minSdk | `24` |
-| versionCode | `13` |
-| versionName | `1.4.2` |
+| versionCode | `14` |
+| versionName | `1.4.3` |
 | Room version | `8` |
 | FORMAT_VERSION | `1` |
 

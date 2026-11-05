@@ -7,11 +7,17 @@ Uso:
 
 El mapa es la única parte del bundle que se genera automáticamente. No editar a
 mano: cambia el script o vuelve a ejecutarlo.
+
+`--check` no compara las líneas `versionCode` y `versionName`: las incrementa el
+workflow de release en `main` y, si no se ignoraran, cualquier PR abierto antes
+de una release fallaría por un cambio que no está en su rama. El resto de
+versiones y contratos sí se comprueban.
 """
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import re
 import sys
 from collections import Counter
@@ -231,10 +237,19 @@ def build_map(today: date) -> str:
     return "\n".join(parts)
 
 
+# `versionCode` y `versionName` los gestiona el workflow de release en `main`.
+# Un PR abierto antes de una release vería su mapa "desactualizado" solo por ese
+# bump, aunque su árbol no haya cambiado. El resto de la tabla de versiones sí
+# se compara: compileSdk, targetSdk, Room y FORMAT_VERSION son contratos.
+RELEASE_OWNED_PREFIXES = ("| versionCode |", "| versionName |")
+
+
 def normalize(text: str) -> str:
     lines = []
     for line in text.splitlines():
         if line.startswith("generated:") or line.startswith("stale_after:"):
+            continue
+        if line.startswith(RELEASE_OWNED_PREFIXES):
             continue
         lines.append(line)
     return "\n".join(lines).strip() + "\n"
@@ -251,11 +266,24 @@ def main() -> int:
         if not OUTPUT.is_file():
             print(f"okf-map: falta {OUTPUT.relative_to(ROOT)}; ejecuta ./run.sh map", file=sys.stderr)
             return 1
-        if normalize(read(OUTPUT)) != normalize(content):
+        current = normalize(read(OUTPUT))
+        expected = normalize(content)
+        if current != expected:
             print(
                 f"okf-map: {OUTPUT.relative_to(ROOT)} está desactualizado; ejecuta ./run.sh map",
                 file=sys.stderr,
             )
+            # El diff hace visible en CI qué parte del árbol cambió (LOC, tests,
+            # versiones de contrato...). Sin él, el fallo solo dice "desfasado".
+            diff = difflib.unified_diff(
+                current.splitlines(),
+                expected.splitlines(),
+                fromfile="mapa versionado",
+                tofile="mapa generado",
+                lineterm="",
+            )
+            for line in diff:
+                print(line, file=sys.stderr)
             return 1
         print("okf-map: mapa actualizado")
         return 0

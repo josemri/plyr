@@ -59,5 +59,7 @@ Manual (`workflow_dispatch`) con `bump: patch|minor|major`. Jobs:
 - Un job nuevo debe ser barato y no duplicar lo que ya hace `verify`.
 - Si cambias la matriz de tests, actualiza `scripts/ai/verify.sh` y este
   concepto en el mismo cambio.
-- `okf_map.py --check` falla si `okf/maps/repo-map.md` está desactualizado:
-  regenéralo con `./run.sh map`.
+- `okf_map.py --check` falla si `okf/maps/repo-map.md` está desactualizado e
+  imprime el diff; regenéralo con `./run.sh map`. Las filas `versionCode` y
+  `versionName` se ignoran en la comparación porque las incrementa el workflow
+  de release en `main`; el resto de la tabla de versiones sí se comprueba.

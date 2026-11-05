@@ -9,7 +9,7 @@ Todas se pueden ejecutar directamente o a través de `./run.sh`.
 | `verify.sh` | `fast`, `unit`, `analysis`, `full`, `changed`. Réplica de la matriz de CI. |
 | `guards.sh` | Imports prohibidos, prints, baselines, módulos fantasma, versión, tests ausentes. |
 | `okf_check.py` | Valida el bundle OKF: frontmatter, `type`, enlaces, `resource:`, tests, vigencia, `verified`. |
-| `okf_map.py` | Genera `okf/maps/repo-map.md`; `--check` falla si está desfasado. |
+| `okf_map.py` | Genera `okf/maps/repo-map.md`; `--check` falla si está desfasado e imprime el diff. Ignora `versionCode`/`versionName`, que gestiona la release. |
 | `context.py` | Imprime concepto + ficheros + tests + enlaces + backlinks. |
 
 ## Ejemplos
