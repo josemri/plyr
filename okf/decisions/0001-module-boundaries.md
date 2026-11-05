@@ -17,7 +17,7 @@ sources:
 # Decisión
 
 ```text
-:app      Android: UI, Room, Media3, SAF, NFC, CameraX
+:app      Android: UI, Room, Media3, SAF, CameraX
 :core     KMP Android+JVM: dominio, cola, red, sync, parsers, i18n
 :desktop  JVM 21: UI Compose Desktop, VLC, SQLDelight, MPRIS
 ```

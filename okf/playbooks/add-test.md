@@ -16,7 +16,7 @@ stale_after: 2027-05-05
 |---|---|
 | Solo Kotlin/stdlib | `core/src/commonTest` |
 | `java.*`, `org.json`, red, QR | `core/src/jvmTest` |
-| Android real (`Context`, `Uri`, cámara, NFC, SAF) | `app/src/androidTest` |
+| Android real (`Context`, `Uri`, cámara, SAF) | `app/src/androidTest` |
 | ViewModel/repositorio Android sin Android real | `app/src/test` |
 | Controlador o SQLDelight de escritorio | `desktop/src/test` |
 

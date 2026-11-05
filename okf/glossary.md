@@ -23,7 +23,7 @@ stale_after: 2027-05-05
 | **paridad** | Que Android y escritorio hagan lo mismo. |
 | **resolución** | Convertir una pista en un id/URL reproducible. |
 | **extracción** | Obtener la URL de audio de YouTube con NewPipe. |
-| **share** | Compartir pista/lista/app por QR, NFC o enlace. |
+| **share** | Compartir pista/lista/app por QR o enlace. |
 
 # IDs históricos `M*` y `B*`
 

@@ -45,7 +45,7 @@ tests: [scripts/ai/verify.sh, scripts/ai/guards.sh]
 | `core/src/jvmTest` | JVM, red, JSON, QR | JDK; red opcional |
 | `core/src/androidHostTest` | `commonMain` compila para Android | JDK + SDK |
 | `app/src/test` | ViewModels, DB mapping, utils | JDK |
-| `app/src/androidTest` | cámara, NFC, SAF reales | dispositivo |
+| `app/src/androidTest` | cámara, SAF reales | dispositivo |
 | `desktop/src/test` | controladores, VLC fake, SQLDelight | JDK; `libvlc` opcional |
 
 # Reglas

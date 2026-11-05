@@ -1,9 +1,9 @@
 ---
 type: Domain Concept
-title: "QR, NFC y share"
+title: "QR y share"
 description: "Generación/decodificación de QR compartida y política única de URLs. El id real de YouTube manda; una lista de Spotify no se comparte como vídeo."
 resource: repo://core/src/jvmSharedMain/kotlin/com/plyr/utils/QrCodec.kt
-tags: [qr, nfc, share, zxing, urls]
+tags: [qr, share, zxing, urls]
 module: core
 generated: { by: human:josep, at: 2026-11-05T00:00:00Z }
 status: stable

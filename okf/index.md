@@ -16,7 +16,7 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 
 ## Sistemas
 
-* [App Android (:app)](systems/android-app.md) — Compose, Room, Media3, SAF, NFC, CameraX.
+* [App Android (:app)](systems/android-app.md) — Compose, Room, Media3, SAF, CameraX.
 * [Núcleo compartido (:core)](systems/kmp-core.md) — source sets, jerarquía manual y qué va en cada uno.
 * [App de escritorio (:desktop)](systems/desktop-app.md) — Compose Desktop, VLCJ, SQLDelight, MPRIS.
 * [Entorno de build](systems/build-and-env.md) — `run.sh`, `/tmp/plyr-android`, JDK, SDK, VLC.
@@ -30,7 +30,7 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 * [Favoritos y tombstones](domain/library-and-likes.md) — identidad de pista, merge y borrados que no resucitan.
 * [Formato de sincronización](domain/sync-format.md) — `plyr-sync.zip` v1, export/import y compatibilidad.
 * [YouTube](domain/youtube.md) — NewPipe, extracción, caché de URLs y errores de reproducción.
-* [QR, NFC y share](domain/qr-nfc.md) — `QrCodec`, `ShareUrlPolicy`, payloads y prioridad de URLs.
+* [QR y share](domain/qr-nfc.md) — `QrCodec`, `ShareUrlPolicy`, payloads y prioridad de URLs.
 * [Importación de Spotify](domain/spotify-import.md) — parseo del embed y plan de búsqueda en YouTube.
 
 ## Decisiones

@@ -37,14 +37,14 @@ Detalle completo en [`okf/constraints/branch-policy.md`](okf/constraints/branch-
 ## Qué es el proyecto
 
 Reproductor de música minimalista: streaming de YouTube (NewPipe Extractor),
-listas locales, descargas offline, QR/NFC y sincronización por ZIP entre Android
+listas locales, descargas offline, QR y sincronización por ZIP entre Android
 y escritorio. GPL-3.0. Sin telemetría.
 
 ## Módulos reales
 
 | Módulo | Tipo | Código | Tests |
 |---|---|---|---|
-| `:app` | Android (Compose, Room, Media3, SAF, NFC, CameraX) | ~16.500 LOC en `app/src/main/java` | 13 unitarios + 4 instrumentados |
+| `:app` | Android (Compose, Room, Media3, SAF, CameraX) | ~16.500 LOC en `app/src/main/java` | 13 unitarios + 4 instrumentados |
 | `:core` | KMP Android + JVM | ~5.000 LOC en `core/src/commonMain` y `jvmSharedMain` | 24 `commonTest` + 14 `jvmTest` |
 | `:desktop` | JVM 21 puro (Compose Desktop, VLCJ, SQLDelight, MPRIS) | ~12.400 LOC en `desktop/src/main/kotlin` | 51 clases de test |
 
@@ -118,7 +118,7 @@ dentro del repo. `./run.sh clean` lo borra.
   sin dispositivo y sin VLC real.
 - Tests que dependen de red usan `assumeTrue` y **se omiten**, no fallan. Un test
   omitido **no cuenta como pasado**: dilo en el PR.
-- Tests de dispositivo (`app/src/androidTest`) solo para cámara, NFC y SAF reales.
+- Tests de dispositivo (`app/src/androidTest`) solo para cámara y SAF reales.
 - Cada bug corregido debería dejar un test que falle antes del arreglo.
 
 ## Definition of Done
