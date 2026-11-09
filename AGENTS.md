@@ -89,8 +89,9 @@ dentro del repo. `./run.sh clean` lo borra.
 7. **No toques `build/`, `.gradle/`, `.kotlin/` ni código generado.**
 8. **No cambies `versionCode`/`versionName`** salvo tarea de release explícita;
    la única fuente de verdad es `app/build.gradle.kts`.
-9. **`android.newDsl=false` y `android.builtInKotlin=false` son deliberados.**
-   No los "limpies" sin una rama aparte y `./gradlew help` verde.
+9. **La migración a built-in Kotlin y al DSL nuevo de AGP ya está hecha.**
+   No vuelvas a `android.newDsl=false` / `android.builtInKotlin=false` ni reintroduzcas
+   `org.jetbrains.kotlin.android` sin una rama aparte y `./gradlew help` verde.
 10. **Nada de secretos en el repo.** `local.properties` y `keystore.properties`
     están ignorados; no los imprimas ni los commitees.
 11. **No inventes verificación.** En `okf/`, `generated.by` dice quién escribió
