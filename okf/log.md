@@ -3,6 +3,18 @@
 Formato: fecha ISO descendente, una entrada por cambio relevante. No borres
 entradas antiguas: el historial sirve para saber si un concepto sigue vigente.
 
+## 2026-11-09
+
+* **Migrado**: build a AGP built-in Kotlin y DSL nuevo (`android.builtInKotlin=true`,
+  `android.newDsl=true`); eliminado el plugin `org.jetbrains.kotlin.android` de `:app`
+  y del catálogo. Validado con `./gradlew help` y compilación.
+
+## 2026-11-09
+
+* **Migrado**: build a AGP built-in Kotlin y DSL nuevo (`android.builtInKotlin=true`,
+  `android.newDsl=true`); eliminado el plugin `org.jetbrains.kotlin.android` de `:app`
+  y del catálogo. Validado con `./gradlew help` y compilación.
+
 ## 2026-11-05
 
 * **Creación**: bundle OKF v0.2 inicial con restricciones, sistemas, dominio,
