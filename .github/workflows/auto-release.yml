@@ -322,7 +322,7 @@ jobs:
             platform: Linux x64
           - os: windows-latest
             platform: Windows x64
-          - os: macos-14
+          - os: macos-15
             platform: macOS Apple Silicon
           - os: macos-15-intel
             platform: macOS Intel
