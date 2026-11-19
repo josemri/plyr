@@ -65,6 +65,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private var _player: AudioPlayer? = null
+    // Indica si el ViewModel creó el reproductor (fallback) y por tanto debe
+    // liberarlo en onCleared. Si viene del servicio, el servicio es el dueño.
+    private var ownsPlayer: Boolean = false
 
     /** Reproductor en curso, o `null` si aún no se ha inicializado. */
     val audioPlayer: AudioPlayer? get() = _player
@@ -198,7 +201,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         if (_player == null) {
             queueRepeatMode = Config.getRepeatMode(getApplication())
             _player = buildPlayer()
+            ownsPlayer = true
         }
+    }
+
+    /**
+     * Usa el reproductor propiedad del servicio en lugar de crear uno propio.
+     * Llamado cuando la Activity se enlaza al servicio (paso 1 del refactor).
+     */
+    fun attachServiceAudioPlayer(player: AudioPlayer) {
+        if (_player === player) return
+        // Si ya había un reproductor propio (fallback), se libera.
+        if (ownsPlayer) {
+            _player?.release()
+            ownsPlayer = false
+        }
+        _player = player
+        player.setListener(playerListener)
+        onMediaSessionUpdate?.invoke(player)
     }
 
     /**
@@ -260,8 +280,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     override fun onCleared() {
         prefetchJob?.cancel()
         prefetchJob = null
-        _player?.release()
+        if (ownsPlayer) {
+            _player?.release()
+        }
         _player = null
+        ownsPlayer = false
         // No se llama a super.onCleared(): la implementación base está vacía
         // (lint EmptySuperCall) y aquí no queda nada que liberar en el padre.
     }

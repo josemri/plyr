@@ -47,9 +47,10 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             musicService = (service as MusicService.MusicBinder).getService()
             val viewModel = (application as PlyrApp).playerViewModel
-            viewModel.onMediaSessionUpdate = { player ->
-                musicService?.setupMediaSession(player, { viewModel.hasNextInQueue })
-            }
+            // El servicio es ahora dueño del reproductor (paso 1 del refactor):
+            // se reutiliza en lugar de crear uno en el ViewModel.
+            musicService?.audioPlayer?.let { viewModel.attachServiceAudioPlayer(it) }
+            musicService?.setupMediaSession { viewModel.hasNextInQueue }
             // Los botones de la notificación piden el salto a la cola de la app,
             // no al reproductor: este solo ve su ventana de pistas (B49).
             musicService?.onSkipRequest = { backwards ->

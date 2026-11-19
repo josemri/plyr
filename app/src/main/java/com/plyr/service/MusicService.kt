@@ -20,11 +20,20 @@ import com.plyr.MainActivity
 import com.plyr.R
 import com.plyr.player.AudioPlayer
 import com.plyr.player.ExoAudioPlayer
+import com.plyr.utils.Config
 
 class MusicService : Service() {
     private val CHANNEL_ID = "plyr_playback"
     private val NOTIFICATION_ID = 1
     private var mediaSession: MediaSession? = null
+
+    /**
+     * Reproductor propiedad del servicio (primer paso del refactor
+     * "MusicService posee el reproductor"). La Activity/ViewModel pueden usarlo
+     * en lugar de instanciar el suyo; si no se ha enlazado aún, queda `null`.
+     */
+    var audioPlayer: AudioPlayer? = null
+        private set
 
     /**
      * Último estado visible pintado, para no reconstruir la notificación cuando
@@ -61,10 +70,17 @@ class MusicService : Service() {
                 .setName("Reproducción")
                 .build()
         )
+        // El servicio pasa a ser dueño del reproductor (paso 1 del refactor).
+        // Se crea aquí para que sobreviva a la Activity y a Android Auto.
+        audioPlayer = ExoAudioPlayer(
+            context = this,
+            repeatOne = Config.getRepeatMode(this) == Config.REPEAT_MODE_ONE,
+        )
     }
 
     inner class MusicBinder : Binder() {
         fun getService() = this@MusicService
+        fun getAudioPlayer(): AudioPlayer? = this@MusicService.audioPlayer
     }
 
     override fun onBind(intent: Intent): IBinder = MusicBinder()
@@ -93,9 +109,10 @@ class MusicService : Service() {
     private fun appName(): String = getString(R.string.app_name)
 
     @OptIn(UnstableApi::class)
-    fun setupMediaSession(audioPlayer: AudioPlayer, hasNextInQueue: () -> Boolean) {
+    fun setupMediaSession(hasNextInQueue: () -> Boolean) {
         // La MediaSession es intrínsecamente de media3: aquí es donde el
         // reproductor neutral se materializa en su `ExoPlayer` de Android.
+        val audioPlayer = this.audioPlayer ?: return
         val player = (audioPlayer as? ExoAudioPlayer)?.player ?: return
         if (mediaSession != null) {
             refreshNotification(player, NotificationEvent.ITEM_TRANSITION)
@@ -249,6 +266,9 @@ class MusicService : Service() {
 
     override fun onDestroy() {
         mediaSession?.release()
+        mediaSession = null
+        audioPlayer?.release()
+        audioPlayer = null
         super.onDestroy()
     }
 }
