@@ -1,7 +1,20 @@
 # Registro de cambios del bundle
 
+## 2026-11-24
+
+* **Actualizado**: política de ramas/pushes para permitir al agente hacer push,
+  PR, merge y cierre de PRs con permiso explícito del usuario, y para exigir
+  preguntar el tipo de auto-release (`skip`/`patch`/`minor`/`major`) antes de
+  crear un PR.
+
 Formato: fecha ISO descendente, una entrada por cambio relevante. No borres
 entradas antiguas: el historial sirve para saber si un concepto sigue vigente.
+
+## 2026-11-10
+
+* **Actualizado**: Gradle wrapper 9.8.2 → 9.9.0, AGP 9.5.0 → 9.5.1 y KSP 2.3.12 → 2.3.13.
+  Se mantienen sin cambio NewPipe v0.26.5 (requiere prueba de reproducción real) y
+  `targetSdk` 36 (requiere prueba en dispositivo).
 
 ## 2026-11-09
 

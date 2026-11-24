@@ -56,9 +56,26 @@ jobs:
         # built-in Kotlin a medias), falla aquí en segundos con el error real,
         # antes de comprobar secretos, decodificar el keystore o lanzar los
         # cinco builds de la release.
+        #
+        # La resolución de plugins depende de la red del runner y, a veces, de
+        # una caché de Gradle obsoleta: un fallo transitorio (404/timeout en el
+        # portal de plugins) no debe abortar toda la release. Se reintenta con
+        # `--refresh-dependencies` para forzar una resolución limpia.
         run: |
           chmod +x ./gradlew
-          ./gradlew help --no-daemon --stacktrace
+          for attempt in 1 2 3; do
+            echo "::group::Validate Gradle configuration (attempt $attempt/3)"
+            if ./gradlew help --no-daemon --stacktrace --refresh-dependencies; then
+              echo "::endgroup::"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "::warning::La validación de Gradle falló en el intento $attempt."
+            if [ "$attempt" -lt 3 ]; then
+              sleep 15
+            fi
+          done
+          exit 1
 
       # `git config` ya no hace falta: este job no hace commits (ver el aviso más
       # abajo sobre el bump de versión).

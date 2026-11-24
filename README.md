@@ -127,7 +127,7 @@ CAMERA                    # QR code scanning (optional hardware)
   - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; lower priority than the web port)
 - [ ] **Tests**
   - [ ] Run the instrumented tests on a device (`./run.sh test device`): QrCode, DataImporter
-- [ ] **Build hygiene** — remove compiler warnings and migrate deprecated Gradle, AGP and Kotlin plugin APIs; keep modules and dependencies up to date
+- [x] **Build hygiene** — remove compiler warnings and migrate deprecated Gradle, AGP and Kotlin plugin APIs; keep modules and dependencies up to date
 
 ## license
 

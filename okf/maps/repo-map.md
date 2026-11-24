@@ -24,7 +24,7 @@ código manda y el mapa se regenera.
 
 | Área | Ficheros `.kt` | Líneas |
 |---|---|---|
-| `app/src/main` | 75 | 15910 |
+| `app/src/main` | 76 | 16159 |
 | `app/src/test` | 13 | 1571 |
 | `core/src/commonMain` | 31 | 2496 |
 | `core/src/jvmSharedMain` | 15 | 2465 |
@@ -48,7 +48,7 @@ código manda y el mapa se regenera.
 | Fichero | Líneas |
 |---|---|
 | `app/src/main/java/com/plyr/ui/PlaylistScreen.kt` | 1813 |
-| `app/src/main/java/com/plyr/viewmodel/PlayerViewModel.kt` | 1018 |
+| `app/src/main/java/com/plyr/viewmodel/PlayerViewModel.kt` | 1041 |
 | `app/src/main/java/com/plyr/ui/components/SongListItem.kt` | 986 |
 | `desktop/src/main/kotlin/com/plyr/desktop/player/PlayerController.kt` | 891 |
 | `app/src/main/java/com/plyr/ui/FloatingMusicControls.kt` | 660 |
@@ -67,16 +67,16 @@ código manda y el mapa se regenera.
 
 | Clave | Valor |
 |---|---|
-| Gradle | `9.8.2` |
-| AGP | `9.5.0` |
+| Gradle | `9.9.0` |
+| AGP | `9.5.1` |
 | Kotlin | `2.4.21` |
 | Compose Multiplatform | `1.12.2` |
 | Java toolchain | `21` |
 | compileSdk | `37` |
 | targetSdk | `36` |
 | minSdk | `24` |
-| versionCode | `17` |
-| versionName | `1.6.0` |
+| versionCode | `20` |
+| versionName | `1.6.3` |
 | Room version | `8` |
 | FORMAT_VERSION | `1` |
 
