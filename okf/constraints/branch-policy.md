@@ -55,6 +55,9 @@ Un PR = una rama = un cambio coherente. No mezcles tareas no relacionadas.
    auto-release, y mergea/cierra cuando todo esté verde. Sin permiso, deja la
    rama lista y entrega el resumen para que el usuario haga el push/PR/merge.
 7. Entrega un resumen con rama, commits, PR y estado de CI/auto-release.
+8. Tras un merge exitoso: **borra la rama** (local y remota) una vez que CI y,
+   si hubo bump de versión, el auto-release terminen con éxito. Si el
+   auto-release falla, conserva la rama para investigar.
 
 Si al empezar hay cambios sin commitear que no ha creado el agente, **para y
 pregunta**. No uses `git stash` para esconder trabajo ajeno.

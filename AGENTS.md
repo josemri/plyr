@@ -26,6 +26,9 @@ en `main`.
 - Con **permiso explícito del usuario**, el agente también puede hacer **push**,
   crear **PRs**, **mergear** en `main` y **cerrar PRs**. Sin permiso, el
   push/PR/merge son del usuario.
+- Tras mergear un PR, el agente **borra la rama** (local y remota) una vez
+  que CI y, si hubo bump de versión, el **auto-release** terminan con éxito.
+  Si el auto-release falla, se conserva la rama para investigar.
 - En `main`, el agente **nunca** hace `git stash`, `git commit`, `git merge` ni
   `git push` salvo permiso explícito para mergear; aun así evita `git stash`.
 - **Antes de crear un PR, el agente pregunta al usuario el tipo de auto-release**

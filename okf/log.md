@@ -2,6 +2,9 @@
 
 ## 2026-11-24
 
+* **Actualizado**: política de ramas/pushes para añadir borrado de rama post-merge
+  (local y remota) tras CI/auto-release exitosos.
+
 * **Actualizado**: roadmap de Android Auto reflejado en README (descriptor, servicio de
   biblioteca y reproducción implementados; queda validación en dispositivo).
 
