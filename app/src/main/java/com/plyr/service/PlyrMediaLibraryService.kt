@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.session.LibraryResult
@@ -47,7 +48,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
     override fun onCreate() {
         super.onCreate()
         Intent(this, MusicService::class.java).also {
-            startForegroundService(it)
+            ContextCompat.startForegroundService(this@PlyrMediaLibraryService, it)
             bindService(it, connection, BIND_AUTO_CREATE)
         }
     }
