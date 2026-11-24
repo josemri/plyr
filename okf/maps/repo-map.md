@@ -24,7 +24,7 @@ código manda y el mapa se regenera.
 
 | Área | Ficheros `.kt` | Líneas |
 |---|---|---|
-| `app/src/main` | 76 | 16156 |
+| `app/src/main` | 76 | 16158 |
 | `app/src/test` | 13 | 1571 |
 | `core/src/commonMain` | 31 | 2496 |
 | `core/src/jvmSharedMain` | 15 | 2465 |

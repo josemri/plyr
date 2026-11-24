@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import androidx.annotation.SuppressLint
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -164,6 +165,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
         }
 
         @OptIn(UnstableApi::class)
+        @SuppressLint("UnsafeOptInUsageError")
         override fun onSetMediaItems(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
