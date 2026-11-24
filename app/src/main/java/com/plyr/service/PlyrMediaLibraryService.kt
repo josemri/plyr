@@ -14,27 +14,30 @@ import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import com.plyr.player.AudioPlayer
+import com.plyr.database.PlaylistLocalRepository
+import kotlinx.coroutines.runBlocking
 
 /**
  * Servicio de biblioteca multimedia para Android Auto.
  *
- * No crea su propio reproductor: se enlaza al [MusicService], que es el dueño
- * del `ExoPlayer` (pasos 1 y 2 del refactor). Así Android Auto controla el
- * mismo reproductor que la app y la notificación.
+ * Se enlaza al [MusicService] (dueño del reproductor) y expone un árbol
+ * navegable con las listas y pistas locales. La reproducción se delega al
+ * reproductor compartido (pasos 1-3 del refactor).
  */
 class PlyrMediaLibraryService : MediaLibraryService() {
 
     private var musicService: MusicService? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
 
+    private val repository by lazy { PlaylistLocalRepository(this) }
+
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             val service = (binder as? MusicService.MusicBinder)?.getService() ?: return
             musicService = service
-            val audioPlayer = service.audioPlayer ?: return
+            val player = service.audioPlayer?.let { (it as? com.plyr.player.ExoAudioPlayer)?.player } ?: return
             if (mediaLibrarySession == null) {
-                mediaLibrarySession = MediaLibrarySession.Builder(this@PlyrMediaLibraryService, audioPlayerToPlayer(audioPlayer), LibraryCallback()).build()
+                mediaLibrarySession = MediaLibrarySession.Builder(this@PlyrMediaLibraryService, player, LibraryCallback()).build()
             }
         }
 
@@ -45,7 +48,6 @@ class PlyrMediaLibraryService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
-        // Arranca y enlaza el servicio dueño del reproductor.
         Intent(this, MusicService::class.java).also {
             startForegroundService(it)
             bindService(it, connection, BIND_AUTO_CREATE)
@@ -63,13 +65,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
         super.onDestroy()
     }
 
-    private fun audioPlayerToPlayer(audioPlayer: AudioPlayer): androidx.media3.common.Player {
-        // El AudioPlayer de Android expone su ExoPlayer subyacente.
-        return (audioPlayer as? com.plyr.player.ExoAudioPlayer)?.player
-            ?: throw IllegalStateException("AudioPlayer no es ExoAudioPlayer")
-    }
-
-    private class LibraryCallback : MediaLibrarySession.Callback {
+    private inner class LibraryCallback : MediaLibrarySession.Callback {
         override fun onGetLibraryRoot(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
@@ -81,6 +77,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
                     MediaMetadata.Builder()
                         .setIsBrowsable(true)
                         .setIsPlayable(false)
+                        .setTitle("plyr")
                         .build()
                 )
                 .build()
@@ -95,7 +92,57 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?
         ): ListenableFuture<LibraryResult<com.google.common.collect.ImmutableList<MediaItem>>> {
-            return Futures.immediateFuture(LibraryResult.ofItemList(emptyList(), params))
+            val items = runBlocking {
+                when (parentId) {
+                    ROOT_ID -> listOf(
+                        MediaItem.Builder()
+                            .setMediaId(PLAYLISTS_NODE)
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setIsBrowsable(true)
+                                    .setIsPlayable(false)
+                                    .setTitle("Listas")
+                                    .build()
+                            )
+                            .build()
+                    )
+                    PLAYLISTS_NODE -> {
+                        val repo = PlaylistLocalRepository(this@PlyrMediaLibraryService)
+                        repo.getAllPlaylists().map { pl ->
+                            MediaItem.Builder()
+                                .setMediaId("pl_${pl.remoteId}")
+                                .setMediaMetadata(
+                                    MediaMetadata.Builder()
+                                        .setIsBrowsable(true)
+                                        .setIsPlayable(false)
+                                        .setTitle(pl.name)
+                                        .build()
+                                )
+                                .build()
+                        }
+                    }
+                    else -> {
+                        if (parentId.startsWith("pl_")) {
+                            val playlistId = parentId.removePrefix("pl_")
+                            val repo = PlaylistLocalRepository(this@PlyrMediaLibraryService)
+                            repo.getTracksByPlaylistSync(playlistId).map { tr ->
+                                MediaItem.Builder()
+                                    .setMediaId("tr_${tr.id}")
+                                    .setMediaMetadata(
+                                        MediaMetadata.Builder()
+                                            .setIsBrowsable(false)
+                                            .setIsPlayable(true)
+                                            .setTitle(tr.name)
+                                            .setArtist(tr.artists)
+                                            .build()
+                                    )
+                                    .build()
+                            }
+                        } else emptyList()
+                    }
+                }
+            }
+            return Futures.immediateFuture(LibraryResult.ofItemList(items, params))
         }
 
         override fun onGetItem(
@@ -109,5 +156,6 @@ class PlyrMediaLibraryService : MediaLibraryService() {
 
     companion object {
         const val ROOT_ID = "root"
+        const val PLAYLISTS_NODE = "playlists"
     }
 }
