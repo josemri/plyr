@@ -24,7 +24,7 @@ código manda y el mapa se regenera.
 
 | Área | Ficheros `.kt` | Líneas |
 |---|---|---|
-| `app/src/main` | 75 | 15956 |
+| `app/src/main` | 76 | 16155 |
 | `app/src/test` | 13 | 1571 |
 | `core/src/commonMain` | 31 | 2496 |
 | `core/src/jvmSharedMain` | 15 | 2465 |
@@ -75,8 +75,8 @@ código manda y el mapa se regenera.
 | compileSdk | `37` |
 | targetSdk | `36` |
 | minSdk | `24` |
-| versionCode | `18` |
-| versionName | `1.6.1` |
+| versionCode | `19` |
+| versionName | `1.6.2` |
 | Room version | `8` |
 | FORMAT_VERSION | `1` |
 

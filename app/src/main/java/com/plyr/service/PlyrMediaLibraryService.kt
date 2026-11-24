@@ -1,7 +1,6 @@
 package com.plyr.service
 
 import android.content.ComponentName
-import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
@@ -29,8 +28,6 @@ class PlyrMediaLibraryService : MediaLibraryService() {
 
     private var musicService: MusicService? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
-
-    private val repository by lazy { PlaylistLocalRepository(this) }
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
