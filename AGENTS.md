@@ -23,10 +23,13 @@ en `main`.
 - **Toda implementación nueva** sale de `main` en una rama nueva.
 - **Todo fix** va en una rama propia; nunca se corrige directamente en `main`.
 - En la rama de trabajo el agente **puede hacer commits**.
-- En la rama de trabajo el agente **nunca hace push**, ni crea el PR, ni hace
-  merge. El push y el PR son del usuario.
-- En `main` el agente **nunca** hace `git stash`, `git commit`, `git merge` ni
-  `git push`. De `main` se ocupa el usuario.
+- Con **permiso explícito del usuario**, el agente también puede hacer **push**,
+  crear **PRs**, **mergear** en `main` y **cerrar PRs**. Sin permiso, el
+  push/PR/merge son del usuario.
+- En `main`, el agente **nunca** hace `git stash`, `git commit`, `git merge` ni
+  `git push` salvo permiso explícito para mergear; aun así evita `git stash`.
+- **Antes de crear un PR, el agente pregunta al usuario el tipo de auto-release**
+  (`skip`, `patch`, `minor` o `major`) y aplica la etiqueta `release:<tipo>`.
 - Cambiar a `main` para leer o comprobar estado sí está permitido, con el árbol
   limpio y sin modificar nada.
 

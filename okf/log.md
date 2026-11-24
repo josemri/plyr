@@ -1,5 +1,12 @@
 # Registro de cambios del bundle
 
+## 2026-11-24
+
+* **Actualizado**: política de ramas/pushes para permitir al agente hacer push,
+  PR, merge y cierre de PRs con permiso explícito del usuario, y para exigir
+  preguntar el tipo de auto-release (`skip`/`patch`/`minor`/`major`) antes de
+  crear un PR.
+
 Formato: fecha ISO descendente, una entrada por cambio relevante. No borres
 entradas antiguas: el historial sirve para saber si un concepto sigue vigente.
 
