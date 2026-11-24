@@ -12,6 +12,7 @@ import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionError
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.plyr.database.PlaylistLocalRepository
@@ -149,7 +150,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             browser: MediaSession.ControllerInfo,
             mediaId: String
         ): ListenableFuture<LibraryResult<MediaItem>> {
-            return Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
+            return Futures.immediateFuture(LibraryResult.ofError(SessionError.ERROR_BAD_VALUE))
         }
 
         private suspend fun findTrack(trackId: String): com.plyr.database.TrackEntity? {
