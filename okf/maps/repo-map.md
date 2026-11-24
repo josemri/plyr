@@ -5,9 +5,9 @@ description: Estadísticas generadas desde el árbol real (módulos, source sets
 resource: repo://.
 tags: [mapa, generado, estadisticas]
 module: repo
-generated: { by: tool:okf-map/1.0, at: 2026-11-10T00:00:00Z }
+generated: { by: tool:okf-map/1.0, at: 2026-11-24T00:00:00Z }
 status: stable
-stale_after: 2027-05-09
+stale_after: 2027-05-23
 ---
 
 # Cómo se genera
@@ -24,7 +24,7 @@ código manda y el mapa se regenera.
 
 | Área | Ficheros `.kt` | Líneas |
 |---|---|---|
-| `app/src/main` | 75 | 15910 |
+| `app/src/main` | 75 | 15956 |
 | `app/src/test` | 13 | 1571 |
 | `core/src/commonMain` | 31 | 2496 |
 | `core/src/jvmSharedMain` | 15 | 2465 |
@@ -48,7 +48,7 @@ código manda y el mapa se regenera.
 | Fichero | Líneas |
 |---|---|
 | `app/src/main/java/com/plyr/ui/PlaylistScreen.kt` | 1813 |
-| `app/src/main/java/com/plyr/viewmodel/PlayerViewModel.kt` | 1018 |
+| `app/src/main/java/com/plyr/viewmodel/PlayerViewModel.kt` | 1041 |
 | `app/src/main/java/com/plyr/ui/components/SongListItem.kt` | 986 |
 | `desktop/src/main/kotlin/com/plyr/desktop/player/PlayerController.kt` | 891 |
 | `app/src/main/java/com/plyr/ui/FloatingMusicControls.kt` | 660 |
@@ -75,8 +75,8 @@ código manda y el mapa se regenera.
 | compileSdk | `37` |
 | targetSdk | `36` |
 | minSdk | `24` |
-| versionCode | `16` |
-| versionName | `1.5.0` |
+| versionCode | `18` |
+| versionName | `1.6.1` |
 | Room version | `8` |
 | FORMAT_VERSION | `1` |
 

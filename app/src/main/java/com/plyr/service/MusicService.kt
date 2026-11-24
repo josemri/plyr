@@ -36,6 +36,17 @@ class MusicService : Service() {
         private set
 
     /**
+     * Proveedor de "hay siguiente en cola", usado por la MediaSession para pintar
+     * el botón >>. Lo aporta la capa de cola (ViewModel) al enlazarse.
+     */
+    var hasNextInQueueProvider: () -> Boolean = { false }
+        private set
+
+    fun setHasNextInQueueProvider(provider: () -> Boolean) {
+        hasNextInQueueProvider = provider
+    }
+
+    /**
      * Último estado visible pintado, para no reconstruir la notificación cuando
      * el evento no cambia nada de lo que se ve. La visibilidad de los botones de
      * la `MediaSession` **no** se guarda aquí: la decide el `PlaybackState` a
@@ -76,6 +87,9 @@ class MusicService : Service() {
             context = this,
             repeatOne = Config.getRepeatMode(this) == Config.REPEAT_MODE_ONE,
         )
+
+        // Paso 2: la MediaSession la crea el servicio, no la Activity.
+        ensureMediaSession()
     }
 
     inner class MusicBinder : Binder() {
@@ -110,21 +124,20 @@ class MusicService : Service() {
 
     @OptIn(UnstableApi::class)
     fun setupMediaSession(hasNextInQueue: () -> Boolean) {
-        // La MediaSession es intrínsecamente de media3: aquí es donde el
-        // reproductor neutral se materializa en su `ExoPlayer` de Android.
-        val audioPlayer = this.audioPlayer ?: return
+        // La MediaSession la crea el servicio (paso 2); este método solo
+        // actualiza el proveedor y asegura la sesión/notificación.
+        setHasNextInQueueProvider(hasNextInQueue)
+        ensureMediaSession()
         val player = (audioPlayer as? ExoAudioPlayer)?.player ?: return
-        if (mediaSession != null) {
-            refreshNotification(player, NotificationEvent.ITEM_TRANSITION)
-            return
-        }
+        refreshNotification(player, NotificationEvent.ITEM_TRANSITION)
+    }
 
-        // El `>>` lo pinta el sistema a partir de los comandos del reproductor,
-        // y la ventana de ExoPlayer solo ve un trozo de la cola: con ella sola
-        // el botón se escondía en cuanto la canción actual quedaba al final de
-        // la ventana (B57). La sesión envuelve al reproductor para decidir ese
-        // comando con la cola entera, que es la fuente de verdad (B49).
-        val session = MediaSession.Builder(this, QueueAwarePlayer(player, hasNextInQueue))
+    @OptIn(UnstableApi::class)
+    private fun ensureMediaSession() {
+        val player = (audioPlayer as? ExoAudioPlayer)?.player ?: return
+        if (mediaSession != null) return
+
+        mediaSession = MediaSession.Builder(this, QueueAwarePlayer(player) { hasNextInQueueProvider() })
             .setSessionActivity(
                 PendingIntent.getActivity(
                     this, 0,
@@ -133,22 +146,16 @@ class MusicService : Service() {
                 )
             )
             .setCallback(object : MediaSession.Callback {
-                // Media3 marca este callback como obsoleto, pero sigue siendo
-                // la vía para decidir el comando desde la cola completa. La
-                // anotación evita el warning hasta migrar al reemplazo.
                 @Suppress("OVERRIDE_DEPRECATION")
                 override fun onPlayerCommandRequest(
                     session: MediaSession,
                     controller: MediaSession.ControllerInfo,
                     playerCommand: Int,
                 ): Int = SessionSkipCommand.handle(playerCommand) { direction ->
-                    // La cola completa vive en la app; el reproductor solo ve su
-                    // ventana, y por eso su "anterior" no es el anterior (B49).
                     onSkipRequest?.invoke(direction == SessionSkipCommand.Direction.BACKWARDS)
                 }
             })
             .build()
-        mediaSession = session
 
         player.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
@@ -156,11 +163,6 @@ class MusicService : Service() {
             }
 
             override fun onTimelineChanged(timeline: androidx.media3.common.Timeline, reason: Int) {
-                // El recorte y el relleno de la ventana (`trimWindow` /
-                // `growWindow`) solo disparan esto. Sin escucharlos, la
-                // notificación se quedaba con el estado de antes del
-                // `addMediaItems` (B50). El `>>` de los controles del sistema
-                // no depende de aquí, sino del `PlaybackState` (B57).
                 refreshNotification(player, NotificationEvent.TIMELINE_CHANGED)
             }
         })

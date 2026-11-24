@@ -179,7 +179,7 @@ class MainActivity : ComponentActivity() {
         if (isFinishing) {
             // El MediaSession del servicio va a morir de verdad: desactivar el
             // callback para no dejar huecos de notificación (B46).
-            (application as PlyrApp).playerViewModel.onMediaSessionUpdate = null
+            // MediaSession la gestiona el servicio: no hay callback que limpiar.
             // Este lambda captura esta Activity. Si el servicio sobrevive, un
             // `<<` desde la notificación llegaría a una pantalla destruida (B49).
             musicService?.onSkipRequest = null

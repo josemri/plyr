@@ -90,7 +90,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentTrack = MutableLiveData<TrackEntity?>()
     val currentTrack: LiveData<TrackEntity?> = _currentTrack
 
-    var onMediaSessionUpdate: ((AudioPlayer) -> Unit)? = null
+
 
     // --- Estado autoritativo (hilo principal) ---
 
@@ -218,7 +218,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
         _player = player
         player.setListener(playerListener)
-        onMediaSessionUpdate?.invoke(player)
+        // MediaSession la gestiona ahora el servicio (paso 2 del refactor).
     }
 
     /**
@@ -261,7 +261,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // que ya no suena, así que se retira. Sin esto el mensaje se quedaba
             // pegado y los controles quedaban deshabilitados para siempre (B6).
             _error.publish(null)
-            _player?.let { onMediaSessionUpdate?.invoke(it) }
+            // MediaSession la gestiona ahora el servicio (paso 2 del refactor).
 
             // Transición automática: es el momento de reponer la ventana para
             // que la siguiente canción esté lista.
@@ -553,7 +553,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             player.prepare()
             player.play()
 
-            onMediaSessionUpdate?.invoke(player)
+            // MediaSession la gestiona ahora el servicio (paso 2 del refactor).
             growWindow()
             return true
         } catch (e: CancellationException) {
@@ -712,7 +712,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         player.setMediaItems(resolved.take(prefix).map { it.track }, 0)
         player.prepare()
         player.play()
-        onMediaSessionUpdate?.invoke(player)
+        // MediaSession la gestiona ahora el servicio (paso 2 del refactor).
         growWindow()
     }
 
