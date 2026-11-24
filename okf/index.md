@@ -56,3 +56,4 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 ## Propuestas (no implementadas)
 
 * [Port a navegador](proposals/web-port.md) — plan futuro; **no** es arquitectura actual.
+* [MusicService posee el reproductor](proposals/music-service-owns-player.md) — plan futuro para Android Auto y desacoplamiento.

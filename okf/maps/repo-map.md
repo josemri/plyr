@@ -5,9 +5,9 @@ description: Estadísticas generadas desde el árbol real (módulos, source sets
 resource: repo://.
 tags: [mapa, generado, estadisticas]
 module: repo
-generated: { by: tool:okf-map/1.0, at: 2026-11-05T00:00:00Z }
+generated: { by: tool:okf-map/1.0, at: 2026-11-24T00:00:00Z }
 status: stable
-stale_after: 2027-05-04
+stale_after: 2027-05-23
 ---
 
 # Cómo se genera
@@ -75,8 +75,8 @@ código manda y el mapa se regenera.
 | compileSdk | `37` |
 | targetSdk | `36` |
 | minSdk | `24` |
-| versionCode | `14` |
-| versionName | `1.4.3` |
+| versionCode | `17` |
+| versionName | `1.6.0` |
 | Room version | `8` |
 | FORMAT_VERSION | `1` |
 
@@ -90,7 +90,7 @@ código manda y el mapa se regenera.
 | Domain Concept | 6 |
 | Map | 1 |
 | Playbook | 4 |
-| Proposal | 1 |
+| Proposal | 2 |
 | Reference | 1 |
 | System | 6 |
 
