@@ -116,9 +116,9 @@ CAMERA                    # QR code scanning (optional hardware)
 
 - [ ] **Web port** — browser client with the server-side extractor and audio proxy described in [okf/proposals/web-port.md](okf/proposals/web-port.md).
 - [ ] **Android Auto** — support for the Android Auto interface
-  - [ ] Declare `automotive_app_desc.xml` and the automotive permissions
-  - [ ] Expose the library (playlists, queue) through the Media3 `MediaSession`
-  - [ ] Playback screen and controls in the head unit
+  - [x] Declare `automotive_app_desc.xml` and the automotive permissions
+  - [x] Expose the library (playlists, queue) through the Media3 `MediaSession`
+  - [ ] Playback screen and controls in the head unit (pendiente de validación en dispositivo/coche)
 - [ ] **Architecture** — untangle UI, network, DB and business logic
   - [ ] Cover `PlayerViewModel` orchestration (deferred: Robolectric, or extract a pure orchestrator with injected dependencies)
   - [x] Split `PlaylistScreen.kt` into a `PlaylistViewModel` + Compose state
