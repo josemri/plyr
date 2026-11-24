@@ -15,6 +15,7 @@ import androidx.media3.session.MediaSession
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.plyr.database.PlaylistLocalRepository
+import com.plyr.network.YouTubeManager
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -151,6 +152,44 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             mediaId: String
         ): ListenableFuture<LibraryResult<MediaItem>> {
             return Futures.immediateFuture(LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE))
+        }
+
+        private suspend fun findTrack(trackId: String): com.plyr.database.TrackEntity? {
+            val repo = PlaylistLocalRepository(this@PlyrMediaLibraryService)
+            for (pl in repo.getAllPlaylists()) {
+                val found = repo.getTracksByPlaylistSync(pl.remoteId).firstOrNull { it.id == trackId }
+                if (found != null) return found
+            }
+            return null
+        }
+
+        override fun onSetMediaItems(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: List<MediaItem>,
+            startIndex: Int,
+            startPositionMs: Long
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val future = com.google.common.util.concurrent.SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            runBlocking {
+                val resolved = mediaItems.map { item ->
+                    if (item.mediaId.startsWith("tr_")) {
+                        val trackId = item.mediaId.removePrefix("tr_")
+                        val track = findTrack(trackId)
+                        val videoId = track?.youtubeVideoId
+                        val url = videoId?.let { YouTubeManager.getAudioUrl(it) }
+                        if (url != null) {
+                            item.buildUpon().setUri(url).build()
+                        } else {
+                            item
+                        }
+                    } else {
+                        item
+                    }
+                }
+                future.set(MediaSession.MediaItemsWithStartPosition(resolved, startIndex, startPositionMs))
+            }
+            return future
         }
     }
 
