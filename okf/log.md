@@ -2,6 +2,9 @@
 
 ## 2026-11-24
 
+* **Actualizado**: roadmap de Android Auto reflejado en README (descriptor, servicio de
+  biblioteca y reproducción implementados; queda validación en dispositivo).
+
 * **Actualizado**: política de ramas/pushes para permitir al agente hacer push,
   PR, merge y cierre de PRs con permiso explícito del usuario, y para exigir
   preguntar el tipo de auto-release (`skip`/`patch`/`minor`/`major`) antes de
