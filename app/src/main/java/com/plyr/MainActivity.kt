@@ -47,9 +47,10 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             musicService = (service as MusicService.MusicBinder).getService()
             val viewModel = (application as PlyrApp).playerViewModel
-            viewModel.onMediaSessionUpdate = { player ->
-                musicService?.setupMediaSession(player, { viewModel.hasNextInQueue })
-            }
+            // El servicio es ahora dueño del reproductor (paso 1 del refactor):
+            // se reutiliza en lugar de crear uno en el ViewModel.
+            musicService?.audioPlayer?.let { viewModel.attachServiceAudioPlayer(it) }
+            musicService?.setupMediaSession { viewModel.hasNextInQueue }
             // Los botones de la notificación piden el salto a la cola de la app,
             // no al reproductor: este solo ve su ventana de pistas (B49).
             musicService?.onSkipRequest = { backwards ->
@@ -178,7 +179,7 @@ class MainActivity : ComponentActivity() {
         if (isFinishing) {
             // El MediaSession del servicio va a morir de verdad: desactivar el
             // callback para no dejar huecos de notificación (B46).
-            (application as PlyrApp).playerViewModel.onMediaSessionUpdate = null
+            // MediaSession la gestiona el servicio: no hay callback que limpiar.
             // Este lambda captura esta Activity. Si el servicio sobrevive, un
             // `<<` desde la notificación llegaría a una pantalla destruida (B49).
             musicService?.onSkipRequest = null
