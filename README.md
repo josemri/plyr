@@ -7,30 +7,7 @@
 [![Desktop](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-blue.svg)](https://github.com/josemri/plyr/releases)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4-purple.svg)](https://kotlinlang.org)
 
-Stream any song, build playlists, share them with a QR code, sync across devices. Terminal-inspired, runs on Android, Windows, Linux and macOS. Open source, no ads, no telemetry.
-
-## features
-
-- **YouTube streaming** — search and play any song (NewPipe Extractor).
-- **Local playlists** — create, edit and reorder them; import a playlist from a **Spotify URL**.
-- **Offline downloads** — download tracks and play them without a connection.
-- **Scan & share** — share a track or playlist as a QR code. On Android, QR codes can be scanned with the camera.
-- **Backup** — choose a folder once and the `plyr-sync.zip` inside keeps itself up to date; the same ZIP moves between Android and desktop.
-- **Desktop integration** — tray icon, MPRIS on Linux, keyboard shortcuts and update checker.
-- **Recommendations feed** — community playlist recommendations synchronized via Supabase.
-- **Multiplatform** — Android 7.0+, Windows, Linux (`.deb`, `.rpm`, `.AppImage`) and macOS (`.dmg`).
-- **run.sh** — one script to build, test, package and analyze the whole project.
-
-## install
-
-Download the installers from the [latest release](https://github.com/josemri/plyr/releases/latest):
-
-- **Android** — `plyr.apk` (Android 7.0+). Enable "Install from unknown sources" if needed.
-- **Windows** — `.msi`.
-- **macOS** — `.dmg` (Intel and Apple Silicon).
-- **Linux** — `.deb` (Debian/Ubuntu), `.rpm` (Fedora/openSUSE) or `.AppImage` (any distro, including Arch).
-
-Desktop installers bundle their own Java runtime. On Linux, playback uses the system `libvlc`; the `.deb` already declares that dependency.
+Stream any song, build playlists, share them with a QR code, sync across devices. Terminal-inspired, runs on Android, Windows, Linux and macOS. Open source, no ads, no telemetry. Features: YouTube streaming, local playlists, offline downloads, QR share, cross-device sync, desktop integration.
 
 ## android
 
@@ -48,86 +25,13 @@ Desktop installers bundle their own Java runtime. On Linux, playback uses the sy
   <img src="screenshots/search_screen_desktop.jpeg" width="270" />
 </div>
 
-## web
-
-Not available yet. The plan for the browser port — a Ktor server for YouTube extraction and audio proxying plus a Compose/Wasm client with browser storage — is specified in [okf/proposals/web-port.md](okf/proposals/web-port.md). Milestones H0–H7 are all pending. It is a **proposal**, not current architecture.
-
-## build from source
-
-`run.sh` needs JDK 21 (it downloads its own copy) and sets up the Android SDK and Gradle caches under `/tmp/plyr-android`:
-
-```bash
-./run.sh setup                  # instala el entorno en /tmp
-./run.sh build                  # APK debug de Android
-./run.sh build release          # APK release
-./run.sh run desktop            # compila y abre el escritorio
-./run.sh test                   # tests unitarios de Android + core (JVM + host Android)
-./run.sh test desktop           # tests de escritorio
-./run.sh test device            # tests instrumentados (requiere un móvil)
-./run.sh check                  # detekt + lint + cobertura
-```
-
-Desktop builds additionally need `libvlc`; `.rpm` packaging needs `rpmbuild`.
-
-## development with AI agents
-
-The repository is set up for agent-assisted work without duplicating context:
-
-- [`AGENTS.md`](AGENTS.md) — the executable contract: module boundaries,
-  invariants, test rules and definition of done. Module-specific files live in
-  [`app/AGENTS.md`](app/AGENTS.md), [`core/AGENTS.md`](core/AGENTS.md) and
-  [`desktop/AGENTS.md`](desktop/AGENTS.md).
-- [`okf/`](okf/index.md) — a curated OKF v0.2 knowledge bundle: systems, domain
-  concepts, decisions, playbooks and a generated repository map. Start at
-  [`okf/index.md`](okf/index.md).
-- [`.opencode/`](.opencode) — OpenCode commands (`/context`, `/verify`,
-  `/review`) and read-only `verifier`/`reviewer` subagents.
-- [`scripts/ai/`](scripts/ai/README.md) — the scripts behind the commands.
-
-Useful commands:
-
-```bash
-./run.sh doctor                 # JDK, SDK, adb, libvlc, Python, git
-./run.sh context domain/sync-format
-./run.sh verify fast            # configuration + affected module compile
-./run.sh verify unit            # all JVM/host tests
-./run.sh verify analysis        # detekt + lint
-./run.sh verify full            # replica of CI
-./run.sh guards                 # static repo rules
-./run.sh okf-check             # OKF bundle + generated map
-./run.sh map                    # regenerate okf/maps/repo-map.md
-```
-
-If `okf/` and the code disagree, **the code wins** and the concept must be
-updated in the same change. `okf/proposals/web-port.md` is a future proposal,
-not current architecture.
-
-## android permissions
-
-```xml
-INTERNET                  # Stream music and fetch metadata
-FOREGROUND_SERVICE        # Background playback
-FOREGROUND_SERVICE_MEDIA_PLAYBACK
-POST_NOTIFICATIONS        # Playback controls
-CAMERA                    # QR code scanning (optional hardware)
-```
-
 ## roadmap
 
-- [ ] **Web port** — browser client with the server-side extractor and audio proxy described in [okf/proposals/web-port.md](okf/proposals/web-port.md).
-- [ ] **Android Auto** — support for the Android Auto interface
-  - [x] Declare `automotive_app_desc.xml` and the automotive permissions
-  - [x] Expose the library (playlists, queue) through the Media3 `MediaSession`
-  - [ ] Playback screen and controls in the head unit (pendiente de validación en dispositivo/coche)
-- [ ] **Architecture** — untangle UI, network, DB and business logic
-  - [ ] Cover `PlayerViewModel` orchestration (deferred: Robolectric, or extract a pure orchestrator with injected dependencies)
-  - [x] Split `PlaylistScreen.kt` into a `PlaylistViewModel` + Compose state
-  - [x] Split `SearchScreen.kt` into a `SearchViewModel` + Compose state
-  - [x] Split `ConfigScreen.kt` into a `ConfigViewModel` + Compose state
-  - [ ] Make `MusicService` own the player instead of projecting onto the `PlayerViewModel`'s `ExoPlayer` (deferred: device-only-verifiable lifecycle change; lower priority than the web port)
-- [ ] **Tests**
-  - [ ] Run the instrumented tests on a device (`./run.sh test device`): QrCode, DataImporter
-- [x] **Build hygiene** — remove compiler warnings and migrate deprecated Gradle, AGP and Kotlin plugin APIs; keep modules and dependencies up to date
+- [ ] **Web port** — browser client (proposal in `okf/proposals/web-port.md`).
+- [ ] **Android Auto** — descriptor, library and playback implemented; pending device validation.
+- [ ] **Architecture** — `PlayerViewModel` orchestration and `MusicService` owning the player (partially done).
+- [ ] **Tests** — run instrumented tests on a device: QrCode, DataImporter.
+- [x] **Build hygiene** — compiler warnings removed, Gradle/AGP/Kotlin migrated.
 
 ## license
 
@@ -145,3 +49,5 @@ This project uses:
 <div align="center">
   <b>Made with ♫ by <a href="https://github.com/josemri">josemri</a></b>
 </div>
+EOF
+echo written
