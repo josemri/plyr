@@ -4,8 +4,8 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.annotation.SuppressLint
 import androidx.annotation.OptIn
-import androidx.annotation.SuppressLint
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
