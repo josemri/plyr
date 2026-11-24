@@ -75,8 +75,8 @@ código manda y el mapa se regenera.
 | compileSdk | `37` |
 | targetSdk | `36` |
 | minSdk | `24` |
-| versionCode | `19` |
-| versionName | `1.6.2` |
+| versionCode | `20` |
+| versionName | `1.6.3` |
 | Room version | `8` |
 | FORMAT_VERSION | `1` |
 
@@ -90,7 +90,7 @@ código manda y el mapa se regenera.
 | Domain Concept | 6 |
 | Map | 1 |
 | Playbook | 4 |
-| Proposal | 1 |
+| Proposal | 2 |
 | Reference | 1 |
 | System | 6 |
 
