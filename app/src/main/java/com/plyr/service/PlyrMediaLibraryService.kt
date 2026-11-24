@@ -11,6 +11,7 @@ import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionError
 import com.google.common.util.concurrent.Futures
@@ -162,6 +163,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             return null
         }
 
+        @OptIn(UnstableApi::class)
         override fun onSetMediaItems(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
