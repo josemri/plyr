@@ -2,6 +2,8 @@
 
 ## 2026-11-24
 
+* **Añadido**: propuesta `player-viewmodel-orchestrator.md` (plan para extraer orquestación de cola a `:core`).
+
 * **Actualizado**: política de ramas/pushes para añadir borrado de rama post-merge
   (local y remota) tras CI/auto-release exitosos.
 
