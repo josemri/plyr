@@ -5,9 +5,9 @@ description: Estadísticas generadas desde el árbol real (módulos, source sets
 resource: repo://.
 tags: [mapa, generado, estadisticas]
 module: repo
-generated: { by: tool:okf-map/1.0, at: 2026-11-24T00:00:00Z }
+generated: { by: tool:okf-map/1.0, at: 2026-11-25T00:00:00Z }
 status: stable
-stale_after: 2027-05-23
+stale_after: 2027-05-24
 ---
 
 # Cómo se genera
@@ -24,7 +24,7 @@ código manda y el mapa se regenera.
 
 | Área | Ficheros `.kt` | Líneas |
 |---|---|---|
-| `app/src/main` | 76 | 16159 |
+| `app/src/main` | 76 | 16170 |
 | `app/src/test` | 13 | 1571 |
 | `core/src/commonMain` | 31 | 2496 |
 | `core/src/jvmSharedMain` | 15 | 2465 |
