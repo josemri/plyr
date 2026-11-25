@@ -9,30 +9,37 @@ import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.LibraryParams
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionError
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import com.plyr.database.PlaylistLocalRepository
 import com.plyr.network.YouTubeManager
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Servicio de biblioteca multimedia para Android Auto.
  *
  * Se enlaza al [MusicService] (dueño del reproductor) y expone un árbol
  * navegable con las listas y pistas locales. La reproducción se delega al
- * reproductor compartido (pasos 1-3 del refactor).
+ * reproductor compartido. Las consultas a BD/red se hacen en un scope de IO
+ * para no bloquear el hilo del binder.
  */
 class PlyrMediaLibraryService : MediaLibraryService() {
 
     private var musicService: MusicService? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -61,6 +68,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
         mediaLibrarySession
 
     override fun onDestroy() {
+        serviceScope.cancel()
         try { unbindService(connection) } catch (_: Exception) { }
         musicService = null
         mediaLibrarySession?.release()
@@ -95,8 +103,9 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             pageSize: Int,
             params: LibraryParams?
         ): ListenableFuture<LibraryResult<com.google.common.collect.ImmutableList<MediaItem>>> {
-            val items = runBlocking {
-                when (parentId) {
+            val future = SettableFuture.create<LibraryResult<com.google.common.collect.ImmutableList<MediaItem>>>()
+            serviceScope.launch {
+                val items = when (parentId) {
                     ROOT_ID -> listOf(
                         MediaItem.Builder()
                             .setMediaId(PLAYLISTS_NODE)
@@ -144,8 +153,9 @@ class PlyrMediaLibraryService : MediaLibraryService() {
                         } else emptyList()
                     }
                 }
+                future.set(LibraryResult.ofItemList(items, params))
             }
-            return Futures.immediateFuture(LibraryResult.ofItemList(items, params))
+            return future
         }
 
         override fun onGetItem(
@@ -174,8 +184,8 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             startIndex: Int,
             startPositionMs: Long
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-            val future = com.google.common.util.concurrent.SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
-            runBlocking {
+            val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            serviceScope.launch {
                 val resolved = mediaItems.map { item ->
                     if (item.mediaId.startsWith("tr_")) {
                         val trackId = item.mediaId.removePrefix("tr_")
@@ -202,3 +212,5 @@ class PlyrMediaLibraryService : MediaLibraryService() {
         const val PLAYLISTS_NODE = "playlists"
     }
 }
+EOF
+echo written
