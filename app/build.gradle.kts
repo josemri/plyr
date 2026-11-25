@@ -41,8 +41,8 @@ android {
         // runtime (audio en segundo plano, NFC...) y necesita pruebas en
         // dispositivo, así que se hará en un hito aparte.
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.6.3"
+        versionCode = 21
+        versionName = "1.6.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
