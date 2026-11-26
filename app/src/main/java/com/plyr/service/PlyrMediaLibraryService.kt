@@ -1,12 +1,12 @@
 package com.plyr.service
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import android.annotation.SuppressLint
 import androidx.annotation.OptIn
+import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
@@ -66,7 +66,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
                 nm.createNotificationChannel(NotificationChannel(channelId, "plyr", NotificationManager.IMPORTANCE_LOW))
             }
         }
-        val notification = Notification.Builder(this, channelId)
+        val notification = NotificationCompat.Builder(this, channelId)
             .setContentTitle("plyr")
             .setContentText("Android Auto")
             .setSmallIcon(android.R.drawable.ic_media_play)
