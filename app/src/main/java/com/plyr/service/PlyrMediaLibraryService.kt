@@ -4,13 +4,9 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
-import android.content.ServiceConnection
 import android.os.Build
-import android.os.IBinder
 import android.annotation.SuppressLint
 import androidx.annotation.OptIn
-import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
@@ -42,6 +38,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    @Suppress("UnsafeCallOnNullableType")
     override fun onCreate() {
         super.onCreate()
         ensureForeground()
@@ -97,6 +94,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             return Futures.immediateFuture(LibraryResult.ofItem(root, params))
         }
 
+        @Suppress("LongMethod")
         override fun onGetChildren(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
@@ -176,6 +174,7 @@ class PlyrMediaLibraryService : MediaLibraryService() {
             return future
         }
 
+        @Suppress("LongMethod")
         override fun onGetItem(
             session: MediaLibrarySession,
             browser: MediaSession.ControllerInfo,
