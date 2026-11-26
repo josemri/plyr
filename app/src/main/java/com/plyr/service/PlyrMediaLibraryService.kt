@@ -1,10 +1,19 @@
 package com.plyr.service
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.IBinder
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import android.annotation.SuppressLint
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
@@ -40,16 +49,23 @@ class PlyrMediaLibraryService : MediaLibraryService() {
     private var musicService: MusicService? = null
     private var mediaLibrarySession: MediaLibrarySession? = null
 
+    private val sessionLatch = CountDownLatch(1)
+
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            val service = (binder as? MusicService.MusicBinder)?.getService() ?: return
+            Log.d(TAG, "onServiceConnected")
+            val service = (binder as? MusicService.MusicBinder)?.getService() ?: run { Log.w(TAG, "binder invalido"); return }
             musicService = service
-            val player = service.audioPlayer?.let { (it as? com.plyr.player.ExoAudioPlayer)?.player } ?: return
+            val player = service.audioPlayer?.let { (it as? com.plyr.player.ExoAudioPlayer)?.player } ?: run { Log.w(TAG, "player null"); return }
             if (mediaLibrarySession == null) {
-                mediaLibrarySession = MediaLibrarySession.Builder(this@PlyrMediaLibraryService, player, LibraryCallback()).build()
+                mediaLibrarySession = MediaLibrarySession.Builder(this@PlyrMediaLibraryService, player, LibraryCallback())
+                    .setId("plyr")
+                    .build()
+                Log.d(TAG, "session creada")
             }
+            sessionLatch.countDown()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
@@ -59,14 +75,36 @@ class PlyrMediaLibraryService : MediaLibraryService() {
 
     override fun onCreate() {
         super.onCreate()
+        ensureForeground()
         Intent(this, MusicService::class.java).also {
             ContextCompat.startForegroundService(this@PlyrMediaLibraryService, it)
             bindService(it, connection, BIND_AUTO_CREATE)
         }
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? =
-        mediaLibrarySession
+    private fun ensureForeground() {
+        val channelId = "plyr_auto"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (nm.getNotificationChannel(channelId) == null) {
+                nm.createNotificationChannel(NotificationChannel(channelId, "plyr", NotificationManager.IMPORTANCE_LOW))
+            }
+        }
+        val notification = Notification.Builder(this, channelId)
+            .setContentTitle("plyr")
+            .setContentText("Android Auto")
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .build()
+        startForeground(1, notification)
+    }
+
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
+        if (mediaLibrarySession == null) {
+            try { sessionLatch.await(2, TimeUnit.SECONDS) } catch (_: InterruptedException) { }
+        }
+        Log.d(TAG, "onGetSession session=${mediaLibrarySession != null}")
+        return mediaLibrarySession
+    }
 
     override fun onDestroy() {
         serviceScope.cancel()
@@ -106,7 +144,9 @@ class PlyrMediaLibraryService : MediaLibraryService() {
         ): ListenableFuture<LibraryResult<com.google.common.collect.ImmutableList<MediaItem>>> {
             val future = SettableFuture.create<LibraryResult<com.google.common.collect.ImmutableList<MediaItem>>>()
             serviceScope.launch {
-                val items = when (parentId) {
+                try {
+                    Log.d(TAG, "onGetChildren parentId=$parentId")
+                    val items = when (parentId) {
                     ROOT_ID -> listOf(
                         MediaItem.Builder()
                             .setMediaId(PLAYLISTS_NODE)
@@ -154,7 +194,11 @@ class PlyrMediaLibraryService : MediaLibraryService() {
                         } else emptyList()
                     }
                 }
-                future.set(LibraryResult.ofItemList(items, params))
+                    future.set(LibraryResult.ofItemList(items, params))
+                } catch (t: Throwable) {
+                    Log.e(TAG, "onGetChildren error parentId=$parentId", t)
+                    future.set(LibraryResult.ofError(SessionError.ERROR_UNKNOWN))
+                }
             }
             return future
         }
@@ -187,7 +231,9 @@ class PlyrMediaLibraryService : MediaLibraryService() {
         ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
             val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
             serviceScope.launch {
-                val resolved = mediaItems.map { item ->
+                try {
+                    Log.d(TAG, "onSetMediaItems count=${mediaItems.size}")
+                    val resolved = mediaItems.map { item ->
                     if (item.mediaId.startsWith("tr_")) {
                         val trackId = item.mediaId.removePrefix("tr_")
                         val track = findTrack(trackId)
@@ -202,7 +248,11 @@ class PlyrMediaLibraryService : MediaLibraryService() {
                         item
                     }
                 }
-                future.set(MediaSession.MediaItemsWithStartPosition(resolved, startIndex, startPositionMs))
+                    future.set(MediaSession.MediaItemsWithStartPosition(resolved, startIndex, startPositionMs))
+                } catch (t: Throwable) {
+                    Log.e(TAG, "onSetMediaItems error", t)
+                    future.setException(t)
+                }
             }
             return future
         }
@@ -211,5 +261,6 @@ class PlyrMediaLibraryService : MediaLibraryService() {
     companion object {
         const val ROOT_ID = "root"
         const val PLAYLISTS_NODE = "playlists"
+        private const val TAG = "PlyrMediaLib"
     }
 }
