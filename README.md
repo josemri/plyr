@@ -49,5 +49,3 @@ This project uses:
 <div align="center">
   <b>Made with ♫ by <a href="https://github.com/josemri">josemri</a></b>
 </div>
-EOF
-echo written

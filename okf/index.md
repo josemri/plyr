@@ -57,3 +57,4 @@ humanos y agentes. Abre solo los conceptos relevantes para tu tarea.
 
 * [Port a navegador](proposals/web-port.md) — plan futuro; **no** es arquitectura actual.
 * [MusicService posee el reproductor](proposals/music-service-owns-player.md) — plan futuro para Android Auto y desacoplamiento.
+* [Orquestador puro de PlayerViewModel](proposals/player-viewmodel-orchestrator.md) — plan futuro para tests de cola sin dispositivo.
